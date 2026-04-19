@@ -1,22 +1,16 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework></TargetFramework>
     <TargetFrameworks>net10.0-android;net10.0-ios</TargetFrameworks>
     <UseMaui>true</UseMaui>
     <SingleProject>true</SingleProject>
     <OutputType>Exe</OutputType>
     <Nullable>enable</Nullable>
-    <ApplicationId>com.companyname.cortexterminal.mobile</ApplicationId>
+    <ApplicationId>com.cortexterminal.mobile</ApplicationId>
   </PropertyGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\..\Shared\CortexTerminal.Contracts\CortexTerminal.Contracts.csproj" />
-  </ItemGroup>
   <ItemGroup>
     <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#512BD4" />
     <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#512BD4" BaseSize="128,128" />
     <MauiImage Include="Resources\Images\*" />
-    <MauiFont Include="Resources\Fonts\*" />
-    <MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
