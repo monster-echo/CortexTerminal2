@@ -4,3 +4,5 @@ var app = builder.Build();
 app.MapGet("/", () => Results.Ok(new { Name = "CortexTerminal.Gateway" }));
 
 app.Run();
+
+public partial class Program;
