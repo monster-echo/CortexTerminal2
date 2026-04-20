@@ -1,6 +1,9 @@
 using System.Text;
 using CortexTerminal.Contracts.Auth;
 using CortexTerminal.Contracts.Sessions;
+using CortexTerminal.Gateway.Hubs;
+using CortexTerminal.Gateway.Sessions;
+using CortexTerminal.Gateway.Workers;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 
@@ -26,6 +29,8 @@ builder.Services
 
 builder.Services.AddAuthorization();
 builder.Services.AddSignalR().AddMessagePackProtocol();
+builder.Services.AddSingleton<IWorkerRegistry, InMemoryWorkerRegistry>();
+builder.Services.AddSingleton<ISessionCoordinator, InMemorySessionCoordinator>();
 
 var app = builder.Build();
 
@@ -42,16 +47,22 @@ app.MapPost("/api/auth/device-flow", () =>
         ExpiresInSeconds: 900,
         PollIntervalSeconds: 5)));
 
-app.MapPost("/api/sessions", (CreateSessionRequest request) =>
+app.MapPost("/api/sessions", async (CreateSessionRequest request, ISessionCoordinator sessions, System.Security.Claims.ClaimsPrincipal user, CancellationToken cancellationToken) =>
 {
     if (!string.Equals(request.Runtime, "shell", StringComparison.Ordinal))
     {
         return Results.BadRequest("Only shell runtime is allowed in phase 1.");
     }
 
-    return Results.Json(CreateSessionResult.Failure("no-worker-available"),
-        statusCode: StatusCodes.Status503ServiceUnavailable);
+    var result = await sessions.CreateSessionAsync(user.Identity?.Name ?? "unknown", request, cancellationToken);
+    return result.IsSuccess
+        ? Results.Ok(result.Response)
+        : Results.Json(CreateSessionResult.Failure("no-worker-available"),
+            statusCode: StatusCodes.Status503ServiceUnavailable);
 }).RequireAuthorization();
+
+app.MapHub<TerminalHub>("/hubs/terminal");
+app.MapHub<WorkerHub>("/hubs/worker");
 
 app.Run();
 
