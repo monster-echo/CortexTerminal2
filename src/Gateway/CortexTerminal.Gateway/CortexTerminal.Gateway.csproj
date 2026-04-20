@@ -7,4 +7,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\Shared\CortexTerminal.Contracts\CortexTerminal.Contracts.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.6" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Protocols.MessagePack" Version="10.0.6" />
+  </ItemGroup>
 </Project>
