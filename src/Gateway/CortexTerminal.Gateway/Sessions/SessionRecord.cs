@@ -7,6 +7,8 @@ public sealed record SessionRecord(
     string WorkerConnectionId,
     int Columns,
     int Rows,
+    DateTimeOffset CreatedAtUtc,
+    DateTimeOffset LastActivityAtUtc,
     SessionAttachmentState AttachmentState = SessionAttachmentState.Attached,
     string? AttachedClientConnectionId = null,
     DateTimeOffset? LeaseExpiresAtUtc = null,
