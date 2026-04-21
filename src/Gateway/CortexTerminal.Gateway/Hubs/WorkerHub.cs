@@ -18,9 +18,17 @@ public sealed class WorkerHub(IWorkerRegistry workers, ISessionCoordinator sessi
 
     public async Task ForwardStdout(TerminalChunk chunk)
     {
-        replayCache.Append(new ReplayChunk(chunk.SessionId, chunk.Stream, chunk.Payload));
+        if (!sessions.TryGetSession(chunk.SessionId, out var session) ||
+            session.WorkerConnectionId != Context.ConnectionId)
+        {
+            return;
+        }
 
-        if (!sessions.TryGetSession(chunk.SessionId, out var session) || session.AttachedClientConnectionId is null)
+        await replayCache.AppendAsync(new ReplayChunk(chunk.SessionId, chunk.Stream, chunk.Payload), Context.ConnectionAborted);
+
+        if (session.AttachmentState != SessionAttachmentState.Attached ||
+            session.AttachedClientConnectionId is null ||
+            session.ReplayPending)
         {
             return;
         }
@@ -30,9 +38,17 @@ public sealed class WorkerHub(IWorkerRegistry workers, ISessionCoordinator sessi
 
     public async Task ForwardStderr(TerminalChunk chunk)
     {
-        replayCache.Append(new ReplayChunk(chunk.SessionId, chunk.Stream, chunk.Payload));
+        if (!sessions.TryGetSession(chunk.SessionId, out var session) ||
+            session.WorkerConnectionId != Context.ConnectionId)
+        {
+            return;
+        }
 
-        if (!sessions.TryGetSession(chunk.SessionId, out var session) || session.AttachedClientConnectionId is null)
+        await replayCache.AppendAsync(new ReplayChunk(chunk.SessionId, chunk.Stream, chunk.Payload), Context.ConnectionAborted);
+
+        if (session.AttachmentState != SessionAttachmentState.Attached ||
+            session.AttachedClientConnectionId is null ||
+            session.ReplayPending)
         {
             return;
         }

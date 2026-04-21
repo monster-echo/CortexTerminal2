@@ -62,5 +62,6 @@ public sealed class ReattachSessionFlowTests : IClassFixture<GatewayApplicationF
         session.SessionId.Should().Be(sessionId);
         session.AttachmentState.Should().Be(SessionAttachmentState.Attached);
         session.AttachedClientConnectionId.Should().Be("client-reattach");
+        session.ReplayPending.Should().BeFalse();
     }
 }

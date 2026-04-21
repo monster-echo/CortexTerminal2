@@ -35,6 +35,7 @@ public sealed class ReattachSessionCoordinatorTests
         reattachedSession.AttachmentState.Should().Be(SessionAttachmentState.Attached);
         reattachedSession.AttachedClientConnectionId.Should().Be("client-2");
         reattachedSession.LeaseExpiresAtUtc.Should().BeNull();
+        reattachedSession.ReplayPending.Should().BeTrue();
     }
 
     [Fact]

@@ -9,4 +9,5 @@ public sealed record SessionRecord(
     int Rows,
     SessionAttachmentState AttachmentState = SessionAttachmentState.Attached,
     string? AttachedClientConnectionId = null,
-    DateTimeOffset? LeaseExpiresAtUtc = null);
+    DateTimeOffset? LeaseExpiresAtUtc = null,
+    bool ReplayPending = false);

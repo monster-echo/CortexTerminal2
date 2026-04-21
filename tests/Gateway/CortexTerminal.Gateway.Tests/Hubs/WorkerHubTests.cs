@@ -41,7 +41,7 @@ public sealed class WorkerHubTests
     }
 
     [Fact]
-    public async Task ForwardOutput_AppendsReplayBeforeLiveFanOut()
+    public async Task ForwardOutput_BuffersReplayWithoutLiveFanOutWhileReplayIsPending()
     {
         var workers = new InMemoryWorkerRegistry();
         workers.Register("worker-1", "worker-conn-1");
@@ -77,9 +77,7 @@ public sealed class WorkerHubTests
             new ReplayChunk(sessionId, "stderr", [0x03])
         ],
         options => options.WithStrictOrdering());
-        client.Invocations.Select(static invocation => invocation.Method).Should().Equal("StdoutChunk", "StderrChunk");
-        client.Invocations[0].Arguments[0].Should().BeEquivalentTo(stdout);
-        client.Invocations[1].Arguments[0].Should().BeEquivalentTo(stderr);
+        client.Invocations.Should().BeEmpty();
     }
 
     [Fact]
@@ -101,6 +99,33 @@ public sealed class WorkerHubTests
         replayCache.GetSnapshot(sessionId).Should().BeEquivalentTo(
             [new ReplayChunk(sessionId, "stdout", [0x2A])],
             options => options.WithStrictOrdering());
+    }
+
+    [Fact]
+    public async Task ForwardStdout_FromWrongWorker_DoesNotCacheOrFanOut()
+    {
+        var workers = new InMemoryWorkerRegistry();
+        workers.Register("worker-1", "worker-conn-1");
+        var sessions = new InMemorySessionCoordinator(workers);
+        var replayCache = new ReplayCache(1024);
+        var terminalHub = CreateTerminalHub(sessions, replayCache, TimeProvider.System);
+        terminalHub.Context = new TestHubCallerContext("client-1", "user-1");
+        terminalHub.Clients = new TestHubCallerClients(new RecordingClientProxy());
+
+        var createResult = await terminalHub.CreateSession(new CreateSessionRequest("shell", 120, 40), CancellationToken.None);
+        var sessionId = createResult.Response!.SessionId;
+        var client = new RecordingClientProxy();
+        var hub = CreateWorkerHub(workers, sessions, replayCache);
+        hub.Context = new TestHubCallerContext("worker-conn-2");
+        hub.Clients = new TestHubCallerClients(new RecordingClientProxy(), new Dictionary<string, IClientProxy>
+        {
+            ["client-1"] = client
+        });
+
+        await hub.ForwardStdout(new TerminalChunk(sessionId, "stdout", [0x2A]));
+
+        replayCache.GetSnapshot(sessionId).Should().BeEmpty();
+        client.Invocations.Should().BeEmpty();
     }
 
     private static WorkerHub CreateWorkerHub(IWorkerRegistry workers, ISessionCoordinator sessions, IReplayCache replayCache)

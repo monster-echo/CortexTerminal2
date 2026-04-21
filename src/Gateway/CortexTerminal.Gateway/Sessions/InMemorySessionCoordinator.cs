@@ -45,7 +45,8 @@ public sealed class InMemorySessionCoordinator(IWorkerRegistry workers) : ISessi
             {
                 AttachmentState = SessionAttachmentState.DetachedGracePeriod,
                 AttachedClientConnectionId = null,
-                LeaseExpiresAtUtc = detachedAtUtc.AddMinutes(5)
+                LeaseExpiresAtUtc = detachedAtUtc.AddMinutes(5),
+                ReplayPending = false
             };
         }
 
@@ -82,7 +83,8 @@ public sealed class InMemorySessionCoordinator(IWorkerRegistry workers) : ISessi
                 {
                     AttachmentState = SessionAttachmentState.Expired,
                     AttachedClientConnectionId = null,
-                    LeaseExpiresAtUtc = null
+                    LeaseExpiresAtUtc = null,
+                    ReplayPending = false
                 };
 
                 return Task.FromResult(ReattachSessionResult.Failure("session-detached-without-lease"));
@@ -94,7 +96,8 @@ public sealed class InMemorySessionCoordinator(IWorkerRegistry workers) : ISessi
                 {
                     AttachmentState = SessionAttachmentState.Expired,
                     AttachedClientConnectionId = null,
-                    LeaseExpiresAtUtc = null
+                    LeaseExpiresAtUtc = null,
+                    ReplayPending = false
                 };
 
                 return Task.FromResult(ReattachSessionResult.Failure("session-expired"));
@@ -104,10 +107,29 @@ public sealed class InMemorySessionCoordinator(IWorkerRegistry workers) : ISessi
             {
                 AttachmentState = SessionAttachmentState.Attached,
                 AttachedClientConnectionId = clientConnectionId,
-                LeaseExpiresAtUtc = null
+                LeaseExpiresAtUtc = null,
+                ReplayPending = true
             };
 
             return Task.FromResult(ReattachSessionResult.Success());
+        }
+    }
+
+    public void MarkReplayCompleted(string sessionId, string clientConnectionId)
+    {
+        lock (_sync)
+        {
+            if (!_sessions.TryGetValue(sessionId, out var session) ||
+                session.AttachmentState != SessionAttachmentState.Attached ||
+                session.AttachedClientConnectionId != clientConnectionId)
+            {
+                return;
+            }
+
+            _sessions[sessionId] = session with
+            {
+                ReplayPending = false
+            };
         }
     }
 
@@ -130,7 +152,8 @@ public sealed class InMemorySessionCoordinator(IWorkerRegistry workers) : ISessi
                 {
                     AttachmentState = SessionAttachmentState.Expired,
                     AttachedClientConnectionId = null,
-                    LeaseExpiresAtUtc = null
+                    LeaseExpiresAtUtc = null,
+                    ReplayPending = false
                 };
                 expiredSessionIds.Add(session.SessionId);
             }

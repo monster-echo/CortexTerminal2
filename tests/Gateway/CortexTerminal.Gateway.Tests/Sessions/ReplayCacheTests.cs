@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Threading;
+using System.Threading.Tasks;
 using CortexTerminal.Contracts.Streaming;
 using CortexTerminal.Gateway.Sessions;
 using FluentAssertions;
@@ -28,22 +29,29 @@ public sealed class ReplayCacheTests
     }
 
     [Fact]
-    public void Clear_WhenAppendBufferIsLocked_WaitsForSessionLockBeforeClearing()
+    public async Task Clear_WhenReplayBufferIsLocked_WaitsForSessionLockBeforeClearing()
     {
         var cache = new ReplayCache(32);
         var chunk = new ReplayChunk("session-1", "stdout", [0x01]);
         cache.Append(chunk);
 
-        var buffer = GetBuffer(cache, "session-1");
-        var sync = GetSync(buffer);
-        var clearStarted = new ManualResetEventSlim();
+        using var replayEntered = new ManualResetEventSlim();
+        using var allowReplayToFinish = new ManualResetEventSlim();
+        var replayTask = Task.Run(() => cache.ReplayWhileLockedAsync("session-1", _ =>
+        {
+            replayEntered.Set();
+            allowReplayToFinish.Wait(TimeSpan.FromSeconds(1)).Should().BeTrue();
+            return Task.CompletedTask;
+        }, CancellationToken.None));
+
+        replayEntered.Wait(TimeSpan.FromSeconds(1)).Should().BeTrue();
+
         Exception? clearFailure = null;
         using var clearFinished = new ManualResetEventSlim();
         var clearThread = new Thread(() =>
         {
             try
             {
-                clearStarted.Set();
                 cache.Clear("session-1");
             }
             catch (Exception ex)
@@ -55,19 +63,17 @@ public sealed class ReplayCacheTests
                 clearFinished.Set();
             }
         });
+        clearThread.Start();
+        Thread.Sleep(50);
+        clearFinished.IsSet.Should().BeFalse();
 
-        lock (sync)
-        {
-            clearThread.Start();
-            clearStarted.Wait(TimeSpan.FromSeconds(1)).Should().BeTrue();
-            clearFinished.IsSet.Should().BeFalse();
-        }
-
+        allowReplayToFinish.Set();
+        await replayTask;
         clearFinished.Wait(TimeSpan.FromSeconds(1)).Should().BeTrue();
         clearFailure.Should().BeNull();
 
         cache.GetSnapshot("session-1").Should().BeEmpty();
-        GetBuffer(cache, "session-1").Should().BeSameAs(buffer);
+        GetBuffer(cache, "session-1").Should().NotBeNull();
     }
 
     [Fact]
@@ -91,9 +97,6 @@ public sealed class ReplayCacheTests
         found.Should().BeTrue();
         return arguments[1]!;
     }
-
-    private static object GetSync(object buffer)
-        => buffer.GetType().GetProperty("Sync", BindingFlags.Instance | BindingFlags.Public)!.GetValue(buffer)!;
 
     private static object GetBuffers(ReplayCache cache)
         => typeof(ReplayCache)

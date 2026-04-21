@@ -36,12 +36,26 @@ public sealed class TerminalHub(
             return result;
         }
 
-        await Clients.Caller.SendAsync("SessionReattached", new SessionReattachedEvent(request.SessionId), cancellationToken);
-        foreach (var chunk in replayCache.GetSnapshot(request.SessionId))
+        try
         {
-            await Clients.Caller.SendAsync("ReplayChunk", chunk, cancellationToken);
+            await replayCache.ReplayWhileLockedAsync(request.SessionId, async snapshot =>
+            {
+                await Clients.Caller.SendAsync("SessionReattached", new SessionReattachedEvent(request.SessionId), cancellationToken);
+                foreach (var chunk in snapshot)
+                {
+                    await Clients.Caller.SendAsync("ReplayChunk", chunk, cancellationToken);
+                }
+
+                await Clients.Caller.SendAsync("ReplayCompleted", new ReplayCompleted(request.SessionId), cancellationToken);
+                sessions.MarkReplayCompleted(request.SessionId, Context.ConnectionId);
+            }, cancellationToken);
         }
-        await Clients.Caller.SendAsync("ReplayCompleted", new ReplayCompleted(request.SessionId), cancellationToken);
+        catch
+        {
+            await sessions.DetachSessionAsync(Context.UserIdentifier ?? "unknown", request.SessionId, timeProvider.GetUtcNow(), cancellationToken);
+            throw;
+        }
+
         return result;
     }
 
@@ -50,6 +64,16 @@ public sealed class TerminalHub(
         if (!sessions.TryGetSession(frame.SessionId, out var session))
         {
             throw new HubException("Unknown session.");
+        }
+
+        if (session.AttachmentState != SessionAttachmentState.Attached || session.AttachedClientConnectionId is null)
+        {
+            throw new HubException("Session is not attached.");
+        }
+
+        if (session.AttachedClientConnectionId != Context.ConnectionId)
+        {
+            throw new HubException("Session is attached to a different client.");
         }
 
         await Clients.Client(session.WorkerConnectionId).SendAsync("WriteInput", frame);
