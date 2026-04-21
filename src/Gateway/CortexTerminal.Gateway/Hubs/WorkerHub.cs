@@ -26,6 +26,12 @@ public sealed class WorkerHub(IWorkerRegistry workers, ISessionCoordinator sessi
 
         await replayCache.AppendAsync(new ReplayChunk(chunk.SessionId, chunk.Stream, chunk.Payload), Context.ConnectionAborted);
 
+        if (!sessions.TryGetSession(chunk.SessionId, out session) ||
+            session.WorkerConnectionId != Context.ConnectionId)
+        {
+            return;
+        }
+
         if (session.AttachmentState != SessionAttachmentState.Attached ||
             session.AttachedClientConnectionId is null ||
             session.ReplayPending)
@@ -45,6 +51,12 @@ public sealed class WorkerHub(IWorkerRegistry workers, ISessionCoordinator sessi
         }
 
         await replayCache.AppendAsync(new ReplayChunk(chunk.SessionId, chunk.Stream, chunk.Payload), Context.ConnectionAborted);
+
+        if (!sessions.TryGetSession(chunk.SessionId, out session) ||
+            session.WorkerConnectionId != Context.ConnectionId)
+        {
+            return;
+        }
 
         if (session.AttachmentState != SessionAttachmentState.Attached ||
             session.AttachedClientConnectionId is null ||
