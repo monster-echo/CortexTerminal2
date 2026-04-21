@@ -2,6 +2,7 @@ using CortexTerminal.Contracts.Streaming;
 using CortexTerminal.Worker.Pty;
 using FluentAssertions;
 using System.Linq;
+using System.Threading;
 
 namespace CortexTerminal.Worker.Tests.Pty;
 
@@ -48,6 +49,31 @@ public sealed class ScrollbackBufferTests
         var snapshot = buffer.Snapshot();
         AssertChunks(snapshot, ("sess_1", "stdout", [0x61, 0x62]));
         snapshot.Single().Payload.Should().NotBeSameAs(payload);
+    }
+
+    [Fact]
+    public async Task Append_AndSnapshot_HandleConcurrentAccess()
+    {
+        var buffer = new ScrollbackBuffer(1024);
+        var start = new ManualResetEventSlim(false);
+
+        var workers = Enumerable.Range(0, 4)
+            .Select(worker => Task.Run(() =>
+            {
+                start.Wait();
+
+                for (var i = 0; i < 250; i++)
+                {
+                    buffer.Append("sess_1", worker % 2 == 0 ? "stdout" : "stderr", [(byte)worker, (byte)i]);
+                    _ = buffer.Snapshot();
+                }
+            }))
+            .ToArray();
+
+        start.Set();
+        await Task.WhenAll(workers);
+
+        buffer.Snapshot().Should().OnlyContain(chunk => chunk.Payload.Length == 2);
     }
 
     private static void AssertChunks(
