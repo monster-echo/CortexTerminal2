@@ -68,6 +68,8 @@ internal sealed class FakeWorkerGatewayClient : IWorkerGatewayClient
     private readonly List<Func<ResizePtyRequest, Task>> _resizeHandlers = [];
     private readonly List<Func<CloseSessionRequest, Task>> _closeHandlers = [];
     private readonly List<Func<string?, Task>> _reconnectHandlers = [];
+    private readonly ConcurrentDictionary<string, TaskCompletionSource<TerminalChunk>> _stdoutWaiters = new();
+    private readonly ConcurrentDictionary<string, TaskCompletionSource<TerminalChunk>> _stderrWaiters = new();
     private readonly ConcurrentDictionary<string, TaskCompletionSource<SessionExited>> _exitWaiters = new();
 
     public List<string> RegisteredWorkerIds { get; } = [];
@@ -108,12 +110,14 @@ internal sealed class FakeWorkerGatewayClient : IWorkerGatewayClient
     public Task ForwardStdoutAsync(TerminalChunk chunk, CancellationToken cancellationToken)
     {
         StdoutChunks.Add(chunk);
+        _stdoutWaiters.GetOrAdd(chunk.SessionId, _ => new(TaskCreationOptions.RunContinuationsAsynchronously)).TrySetResult(chunk);
         return Task.CompletedTask;
     }
 
     public Task ForwardStderrAsync(TerminalChunk chunk, CancellationToken cancellationToken)
     {
         StderrChunks.Add(chunk);
+        _stderrWaiters.GetOrAdd(chunk.SessionId, _ => new(TaskCreationOptions.RunContinuationsAsynchronously)).TrySetResult(chunk);
         return Task.CompletedTask;
     }
 
@@ -172,6 +176,12 @@ internal sealed class FakeWorkerGatewayClient : IWorkerGatewayClient
 
     public Task WaitForExitAsync(string sessionId)
         => _exitWaiters.GetOrAdd(sessionId, _ => new(TaskCreationOptions.RunContinuationsAsynchronously)).Task;
+
+    public Task WaitForStdoutAsync(string sessionId)
+        => _stdoutWaiters.GetOrAdd(sessionId, _ => new(TaskCreationOptions.RunContinuationsAsynchronously)).Task;
+
+    public Task WaitForStderrAsync(string sessionId)
+        => _stderrWaiters.GetOrAdd(sessionId, _ => new(TaskCreationOptions.RunContinuationsAsynchronously)).Task;
 
     public ValueTask DisposeAsync()
     {

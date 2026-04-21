@@ -22,6 +22,8 @@ public sealed class WorkerSessionRuntimeTests
         await process.EmitStdoutAsync([0x6F, 0x6B]);
         await process.EmitStderrAsync([0x62, 0x61, 0x64]);
         await process.CompleteAsync(7);
+        await gateway.WaitForStdoutAsync("sess-1");
+        await gateway.WaitForStderrAsync("sess-1");
         await gateway.WaitForExitAsync("sess-1");
 
         gateway.StdoutChunks.Should().ContainSingle()
