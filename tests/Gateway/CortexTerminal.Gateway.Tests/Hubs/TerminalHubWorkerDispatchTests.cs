@@ -36,6 +36,26 @@ public sealed class TerminalHubWorkerDispatchTests
     }
 
     [Fact]
+    public async Task CreateSession_WhenStartSessionDispatchFails_MarksSessionExitedAndReturnsFailure()
+    {
+        var workers = new InMemoryWorkerRegistry();
+        workers.Register("worker-1", "worker-conn-1");
+        var sessions = new InMemorySessionCoordinator(workers);
+        var replayCache = new ReplayCache(1024);
+        var dispatcher = new ThrowingWorkerCommandDispatcher("dispatch failed");
+        var hub = CreateTerminalHub(sessions, replayCache, TimeProvider.System, dispatcher);
+        hub.Context = new TestHubCallerContext("client-1", "user-1");
+        hub.Clients = new TestHubCallerClients(new RecordingClientProxy());
+
+        var result = await hub.CreateSession(new CreateSessionRequest("shell", 120, 40), CancellationToken.None);
+
+        result.IsSuccess.Should().BeFalse();
+        result.ErrorCode.Should().Be("worker-start-dispatch-failed");
+        GetSingleSession(sessions).AttachmentState.Should().Be(SessionAttachmentState.Exited);
+        GetSingleSession(sessions).ExitReason.Should().Be("worker-start-dispatch-failed");
+    }
+
+    [Fact]
     public async Task ResizeSession_DispatchesToOwningWorkerOnly()
     {
         var workers = new InMemoryWorkerRegistry();
@@ -89,4 +109,14 @@ public sealed class TerminalHubWorkerDispatchTests
 
     private static TerminalHub CreateTerminalHub(ISessionCoordinator sessions, IReplayCache replayCache, TimeProvider timeProvider, IWorkerCommandDispatcher dispatcher)
         => (TerminalHub)Activator.CreateInstance(typeof(TerminalHub), sessions, replayCache, timeProvider, dispatcher)!;
+
+    private static SessionRecord GetSingleSession(InMemorySessionCoordinator coordinator)
+    {
+        var sessions = (System.Collections.Concurrent.ConcurrentDictionary<string, SessionRecord>)typeof(InMemorySessionCoordinator)
+            .GetField("_sessions", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+            .GetValue(coordinator)!;
+
+        sessions.Values.Should().ContainSingle();
+        return sessions.Values.Single();
+    }
 }

@@ -66,7 +66,20 @@ app.MapPost("/api/sessions", async (
     var result = await sessions.CreateSessionAsync(user.Identity?.Name ?? "unknown", request, clientConnectionId: null, cancellationToken);
     if (result.IsSuccess && result.Response is not null && sessions.TryGetSession(result.Response.SessionId, out var session))
     {
-        await workerCommands.StartSessionAsync(session.WorkerConnectionId, new CortexTerminal.Contracts.Streaming.StartSessionCommand(session.SessionId, session.Columns, session.Rows), cancellationToken);
+        try
+        {
+            await workerCommands.StartSessionAsync(session.WorkerConnectionId, new CortexTerminal.Contracts.Streaming.StartSessionCommand(session.SessionId, session.Columns, session.Rows), cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            sessions.MarkSessionStartFailed(session.SessionId, "worker-start-dispatch-failed");
+            return Results.Json(CreateSessionResult.Failure("worker-start-dispatch-failed"),
+                statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
     }
 
     return result.IsSuccess

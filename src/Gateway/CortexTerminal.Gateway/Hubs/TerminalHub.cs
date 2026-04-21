@@ -22,7 +22,20 @@ public sealed class TerminalHub(
             return result;
         }
 
-        await workerCommands.StartSessionAsync(session.WorkerConnectionId, new StartSessionCommand(session.SessionId, session.Columns, session.Rows), cancellationToken);
+        try
+        {
+            await workerCommands.StartSessionAsync(session.WorkerConnectionId, new StartSessionCommand(session.SessionId, session.Columns, session.Rows), cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            sessions.MarkSessionStartFailed(session.SessionId, "worker-start-dispatch-failed");
+            return CreateSessionResult.Failure("worker-start-dispatch-failed");
+        }
+
         return result;
     }
 

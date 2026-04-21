@@ -87,3 +87,18 @@ internal sealed class NoOpWorkerCommandDispatcher : IWorkerCommandDispatcher
     public Task ResizeSessionAsync(string workerConnectionId, ResizePtyRequest request, CancellationToken cancellationToken) => Task.CompletedTask;
     public Task CloseSessionAsync(string workerConnectionId, CloseSessionRequest request, CancellationToken cancellationToken) => Task.CompletedTask;
 }
+
+internal sealed class ThrowingWorkerCommandDispatcher(string message) : IWorkerCommandDispatcher
+{
+    public Task StartSessionAsync(string workerConnectionId, StartSessionCommand command, CancellationToken cancellationToken)
+        => Task.FromException(new InvalidOperationException(message));
+
+    public Task WriteInputAsync(string workerConnectionId, WriteInputFrame frame, CancellationToken cancellationToken)
+        => Task.CompletedTask;
+
+    public Task ResizeSessionAsync(string workerConnectionId, ResizePtyRequest request, CancellationToken cancellationToken)
+        => Task.CompletedTask;
+
+    public Task CloseSessionAsync(string workerConnectionId, CloseSessionRequest request, CancellationToken cancellationToken)
+        => Task.CompletedTask;
+}
