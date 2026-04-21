@@ -47,14 +47,18 @@ public sealed class InMemoryWorkerRegistry : IWorkerRegistry
 
     public void SetWorkerOwner(string workerId, string ownerUserId)
     {
-        if (!_workers.TryGetValue(workerId, out var existing))
+        while (_workers.TryGetValue(workerId, out var existing))
         {
-            return;
-        }
+            if (existing.OwnerUserId is not null && existing.OwnerUserId != ownerUserId)
+            {
+                return;
+            }
 
-        if (existing.OwnerUserId is null || existing.OwnerUserId == ownerUserId)
-        {
-            _workers[workerId] = existing with { OwnerUserId = ownerUserId, LastSeenAtUtc = DateTimeOffset.UtcNow };
+            var updated = existing with { OwnerUserId = ownerUserId, LastSeenAtUtc = DateTimeOffset.UtcNow };
+            if (_workers.TryUpdate(workerId, updated, existing))
+            {
+                return;
+            }
         }
     }
 }
