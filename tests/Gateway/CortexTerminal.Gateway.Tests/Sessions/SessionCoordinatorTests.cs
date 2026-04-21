@@ -14,7 +14,7 @@ public sealed class SessionCoordinatorTests
         var workers = new InMemoryWorkerRegistry();
         var coordinator = new InMemorySessionCoordinator(workers);
 
-        var result = await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), CancellationToken.None);
+        var result = await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), clientConnectionId: null, CancellationToken.None);
 
         result.IsSuccess.Should().BeFalse();
         result.ErrorCode.Should().Be("no-worker-available");
@@ -27,7 +27,7 @@ public sealed class SessionCoordinatorTests
         workers.Register("worker-1", "conn-1");
         var coordinator = new InMemorySessionCoordinator(workers);
 
-        var result = await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), CancellationToken.None);
+        var result = await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), clientConnectionId: null, CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
         result.Response.Should().NotBeNull();
@@ -42,7 +42,7 @@ public sealed class SessionCoordinatorTests
         workers.Register("worker-1", "conn-1");
         var coordinator = new InMemorySessionCoordinator(workers);
 
-        var result = await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), CancellationToken.None);
+        var result = await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), clientConnectionId: null, CancellationToken.None);
         var found = coordinator.TryGetSession(result.Response!.SessionId, out var session);
 
         found.Should().BeTrue();

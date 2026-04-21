@@ -57,7 +57,7 @@ app.MapPost("/api/sessions", async (CreateSessionRequest request, ISessionCoordi
         return Results.BadRequest("Only shell runtime is allowed in phase 1.");
     }
 
-    var result = await sessions.CreateSessionAsync(user.Identity?.Name ?? "unknown", request, cancellationToken);
+    var result = await sessions.CreateSessionAsync(user.Identity?.Name ?? "unknown", request, clientConnectionId: null, cancellationToken);
     return result.IsSuccess
         ? Results.Ok(result.Response)
         : Results.Json(CreateSessionResult.Failure("no-worker-available"),

@@ -9,7 +9,7 @@ public sealed class InMemorySessionCoordinator(IWorkerRegistry workers) : ISessi
     private readonly ConcurrentDictionary<string, SessionRecord> _sessions = new();
     private readonly object _sync = new();
 
-    public Task<CreateSessionResult> CreateSessionAsync(string userId, CreateSessionRequest request, CancellationToken cancellationToken)
+    public Task<CreateSessionResult> CreateSessionAsync(string userId, CreateSessionRequest request, string? clientConnectionId, CancellationToken cancellationToken)
     {
         if (!workers.TryGetLeastBusy(out var worker))
         {
@@ -17,7 +17,14 @@ public sealed class InMemorySessionCoordinator(IWorkerRegistry workers) : ISessi
         }
 
         var sessionId = $"sess_{Guid.NewGuid():N}";
-        var record = new SessionRecord(sessionId, userId, worker.WorkerId, worker.ConnectionId, request.Columns, request.Rows);
+        var record = new SessionRecord(
+            sessionId,
+            userId,
+            worker.WorkerId,
+            worker.ConnectionId,
+            request.Columns,
+            request.Rows,
+            AttachedClientConnectionId: clientConnectionId);
         lock (_sync)
         {
             _sessions[sessionId] = record;

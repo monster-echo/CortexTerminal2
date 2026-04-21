@@ -12,13 +12,42 @@ namespace CortexTerminal.Gateway.Tests.Hubs;
 public sealed class WorkerHubTests
 {
     [Fact]
+    public async Task ForwardStdout_AfterSignalRSessionCreation_FansOutToCreatingClient()
+    {
+        var workers = new InMemoryWorkerRegistry();
+        workers.Register("worker-1", "worker-conn-1");
+        var sessions = new InMemorySessionCoordinator(workers);
+        var replayCache = new ReplayCache(1024);
+        var terminalHub = CreateTerminalHub(sessions, replayCache, TimeProvider.System);
+        terminalHub.Context = new TestHubCallerContext("client-1", "user-1");
+        terminalHub.Clients = new TestHubCallerClients(new RecordingClientProxy());
+
+        var createResult = await terminalHub.CreateSession(new CreateSessionRequest("shell", 120, 40), CancellationToken.None);
+        var sessionId = createResult.Response!.SessionId;
+        var client = new RecordingClientProxy();
+        var workerHub = CreateWorkerHub(workers, sessions, replayCache);
+        workerHub.Context = new TestHubCallerContext("worker-conn-1");
+        workerHub.Clients = new TestHubCallerClients(new RecordingClientProxy(), new Dictionary<string, IClientProxy>
+        {
+            ["client-1"] = client
+        });
+
+        var chunk = new TerminalChunk(sessionId, "stdout", [0x2A]);
+
+        await workerHub.ForwardStdout(chunk);
+
+        client.Invocations.Select(static invocation => invocation.Method).Should().Equal("StdoutChunk");
+        client.Invocations[0].Arguments[0].Should().BeEquivalentTo(chunk);
+    }
+
+    [Fact]
     public async Task ForwardOutput_AppendsReplayBeforeLiveFanOut()
     {
         var workers = new InMemoryWorkerRegistry();
         workers.Register("worker-1", "worker-conn-1");
         var sessions = new InMemorySessionCoordinator(workers);
         var replayCache = new ReplayCache(1024);
-        var createResult = await sessions.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), CancellationToken.None);
+        var createResult = await sessions.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), clientConnectionId: null, CancellationToken.None);
         var sessionId = createResult.Response!.SessionId;
         var detachedAtUtc = new DateTimeOffset(2025, 1, 1, 12, 0, 0, TimeSpan.Zero);
 
@@ -60,7 +89,7 @@ public sealed class WorkerHubTests
         workers.Register("worker-1", "worker-conn-1");
         var sessions = new InMemorySessionCoordinator(workers);
         var replayCache = new ReplayCache(1024);
-        var createResult = await sessions.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), CancellationToken.None);
+        var createResult = await sessions.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), clientConnectionId: null, CancellationToken.None);
         var sessionId = createResult.Response!.SessionId;
         var hub = CreateWorkerHub(workers, sessions, replayCache);
         hub.Context = new TestHubCallerContext("worker-conn-1");
@@ -76,4 +105,7 @@ public sealed class WorkerHubTests
 
     private static WorkerHub CreateWorkerHub(IWorkerRegistry workers, ISessionCoordinator sessions, IReplayCache replayCache)
         => (WorkerHub)Activator.CreateInstance(typeof(WorkerHub), workers, sessions, replayCache)!;
+
+    private static TerminalHub CreateTerminalHub(ISessionCoordinator sessions, IReplayCache replayCache, TimeProvider timeProvider)
+        => (TerminalHub)Activator.CreateInstance(typeof(TerminalHub), sessions, replayCache, timeProvider)!;
 }

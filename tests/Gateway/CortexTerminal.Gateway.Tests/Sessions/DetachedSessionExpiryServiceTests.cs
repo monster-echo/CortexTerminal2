@@ -5,6 +5,7 @@ using CortexTerminal.Gateway.Tests.Hubs;
 using CortexTerminal.Gateway.Workers;
 using FluentAssertions;
 using Microsoft.Extensions.Hosting;
+using System.Reflection;
 using Xunit;
 
 namespace CortexTerminal.Gateway.Tests.Sessions;
@@ -18,7 +19,7 @@ public sealed class DetachedSessionExpiryServiceTests
         workers.Register("worker-1", "worker-conn-1");
         var sessions = new InMemorySessionCoordinator(workers);
         var replayCache = new ReplayCache(1024);
-        var createResult = await sessions.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), CancellationToken.None);
+        var createResult = await sessions.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), clientConnectionId: null, CancellationToken.None);
         var sessionId = createResult.Response!.SessionId;
         var detachedAtUtc = new DateTimeOffset(2025, 1, 1, 12, 0, 0, TimeSpan.Zero);
 
@@ -34,6 +35,27 @@ public sealed class DetachedSessionExpiryServiceTests
         sessions.TryGetSession(sessionId, out var expiredSession).Should().BeTrue();
         expiredSession.AttachmentState.Should().Be(SessionAttachmentState.Expired);
         replayCache.GetSnapshot(sessionId).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenStoppingTokenIsCancelledDuringDelay_StopsCleanly()
+    {
+        var workers = new InMemoryWorkerRegistry();
+        var sessions = new InMemorySessionCoordinator(workers);
+        var replayCache = new ReplayCache(1024);
+        var service = CreateService(sessions, replayCache, TimeProvider.System);
+        var executeAsync = service.GetType().GetMethod("ExecuteAsync", BindingFlags.Instance | BindingFlags.NonPublic);
+        executeAsync.Should().NotBeNull();
+        using var cts = new CancellationTokenSource();
+
+        var executeTask = (Task)executeAsync!.Invoke(service, [cts.Token])!;
+
+        await Task.Delay(100);
+        cts.Cancel();
+
+        Func<Task> act = async () => await executeTask;
+
+        await act.Should().NotThrowAsync();
     }
 
     private static IHostedService CreateService(ISessionCoordinator sessions, IReplayCache replayCache, TimeProvider timeProvider)

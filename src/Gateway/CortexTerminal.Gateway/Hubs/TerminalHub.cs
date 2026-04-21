@@ -13,7 +13,7 @@ public sealed class TerminalHub(
     TimeProvider timeProvider) : Hub
 {
     public Task<CreateSessionResult> CreateSession(CreateSessionRequest request, CancellationToken cancellationToken)
-        => sessions.CreateSessionAsync(Context.UserIdentifier ?? "unknown", request, cancellationToken);
+        => sessions.CreateSessionAsync(Context.UserIdentifier ?? "unknown", request, Context.ConnectionId, cancellationToken);
 
     public async Task DetachSession(string sessionId, CancellationToken cancellationToken)
     {

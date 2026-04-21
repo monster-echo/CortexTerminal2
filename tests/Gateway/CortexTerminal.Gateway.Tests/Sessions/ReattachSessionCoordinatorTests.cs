@@ -14,7 +14,7 @@ public sealed class ReattachSessionCoordinatorTests
     public async Task ReattachSessionAsync_AfterDetachWithinLease_ForSameUser_ReturnsSuccess()
     {
         var coordinator = CreateCoordinator();
-        var createResult = await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), CancellationToken.None);
+        var createResult = await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), clientConnectionId: null, CancellationToken.None);
         var sessionId = createResult.Response!.SessionId;
         var detachedAtUtc = new DateTimeOffset(2025, 1, 1, 12, 0, 0, TimeSpan.Zero);
 
@@ -41,7 +41,7 @@ public sealed class ReattachSessionCoordinatorTests
     public async Task ReattachSessionAsync_WhenAlreadyAttached_ReturnsAlreadyAttached()
     {
         var coordinator = CreateCoordinator();
-        var createResult = await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), CancellationToken.None);
+        var createResult = await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), clientConnectionId: null, CancellationToken.None);
 
         var result = await coordinator.ReattachSessionAsync(
             "user-1",
@@ -58,7 +58,7 @@ public sealed class ReattachSessionCoordinatorTests
     public async Task ReattachSessionAsync_WhenSessionBelongsToDifferentUser_ReturnsSessionNotFound()
     {
         var coordinator = CreateCoordinator();
-        var createResult = await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), CancellationToken.None);
+        var createResult = await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), clientConnectionId: null, CancellationToken.None);
 
         var result = await coordinator.ReattachSessionAsync(
             "user-2",
@@ -75,7 +75,7 @@ public sealed class ReattachSessionCoordinatorTests
     public async Task ReattachSessionAsync_WhenLeaseExpired_ReturnsExpiredAndMarksSessionExpired()
     {
         var coordinator = CreateCoordinator();
-        var createResult = await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), CancellationToken.None);
+        var createResult = await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), clientConnectionId: null, CancellationToken.None);
         var sessionId = createResult.Response!.SessionId;
         var detachedAtUtc = new DateTimeOffset(2025, 1, 1, 12, 0, 0, TimeSpan.Zero);
 
@@ -98,7 +98,7 @@ public sealed class ReattachSessionCoordinatorTests
     public async Task ReattachSessionAsync_WhenDetachedLeaseIsMissing_ReturnsCorruptedStateError()
     {
         var coordinator = CreateCoordinator();
-        var createResult = await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), CancellationToken.None);
+        var createResult = await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), clientConnectionId: null, CancellationToken.None);
         var sessionId = createResult.Response!.SessionId;
         var sessions = GetSessions(coordinator);
 

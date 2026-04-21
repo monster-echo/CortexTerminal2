@@ -27,7 +27,7 @@ public sealed class ReattachSessionFlowTests : IClassFixture<GatewayApplicationF
         var registry = services.GetRequiredService<IWorkerRegistry>();
         var sessions = services.GetRequiredService<ISessionCoordinator>();
         registry.Register("worker-integration-reattach", "worker-conn-reattach");
-        var created = await sessions.CreateSessionAsync("unknown", new CreateSessionRequest("shell", 120, 40), CancellationToken.None);
+        var created = await sessions.CreateSessionAsync("unknown", new CreateSessionRequest("shell", 120, 40), clientConnectionId: null, CancellationToken.None);
         created.IsSuccess.Should().BeTrue();
 
         var detachCaller = new RecordingClientProxy();

@@ -4,7 +4,7 @@ namespace CortexTerminal.Gateway.Sessions;
 
 public interface ISessionCoordinator
 {
-    Task<CreateSessionResult> CreateSessionAsync(string userId, CreateSessionRequest request, CancellationToken cancellationToken);
+    Task<CreateSessionResult> CreateSessionAsync(string userId, CreateSessionRequest request, string? clientConnectionId, CancellationToken cancellationToken);
     Task DetachSessionAsync(string userId, string sessionId, DateTimeOffset detachedAtUtc, CancellationToken cancellationToken);
     Task<ReattachSessionResult> ReattachSessionAsync(string userId, ReattachSessionRequest request, string clientConnectionId, DateTimeOffset nowUtc, CancellationToken cancellationToken);
     IReadOnlyList<string> ExpireDetachedSessions(DateTimeOffset nowUtc);

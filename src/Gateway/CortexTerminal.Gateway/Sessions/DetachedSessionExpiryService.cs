@@ -16,7 +16,14 @@ public sealed class DetachedSessionExpiryService(
                 replayCache.Clear(sessionId);
             }
 
-            await Task.Delay(TimeSpan.FromSeconds(15), stoppingToken);
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(15), stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
+            }
         }
     }
 }
