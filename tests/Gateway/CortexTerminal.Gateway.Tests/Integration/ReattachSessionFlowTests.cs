@@ -29,17 +29,20 @@ public sealed class ReattachSessionFlowTests : IClassFixture<GatewayApplicationF
         registry.Register("worker-integration-reattach", "worker-conn-reattach");
         var created = await sessions.CreateSessionAsync("unknown", new CreateSessionRequest("shell", 120, 40), clientConnectionId: null, CancellationToken.None);
         created.IsSuccess.Should().BeTrue();
+        var sessionId = created.Response!.SessionId;
+        var detachedAt = DateTimeOffset.UtcNow;
 
         var detachCaller = new RecordingClientProxy();
         var detachHub = ActivatorUtilities.CreateInstance<TerminalHub>(services);
         detachHub.Context = new TestHubCallerContext("client-detach");
         detachHub.Clients = new TestHubCallerClients(detachCaller);
 
-        await detachHub.DetachSession(created.Response!.SessionId, CancellationToken.None);
+        await detachHub.DetachSession(sessionId, CancellationToken.None);
 
         var detached = detachCaller.Invocations.Should().ContainSingle().Subject.Arguments[0].Should().BeOfType<SessionDetachedEvent>().Subject;
-        detached.SessionId.Should().Be(created.Response!.SessionId);
+        detached.SessionId.Should().Be(sessionId);
         detached.LeaseExpiresAtUtc.Should().BeAfter(DateTimeOffset.UtcNow);
+        detached.LeaseExpiresAtUtc.Should().BeOnOrBefore(detachedAt.AddMinutes(5).AddSeconds(1));
 
         var reattachCaller = new RecordingClientProxy();
         var reattachHub = ActivatorUtilities.CreateInstance<TerminalHub>(services);
@@ -47,12 +50,17 @@ public sealed class ReattachSessionFlowTests : IClassFixture<GatewayApplicationF
         reattachHub.Clients = new TestHubCallerClients(reattachCaller);
 
         var reattachResult = await reattachHub.ReattachSession(
-            new ReattachSessionRequest(created.Response!.SessionId),
+            new ReattachSessionRequest(sessionId),
             CancellationToken.None);
 
         reattachResult.Should().BeEquivalentTo(ReattachSessionResult.Success());
         reattachCaller.Invocations.Select(static invocation => invocation.Method).Should().Equal("SessionReattached", "ReplayCompleted");
         var reattached = reattachCaller.Invocations[0].Arguments[0].Should().BeOfType<SessionReattachedEvent>().Subject;
-        reattached.Should().BeEquivalentTo(new SessionReattachedEvent(created.Response!.SessionId));
+        reattached.Should().BeEquivalentTo(new SessionReattachedEvent(sessionId));
+
+        sessions.TryGetSession(sessionId, out var session).Should().BeTrue();
+        session.SessionId.Should().Be(sessionId);
+        session.AttachmentState.Should().Be(SessionAttachmentState.Attached);
+        session.AttachedClientConnectionId.Should().Be("client-reattach");
     }
 }
