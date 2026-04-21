@@ -5,7 +5,11 @@ using Microsoft.AspNetCore.SignalR;
 
 namespace CortexTerminal.Gateway.Hubs;
 
-public sealed class WorkerHub(IWorkerRegistry workers, ISessionCoordinator sessions, IReplayCache replayCache) : Hub
+public sealed class WorkerHub(
+    IWorkerRegistry workers,
+    ISessionCoordinator sessions,
+    IReplayCache replayCache,
+    IHubContext<TerminalHub> terminalHubContext) : Hub
 {
     public void RegisterWorker(string workerId)
         => workers.Register(workerId, Context.ConnectionId);
@@ -39,7 +43,7 @@ public sealed class WorkerHub(IWorkerRegistry workers, ISessionCoordinator sessi
             return;
         }
 
-        await Clients.Client(session.AttachedClientConnectionId).SendAsync("StdoutChunk", chunk);
+        await terminalHubContext.Clients.Client(session.AttachedClientConnectionId).SendAsync("StdoutChunk", chunk);
     }
 
     public async Task ForwardStderr(TerminalChunk chunk)
@@ -65,7 +69,7 @@ public sealed class WorkerHub(IWorkerRegistry workers, ISessionCoordinator sessi
             return;
         }
 
-        await Clients.Client(session.AttachedClientConnectionId).SendAsync("StderrChunk", chunk);
+        await terminalHubContext.Clients.Client(session.AttachedClientConnectionId).SendAsync("StderrChunk", chunk);
     }
 
     public async Task SessionStartFailed(SessionStartFailedEvent evt)
@@ -80,7 +84,7 @@ public sealed class WorkerHub(IWorkerRegistry workers, ISessionCoordinator sessi
 
         if (session.AttachedClientConnectionId is not null)
         {
-            await Clients.Client(session.AttachedClientConnectionId).SendAsync("SessionStartFailed", evt);
+            await terminalHubContext.Clients.Client(session.AttachedClientConnectionId).SendAsync("SessionStartFailed", evt);
         }
     }
 
@@ -97,7 +101,7 @@ public sealed class WorkerHub(IWorkerRegistry workers, ISessionCoordinator sessi
 
         if (attachedClientConnectionId is not null)
         {
-            await Clients.Client(attachedClientConnectionId).SendAsync("SessionExited", evt);
+            await terminalHubContext.Clients.Client(attachedClientConnectionId).SendAsync("SessionExited", evt);
         }
     }
 }

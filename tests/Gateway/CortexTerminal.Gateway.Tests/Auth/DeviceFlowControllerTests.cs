@@ -6,8 +6,10 @@ using System.Text;
 using FluentAssertions;
 using CortexTerminal.Contracts.Auth;
 using CortexTerminal.Contracts.Sessions;
+using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.IdentityModel.Tokens;
 using Xunit;
 
@@ -82,7 +84,13 @@ public sealed class GatewayApplicationFactory : WebApplicationFactory<Program>
         return client;
     }
 
-    private static string CreateAccessToken()
+    public HubConnection CreateHubConnection(string path)
+        => CreateHubConnection(path, accessToken: null);
+
+    public HubConnection CreateAuthenticatedHubConnection(string path)
+        => CreateHubConnection(path, CreateAccessToken());
+
+    public string CreateAccessToken()
     {
         var claims = new[]
         {
@@ -101,4 +109,17 @@ public sealed class GatewayApplicationFactory : WebApplicationFactory<Program>
 
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
+
+    private HubConnection CreateHubConnection(string path, string? accessToken)
+        => new HubConnectionBuilder()
+            .WithUrl($"http://localhost{path}", options =>
+            {
+                options.HttpMessageHandlerFactory = _ => Server.CreateHandler();
+                options.Transports = HttpTransportType.LongPolling;
+                if (accessToken is not null)
+                {
+                    options.AccessTokenProvider = () => Task.FromResult<string?>(accessToken);
+                }
+            })
+            .Build();
 }

@@ -2,8 +2,10 @@ using CortexTerminal.Contracts.Sessions;
 using CortexTerminal.Contracts.Streaming;
 using CortexTerminal.Gateway.Hubs;
 using CortexTerminal.Gateway.Sessions;
+using CortexTerminal.Gateway.Tests.Workers;
 using CortexTerminal.Gateway.Workers;
 using FluentAssertions;
+using Microsoft.AspNetCore.SignalR;
 using Xunit;
 
 namespace CortexTerminal.Gateway.Tests.Hubs;
@@ -33,8 +35,7 @@ public sealed class TerminalHubReconnectTests
         var result = await InvokeAsync<ReattachSessionResult>(
             hub,
             "ReattachSession",
-            new ReattachSessionRequest(sessionId),
-            CancellationToken.None);
+            new ReattachSessionRequest(sessionId));
 
         result.Should().BeEquivalentTo(ReattachSessionResult.Success());
         caller.Invocations.Select(static invocation => invocation.Method).Should().Equal(
@@ -62,21 +63,22 @@ public sealed class TerminalHubReconnectTests
         await sessions.DetachSessionAsync("user-1", sessionId, detachedAtUtc, CancellationToken.None);
         replayCache.Append(new ReplayChunk(sessionId, "stdout", [0xAA]));
 
-        var workerHub = CreateWorkerHub(workers, sessions, replayCache);
-        workerHub.Context = new TestHubCallerContext("worker-conn-1");
         Task? liveForwardTask = null;
         var liveChunk = new TerminalChunk(sessionId, "stdout", [0xBB]);
+        WorkerHub? workerHub = null;
         var caller = new RecordingClientProxy((method, _) =>
         {
             if (method == "ReplayChunk")
             {
-                liveForwardTask = Task.Run(() => workerHub.ForwardStdout(liveChunk));
+                liveForwardTask = Task.Run(() => workerHub!.ForwardStdout(liveChunk));
             }
         });
-        workerHub.Clients = new TestHubCallerClients(new RecordingClientProxy(), new Dictionary<string, Microsoft.AspNetCore.SignalR.IClientProxy>
+        workerHub = CreateWorkerHub(workers, sessions, replayCache, new Dictionary<string, IClientProxy>
         {
             ["client-reattached"] = caller
         });
+        workerHub.Context = new TestHubCallerContext("worker-conn-1");
+        workerHub.Clients = new TestHubCallerClients(new RecordingClientProxy());
         var terminalHub = CreateTerminalHub(sessions, replayCache, new FixedTimeProvider(detachedAtUtc.AddMinutes(4)));
         terminalHub.Context = new TestHubCallerContext("client-reattached", "user-1");
         terminalHub.Clients = new TestHubCallerClients(caller);
@@ -84,8 +86,7 @@ public sealed class TerminalHubReconnectTests
         var reattachResult = await InvokeAsync<ReattachSessionResult>(
             terminalHub,
             "ReattachSession",
-            new ReattachSessionRequest(sessionId),
-            CancellationToken.None);
+            new ReattachSessionRequest(sessionId));
 
         reattachResult.Should().BeEquivalentTo(ReattachSessionResult.Success());
         liveForwardTask.Should().NotBeNull();
@@ -126,8 +127,7 @@ public sealed class TerminalHubReconnectTests
         var action = () => InvokeAsync<ReattachSessionResult>(
             hub,
             "ReattachSession",
-            new ReattachSessionRequest(sessionId),
-            CancellationToken.None);
+            new ReattachSessionRequest(sessionId));
 
         await action.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage("replay failed");
@@ -141,8 +141,17 @@ public sealed class TerminalHubReconnectTests
     private static TerminalHub CreateTerminalHub(ISessionCoordinator sessions, IReplayCache replayCache, TimeProvider timeProvider)
         => (TerminalHub)Activator.CreateInstance(typeof(TerminalHub), sessions, replayCache, timeProvider, new NoOpWorkerCommandDispatcher())!;
 
-    private static WorkerHub CreateWorkerHub(IWorkerRegistry workers, ISessionCoordinator sessions, IReplayCache replayCache)
-        => (WorkerHub)Activator.CreateInstance(typeof(WorkerHub), workers, sessions, replayCache)!;
+    private static WorkerHub CreateWorkerHub(
+        IWorkerRegistry workers,
+        ISessionCoordinator sessions,
+        IReplayCache replayCache,
+        IReadOnlyDictionary<string, IClientProxy>? terminalClients = null)
+        => (WorkerHub)Activator.CreateInstance(
+            typeof(WorkerHub),
+            workers,
+            sessions,
+            replayCache,
+            new TestHubContext<TerminalHub>(terminalClients ?? new Dictionary<string, IClientProxy>()))!;
 
     private static async Task<T> InvokeAsync<T>(object instance, string methodName, params object?[] arguments)
     {

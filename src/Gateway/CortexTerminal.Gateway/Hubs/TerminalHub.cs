@@ -14,7 +14,16 @@ public sealed class TerminalHub(
     TimeProvider timeProvider,
     IWorkerCommandDispatcher workerCommands) : Hub
 {
-    public async Task<CreateSessionResult> CreateSession(CreateSessionRequest request, CancellationToken cancellationToken)
+    public Task<CreateSessionResult> CreateSession(CreateSessionRequest request)
+        => CreateSessionCoreAsync(request, Context.ConnectionAborted);
+
+    public Task DetachSession(string sessionId)
+        => DetachSessionCoreAsync(sessionId, Context.ConnectionAborted);
+
+    public Task<ReattachSessionResult> ReattachSession(ReattachSessionRequest request)
+        => ReattachSessionCoreAsync(request, Context.ConnectionAborted);
+
+    private async Task<CreateSessionResult> CreateSessionCoreAsync(CreateSessionRequest request, CancellationToken cancellationToken)
     {
         var result = await sessions.CreateSessionAsync(Context.UserIdentifier ?? "unknown", request, Context.ConnectionId, cancellationToken);
         if (!result.IsSuccess || result.Response is null || !sessions.TryGetSession(result.Response.SessionId, out var session))
@@ -39,14 +48,14 @@ public sealed class TerminalHub(
         return result;
     }
 
-    public async Task DetachSession(string sessionId, CancellationToken cancellationToken)
+    private async Task DetachSessionCoreAsync(string sessionId, CancellationToken cancellationToken)
     {
         var now = timeProvider.GetUtcNow();
         await sessions.DetachSessionAsync(Context.UserIdentifier ?? "unknown", sessionId, now, cancellationToken);
         await Clients.Caller.SendAsync("SessionDetached", new SessionDetachedEvent(sessionId, now.AddMinutes(5)), cancellationToken);
     }
 
-    public async Task<ReattachSessionResult> ReattachSession(ReattachSessionRequest request, CancellationToken cancellationToken)
+    private async Task<ReattachSessionResult> ReattachSessionCoreAsync(ReattachSessionRequest request, CancellationToken cancellationToken)
     {
         var result = await sessions.ReattachSessionAsync(
             Context.UserIdentifier ?? "unknown",

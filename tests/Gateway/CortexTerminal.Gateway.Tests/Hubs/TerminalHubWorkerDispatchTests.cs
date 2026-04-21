@@ -28,7 +28,7 @@ public sealed class TerminalHubWorkerDispatchTests
         hub.Context = new TestHubCallerContext("client-1", "user-1");
         hub.Clients = new TestHubCallerClients(new RecordingClientProxy());
 
-        var result = await hub.CreateSession(new CreateSessionRequest("shell", 120, 40), CancellationToken.None);
+        var result = await hub.CreateSession(new CreateSessionRequest("shell", 120, 40));
 
         result.IsSuccess.Should().BeTrue();
         workerClient.Invocations.Should().ContainSingle(invocation => invocation.Method == "StartSession");
@@ -47,7 +47,7 @@ public sealed class TerminalHubWorkerDispatchTests
         hub.Context = new TestHubCallerContext("client-1", "user-1");
         hub.Clients = new TestHubCallerClients(new RecordingClientProxy());
 
-        var result = await hub.CreateSession(new CreateSessionRequest("shell", 120, 40), CancellationToken.None);
+        var result = await hub.CreateSession(new CreateSessionRequest("shell", 120, 40));
 
         result.IsSuccess.Should().BeFalse();
         result.ErrorCode.Should().Be("worker-start-dispatch-failed");
