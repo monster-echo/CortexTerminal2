@@ -172,6 +172,15 @@ public sealed class ContractSerializationTests
         clone.Should().Be(frame);
     }
 
+    [Fact]
+    public void StartSessionCommand_RoundTrips_WithMessagePack()
+    {
+        var frame = new StartSessionCommand("s-789", 100, 30);
+        var clone = RoundTrip(frame);
+
+        clone.Should().Be(frame);
+    }
+
     private static T RoundTrip<T>(T value)
         => MessagePackSerializer.Deserialize<T>(MessagePackSerializer.Serialize(value));
 }
