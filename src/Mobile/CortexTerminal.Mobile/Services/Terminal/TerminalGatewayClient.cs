@@ -25,11 +25,9 @@ public sealed class TerminalGatewayClient(HttpClient httpClient, HubConnection h
         return await hubConnection.InvokeAsync<ReattachSessionResult>("ReattachSession", new ReattachSessionRequest(sessionId), cancellationToken);
     }
 
-    private async Task EnsureConnectedAsync(CancellationToken cancellationToken)
-    {
-        if (hubConnection.State == HubConnectionState.Disconnected)
-        {
-            await hubConnection.StartAsync(cancellationToken);
-        }
-    }
+    private Task EnsureConnectedAsync(CancellationToken cancellationToken)
+        => HubConnectionConnectionGate.EnsureConnectedAsync(
+            () => hubConnection.State,
+            hubConnection.StartAsync,
+            cancellationToken);
 }
