@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.SignalR;
 
 namespace CortexTerminal.Gateway.Hubs;
 
-public sealed class WorkerHub(IWorkerRegistry workers, ISessionCoordinator sessions) : Hub
+public sealed class WorkerHub(IWorkerRegistry workers, ISessionCoordinator sessions, IReplayCache replayCache) : Hub
 {
     public void RegisterWorker(string workerId)
         => workers.Register(workerId, Context.ConnectionId);
@@ -18,17 +18,25 @@ public sealed class WorkerHub(IWorkerRegistry workers, ISessionCoordinator sessi
 
     public async Task ForwardStdout(TerminalChunk chunk)
     {
-        if (sessions.TryGetSession(chunk.SessionId, out var session))
+        replayCache.Append(new ReplayChunk(chunk.SessionId, chunk.Stream, chunk.Payload));
+
+        if (!sessions.TryGetSession(chunk.SessionId, out var session) || session.AttachedClientConnectionId is null)
         {
-            await Clients.Client(session.WorkerConnectionId).SendAsync("StdoutChunk", chunk);
+            return;
         }
+
+        await Clients.Client(session.AttachedClientConnectionId).SendAsync("StdoutChunk", chunk);
     }
 
     public async Task ForwardStderr(TerminalChunk chunk)
     {
-        if (sessions.TryGetSession(chunk.SessionId, out var session))
+        replayCache.Append(new ReplayChunk(chunk.SessionId, chunk.Stream, chunk.Payload));
+
+        if (!sessions.TryGetSession(chunk.SessionId, out var session) || session.AttachedClientConnectionId is null)
         {
-            await Clients.Client(session.WorkerConnectionId).SendAsync("StderrChunk", chunk);
+            return;
         }
+
+        await Clients.Client(session.AttachedClientConnectionId).SendAsync("StderrChunk", chunk);
     }
 }

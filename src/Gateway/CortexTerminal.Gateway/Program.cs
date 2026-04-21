@@ -31,6 +31,9 @@ builder.Services.AddAuthorization();
 builder.Services.AddSignalR().AddMessagePackProtocol();
 builder.Services.AddSingleton<IWorkerRegistry, InMemoryWorkerRegistry>();
 builder.Services.AddSingleton<ISessionCoordinator, InMemorySessionCoordinator>();
+builder.Services.AddSingleton<IReplayCache>(_ => new ReplayCache(64 * 1024));
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddHostedService<DetachedSessionExpiryService>();
 
 var app = builder.Build();
 
