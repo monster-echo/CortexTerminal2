@@ -12,7 +12,8 @@ public sealed class PtySessionTests
     public async Task StartAsync_ForwardsStdoutAndStderrSeparately()
     {
         var fakeHost = new FakePtyHost(stdout: [0x6F, 0x6B], stderr: [0x62, 0x61, 0x64]);
-        var session = new PtySession(fakeHost);
+        var scrollbackBuffer = new ScrollbackBuffer(1024);
+        var session = new PtySession(fakeHost, scrollbackBuffer);
 
         await session.StartAsync("sess_1", 120, 40, CancellationToken.None);
 
@@ -30,13 +31,18 @@ public sealed class PtySessionTests
 
         stdoutChunks.Should().ContainSingle(x => x.Stream == "stdout");
         stderrChunks.Should().ContainSingle(x => x.Stream == "stderr");
+        scrollbackBuffer.Snapshot().Should().BeEquivalentTo(new[]
+        {
+            new TerminalChunk("sess_1", "stdout", [0x6F, 0x6B]),
+            new TerminalChunk("sess_1", "stderr", [0x62, 0x61, 0x64])
+        });
     }
 
     [Fact]
     public async Task WriteAsync_ForwardsBytesToProcess()
     {
         var fakeHost = new FakePtyHost(stdout: [], stderr: []);
-        var session = new PtySession(fakeHost);
+        var session = new PtySession(fakeHost, new ScrollbackBuffer(1024));
 
         var process = await session.StartAsync("sess_1", 120, 40, CancellationToken.None);
         var payload = new byte[] { 0x09, 0x03 };
@@ -49,7 +55,7 @@ public sealed class PtySessionTests
     public async Task ResizeAsync_ForwardsNewDimensions()
     {
         var fakeHost = new FakePtyHost(stdout: [], stderr: []);
-        var session = new PtySession(fakeHost);
+        var session = new PtySession(fakeHost, new ScrollbackBuffer(1024));
 
         var process = await session.StartAsync("sess_1", 120, 40, CancellationToken.None);
         await process.ResizeAsync(140, 50, CancellationToken.None);

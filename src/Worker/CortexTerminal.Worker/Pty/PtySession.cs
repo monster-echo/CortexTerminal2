@@ -2,7 +2,7 @@ using CortexTerminal.Contracts.Streaming;
 
 namespace CortexTerminal.Worker.Pty;
 
-public sealed class PtySession(IPtyHost host)
+public sealed class PtySession(IPtyHost host, ScrollbackBuffer scrollbackBuffer)
 {
     private IPtyProcess? _process;
 
@@ -17,6 +17,7 @@ public sealed class PtySession(IPtyHost host)
         if (_process is null) yield break;
         await foreach (var data in _process.ReadStdoutAsync(cancellationToken))
         {
+            scrollbackBuffer.Append(sessionId, "stdout", data);
             yield return new TerminalChunk(sessionId, "stdout", data);
         }
     }
@@ -26,6 +27,7 @@ public sealed class PtySession(IPtyHost host)
         if (_process is null) yield break;
         await foreach (var data in _process.ReadStderrAsync(cancellationToken))
         {
+            scrollbackBuffer.Append(sessionId, "stderr", data);
             yield return new TerminalChunk(sessionId, "stderr", data);
         }
     }
