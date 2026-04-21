@@ -5,28 +5,37 @@ namespace CortexTerminal.Mobile.Services.Terminal;
 internal static class HubConnectionConnectionGate
 {
     private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(50);
+    private static readonly SemaphoreSlim ConnectionGate = new(1, 1);
 
     public static async Task EnsureConnectedAsync(
         Func<HubConnectionState> getState,
         Func<CancellationToken, Task> startAsync,
         CancellationToken cancellationToken)
     {
-        while (true)
+        await ConnectionGate.WaitAsync(cancellationToken);
+        try
         {
-            var state = getState();
-
-            if (state == HubConnectionState.Connected)
+            while (true)
             {
-                return;
-            }
+                var state = getState();
 
-            if (state == HubConnectionState.Disconnected)
-            {
-                await startAsync(cancellationToken);
-                continue;
-            }
+                if (state == HubConnectionState.Connected)
+                {
+                    return;
+                }
 
-            await Task.Delay(PollInterval, cancellationToken);
+                if (state == HubConnectionState.Disconnected)
+                {
+                    await startAsync(cancellationToken);
+                    continue;
+                }
+
+                await Task.Delay(PollInterval, cancellationToken);
+            }
+        }
+        finally
+        {
+            ConnectionGate.Release();
         }
     }
 }
