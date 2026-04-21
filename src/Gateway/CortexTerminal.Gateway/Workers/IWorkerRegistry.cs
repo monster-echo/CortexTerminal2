@@ -8,7 +8,7 @@ public interface IWorkerRegistry
     bool TryGetLeastBusyForUser(string userId, out RegisteredWorker worker);
     bool TryGetWorker(string workerId, out RegisteredWorker worker);
     IReadOnlyList<RegisteredWorker> GetWorkersForUser(string userId);
-    void SetWorkerOwner(string workerId, string ownerUserId);
+    bool SetWorkerOwner(string workerId, string ownerUserId);
 }
 
 public sealed record RegisteredWorker(string WorkerId, string ConnectionId, string? OwnerUserId = null, DateTimeOffset? LastSeenAtUtc = null);

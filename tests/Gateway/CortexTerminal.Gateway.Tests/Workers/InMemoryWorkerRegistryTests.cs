@@ -11,7 +11,7 @@ public sealed class InMemoryWorkerRegistryTests
     {
         var registry = new InMemoryWorkerRegistry();
         registry.Register("worker-1", "connection-1");
-        registry.SetWorkerOwner("worker-1", "user-a");
+        registry.SetWorkerOwner("worker-1", "user-a").Should().BeTrue();
 
         using var start = new ManualResetEventSlim(false);
         var tasks = Enumerable.Range(0, 8)
@@ -20,7 +20,7 @@ public sealed class InMemoryWorkerRegistryTests
                 start.Wait();
                 for (var attempt = 0; attempt < 100; attempt++)
                 {
-                    registry.SetWorkerOwner("worker-1", "user-b");
+                    registry.SetWorkerOwner("worker-1", "user-b").Should().BeFalse();
                 }
             }))
             .ToArray();

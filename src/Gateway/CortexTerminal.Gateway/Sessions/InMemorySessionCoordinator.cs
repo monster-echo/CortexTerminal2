@@ -24,7 +24,11 @@ public sealed class InMemorySessionCoordinator : ISessionCoordinator
             return Task.FromResult(CreateSessionResult.Failure("no-worker-available"));
         }
 
-        _workers.SetWorkerOwner(worker.WorkerId, userId);
+        if (!_workers.SetWorkerOwner(worker.WorkerId, userId))
+        {
+            return Task.FromResult(CreateSessionResult.Failure("no-worker-available"));
+        }
+
         var now = _timeProvider.GetUtcNow();
         var sessionId = $"sess_{Guid.NewGuid():N}";
         var record = new SessionRecord(

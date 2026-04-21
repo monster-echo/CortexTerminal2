@@ -45,20 +45,22 @@ public sealed class InMemoryWorkerRegistry : IWorkerRegistry
     public IReadOnlyList<RegisteredWorker> GetWorkersForUser(string userId)
         => _workers.Values.Where(worker => worker.OwnerUserId == userId).ToArray();
 
-    public void SetWorkerOwner(string workerId, string ownerUserId)
+    public bool SetWorkerOwner(string workerId, string ownerUserId)
     {
         while (_workers.TryGetValue(workerId, out var existing))
         {
             if (existing.OwnerUserId is not null && existing.OwnerUserId != ownerUserId)
             {
-                return;
+                return false;
             }
 
             var updated = existing with { OwnerUserId = ownerUserId, LastSeenAtUtc = DateTimeOffset.UtcNow };
             if (_workers.TryUpdate(workerId, updated, existing))
             {
-                return;
+                return true;
             }
         }
+
+        return false;
     }
 }
