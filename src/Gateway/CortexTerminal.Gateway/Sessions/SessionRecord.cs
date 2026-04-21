@@ -6,4 +6,7 @@ public sealed record SessionRecord(
     string WorkerId,
     string WorkerConnectionId,
     int Columns,
-    int Rows);
+    int Rows,
+    SessionAttachmentState AttachmentState = SessionAttachmentState.Attached,
+    string? AttachedClientConnectionId = null,
+    DateTimeOffset? LeaseExpiresAtUtc = null);
