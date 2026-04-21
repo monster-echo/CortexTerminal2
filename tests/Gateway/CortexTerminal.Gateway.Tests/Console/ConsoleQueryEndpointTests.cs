@@ -1,7 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using CortexTerminal.Contracts.Console;
 using CortexTerminal.Contracts.Sessions;
 using CortexTerminal.Gateway.Sessions;
 using CortexTerminal.Gateway.Workers;
@@ -37,21 +36,30 @@ public sealed class ConsoleQueryEndpointTests : IClassFixture<GatewayApplication
 
         using var sessionsResponse = await aliceClient.GetAsync("/api/me/sessions");
         sessionsResponse.StatusCode.Should().Be(HttpStatusCode.OK);
-        var aliceSessions = await sessionsResponse.Content.ReadFromJsonAsync<SessionSummaryDto[]>();
+        var aliceSessions = await sessionsResponse.Content.ReadFromJsonAsync<SessionSummaryResponse[]>();
         aliceSessions.Should().NotBeNull();
         aliceSessions!.Should().ContainSingle(session => session.SessionId == aliceSession.Response!.SessionId);
 
+        using var ownedSessionResponse = await aliceClient.GetAsync($"/api/me/sessions/{aliceSession.Response!.SessionId}");
+        ownedSessionResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var ownedSession = await ownedSessionResponse.Content.ReadFromJsonAsync<SessionSummaryResponse>();
+        ownedSession.Should().NotBeNull();
+        ownedSession!.SessionId.Should().Be(aliceSession.Response.SessionId);
+        ownedSession.WorkerId.Should().Be("worker-alice");
+
         using var workersResponse = await aliceClient.GetAsync("/api/me/workers");
         workersResponse.StatusCode.Should().Be(HttpStatusCode.OK);
-        var aliceWorkers = await workersResponse.Content.ReadFromJsonAsync<WorkerSummaryDto[]>();
+        var aliceWorkers = await workersResponse.Content.ReadFromJsonAsync<WorkerSummaryResponse[]>();
         aliceWorkers.Should().NotBeNull();
         aliceWorkers!.Should().ContainSingle(worker => worker.WorkerId == "worker-alice");
 
         using var workerResponse = await aliceClient.GetAsync("/api/me/workers/worker-alice");
         workerResponse.StatusCode.Should().Be(HttpStatusCode.OK);
-        var workerDetail = await workerResponse.Content.ReadFromJsonAsync<WorkerDetailDto>();
+        var workerDetail = await workerResponse.Content.ReadFromJsonAsync<WorkerDetailResponse>();
         workerDetail.Should().NotBeNull();
         workerDetail!.WorkerId.Should().Be("worker-alice");
+        workerDetail.SessionCount.Should().Be(1);
+        workerDetail.Sessions.Should().ContainSingle(session => session.SessionId == aliceSession.Response!.SessionId);
 
         using var forbiddenWorkerResponse = await aliceClient.GetAsync("/api/me/workers/worker-bob");
         forbiddenWorkerResponse.StatusCode.Should().Be(HttpStatusCode.Forbidden);
@@ -68,4 +76,17 @@ public sealed class ConsoleQueryEndpointTests : IClassFixture<GatewayApplication
         var payload = await response.Content.ReadFromJsonAsync<CortexTerminal.Contracts.Auth.DevLoginResponse>();
         return payload!.AccessToken;
     }
+
+    private sealed record SessionSummaryResponse(string SessionId, string WorkerId);
+
+    private sealed record WorkerSummaryResponse(string WorkerId, string Name, int SessionCount);
+
+    private sealed record WorkerDetailResponse(
+        string WorkerId,
+        string Name,
+        string Address,
+        bool IsOnline,
+        string LastSeenAtUtc,
+        int SessionCount,
+        SessionSummaryResponse[] Sessions);
 }

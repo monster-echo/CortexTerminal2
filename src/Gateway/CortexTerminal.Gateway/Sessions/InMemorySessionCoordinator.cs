@@ -86,6 +86,19 @@ public sealed class InMemorySessionCoordinator : ISessionCoordinator
 
             if (session.AttachmentState == SessionAttachmentState.Attached)
             {
+                if (session.AttachedClientConnectionId is null)
+                {
+                    _sessions[request.SessionId] = session with
+                    {
+                        AttachedClientConnectionId = clientConnectionId,
+                        LeaseExpiresAtUtc = null,
+                        ReplayPending = true,
+                        LastActivityAtUtc = nowUtc
+                    };
+
+                    return Task.FromResult(ReattachSessionResult.Success());
+                }
+
                 return Task.FromResult(ReattachSessionResult.Failure("session-already-attached"));
             }
 

@@ -1,12 +1,15 @@
 import { useEffect, useState } from "react"
+import type { TerminalGateway } from "../services/terminalGateway"
+import { TerminalView } from "../terminal/TerminalView"
 import type { ConsoleApi, SessionDetail } from "../services/consoleApi"
 
 export function SessionDetailPage(props: {
   api: ConsoleApi
   sessionId: string
   navigate: (path: string) => void
+  terminalGateway: TerminalGateway
 }) {
-  const { api, sessionId, navigate } = props
+  const { api, sessionId, navigate, terminalGateway } = props
   const [session, setSession] = useState<SessionDetail | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -65,7 +68,7 @@ export function SessionDetailPage(props: {
               <dd>{session.status}</dd>
             </div>
           </dl>
-          <p>Live terminal connects in Task 4.</p>
+          <TerminalView gateway={terminalGateway} sessionId={session.sessionId} />
         </>
       ) : null}
     </section>

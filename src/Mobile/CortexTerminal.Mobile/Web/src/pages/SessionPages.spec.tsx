@@ -1,8 +1,9 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 import { SessionDetailPage } from "./SessionDetailPage"
 import { SessionListPage } from "./SessionListPage"
 import type { ConsoleApi, SessionDetail, SessionSummary, WorkerDetail, WorkerSummary } from "../services/consoleApi"
+import type { TerminalGateway } from "../services/terminalGateway"
 
 function createApi(overrides: Partial<ConsoleApi> = {}): ConsoleApi {
   return {
@@ -12,6 +13,18 @@ function createApi(overrides: Partial<ConsoleApi> = {}): ConsoleApi {
     createSession: vi.fn(),
     listWorkers: vi.fn().mockResolvedValue([] satisfies WorkerSummary[]),
     getWorker: vi.fn().mockResolvedValue({} as WorkerDetail),
+    ...overrides,
+  }
+}
+
+function createTerminalGateway(overrides: Partial<TerminalGateway> = {}): TerminalGateway {
+  return {
+    connect: vi.fn().mockResolvedValue({
+      writeInput: vi.fn(),
+      resize: vi.fn(),
+      close: vi.fn(),
+      dispose: vi.fn(),
+    }),
     ...overrides,
   }
 }
@@ -84,11 +97,25 @@ describe("Session pages", () => {
         ),
     })
 
-    const view = render(<SessionDetailPage api={api} sessionId="session-1" navigate={vi.fn()} />)
+    const view = render(
+      <SessionDetailPage
+        api={api}
+        sessionId="session-1"
+        navigate={vi.fn()}
+        terminalGateway={createTerminalGateway()}
+      />
+    )
 
     expect(await screen.findByText("Session session-1")).toBeTruthy()
 
-    view.rerender(<SessionDetailPage api={api} sessionId="session-2" navigate={vi.fn()} />)
+    view.rerender(
+      <SessionDetailPage
+        api={api}
+        sessionId="session-2"
+        navigate={vi.fn()}
+        terminalGateway={createTerminalGateway()}
+      />
+    )
 
     expect(screen.queryByText("Session session-1")).toBeNull()
     expect(screen.getByText("Loading session…")).toBeTruthy()
@@ -106,5 +133,74 @@ describe("Session pages", () => {
     })
 
     expect(await screen.findByText("Session session-2")).toBeTruthy()
+  })
+
+  it("connects the terminal gateway for the loaded session and renders live output", async () => {
+    const writeInput = vi.fn()
+    let handlers: Record<string, ((...args: unknown[]) => void) | undefined> = {}
+    const terminalGateway = createTerminalGateway({
+      connect: vi.fn().mockImplementation(
+        async (_sessionId: string, nextHandlers: Record<string, (...args: unknown[]) => void>) => {
+          handlers = nextHandlers
+          return {
+            writeInput,
+            resize: vi.fn(),
+            close: vi.fn(),
+            dispose: vi.fn(),
+          }
+        }
+      ),
+    })
+    const api = createApi({
+      getSession: vi.fn().mockResolvedValue({
+        sessionId: "session-1",
+        workerId: "worker-1",
+        status: "live",
+        createdAt: "2026-04-21T00:00:00Z",
+        lastActivityAt: "2026-04-21T00:01:00Z",
+      } satisfies SessionDetail),
+    })
+
+    render(<SessionDetailPage api={api} sessionId="session-1" navigate={vi.fn()} terminalGateway={terminalGateway} />)
+
+    expect(await screen.findByText("Session session-1")).toBeTruthy()
+    await waitFor(() => expect(terminalGateway.connect).toHaveBeenCalledWith("session-1", expect.any(Object)))
+
+    await act(async () => {
+      handlers.onStdout?.(new Uint8Array([0x48, 0x69]))
+    })
+
+    expect(screen.getByTestId("terminal-output").textContent).toContain("Hi")
+    fireEvent.click(screen.getByRole("button", { name: "send-tab" }))
+    expect(writeInput).toHaveBeenCalledOnce()
+  })
+
+  it("shows terminal expiry details from gateway events", async () => {
+    const terminalGateway = createTerminalGateway({
+      connect: vi.fn().mockImplementation(async (_sessionId, handlers) => {
+        handlers.onSessionExpired("process-exited")
+        return {
+          writeInput: vi.fn(),
+          resize: vi.fn(),
+          close: vi.fn(),
+          dispose: vi.fn(),
+        }
+      }),
+    })
+    const api = createApi({
+      getSession: vi.fn().mockResolvedValue({
+        sessionId: "session-1",
+        workerId: "worker-1",
+        status: "live",
+        createdAt: "2026-04-21T00:00:00Z",
+        lastActivityAt: "2026-04-21T00:01:00Z",
+      } satisfies SessionDetail),
+    })
+
+    render(<SessionDetailPage api={api} sessionId="session-1" navigate={vi.fn()} terminalGateway={terminalGateway} />)
+
+    expect(await screen.findByText("Session session-1")).toBeTruthy()
+    await waitFor(() => expect(screen.getByTestId("terminal-status").textContent).toBe("expired"))
+    expect(screen.getByRole("alert").textContent).toContain("process-exited")
   })
 })

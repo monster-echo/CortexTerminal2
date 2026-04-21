@@ -8,6 +8,7 @@ import { WorkerDetailPage } from "./pages/WorkerDetailPage"
 import { WorkerListPage } from "./pages/WorkerListPage"
 import { createAuthService, type AuthSession } from "./services/auth"
 import { createConsoleApi } from "./services/consoleApi"
+import { createTerminalGateway } from "./services/terminalGateway"
 
 export function App() {
   const auth = useMemo(() => createAuthService(window.localStorage), [])
@@ -40,6 +41,13 @@ export function App() {
         onUnauthorized: handleUnauthorized,
       }),
     [auth, handleUnauthorized]
+  )
+  const terminalGateway = useMemo(
+    () =>
+      createTerminalGateway({
+        accessTokenFactory: () => auth.getToken(),
+      }),
+    [auth]
   )
 
   useEffect(() => {
@@ -77,7 +85,12 @@ export function App() {
       {route.kind === "login" ? <LoginPage login={handleLogin} navigate={navigate} /> : null}
       {route.kind === "session-list" ? <SessionListPage api={api} navigate={navigate} /> : null}
       {route.kind === "session-detail" ? (
-        <SessionDetailPage api={api} navigate={navigate} sessionId={route.sessionId} />
+        <SessionDetailPage
+          api={api}
+          navigate={navigate}
+          sessionId={route.sessionId}
+          terminalGateway={terminalGateway}
+        />
       ) : null}
       {route.kind === "worker-list" ? <WorkerListPage api={api} navigate={navigate} /> : null}
       {route.kind === "worker-detail" ? (

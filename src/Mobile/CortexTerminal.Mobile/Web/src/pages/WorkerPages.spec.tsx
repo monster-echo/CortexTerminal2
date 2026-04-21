@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 import { WorkerDetailPage } from "./WorkerDetailPage"
 import { WorkerListPage } from "./WorkerListPage"
@@ -37,6 +37,7 @@ describe("Worker pages", () => {
   })
 
   it("shows a worker summary and hosted sessions", async () => {
+    const navigate = vi.fn()
     const api = createApi({
       getWorker: vi.fn().mockResolvedValue({
         workerId: "worker-1",
@@ -56,10 +57,13 @@ describe("Worker pages", () => {
       } satisfies WorkerDetail),
     })
 
-    render(<WorkerDetailPage api={api} workerId="worker-1" navigate={vi.fn()} />)
+    render(<WorkerDetailPage api={api} workerId="worker-1" navigate={navigate} />)
 
     expect(await screen.findByText("Worker Alpha")).toBeTruthy()
+    expect(screen.getByText("Hosted sessions")).toBeTruthy()
     expect(screen.getByText("session-1")).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "Open session" }))
+    expect(navigate).toHaveBeenCalledWith("/sessions/session-1")
   })
 
   it("clears stale detail content while loading a different worker", async () => {

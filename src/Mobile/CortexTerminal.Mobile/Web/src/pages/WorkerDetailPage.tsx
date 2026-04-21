@@ -66,6 +66,7 @@ export function WorkerDetailPage(props: {
               <dd>{worker.isOnline ? "Online" : "Offline"}</dd>
             </div>
           </dl>
+          <h3>Hosted sessions</h3>
           <SessionList
             sessions={worker.sessions}
             onOpen={(sessionId) => navigate(`/sessions/${sessionId}`)}

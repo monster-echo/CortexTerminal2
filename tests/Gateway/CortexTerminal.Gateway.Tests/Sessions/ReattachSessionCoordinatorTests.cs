@@ -42,7 +42,7 @@ public sealed class ReattachSessionCoordinatorTests
     public async Task ReattachSessionAsync_WhenAlreadyAttached_ReturnsAlreadyAttached()
     {
         var coordinator = CreateCoordinator();
-        var createResult = await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), clientConnectionId: null, CancellationToken.None);
+        var createResult = await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), clientConnectionId: "client-1", CancellationToken.None);
 
         var result = await coordinator.ReattachSessionAsync(
             "user-1",
@@ -53,6 +53,26 @@ public sealed class ReattachSessionCoordinatorTests
 
         result.IsSuccess.Should().BeFalse();
         result.ErrorCode.Should().Be("session-already-attached");
+    }
+
+    [Fact]
+    public async Task ReattachSessionAsync_WhenSessionNeedsConsoleEntryWithoutAttachedClient_ReturnsSuccess()
+    {
+        var coordinator = CreateCoordinator();
+        var createResult = await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), clientConnectionId: null, CancellationToken.None);
+
+        var result = await coordinator.ReattachSessionAsync(
+            "user-1",
+            new ReattachSessionRequest(createResult.Response!.SessionId),
+            "client-2",
+            new DateTimeOffset(2025, 1, 1, 12, 0, 0, TimeSpan.Zero),
+            CancellationToken.None);
+
+        result.Should().BeEquivalentTo(ReattachSessionResult.Success());
+        coordinator.TryGetSession(createResult.Response.SessionId, out var enteredSession).Should().BeTrue();
+        enteredSession.AttachmentState.Should().Be(SessionAttachmentState.Attached);
+        enteredSession.AttachedClientConnectionId.Should().Be("client-2");
+        enteredSession.ReplayPending.Should().BeTrue();
     }
 
     [Fact]
