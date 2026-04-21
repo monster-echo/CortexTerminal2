@@ -15,7 +15,7 @@ public sealed class ScrollbackBufferTests
         buffer.Append("sess_1", "stderr", [0x62]);
         buffer.Append("sess_1", "stdout", [0x63]);
 
-        buffer.Snapshot().Should().BeEquivalentTo(new[]
+        buffer.Snapshot().Should().Equal(new[]
         {
             new TerminalChunk("sess_1", "stdout", [0x61]),
             new TerminalChunk("sess_1", "stderr", [0x62]),
@@ -32,7 +32,7 @@ public sealed class ScrollbackBufferTests
         buffer.Append("sess_1", "stderr", [0x63, 0x64, 0x65]);
         buffer.Append("sess_1", "stdout", [0x66, 0x67, 0x68, 0x69]);
 
-        buffer.Snapshot().Should().BeEquivalentTo(new[]
+        buffer.Snapshot().Should().Equal(new[]
         {
             new TerminalChunk("sess_1", "stdout", [0x66, 0x67, 0x68, 0x69])
         });

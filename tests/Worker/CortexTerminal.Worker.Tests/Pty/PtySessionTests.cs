@@ -31,9 +31,39 @@ public sealed class PtySessionTests
 
         stdoutChunks.Should().ContainSingle(x => x.Stream == "stdout");
         stderrChunks.Should().ContainSingle(x => x.Stream == "stderr");
-        scrollbackBuffer.Snapshot().Should().BeEquivalentTo(new[]
+        scrollbackBuffer.Snapshot().Should().Equal(new[]
         {
             new TerminalChunk("sess_1", "stdout", [0x6F, 0x6B]),
+            new TerminalChunk("sess_1", "stderr", [0x62, 0x61, 0x64])
+        });
+    }
+
+    [Fact]
+    public async Task StartAsync_CopiesStdoutIntoScrollbackBuffer()
+    {
+        var fakeHost = new FakePtyHost(stdout: [0x6F, 0x6B], stderr: []);
+        var scrollbackBuffer = new ScrollbackBuffer(1024);
+        var session = new PtySession(fakeHost, scrollbackBuffer);
+
+        await session.StartAsync("sess_1", 120, 40, CancellationToken.None);
+
+        scrollbackBuffer.Snapshot().Should().Equal(new[]
+        {
+            new TerminalChunk("sess_1", "stdout", [0x6F, 0x6B])
+        });
+    }
+
+    [Fact]
+    public async Task StartAsync_CopiesStderrIntoScrollbackBuffer()
+    {
+        var fakeHost = new FakePtyHost(stdout: [], stderr: [0x62, 0x61, 0x64]);
+        var scrollbackBuffer = new ScrollbackBuffer(1024);
+        var session = new PtySession(fakeHost, scrollbackBuffer);
+
+        await session.StartAsync("sess_1", 120, 40, CancellationToken.None);
+
+        scrollbackBuffer.Snapshot().Should().Equal(new[]
+        {
             new TerminalChunk("sess_1", "stderr", [0x62, 0x61, 0x64])
         });
     }
