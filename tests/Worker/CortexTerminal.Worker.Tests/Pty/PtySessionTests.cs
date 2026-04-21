@@ -31,11 +31,10 @@ public sealed class PtySessionTests
 
         stdoutChunks.Should().ContainSingle(x => x.Stream == "stdout");
         stderrChunks.Should().ContainSingle(x => x.Stream == "stderr");
-        scrollbackBuffer.Snapshot().Should().Equal(new[]
-        {
-            new TerminalChunk("sess_1", "stdout", [0x6F, 0x6B]),
-            new TerminalChunk("sess_1", "stderr", [0x62, 0x61, 0x64])
-        });
+        AssertChunks(
+            scrollbackBuffer.Snapshot(),
+            ("sess_1", "stdout", [0x6F, 0x6B]),
+            ("sess_1", "stderr", [0x62, 0x61, 0x64]));
     }
 
     [Fact]
@@ -46,11 +45,10 @@ public sealed class PtySessionTests
         var session = new PtySession(fakeHost, scrollbackBuffer);
 
         await session.StartAsync("sess_1", 120, 40, CancellationToken.None);
+        var stdoutChunks = await ReadAllAsync(session.ReadStdoutChunksAsync("sess_1", CancellationToken.None));
 
-        scrollbackBuffer.Snapshot().Should().Equal(new[]
-        {
-            new TerminalChunk("sess_1", "stdout", [0x6F, 0x6B])
-        });
+        AssertChunks(stdoutChunks, ("sess_1", "stdout", [0x6F, 0x6B]));
+        AssertChunks(scrollbackBuffer.Snapshot(), ("sess_1", "stdout", [0x6F, 0x6B]));
     }
 
     [Fact]
@@ -61,11 +59,52 @@ public sealed class PtySessionTests
         var session = new PtySession(fakeHost, scrollbackBuffer);
 
         await session.StartAsync("sess_1", 120, 40, CancellationToken.None);
+        var stderrChunks = await ReadAllAsync(session.ReadStderrChunksAsync("sess_1", CancellationToken.None));
 
-        scrollbackBuffer.Snapshot().Should().Equal(new[]
-        {
-            new TerminalChunk("sess_1", "stderr", [0x62, 0x61, 0x64])
-        });
+        AssertChunks(stderrChunks, ("sess_1", "stderr", [0x62, 0x61, 0x64]));
+        AssertChunks(scrollbackBuffer.Snapshot(), ("sess_1", "stderr", [0x62, 0x61, 0x64]));
+    }
+
+    [Fact]
+    public async Task ReadStdoutChunksAsync_AppendsChunkBeforeYieldingIt()
+    {
+        var fakeHost = new FakePtyHost(stdout: [0x6F, 0x6B], stderr: []);
+        var scrollbackBuffer = new ScrollbackBuffer(1024);
+        var session = new PtySession(fakeHost, scrollbackBuffer);
+
+        await session.StartAsync("sess_1", 120, 40, CancellationToken.None);
+
+        await using var enumerator = session.ReadStdoutChunksAsync("sess_1", CancellationToken.None).GetAsyncEnumerator();
+        (await enumerator.MoveNextAsync()).Should().BeTrue();
+
+        var firstChunk = enumerator.Current;
+        AssertChunks(
+            scrollbackBuffer.Snapshot(),
+            (firstChunk.SessionId, firstChunk.Stream, firstChunk.Payload));
+        firstChunk.Payload.Should().Equal([0x6F, 0x6B]);
+
+        (await enumerator.MoveNextAsync()).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task ReadStderrChunksAsync_AppendsChunkBeforeYieldingIt()
+    {
+        var fakeHost = new FakePtyHost(stdout: [], stderr: [0x62, 0x61, 0x64]);
+        var scrollbackBuffer = new ScrollbackBuffer(1024);
+        var session = new PtySession(fakeHost, scrollbackBuffer);
+
+        await session.StartAsync("sess_1", 120, 40, CancellationToken.None);
+
+        await using var enumerator = session.ReadStderrChunksAsync("sess_1", CancellationToken.None).GetAsyncEnumerator();
+        (await enumerator.MoveNextAsync()).Should().BeTrue();
+
+        var firstChunk = enumerator.Current;
+        AssertChunks(
+            scrollbackBuffer.Snapshot(),
+            (firstChunk.SessionId, firstChunk.Stream, firstChunk.Payload));
+        firstChunk.Payload.Should().Equal([0x62, 0x61, 0x64]);
+
+        (await enumerator.MoveNextAsync()).Should().BeFalse();
     }
 
     [Fact]
@@ -93,6 +132,31 @@ public sealed class PtySessionTests
         var fake = (FakePtyProcess)process;
         fake.LastColumns.Should().Be(140);
         fake.LastRows.Should().Be(50);
+    }
+
+    private static async Task<List<TerminalChunk>> ReadAllAsync(IAsyncEnumerable<TerminalChunk> source)
+    {
+        var chunks = new List<TerminalChunk>();
+        await foreach (var chunk in source)
+        {
+            chunks.Add(chunk);
+        }
+
+        return chunks;
+    }
+
+    private static void AssertChunks(
+        IReadOnlyList<TerminalChunk> actual,
+        params (string SessionId, string Stream, byte[] Payload)[] expected)
+    {
+        actual.Should().HaveCount(expected.Length);
+
+        for (var i = 0; i < expected.Length; i++)
+        {
+            actual[i].SessionId.Should().Be(expected[i].SessionId);
+            actual[i].Stream.Should().Be(expected[i].Stream);
+            actual[i].Payload.Should().Equal(expected[i].Payload);
+        }
     }
 }
 
