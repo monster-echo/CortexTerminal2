@@ -5,6 +5,14 @@ export function createTerminalSessionModel(deps: {
   onStateChange?: (state: TerminalSessionState) => void
 }) {
   let state: TerminalSessionState = "live"
+  const transitionTo = (next: TerminalSessionState, allowedFrom: TerminalSessionState[]) => {
+    if (state === next || !allowedFrom.includes(state)) {
+      return
+    }
+
+    state = next
+    deps.onStateChange?.(state)
+  }
 
   return {
     onTerminalData(data: string) {
@@ -17,22 +25,18 @@ export function createTerminalSessionModel(deps: {
       return new TextDecoder().decode(payload)
     },
     onSessionReattached(sessionId: string) {
-      state = "reattached"
-      deps.onStateChange?.(state)
+      transitionTo("reattached", ["live"])
       return sessionId
     },
     onReplayChunk(payload: Uint8Array, stream: "stdout" | "stderr") {
-      state = "replaying"
-      deps.onStateChange?.(state)
+      transitionTo("replaying", ["reattached"])
       return { payload, stream }
     },
     onReplayCompleted() {
-      state = "live"
-      deps.onStateChange?.(state)
+      transitionTo("live", ["reattached", "replaying"])
     },
     onSessionExpired() {
-      state = "expired"
-      deps.onStateChange?.(state)
+      transitionTo("expired", ["live", "reattached", "replaying"])
     },
   }
 }

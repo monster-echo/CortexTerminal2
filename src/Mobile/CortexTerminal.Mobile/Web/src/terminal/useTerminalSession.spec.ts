@@ -57,6 +57,50 @@ describe("useTerminalSession", () => {
     expect(states).toEqual(["reattached", "replaying", "live"])
   })
 
+  it("emits replaying only once for repeated replay chunks", () => {
+    const states: string[] = []
+    const session = createTerminalSessionModel({
+      writeInput: vi.fn(),
+      onStateChange: (state) => states.push(state),
+    })
+
+    session.onSessionReattached("session-123")
+    session.onReplayChunk(new Uint8Array([0x61]), "stdout")
+    session.onReplayChunk(new Uint8Array([0x62]), "stderr")
+
+    expect(states).toEqual(["reattached", "replaying"])
+  })
+
+  it("ignores session reattached events while already replaying", () => {
+    const states: string[] = []
+    const session = createTerminalSessionModel({
+      writeInput: vi.fn(),
+      onStateChange: (state) => states.push(state),
+    })
+
+    session.onSessionReattached("session-123")
+    session.onReplayChunk(new Uint8Array([0x61]), "stdout")
+    const sessionId = session.onSessionReattached("session-456")
+
+    expect(sessionId).toBe("session-456")
+    expect(states).toEqual(["reattached", "replaying"])
+  })
+
+  it("does not leave expired when replay completion arrives late", () => {
+    const states: string[] = []
+    const session = createTerminalSessionModel({
+      writeInput: vi.fn(),
+      onStateChange: (state) => states.push(state),
+    })
+
+    session.onSessionReattached("session-123")
+    session.onReplayChunk(new Uint8Array([0x61]), "stdout")
+    session.onSessionExpired()
+    session.onReplayCompleted()
+
+    expect(states).toEqual(["reattached", "replaying", "expired"])
+  })
+
   it("transitions to expired when the session expires", () => {
     const states: string[] = []
     const session = createTerminalSessionModel({
