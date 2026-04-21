@@ -1,9 +1,10 @@
 using System.Net.Http.Json;
 using CortexTerminal.Contracts.Sessions;
+using Microsoft.AspNetCore.SignalR.Client;
 
 namespace CortexTerminal.Mobile.Services.Terminal;
 
-public sealed class TerminalGatewayClient(HttpClient httpClient)
+public sealed class TerminalGatewayClient(HttpClient httpClient, HubConnection hubConnection)
 {
     public async Task<CreateSessionResponse?> CreateSessionAsync(int columns, int rows, CancellationToken cancellationToken)
     {
@@ -11,4 +12,10 @@ public sealed class TerminalGatewayClient(HttpClient httpClient)
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<CreateSessionResponse>(cancellationToken: cancellationToken);
     }
+
+    public Task DetachSessionAsync(string sessionId, CancellationToken cancellationToken) =>
+        hubConnection.InvokeAsync("DetachSession", sessionId, cancellationToken);
+
+    public Task<ReattachSessionResult> ReattachSessionAsync(string sessionId, CancellationToken cancellationToken) =>
+        hubConnection.InvokeAsync<ReattachSessionResult>("ReattachSession", new ReattachSessionRequest(sessionId), cancellationToken);
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest"
-import { useTerminalSession } from "./useTerminalSession"
+import { createTerminalSessionModel, useTerminalSession } from "./useTerminalSession"
 
 describe("useTerminalSession", () => {
   it("forwards xterm input as raw bytes", () => {
@@ -38,5 +38,34 @@ describe("useTerminalSession", () => {
     const result = session.onStderr(new Uint8Array([0x45, 0x72, 0x72]))
 
     expect(result).toBe("Err")
+  })
+
+  it("transitions from reattached to replaying to live", () => {
+    const states: string[] = []
+    const session = createTerminalSessionModel({
+      writeInput: vi.fn(),
+      onStateChange: (state) => states.push(state),
+    })
+    const replayPayload = new Uint8Array([0x6f, 0x6b])
+
+    const sessionId = session.onSessionReattached("session-123")
+    const replayChunk = session.onReplayChunk(replayPayload, "stdout")
+    session.onReplayCompleted()
+
+    expect(sessionId).toBe("session-123")
+    expect(replayChunk).toEqual({ payload: replayPayload, stream: "stdout" })
+    expect(states).toEqual(["reattached", "replaying", "live"])
+  })
+
+  it("transitions to expired when the session expires", () => {
+    const states: string[] = []
+    const session = createTerminalSessionModel({
+      writeInput: vi.fn(),
+      onStateChange: (state) => states.push(state),
+    })
+
+    session.onSessionExpired()
+
+    expect(states).toEqual(["expired"])
   })
 })
