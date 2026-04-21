@@ -136,6 +136,16 @@ public sealed class WorkerSessionRuntime : IAsyncDisposable
             return;
         }
 
-        await Terminated(SessionId);
+        foreach (var handler in Terminated.GetInvocationList().Cast<Func<string, Task>>())
+        {
+            try
+            {
+                await handler(SessionId);
+            }
+            catch (Exception exception)
+            {
+                _logger.LogError(exception, "Terminated callback failed for session {SessionId}.", SessionId);
+            }
+        }
     }
 }

@@ -49,6 +49,22 @@ public sealed class WorkerSessionRuntimeTests
         process.ResizeRequests.Should().ContainSingle().Which.Should().Be((140, 50));
         process.DisposeCount.Should().Be(1);
     }
+
+    [Fact]
+    public async Task CloseAsync_IgnoresThrowingTerminatedSubscriberAndStillDisposesProcess()
+    {
+        var process = new ControlledPtyProcess();
+        var gateway = new FakeWorkerGatewayClient();
+        var runtime = new WorkerSessionRuntime("sess-1", new ControlledPtyHost(process), gateway, NullLogger<WorkerSessionRuntime>.Instance);
+
+        runtime.Terminated += _ => throw new InvalidOperationException("boom");
+
+        await runtime.StartAsync(120, 40, CancellationToken.None);
+
+        await runtime.CloseAsync(CancellationToken.None);
+
+        process.DisposeCount.Should().Be(1);
+    }
 }
 
 internal sealed class ControlledPtyHost(ControlledPtyProcess process) : IPtyHost
