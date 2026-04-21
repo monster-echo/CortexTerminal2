@@ -113,6 +113,26 @@ public sealed class ContractSerializationTests
     }
 
     [Fact]
+    public void ReattachSessionRequest_RoundTrips_WithMessagePack()
+    {
+        var frame = new ReattachSessionRequest("s-123");
+        var clone = RoundTrip(frame);
+
+        clone.Should().Be(frame);
+    }
+
+    [Fact]
+    public void ReplayChunk_RoundTrips_WithRawBytes()
+    {
+        var frame = new ReplayChunk("s-123", "stdout", new byte[] { 0x48, 0x69 });
+        var clone = RoundTrip(frame);
+
+        clone.SessionId.Should().Be("s-123");
+        clone.Stream.Should().Be("stdout");
+        clone.Payload.Should().Equal(0x48, 0x69);
+    }
+
+    [Fact]
     public void CreateSessionResult_RoundTrips()
     {
         var frame = CreateSessionResult.Success(new CreateSessionResponse("s-123", "w-456"));

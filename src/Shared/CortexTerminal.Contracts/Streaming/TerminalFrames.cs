@@ -38,3 +38,27 @@ public sealed record AuthExpiredEvent(
 public sealed record SessionStartFailedEvent(
     [property: Key(0)] string SessionId,
     [property: Key(1)] string Reason);
+
+[MessagePackObject]
+public sealed record SessionDetachedEvent(
+    [property: Key(0)] string SessionId,
+    [property: Key(1)] DateTimeOffset LeaseExpiresAtUtc);
+
+[MessagePackObject]
+public sealed record SessionReattachedEvent(
+    [property: Key(0)] string SessionId);
+
+[MessagePackObject]
+public sealed record SessionExpiredEvent(
+    [property: Key(0)] string SessionId,
+    [property: Key(1)] string Reason);
+
+[MessagePackObject]
+public sealed record ReplayChunk(
+    [property: Key(0)] string SessionId,
+    [property: Key(1)] string Stream,
+    [property: Key(2)] byte[] Payload);
+
+[MessagePackObject]
+public sealed record ReplayCompleted(
+    [property: Key(0)] string SessionId);

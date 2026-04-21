@@ -24,6 +24,20 @@ public sealed record CloseSessionRequest(
     [property: Key(0)] string SessionId);
 
 [MessagePackObject]
+public sealed record ReattachSessionRequest(
+    [property: Key(0)] string SessionId);
+
+[MessagePackObject]
+public sealed record ReattachSessionResult(
+    [property: Key(0)] bool IsSuccess,
+    [property: Key(1)] string? ErrorCode)
+{
+    public static ReattachSessionResult Success() => new(true, null);
+
+    public static ReattachSessionResult Failure(string errorCode) => new(false, errorCode);
+}
+
+[MessagePackObject]
 public sealed record CreateSessionResult(
     [property: Key(0)] bool IsSuccess,
     [property: Key(1)] CreateSessionResponse? Response,
