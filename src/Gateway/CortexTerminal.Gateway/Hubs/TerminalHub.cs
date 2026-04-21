@@ -1,6 +1,7 @@
 using CortexTerminal.Contracts.Sessions;
 using CortexTerminal.Contracts.Streaming;
 using CortexTerminal.Gateway.Sessions;
+using CortexTerminal.Gateway.Workers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 
@@ -10,10 +11,20 @@ namespace CortexTerminal.Gateway.Hubs;
 public sealed class TerminalHub(
     ISessionCoordinator sessions,
     IReplayCache replayCache,
-    TimeProvider timeProvider) : Hub
+    TimeProvider timeProvider,
+    IWorkerCommandDispatcher workerCommands) : Hub
 {
-    public Task<CreateSessionResult> CreateSession(CreateSessionRequest request, CancellationToken cancellationToken)
-        => sessions.CreateSessionAsync(Context.UserIdentifier ?? "unknown", request, Context.ConnectionId, cancellationToken);
+    public async Task<CreateSessionResult> CreateSession(CreateSessionRequest request, CancellationToken cancellationToken)
+    {
+        var result = await sessions.CreateSessionAsync(Context.UserIdentifier ?? "unknown", request, Context.ConnectionId, cancellationToken);
+        if (!result.IsSuccess || result.Response is null || !sessions.TryGetSession(result.Response.SessionId, out var session))
+        {
+            return result;
+        }
+
+        await workerCommands.StartSessionAsync(session.WorkerConnectionId, new StartSessionCommand(session.SessionId, session.Columns, session.Rows), cancellationToken);
+        return result;
+    }
 
     public async Task DetachSession(string sessionId, CancellationToken cancellationToken)
     {
@@ -61,7 +72,25 @@ public sealed class TerminalHub(
 
     public async Task WriteInput(WriteInputFrame frame)
     {
-        if (!sessions.TryGetSession(frame.SessionId, out var session))
+        var session = RequireOwnedSession(frame.SessionId);
+        await workerCommands.WriteInputAsync(session.WorkerConnectionId, frame, Context.ConnectionAborted);
+    }
+
+    public async Task ResizeSession(ResizePtyRequest request)
+    {
+        var session = RequireOwnedSession(request.SessionId);
+        await workerCommands.ResizeSessionAsync(session.WorkerConnectionId, request, Context.ConnectionAborted);
+    }
+
+    public async Task CloseSession(CloseSessionRequest request)
+    {
+        var session = RequireOwnedSession(request.SessionId);
+        await workerCommands.CloseSessionAsync(session.WorkerConnectionId, request, Context.ConnectionAborted);
+    }
+
+    private SessionRecord RequireOwnedSession(string sessionId)
+    {
+        if (!sessions.TryGetSession(sessionId, out var session))
         {
             throw new HubException("Unknown session.");
         }
@@ -76,6 +105,6 @@ public sealed class TerminalHub(
             throw new HubException("Session is attached to a different client.");
         }
 
-        await Clients.Client(session.WorkerConnectionId).SendAsync("WriteInput", frame);
+        return session;
     }
 }

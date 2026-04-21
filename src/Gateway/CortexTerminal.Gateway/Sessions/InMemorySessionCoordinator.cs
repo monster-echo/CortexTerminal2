@@ -115,6 +115,48 @@ public sealed class InMemorySessionCoordinator(IWorkerRegistry workers) : ISessi
         }
     }
 
+    public void MarkSessionStartFailed(string sessionId, string reason)
+    {
+        lock (_sync)
+        {
+            if (!_sessions.TryGetValue(sessionId, out var session))
+            {
+                return;
+            }
+
+            _sessions[sessionId] = session with
+            {
+                AttachmentState = SessionAttachmentState.Exited,
+                AttachedClientConnectionId = null,
+                ExitCode = null,
+                ExitReason = reason,
+                ReplayPending = false,
+                LeaseExpiresAtUtc = null
+            };
+        }
+    }
+
+    public void MarkSessionExited(string sessionId, int exitCode, string reason)
+    {
+        lock (_sync)
+        {
+            if (!_sessions.TryGetValue(sessionId, out var session))
+            {
+                return;
+            }
+
+            _sessions[sessionId] = session with
+            {
+                AttachmentState = SessionAttachmentState.Exited,
+                AttachedClientConnectionId = null,
+                ExitCode = exitCode,
+                ExitReason = reason,
+                ReplayPending = false,
+                LeaseExpiresAtUtc = null
+            };
+        }
+    }
+
     public void MarkReplayCompleted(string sessionId, string clientConnectionId)
     {
         lock (_sync)
@@ -153,6 +195,8 @@ public sealed class InMemorySessionCoordinator(IWorkerRegistry workers) : ISessi
                     AttachmentState = SessionAttachmentState.Expired,
                     AttachedClientConnectionId = null,
                     LeaseExpiresAtUtc = null,
+                    ExitCode = null,
+                    ExitReason = "expired",
                     ReplayPending = false
                 };
                 expiredSessionIds.Add(session.SessionId);

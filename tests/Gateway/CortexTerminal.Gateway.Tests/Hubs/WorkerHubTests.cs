@@ -128,9 +128,40 @@ public sealed class WorkerHubTests
         client.Invocations.Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task SessionExited_UpdatesSessionStateAndNotifiesAttachedClient()
+    {
+        var workers = new InMemoryWorkerRegistry();
+        workers.Register("worker-1", "worker-conn-1");
+        var sessions = new InMemorySessionCoordinator(workers);
+        var replayCache = new ReplayCache(1024);
+        var terminalHub = CreateTerminalHub(sessions, replayCache, TimeProvider.System);
+        terminalHub.Context = new TestHubCallerContext("client-1", "user-1");
+        terminalHub.Clients = new TestHubCallerClients(new RecordingClientProxy());
+
+        var createResult = await terminalHub.CreateSession(new CreateSessionRequest("shell", 120, 40), CancellationToken.None);
+        var sessionId = createResult.Response!.SessionId;
+        var client = new RecordingClientProxy();
+        var workerHub = CreateWorkerHub(workers, sessions, replayCache);
+        workerHub.Context = new TestHubCallerContext("worker-conn-1");
+        workerHub.Clients = new TestHubCallerClients(new RecordingClientProxy(), new Dictionary<string, IClientProxy>
+        {
+            ["client-1"] = client
+        });
+
+        await workerHub.SessionExited(new SessionExited(sessionId, 0, "completed"));
+
+        sessions.TryGetSession(sessionId, out var session).Should().BeTrue();
+        session.AttachmentState.Should().Be(SessionAttachmentState.Exited);
+        session.ExitCode.Should().Be(0);
+        session.ExitReason.Should().Be("completed");
+        client.Invocations.Should().ContainSingle(invocation => invocation.Method == "SessionExited");
+        replayCache.GetSnapshot(sessionId).Should().BeEmpty();
+    }
+
     private static WorkerHub CreateWorkerHub(IWorkerRegistry workers, ISessionCoordinator sessions, IReplayCache replayCache)
         => (WorkerHub)Activator.CreateInstance(typeof(WorkerHub), workers, sessions, replayCache)!;
 
     private static TerminalHub CreateTerminalHub(ISessionCoordinator sessions, IReplayCache replayCache, TimeProvider timeProvider)
-        => (TerminalHub)Activator.CreateInstance(typeof(TerminalHub), sessions, replayCache, timeProvider)!;
+        => (TerminalHub)Activator.CreateInstance(typeof(TerminalHub), sessions, replayCache, timeProvider, new NoOpWorkerCommandDispatcher())!;
 }

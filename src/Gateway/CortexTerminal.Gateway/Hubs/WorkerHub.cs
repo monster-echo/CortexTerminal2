@@ -67,4 +67,37 @@ public sealed class WorkerHub(IWorkerRegistry workers, ISessionCoordinator sessi
 
         await Clients.Client(session.AttachedClientConnectionId).SendAsync("StderrChunk", chunk);
     }
+
+    public async Task SessionStartFailed(SessionStartFailedEvent evt)
+    {
+        if (!sessions.TryGetSession(evt.SessionId, out var session) || session.WorkerConnectionId != Context.ConnectionId)
+        {
+            return;
+        }
+
+        sessions.MarkSessionStartFailed(evt.SessionId, evt.Reason);
+        replayCache.Clear(evt.SessionId);
+
+        if (session.AttachedClientConnectionId is not null)
+        {
+            await Clients.Client(session.AttachedClientConnectionId).SendAsync("SessionStartFailed", evt);
+        }
+    }
+
+    public async Task SessionExited(SessionExited evt)
+    {
+        if (!sessions.TryGetSession(evt.SessionId, out var session) || session.WorkerConnectionId != Context.ConnectionId)
+        {
+            return;
+        }
+
+        var attachedClientConnectionId = session.AttachedClientConnectionId;
+        sessions.MarkSessionExited(evt.SessionId, evt.ExitCode, evt.Reason);
+        replayCache.Clear(evt.SessionId);
+
+        if (attachedClientConnectionId is not null)
+        {
+            await Clients.Client(attachedClientConnectionId).SendAsync("SessionExited", evt);
+        }
+    }
 }

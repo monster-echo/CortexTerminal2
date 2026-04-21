@@ -31,6 +31,7 @@ builder.Services.AddAuthorization();
 builder.Services.AddSignalR().AddMessagePackProtocol();
 builder.Services.AddSingleton<IWorkerRegistry, InMemoryWorkerRegistry>();
 builder.Services.AddSingleton<ISessionCoordinator, InMemorySessionCoordinator>();
+builder.Services.AddSingleton<IWorkerCommandDispatcher, SignalRWorkerCommandDispatcher>();
 builder.Services.AddSingleton<IReplayCache>(_ => new ReplayCache(64 * 1024));
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddHostedService<DetachedSessionExpiryService>();
@@ -50,7 +51,12 @@ app.MapPost("/api/auth/device-flow", () =>
         ExpiresInSeconds: 900,
         PollIntervalSeconds: 5)));
 
-app.MapPost("/api/sessions", async (CreateSessionRequest request, ISessionCoordinator sessions, System.Security.Claims.ClaimsPrincipal user, CancellationToken cancellationToken) =>
+app.MapPost("/api/sessions", async (
+    CreateSessionRequest request,
+    ISessionCoordinator sessions,
+    IWorkerCommandDispatcher workerCommands,
+    System.Security.Claims.ClaimsPrincipal user,
+    CancellationToken cancellationToken) =>
 {
     if (!string.Equals(request.Runtime, "shell", StringComparison.Ordinal))
     {
@@ -58,6 +64,11 @@ app.MapPost("/api/sessions", async (CreateSessionRequest request, ISessionCoordi
     }
 
     var result = await sessions.CreateSessionAsync(user.Identity?.Name ?? "unknown", request, clientConnectionId: null, cancellationToken);
+    if (result.IsSuccess && result.Response is not null && sessions.TryGetSession(result.Response.SessionId, out var session))
+    {
+        await workerCommands.StartSessionAsync(session.WorkerConnectionId, new CortexTerminal.Contracts.Streaming.StartSessionCommand(session.SessionId, session.Columns, session.Rows), cancellationToken);
+    }
+
     return result.IsSuccess
         ? Results.Ok(result.Response)
         : Results.Json(CreateSessionResult.Failure("no-worker-available"),

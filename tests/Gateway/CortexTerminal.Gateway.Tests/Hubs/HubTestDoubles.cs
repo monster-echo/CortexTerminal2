@@ -1,6 +1,9 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.SignalR;
+using CortexTerminal.Contracts.Sessions;
+using CortexTerminal.Contracts.Streaming;
+using CortexTerminal.Gateway.Workers;
 
 namespace CortexTerminal.Gateway.Tests.Hubs;
 
@@ -75,4 +78,12 @@ internal sealed class TestHubCallerContext(string connectionId, string? userIden
 internal sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
 {
     public override DateTimeOffset GetUtcNow() => utcNow;
+}
+
+internal sealed class NoOpWorkerCommandDispatcher : IWorkerCommandDispatcher
+{
+    public Task StartSessionAsync(string workerConnectionId, StartSessionCommand command, CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task WriteInputAsync(string workerConnectionId, WriteInputFrame frame, CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task ResizeSessionAsync(string workerConnectionId, ResizePtyRequest request, CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task CloseSessionAsync(string workerConnectionId, CloseSessionRequest request, CancellationToken cancellationToken) => Task.CompletedTask;
 }
