@@ -29,7 +29,6 @@ public sealed class ReplayCache(int maxBytesPerSession) : IReplayCache
             if (buffer.Chunks.Count == 0)
             {
                 buffer.TotalBytes = 0;
-                _buffers.TryRemove(chunk.SessionId, out _);
             }
         }
     }
@@ -48,7 +47,18 @@ public sealed class ReplayCache(int maxBytesPerSession) : IReplayCache
     }
 
     public void Clear(string sessionId)
-        => _buffers.TryRemove(sessionId, out _);
+    {
+        if (!_buffers.TryGetValue(sessionId, out var buffer))
+        {
+            return;
+        }
+
+        lock (buffer.Sync)
+        {
+            buffer.Chunks.Clear();
+            buffer.TotalBytes = 0;
+        }
+    }
 
     private sealed class SessionReplayBuffer
     {

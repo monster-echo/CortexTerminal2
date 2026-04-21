@@ -64,7 +64,24 @@ public sealed class InMemorySessionCoordinator(IWorkerRegistry workers) : ISessi
                 return Task.FromResult(ReattachSessionResult.Failure("session-already-attached"));
             }
 
-            if (!session.LeaseExpiresAtUtc.HasValue || session.LeaseExpiresAtUtc.Value <= nowUtc)
+            if (session.AttachmentState != SessionAttachmentState.DetachedGracePeriod)
+            {
+                return Task.FromResult(ReattachSessionResult.Failure("session-expired"));
+            }
+
+            if (!session.LeaseExpiresAtUtc.HasValue)
+            {
+                _sessions[request.SessionId] = session with
+                {
+                    AttachmentState = SessionAttachmentState.Expired,
+                    AttachedClientConnectionId = null,
+                    LeaseExpiresAtUtc = null
+                };
+
+                return Task.FromResult(ReattachSessionResult.Failure("session-detached-without-lease"));
+            }
+
+            if (session.LeaseExpiresAtUtc.Value <= nowUtc)
             {
                 _sessions[request.SessionId] = session with
                 {
