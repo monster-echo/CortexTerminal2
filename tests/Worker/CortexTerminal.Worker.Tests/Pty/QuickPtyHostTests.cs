@@ -17,11 +17,13 @@ public sealed class QuickPtyHostTests
             return;
         }
 
-        var host = new QuickPtyHost();
-        await using var process = await host.StartAsync(120, 40, CancellationToken.None);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
-        await process.WriteAsync("echo hello\n"u8.ToArray(), CancellationToken.None);
-        var output = await ReadUntilAsync(process.ReadStdoutAsync(CancellationToken.None), "hello", CancellationToken.None);
+        var host = new QuickPtyHost();
+        await using var process = await host.StartAsync(120, 40, cts.Token);
+
+        await process.WriteAsync("echo hello\n"u8.ToArray(), cts.Token);
+        var output = await ReadUntilAsync(process.ReadStdoutAsync(cts.Token), "hello", cts.Token);
 
         output.Should().Contain("hello");
     }
@@ -34,12 +36,14 @@ public sealed class QuickPtyHostTests
             return;
         }
 
-        var host = new QuickPtyHost();
-        await using var process = await host.StartAsync(120, 40, CancellationToken.None);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
-        await process.ResizeAsync(100, 30, CancellationToken.None);
-        await process.WriteAsync("stty size\n"u8.ToArray(), CancellationToken.None);
-        var output = await ReadUntilAsync(process.ReadStdoutAsync(CancellationToken.None), "30 100", CancellationToken.None);
+        var host = new QuickPtyHost();
+        await using var process = await host.StartAsync(120, 40, cts.Token);
+
+        await process.ResizeAsync(100, 30, cts.Token);
+        await process.WriteAsync("stty size\n"u8.ToArray(), cts.Token);
+        var output = await ReadUntilAsync(process.ReadStdoutAsync(cts.Token), "30 100", cts.Token);
 
         output.Should().Contain("30 100");
     }
@@ -52,12 +56,22 @@ public sealed class QuickPtyHostTests
             return;
         }
 
-        Environment.SetEnvironmentVariable("DOTNET_EnableWriteXorExecute", null);
-        var host = new QuickPtyHost();
-        var start = () => host.StartAsync(120, 40, CancellationToken.None);
+        var prev = Environment.GetEnvironmentVariable("DOTNET_EnableWriteXorExecute");
+        try
+        {
+            Environment.SetEnvironmentVariable("DOTNET_EnableWriteXorExecute", null);
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 
-        await start.Should().ThrowAsync<PtySupportException>()
-            .WithMessage("*pty-not-supported-on-platform*");
+            var host = new QuickPtyHost();
+            var start = () => host.StartAsync(120, 40, cts.Token);
+
+            await start.Should().ThrowAsync<PtySupportException>()
+                .WithMessage("*pty-not-supported-on-platform*");
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("DOTNET_EnableWriteXorExecute", prev);
+        }
     }
 
     private static async Task<string> ReadUntilAsync(
@@ -65,14 +79,25 @@ public sealed class QuickPtyHostTests
         string expected,
         CancellationToken cancellationToken)
     {
+        // Bound the wait to avoid hanging tests indefinitely.
+        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+
         var builder = new StringBuilder();
-        await foreach (var chunk in source.WithCancellation(cancellationToken))
+        try
         {
-            builder.Append(Encoding.UTF8.GetString(chunk));
-            if (builder.ToString().Contains(expected, StringComparison.Ordinal))
+            await foreach (var chunk in source.WithCancellation(linked.Token))
             {
-                break;
+                builder.Append(Encoding.UTF8.GetString(chunk));
+                if (builder.ToString().Contains(expected, StringComparison.Ordinal))
+                {
+                    break;
+                }
             }
+        }
+        catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
+        {
+            throw new TimeoutException($"Timed out waiting for \"{expected}\"");
         }
 
         return builder.ToString();
