@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using CortexTerminal.Contracts.Sessions;
 using CortexTerminal.Contracts.Streaming;
+using CortexTerminal.Worker.Pty;
 using CortexTerminal.Worker.Registration;
 using CortexTerminal.Worker.Runtime;
 using FluentAssertions;
@@ -58,6 +59,24 @@ public sealed class WorkerRuntimeHostTests
         host.ActiveSessionCount.Should().Be(1);
         gateway.StartFailedEvents.Should().ContainSingle()
             .Which.Should().BeEquivalentTo(new SessionStartFailedEvent("sess-1", "duplicate-session"));
+    }
+
+    [Fact]
+    public async Task PtyStartupFailure_ForwardsStableErrorCode()
+    {
+        var gateway = new FakeWorkerGatewayClient();
+        await using var host = new WorkerRuntimeHost(
+            "worker-1",
+            gateway,
+            new ThrowingPtyHost(new PtySupportException("pty-start-failed", "spawn exploded")),
+            NullLoggerFactory.Instance);
+
+        await host.StartAsync(CancellationToken.None);
+        await gateway.RaiseStartSessionAsync(new StartSessionCommand("sess-1", 120, 40));
+
+        gateway.StartFailedEvents.Should().ContainSingle()
+            .Which.Should().BeEquivalentTo(new SessionStartFailedEvent("sess-1", "pty-start-failed"));
+        host.ActiveSessionCount.Should().Be(0);
     }
 }
 
@@ -199,4 +218,10 @@ internal sealed class FakeWorkerGatewayClient : IWorkerGatewayClient
 internal sealed class DelegateDisposable(Action dispose) : IDisposable
 {
     public void Dispose() => dispose();
+}
+
+internal sealed class ThrowingPtyHost(Exception exception) : IPtyHost
+{
+    public Task<IPtyProcess> StartAsync(int columns, int rows, CancellationToken cancellationToken)
+        => Task.FromException<IPtyProcess>(exception);
 }

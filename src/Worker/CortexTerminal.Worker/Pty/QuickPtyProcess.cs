@@ -3,14 +3,24 @@ using Pty.Net;
 
 namespace CortexTerminal.Worker.Pty;
 
-internal sealed class QuickPtyProcess(IPtyConnection connection) : IPtyProcess
+internal sealed class QuickPtyProcess : IPtyProcess
 {
+    private readonly IPtyConnection _connection;
+    private readonly TaskCompletionSource<int> _exitCode = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly Task _exitObserver;
+
+    public QuickPtyProcess(IPtyConnection connection)
+    {
+        _connection = connection;
+        _exitObserver = Task.Run(ObserveExit);
+    }
+
     public async IAsyncEnumerable<byte[]> ReadStdoutAsync([EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var buffer = new byte[4096];
         while (true)
         {
-            var count = await connection.ReaderStream.ReadAsync(buffer, 0, buffer.Length, cancellationToken);
+            var count = await _connection.ReaderStream.ReadAsync(buffer, 0, buffer.Length, cancellationToken);
             if (count == 0)
             {
                 yield break;
@@ -28,25 +38,31 @@ internal sealed class QuickPtyProcess(IPtyConnection connection) : IPtyProcess
     }
 
     public Task WriteAsync(byte[] payload, CancellationToken cancellationToken)
-        => connection.WriterStream.WriteAsync(payload, 0, payload.Length, cancellationToken);
+        => _connection.WriterStream.WriteAsync(payload, 0, payload.Length, cancellationToken);
 
     public Task ResizeAsync(int columns, int rows, CancellationToken cancellationToken)
     {
-        connection.Resize(columns, rows);
+        _connection.Resize(columns, rows);
         return Task.CompletedTask;
     }
 
-    public Task<int> WaitForExitAsync(CancellationToken cancellationToken)
-    {
-        var completion = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
-        connection.ProcessExited += (_, _) => completion.TrySetResult(connection.ExitCode);
-        using var _ = cancellationToken.Register(() => completion.TrySetCanceled(cancellationToken));
-        return completion.Task;
-    }
+    public Task<int> WaitForExitAsync(CancellationToken cancellationToken) => _exitCode.Task.WaitAsync(cancellationToken);
 
     public ValueTask DisposeAsync()
     {
-        connection.Dispose();
+        if (!_exitCode.Task.IsCompleted)
+        {
+            _connection.Dispose();
+        }
+
         return ValueTask.CompletedTask;
+    }
+
+    private void ObserveExit()
+    {
+        if (_connection.WaitForExit(Timeout.Infinite))
+        {
+            _exitCode.TrySetResult(_connection.ExitCode);
+        }
     }
 }

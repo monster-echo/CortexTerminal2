@@ -111,8 +111,11 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
             await runtime.CloseAsync(CancellationToken.None);
             await runtime.DisposeAsync();
             _logger.LogError(exception, "Failed to start session {SessionId}.", command.SessionId);
+            var reason = exception is PtySupportException ptySupportException
+                ? ptySupportException.ErrorCode
+                : exception.Message;
             await _gatewayClient.ForwardStartFailedAsync(
-                new SessionStartFailedEvent(command.SessionId, exception.Message),
+                new SessionStartFailedEvent(command.SessionId, reason),
                 CancellationToken.None);
         }
     }
