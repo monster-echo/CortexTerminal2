@@ -10,15 +10,27 @@
   },
   "dependencies": {
     "@microsoft/signalr": "^8.0.7",
+    "@radix-ui/react-alert-dialog": "^1.1.2",
+    "@radix-ui/react-label": "^2.1.0",
+    "@radix-ui/react-separator": "^1.1.0",
+    "@radix-ui/react-slot": "^1.1.0",
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/xterm": "^5.5.0",
+    "class-variance-authority": "^0.7.0",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.511.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "@xterm/xterm": "^5.5.0"
+    "tailwind-merge": "^2.5.2"
   },
   "devDependencies": {
     "@testing-library/react": "^16.3.0",
     "@types/react": "^19.1.2",
     "@types/react-dom": "^19.1.2",
+    "autoprefixer": "^10.4.20",
     "jsdom": "^26.1.0",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
     "typescript": "^5.8.3",
     "vite": "^6.3.2",
     "vitest": "^3.1.2"

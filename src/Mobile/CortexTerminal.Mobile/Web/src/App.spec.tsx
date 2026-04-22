@@ -60,4 +60,10 @@ describe("App", () => {
     await waitFor(() => expect(screen.getByRole("heading", { name: "Sign in" })).toBeTruthy())
     expect(window.localStorage.getItem(authStorageKey)).toBeNull()
   })
+
+  it("renders the console shell classes", () => {
+    render(<App />)
+
+    expect(document.querySelector(".min-h-screen")).not.toBeNull()
+  })
 })

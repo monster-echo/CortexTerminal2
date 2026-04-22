@@ -22,7 +22,7 @@ export function AppLayout(props: {
   const { children, currentPath, isAuthenticated, username, onNavigate, onLogout } = props
 
   return (
-    <div>
+    <div className="min-h-screen flex flex-col bg-[hsl(var(--background))] text-[hsl(var(--foreground))]">
       <header>
         <h1>Gateway Console</h1>
         {username ? <p>Signed in as {username}</p> : null}
