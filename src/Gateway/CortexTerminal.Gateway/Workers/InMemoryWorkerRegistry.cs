@@ -6,8 +6,8 @@ public sealed class InMemoryWorkerRegistry : IWorkerRegistry
 {
     private readonly ConcurrentDictionary<string, RegisteredWorker> _workers = new();
 
-    public void Register(string workerId, string connectionId)
-        => _workers[workerId] = new RegisteredWorker(workerId, connectionId);
+    public void Register(string workerId, string connectionId, string? ownerUserId = null)
+        => _workers[workerId] = new RegisteredWorker(workerId, connectionId, ownerUserId, DateTimeOffset.UtcNow);
 
     public void Unregister(string workerId)
         => _workers.TryRemove(workerId, out _);
@@ -21,6 +21,46 @@ public sealed class InMemoryWorkerRegistry : IWorkerRegistry
             return true;
         }
         worker = default!;
+        return false;
+    }
+
+    public bool TryGetLeastBusyForUser(string userId, out RegisteredWorker worker)
+    {
+        foreach (var kvp in _workers)
+        {
+            if (kvp.Value.OwnerUserId is null || kvp.Value.OwnerUserId == userId)
+            {
+                worker = kvp.Value;
+                return true;
+            }
+        }
+
+        worker = default!;
+        return false;
+    }
+
+    public bool TryGetWorker(string workerId, out RegisteredWorker worker)
+        => _workers.TryGetValue(workerId, out worker!);
+
+    public IReadOnlyList<RegisteredWorker> GetWorkersForUser(string userId)
+        => _workers.Values.Where(worker => worker.OwnerUserId == userId).ToArray();
+
+    public bool SetWorkerOwner(string workerId, string ownerUserId)
+    {
+        while (_workers.TryGetValue(workerId, out var existing))
+        {
+            if (existing.OwnerUserId is not null && existing.OwnerUserId != ownerUserId)
+            {
+                return false;
+            }
+
+            var updated = existing with { OwnerUserId = ownerUserId, LastSeenAtUtc = DateTimeOffset.UtcNow };
+            if (_workers.TryUpdate(workerId, updated, existing))
+            {
+                return true;
+            }
+        }
+
         return false;
     }
 }

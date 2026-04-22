@@ -4,18 +4,32 @@ using CortexTerminal.Gateway.Workers;
 
 namespace CortexTerminal.Gateway.Sessions;
 
-public sealed class InMemorySessionCoordinator(IWorkerRegistry workers) : ISessionCoordinator
+public sealed class InMemorySessionCoordinator : ISessionCoordinator
 {
+    private readonly IWorkerRegistry _workers;
     private readonly ConcurrentDictionary<string, SessionRecord> _sessions = new();
     private readonly object _sync = new();
+    private readonly TimeProvider _timeProvider;
+
+    public InMemorySessionCoordinator(IWorkerRegistry workers, TimeProvider? timeProvider = null)
+    {
+        _workers = workers;
+        _timeProvider = timeProvider ?? TimeProvider.System;
+    }
 
     public Task<CreateSessionResult> CreateSessionAsync(string userId, CreateSessionRequest request, string? clientConnectionId, CancellationToken cancellationToken)
     {
-        if (!workers.TryGetLeastBusy(out var worker))
+        if (!_workers.TryGetLeastBusyForUser(userId, out var worker))
         {
             return Task.FromResult(CreateSessionResult.Failure("no-worker-available"));
         }
 
+        if (!_workers.SetWorkerOwner(worker.WorkerId, userId))
+        {
+            return Task.FromResult(CreateSessionResult.Failure("no-worker-available"));
+        }
+
+        var now = _timeProvider.GetUtcNow();
         var sessionId = $"sess_{Guid.NewGuid():N}";
         var record = new SessionRecord(
             sessionId,
@@ -24,6 +38,8 @@ public sealed class InMemorySessionCoordinator(IWorkerRegistry workers) : ISessi
             worker.ConnectionId,
             request.Columns,
             request.Rows,
+            now,
+            now,
             AttachedClientConnectionId: clientConnectionId);
         lock (_sync)
         {
@@ -46,7 +62,8 @@ public sealed class InMemorySessionCoordinator(IWorkerRegistry workers) : ISessi
                 AttachmentState = SessionAttachmentState.DetachedGracePeriod,
                 AttachedClientConnectionId = null,
                 LeaseExpiresAtUtc = detachedAtUtc.AddMinutes(5),
-                ReplayPending = false
+                ReplayPending = false,
+                LastActivityAtUtc = detachedAtUtc
             };
         }
 
@@ -69,6 +86,19 @@ public sealed class InMemorySessionCoordinator(IWorkerRegistry workers) : ISessi
 
             if (session.AttachmentState == SessionAttachmentState.Attached)
             {
+                if (session.AttachedClientConnectionId is null)
+                {
+                    _sessions[request.SessionId] = session with
+                    {
+                        AttachedClientConnectionId = clientConnectionId,
+                        LeaseExpiresAtUtc = null,
+                        ReplayPending = true,
+                        LastActivityAtUtc = nowUtc
+                    };
+
+                    return Task.FromResult(ReattachSessionResult.Success());
+                }
+
                 return Task.FromResult(ReattachSessionResult.Failure("session-already-attached"));
             }
 
@@ -79,13 +109,14 @@ public sealed class InMemorySessionCoordinator(IWorkerRegistry workers) : ISessi
 
             if (!session.LeaseExpiresAtUtc.HasValue)
             {
-                _sessions[request.SessionId] = session with
-                {
-                    AttachmentState = SessionAttachmentState.Expired,
-                    AttachedClientConnectionId = null,
-                    LeaseExpiresAtUtc = null,
-                    ReplayPending = false
-                };
+            _sessions[request.SessionId] = session with
+            {
+                AttachmentState = SessionAttachmentState.Expired,
+                AttachedClientConnectionId = null,
+                LeaseExpiresAtUtc = null,
+                ReplayPending = false,
+                LastActivityAtUtc = nowUtc
+            };
 
                 return Task.FromResult(ReattachSessionResult.Failure("session-detached-without-lease"));
             }
@@ -97,19 +128,21 @@ public sealed class InMemorySessionCoordinator(IWorkerRegistry workers) : ISessi
                     AttachmentState = SessionAttachmentState.Expired,
                     AttachedClientConnectionId = null,
                     LeaseExpiresAtUtc = null,
-                    ReplayPending = false
+                    ReplayPending = false,
+                    LastActivityAtUtc = nowUtc
                 };
 
                 return Task.FromResult(ReattachSessionResult.Failure("session-expired"));
             }
 
-            _sessions[request.SessionId] = session with
-            {
-                AttachmentState = SessionAttachmentState.Attached,
-                AttachedClientConnectionId = clientConnectionId,
-                LeaseExpiresAtUtc = null,
-                ReplayPending = true
-            };
+                _sessions[request.SessionId] = session with
+                {
+                    AttachmentState = SessionAttachmentState.Attached,
+                    AttachedClientConnectionId = clientConnectionId,
+                    LeaseExpiresAtUtc = null,
+                    ReplayPending = true,
+                    LastActivityAtUtc = nowUtc
+                };
 
             return Task.FromResult(ReattachSessionResult.Success());
         }
@@ -124,15 +157,16 @@ public sealed class InMemorySessionCoordinator(IWorkerRegistry workers) : ISessi
                 return;
             }
 
-            _sessions[sessionId] = session with
-            {
+                _sessions[sessionId] = session with
+                {
                 AttachmentState = SessionAttachmentState.Exited,
                 AttachedClientConnectionId = null,
                 ExitCode = null,
                 ExitReason = reason,
                 ReplayPending = false,
-                LeaseExpiresAtUtc = null
-            };
+                LeaseExpiresAtUtc = null,
+                LastActivityAtUtc = _timeProvider.GetUtcNow()
+                };
         }
     }
 
@@ -145,15 +179,16 @@ public sealed class InMemorySessionCoordinator(IWorkerRegistry workers) : ISessi
                 return;
             }
 
-            _sessions[sessionId] = session with
-            {
+                _sessions[sessionId] = session with
+                {
                 AttachmentState = SessionAttachmentState.Exited,
                 AttachedClientConnectionId = null,
                 ExitCode = exitCode,
                 ExitReason = reason,
                 ReplayPending = false,
-                LeaseExpiresAtUtc = null
-            };
+                LeaseExpiresAtUtc = null,
+                LastActivityAtUtc = _timeProvider.GetUtcNow()
+                };
         }
     }
 
@@ -168,10 +203,11 @@ public sealed class InMemorySessionCoordinator(IWorkerRegistry workers) : ISessi
                 return;
             }
 
-            _sessions[sessionId] = session with
-            {
-                ReplayPending = false
-            };
+                _sessions[sessionId] = session with
+                {
+                    ReplayPending = false,
+                    LastActivityAtUtc = _timeProvider.GetUtcNow()
+                };
         }
     }
 
@@ -197,7 +233,8 @@ public sealed class InMemorySessionCoordinator(IWorkerRegistry workers) : ISessi
                     LeaseExpiresAtUtc = null,
                     ExitCode = null,
                     ExitReason = "expired",
-                    ReplayPending = false
+                    ReplayPending = false,
+                    LastActivityAtUtc = nowUtc
                 };
                 expiredSessionIds.Add(session.SessionId);
             }
@@ -211,6 +248,14 @@ public sealed class InMemorySessionCoordinator(IWorkerRegistry workers) : ISessi
         lock (_sync)
         {
             return _sessions.TryGetValue(sessionId, out session!);
+        }
+    }
+
+    public IReadOnlyList<SessionRecord> GetSessionsForUser(string userId)
+    {
+        lock (_sync)
+        {
+            return _sessions.Values.Where(session => session.UserId == userId).ToArray();
         }
     }
 }

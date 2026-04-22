@@ -40,6 +40,20 @@ describe("useTerminalSession", () => {
     expect(result).toBe("Err")
   })
 
+  it("reports decoded stdout and stderr text through a stream callback", () => {
+    const onStream = vi.fn()
+    const session = createTerminalSessionModel({
+      writeInput: vi.fn(),
+      onStream,
+    } as never)
+
+    session.onStdout(new Uint8Array([0x48, 0x69]))
+    session.onStderr(new Uint8Array([0x6f, 0x68]))
+
+    expect(onStream).toHaveBeenNthCalledWith(1, { stream: "stdout", text: "Hi" })
+    expect(onStream).toHaveBeenNthCalledWith(2, { stream: "stderr", text: "oh" })
+  })
+
   it("transitions from reattached to replaying to live", () => {
     const states: string[] = []
     const session = createTerminalSessionModel({
@@ -69,6 +83,23 @@ describe("useTerminalSession", () => {
     session.onReplayChunk(new Uint8Array([0x62]), "stderr")
 
     expect(states).toEqual(["reattached", "replaying"])
+  })
+
+  it("reports decoded replay chunks while preserving reattach state transitions", () => {
+    const states: string[] = []
+    const onStream = vi.fn()
+    const session = createTerminalSessionModel({
+      writeInput: vi.fn(),
+      onStateChange: (state: string) => states.push(state),
+      onStream,
+    } as never)
+
+    session.onSessionReattached("session-123")
+    session.onReplayChunk(new Uint8Array([0x6f, 0x6b]), "stdout")
+    session.onReplayCompleted()
+
+    expect(onStream).toHaveBeenCalledWith({ stream: "stdout", text: "ok" })
+    expect(states).toEqual(["reattached", "replaying", "live"])
   })
 
   it("ignores session reattached events while already replaying", () => {

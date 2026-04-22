@@ -3,6 +3,7 @@ using MessagePack;
 using CortexTerminal.Contracts.Auth;
 using CortexTerminal.Contracts.Sessions;
 using CortexTerminal.Contracts.Streaming;
+using CortexTerminal.Contracts.Console;
 using Xunit;
 
 namespace CortexTerminal.Gateway.Tests.Contracts;
@@ -179,6 +180,55 @@ public sealed class ContractSerializationTests
         var clone = RoundTrip(frame);
 
         clone.Should().Be(frame);
+    }
+
+    [Fact]
+    public void DevLoginRequest_RoundTrips()
+    {
+        var req = new DevLoginRequest("dev-123");
+        var clone = RoundTrip(req);
+
+        clone.Username.Should().Be("dev-123");
+    }
+
+    [Fact]
+    public void DevLoginResponse_RoundTrips()
+    {
+        var res = new DevLoginResponse("tok-xyz");
+        var clone = RoundTrip(res);
+
+        clone.AccessToken.Should().Be("tok-xyz");
+    }
+
+    [Fact]
+    public void SessionSummaryDto_RoundTrips()
+    {
+        var dto = new SessionSummaryDto("s-1", "w-1");
+        var clone = RoundTrip(dto);
+
+        clone.SessionId.Should().Be("s-1");
+        clone.WorkerId.Should().Be("w-1");
+    }
+
+    [Fact]
+    public void WorkerSummaryDto_RoundTrips()
+    {
+        var dto = new WorkerSummaryDto("w-2", "worker-a");
+        var clone = RoundTrip(dto);
+
+        clone.WorkerId.Should().Be("w-2");
+        clone.Name.Should().Be("worker-a");
+    }
+
+    [Fact]
+    public void WorkerDetailDto_RoundTrips()
+    {
+        var dto = new WorkerDetailDto("w-3", "worker-b", "127.0.0.1");
+        var clone = RoundTrip(dto);
+
+        clone.WorkerId.Should().Be("w-3");
+        clone.Name.Should().Be("worker-b");
+        clone.Address.Should().Be("127.0.0.1");
     }
 
     private static T RoundTrip<T>(T value)
