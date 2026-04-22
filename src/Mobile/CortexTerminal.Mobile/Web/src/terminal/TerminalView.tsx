@@ -40,9 +40,8 @@ export function TerminalView(props: {
     })
     browserTerminalRef.current = browserTerminal
 
-    // Initial fit and resize
-    const size = browserTerminal.fit()
-    void connectionRef.current?.resize(size.columns, size.rows)
+    // Initial fit
+    browserTerminal.fit()
 
     // Handle container resize
     const observer = new ResizeObserver(() => {
