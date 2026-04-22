@@ -1,4 +1,9 @@
 import { useEffect, useState } from "react"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Skeleton } from "@/components/ui/skeleton"
 import type { TerminalGateway } from "../services/terminalGateway"
 import { TerminalView } from "../terminal/TerminalView"
 import type { ConsoleApi, SessionDetail, WorkerDetail } from "../services/consoleApi"
@@ -61,60 +66,86 @@ export function SessionDetailPage(props: {
   }, [api, sessionId])
 
   return (
-    <section>
-      <button onClick={() => navigate("/sessions")} type="button">
-        Back to sessions
-      </button>
-      {isLoading ? <p>Loading session…</p> : null}
-      {errorMessage ? <p role="alert">{errorMessage}</p> : null}
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold">Session {session?.sessionId ?? sessionId}</h1>
+        <Button onClick={() => navigate("/sessions")} variant="ghost" size="sm">
+          ← Back to sessions
+        </Button>
+      </div>
+      {isLoading ? (
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-6 w-48" />
+            <span className="sr-only">Loading session…</span>
+          </CardHeader>
+          <CardContent>
+            <Skeleton className="h-20 w-full" />
+          </CardContent>
+        </Card>
+      ) : null}
+      {errorMessage ? (
+        <Alert variant="destructive">
+          <AlertDescription>{errorMessage}</AlertDescription>
+        </Alert>
+      ) : null}
       {session ? (
         <>
-          <h2>Session {session.sessionId}</h2>
-          <div style={{ display: "flex", gap: "1rem", marginBottom: "1rem" }}>
-            <div style={{ flex: "1" }}>
-              <h3>Session Info</h3>
-              <dl>
-                <div>
-                  <dt>Worker</dt>
-                  <dd>{session.workerId}</dd>
+          <div className="grid gap-6 md:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle>Session Info</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Session ID</span>
+                  <span className="font-mono text-sm">{session.sessionId}</span>
                 </div>
-                <div>
-                  <dt>Status</dt>
-                  <dd>{session.status}</dd>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Worker</span>
+                  <span className="font-mono text-sm">{session.workerId}</span>
                 </div>
-              </dl>
-            </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Status</span>
+                  <Badge variant="outline">{session.status}</Badge>
+                </div>
+              </CardContent>
+            </Card>
             {worker ? (
-              <div style={{ flex: "1" }}>
-                <h3>Worker Info</h3>
-                <dl>
-                  <div>
-                    <dt>Worker ID</dt>
-                    <dd>{worker.workerId}</dd>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Worker Info</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Worker ID</span>
+                    <span className="font-mono text-sm">{worker.workerId}</span>
                   </div>
-                  <div>
-                    <dt>Name</dt>
-                    <dd>{worker.displayName}</dd>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Name</span>
+                    <span className="text-sm">{worker.displayName}</span>
                   </div>
-                  <div>
-                    <dt>Status</dt>
-                    <dd>{worker.isOnline ? "Online" : "Offline"}</dd>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Status</span>
+                    <Badge variant={worker.isOnline ? "default" : "secondary"}>
+                      {worker.isOnline ? "Online" : "Offline"}
+                    </Badge>
                   </div>
-                  <div>
-                    <dt>Sessions</dt>
-                    <dd>{worker.sessionCount}</dd>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Sessions</span>
+                    <span className="text-sm">{worker.sessionCount}</span>
                   </div>
-                  <div>
-                    <dt>Last seen</dt>
-                    <dd>{new Date(worker.lastSeenAt).toLocaleString()}</dd>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Last seen</span>
+                    <span className="text-sm">{new Date(worker.lastSeenAt).toLocaleString()}</span>
                   </div>
-                </dl>
-              </div>
+                </CardContent>
+              </Card>
             ) : null}
           </div>
           <TerminalView gateway={terminalGateway} sessionId={session.sessionId} />
         </>
       ) : null}
-    </section>
+    </div>
   )
 }

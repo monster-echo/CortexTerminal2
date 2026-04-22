@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Badge } from "@/components/ui/badge"
+import { Card, CardContent } from "@/components/ui/card"
 import type { TerminalGateway, TerminalGatewayConnection } from "../services/terminalGateway"
 import { createTerminalSessionModel, type TerminalSessionState } from "./useTerminalSession"
 import { createBrowserTerminal } from "./createBrowserTerminal"
@@ -119,16 +122,27 @@ export function TerminalView(props: {
   }, [gateway, session, sessionId])
 
   return (
-    <div>
-      <div data-testid="terminal-status">{status}</div>
-      {errorMessage ? <p role="alert">{errorMessage}</p> : null}
-      <div 
-        ref={terminalContainerRef}
-        style={{ 
-          height: "600px",
-          width: "100%",
-        }}
-      />
-    </div>
+    <Card>
+      <CardContent className="p-4 space-y-4">
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-muted-foreground">Terminal Status</span>
+          <Badge 
+            variant={status === "live" ? "default" : "secondary"}
+            data-testid="terminal-status"
+          >
+            {status}
+          </Badge>
+        </div>
+        {errorMessage ? (
+          <Alert variant="destructive">
+            <AlertDescription>{errorMessage}</AlertDescription>
+          </Alert>
+        ) : null}
+        <div 
+          ref={terminalContainerRef}
+          className="min-h-[400px] h-[60vh] w-full"
+        />
+      </CardContent>
+    </Card>
   )
 }
