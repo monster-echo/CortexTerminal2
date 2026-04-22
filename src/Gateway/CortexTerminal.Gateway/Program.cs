@@ -104,7 +104,7 @@ app.MapPost("/api/auth/device-flow", () =>
         UserCode: "ABCD-EFGH",
         VerificationUri: "https://gateway.local/activate",
         ExpiresInSeconds: 900,
-        PollIntervalSeconds: 5)));
+        PollIntervalSeconds: 5))).AllowAnonymous();
 
 app.MapPost("/api/sessions", async (
     CreateSessionRequest request,
