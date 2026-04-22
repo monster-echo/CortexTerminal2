@@ -48,14 +48,14 @@ internal sealed class QuickPtyProcess : IPtyProcess
 
     public Task<int> WaitForExitAsync(CancellationToken cancellationToken) => _exitCode.Task.WaitAsync(cancellationToken);
 
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (!_exitCode.Task.IsCompleted)
         {
             _connection.Dispose();
         }
 
-        return ValueTask.CompletedTask;
+        await _exitObserver;
     }
 
     private void ObserveExit()
