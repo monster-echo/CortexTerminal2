@@ -87,7 +87,10 @@ var app = builder.Build();
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapGet("/", () => Results.Ok(new { Name = "CortexTerminal.Gateway" }));
+// Serve static files for the gateway console
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
 
 if (app.Environment.IsDevelopment())
 {
@@ -219,6 +222,9 @@ app.MapGet("/api/me/workers/{workerId}", (string workerId, ClaimsPrincipal user,
 
 app.MapHub<TerminalHub>("/hubs/terminal");
 app.MapHub<WorkerHub>("/hubs/worker");
+
+// Fallback to index.html for client-side routing
+app.MapFallbackToFile("index.html");
 
 app.Run();
 
