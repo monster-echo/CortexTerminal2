@@ -1,4 +1,7 @@
-import type { WorkerSummary } from "../services/consoleApi"
+import type { WorkerSummary } from "@/services/consoleApi"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
 export function WorkerList(props: {
   workers: WorkerSummary[]
@@ -7,21 +10,37 @@ export function WorkerList(props: {
   const { workers, onOpen } = props
 
   if (workers.length === 0) {
-    return <p>No workers found.</p>
+    return <p className="text-sm text-muted-foreground">No workers found.</p>
   }
 
   return (
-    <ul>
-      {workers.map((worker) => (
-        <li key={worker.workerId}>
-          <strong>{worker.displayName}</strong>
-          <div>{worker.sessionCount} sessions</div>
-          <div>{worker.isOnline ? "Online" : "Offline"}</div>
-          <button onClick={() => onOpen(worker.workerId)} type="button">
-            Open worker
-          </button>
-        </li>
-      ))}
-    </ul>
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Worker</TableHead>
+          <TableHead>Status</TableHead>
+          <TableHead>Sessions</TableHead>
+          <TableHead className="text-right">Action</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {workers.map((worker) => (
+          <TableRow key={worker.workerId}>
+            <TableCell className="font-medium">{worker.displayName}</TableCell>
+            <TableCell>
+              <Badge variant={worker.isOnline ? "default" : "secondary"}>
+                {worker.isOnline ? "Online" : "Offline"}
+              </Badge>
+            </TableCell>
+            <TableCell>{worker.sessionCount} sessions</TableCell>
+            <TableCell className="text-right">
+              <Button onClick={() => onOpen(worker.workerId)} variant="ghost" size="sm">
+                Open worker
+              </Button>
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
   )
 }

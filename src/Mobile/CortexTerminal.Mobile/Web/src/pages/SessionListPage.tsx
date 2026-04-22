@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react"
-import { SessionList } from "../components/SessionList"
-import type { ConsoleApi, SessionSummary } from "../services/consoleApi"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Skeleton } from "@/components/ui/skeleton"
+import { SessionList } from "@/components/SessionList"
+import type { ConsoleApi, SessionSummary } from "@/services/consoleApi"
 
 export function SessionListPage(props: {
   api: ConsoleApi
@@ -59,18 +63,41 @@ export function SessionListPage(props: {
   }
 
   return (
-    <section>
-      <h2>Sessions</h2>
-      <p>Your sessions are the main entry point into the Gateway console.</p>
-      <button disabled={isCreatingSession} onClick={() => void handleStartSession()} type="button">
-        Start session
-      </button>
-      {isLoading ? <p>Loading sessions…</p> : null}
-      {loadErrorMessage ? <p role="alert">{loadErrorMessage}</p> : null}
-      {createErrorMessage ? <p role="status">{createErrorMessage}</p> : null}
-      {!isLoading && !loadErrorMessage ? (
-        <SessionList sessions={sessions} onOpen={(sessionId) => navigate(`/sessions/${sessionId}`)} />
-      ) : null}
-    </section>
+    <Card>
+      <CardHeader>
+        <div className="flex items-start justify-between">
+          <div>
+            <CardTitle>Sessions</CardTitle>
+            <CardDescription>
+              Your sessions are the main entry point into the Gateway console.
+            </CardDescription>
+          </div>
+          <Button disabled={isCreatingSession} onClick={() => void handleStartSession()}>
+            Start session
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {isLoading ? (
+          <div className="space-y-2">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+          </div>
+        ) : null}
+        {loadErrorMessage ? (
+          <Alert variant="destructive">
+            <AlertDescription>{loadErrorMessage}</AlertDescription>
+          </Alert>
+        ) : null}
+        {createErrorMessage ? (
+          <Alert variant="destructive">
+            <AlertDescription role="status">{createErrorMessage}</AlertDescription>
+          </Alert>
+        ) : null}
+        {!isLoading && !loadErrorMessage ? (
+          <SessionList sessions={sessions} onOpen={(sessionId) => navigate(`/sessions/${sessionId}`)} />
+        ) : null}
+      </CardContent>
+    </Card>
   )
 }

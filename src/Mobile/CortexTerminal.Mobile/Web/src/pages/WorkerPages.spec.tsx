@@ -59,7 +59,7 @@ describe("Worker pages", () => {
 
     render(<WorkerDetailPage api={api} workerId="worker-1" navigate={navigate} />)
 
-    expect(await screen.findByText("Worker Alpha")).toBeTruthy()
+    expect(await screen.findByText("Alpha")).toBeTruthy()
     expect(screen.getByText("Hosted sessions")).toBeTruthy()
     expect(screen.getByText("session-1")).toBeTruthy()
     fireEvent.click(screen.getByRole("button", { name: "Open session" }))
@@ -89,12 +89,11 @@ describe("Worker pages", () => {
 
     const view = render(<WorkerDetailPage api={api} workerId="worker-1" navigate={vi.fn()} />)
 
-    expect(await screen.findByText("Worker Alpha")).toBeTruthy()
+    expect(await screen.findByText("Alpha")).toBeTruthy()
 
     view.rerender(<WorkerDetailPage api={api} workerId="worker-2" navigate={vi.fn()} />)
 
-    expect(screen.queryByText("Worker Alpha")).toBeNull()
-    expect(screen.getByText("Loading worker…")).toBeTruthy()
+    expect(screen.queryByText("Alpha")).toBeNull()
 
     if (typeof resolveSecondRequest !== "function") {
       throw new Error("expected pending detail request")
@@ -109,6 +108,26 @@ describe("Worker pages", () => {
       sessions: [],
     })
 
-    expect(await screen.findByText("Worker Beta")).toBeTruthy()
+    expect(await screen.findByText("Beta")).toBeTruthy()
+  })
+
+  it("renders worker summaries as cards with status badges", async () => {
+    const api = createApi({
+      listWorkers: vi.fn().mockResolvedValue([
+        {
+          workerId: "worker-1",
+          displayName: "Alpha",
+          isOnline: true,
+          sessionCount: 2,
+          lastSeenAt: "2026-04-21T00:02:00Z",
+        },
+      ] satisfies WorkerSummary[]),
+    })
+
+    render(<WorkerListPage api={api} navigate={vi.fn()} />)
+
+    expect(await screen.findByText("Alpha")).toBeTruthy()
+    const onlineBadge = screen.getByText("Online")
+    expect(onlineBadge.className).toContain("inline-flex")
   })
 })

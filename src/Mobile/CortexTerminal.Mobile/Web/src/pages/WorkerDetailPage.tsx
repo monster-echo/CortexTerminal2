@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react"
-import { SessionList } from "../components/SessionList"
-import type { ConsoleApi, WorkerDetail } from "../services/consoleApi"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Separator } from "@/components/ui/separator"
+import { Skeleton } from "@/components/ui/skeleton"
+import { SessionList } from "@/components/SessionList"
+import { WorkerInfoCard } from "@/components/WorkerInfoCard"
+import type { ConsoleApi, WorkerDetail } from "@/services/consoleApi"
 
 export function WorkerDetailPage(props: {
   api: ConsoleApi
@@ -47,32 +53,43 @@ export function WorkerDetailPage(props: {
   }, [api, workerId])
 
   return (
-    <section>
-      <button onClick={() => navigate("/workers")} type="button">
-        Back to workers
-      </button>
-      {isLoading ? <p>Loading worker…</p> : null}
-      {errorMessage ? <p role="alert">{errorMessage}</p> : null}
+    <div className="space-y-6">
+      <div>
+        <Button onClick={() => navigate("/workers")} variant="ghost" size="sm">
+          ← Back to workers
+        </Button>
+      </div>
+      {isLoading ? (
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-6 w-48" />
+          </CardHeader>
+          <CardContent>
+            <Skeleton className="h-20 w-full" />
+          </CardContent>
+        </Card>
+      ) : null}
+      {errorMessage ? (
+        <Alert variant="destructive">
+          <AlertDescription>{errorMessage}</AlertDescription>
+        </Alert>
+      ) : null}
       {worker ? (
         <>
-          <h2>Worker {worker.displayName}</h2>
-          <dl>
-            <div>
-              <dt>Worker ID</dt>
-              <dd>{worker.workerId}</dd>
-            </div>
-            <div>
-              <dt>Status</dt>
-              <dd>{worker.isOnline ? "Online" : "Offline"}</dd>
-            </div>
-          </dl>
-          <h3>Hosted sessions</h3>
-          <SessionList
-            sessions={worker.sessions}
-            onOpen={(sessionId) => navigate(`/sessions/${sessionId}`)}
-          />
+          <WorkerInfoCard worker={worker} />
+          <Card>
+            <CardHeader>
+              <CardTitle>Hosted sessions</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <SessionList
+                sessions={worker.sessions}
+                onOpen={(sessionId) => navigate(`/sessions/${sessionId}`)}
+              />
+            </CardContent>
+          </Card>
         </>
       ) : null}
-    </section>
+    </div>
   )
 }

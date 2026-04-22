@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react"
-import { WorkerList } from "../components/WorkerList"
-import type { ConsoleApi, WorkerSummary } from "../services/consoleApi"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Skeleton } from "@/components/ui/skeleton"
+import { WorkerList } from "@/components/WorkerList"
+import type { ConsoleApi, WorkerSummary } from "@/services/consoleApi"
 
 export function WorkerListPage(props: {
   api: ConsoleApi
@@ -43,14 +46,29 @@ export function WorkerListPage(props: {
   }, [api])
 
   return (
-    <section>
-      <h2>Workers</h2>
-      <p>Workers are a supporting operational view for your sessions.</p>
-      {isLoading ? <p>Loading workers…</p> : null}
-      {errorMessage ? <p role="alert">{errorMessage}</p> : null}
-      {!isLoading && !errorMessage ? (
-        <WorkerList workers={workers} onOpen={(workerId) => navigate(`/workers/${workerId}`)} />
-      ) : null}
-    </section>
+    <Card>
+      <CardHeader>
+        <CardTitle>Workers</CardTitle>
+        <CardDescription>
+          Workers are a supporting operational view for your sessions.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {isLoading ? (
+          <div className="space-y-2">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+          </div>
+        ) : null}
+        {errorMessage ? (
+          <Alert variant="destructive">
+            <AlertDescription>{errorMessage}</AlertDescription>
+          </Alert>
+        ) : null}
+        {!isLoading && !errorMessage ? (
+          <WorkerList workers={workers} onOpen={(workerId) => navigate(`/workers/${workerId}`)} />
+        ) : null}
+      </CardContent>
+    </Card>
   )
 }

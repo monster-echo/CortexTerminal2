@@ -1,4 +1,8 @@
 import { useState } from "react"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 
 export function LoginPage(props: {
   login: (username: string) => Promise<void>
@@ -32,23 +36,38 @@ export function LoginPage(props: {
   }
 
   return (
-    <section>
-      <h2>Sign in</h2>
-      <p>Use the development login endpoint to enter the Gateway console.</p>
-      <form onSubmit={handleSubmit}>
-        <label>
-          Username
-          <input
-            autoComplete="username"
-            onChange={(event) => setUsername(event.target.value)}
-            value={username}
-          />
-        </label>
-        <button disabled={isSubmitting} type="submit">
-          Sign in
-        </button>
-      </form>
-      {errorMessage ? <p role="alert">{errorMessage}</p> : null}
-    </section>
+    <div className="flex min-h-[calc(100vh-12rem)] items-center justify-center">
+      <Card className="w-full max-w-md">
+        <CardHeader>
+          <CardTitle>Sign in</CardTitle>
+          <CardDescription>
+            Use the development login endpoint to enter the Gateway console.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <label htmlFor="username" className="text-sm font-medium leading-none">
+                Username
+              </label>
+              <Input
+                id="username"
+                autoComplete="username"
+                onChange={(event) => setUsername(event.target.value)}
+                value={username}
+              />
+            </div>
+            <Button disabled={isSubmitting} type="submit" className="w-full">
+              Sign in
+            </Button>
+          </form>
+          {errorMessage ? (
+            <Alert variant="destructive" className="mt-4">
+              <AlertDescription>{errorMessage}</AlertDescription>
+            </Alert>
+          ) : null}
+        </CardContent>
+      </Card>
+    </div>
   )
 }

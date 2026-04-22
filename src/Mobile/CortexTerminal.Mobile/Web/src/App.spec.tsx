@@ -19,7 +19,7 @@ describe("App", () => {
 
     render(<App />)
 
-    expect(screen.getByRole("heading", { name: "Sign in" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Sign in" })).toBeTruthy()
   })
 
   it("uses stored auth to open hash-routed pages", async () => {
@@ -40,8 +40,8 @@ describe("App", () => {
 
     render(<App />)
 
-    await waitFor(() => expect(screen.getByRole("heading", { name: "Workers" })).toBeTruthy())
-    expect(screen.getByText("Signed in as alice")).toBeTruthy()
+    await waitFor(() => expect(screen.getByText("Workers are a supporting operational view for your sessions.")).toBeTruthy())
+    expect(screen.getByText("alice")).toBeTruthy()
   })
 
   it("clears expired auth and returns to login on unauthorized responses", async () => {
@@ -57,7 +57,7 @@ describe("App", () => {
 
     render(<App />)
 
-    await waitFor(() => expect(screen.getByRole("heading", { name: "Sign in" })).toBeTruthy())
+    await waitFor(() => expect(screen.getByRole("button", { name: "Sign in" })).toBeTruthy())
     expect(window.localStorage.getItem(authStorageKey)).toBeNull()
   })
 

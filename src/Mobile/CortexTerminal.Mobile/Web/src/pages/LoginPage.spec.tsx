@@ -38,4 +38,11 @@ describe("LoginPage", () => {
 
     expect((await screen.findByRole("alert")).textContent).toContain("Access denied.")
   })
+
+  it("renders the login screen with a card header and primary action", () => {
+    render(<LoginPage login={vi.fn()} navigate={vi.fn()} />)
+
+    const button = screen.getByRole("button", { name: "Sign in" })
+    expect(button.className).toContain("inline-flex")
+  })
 })
