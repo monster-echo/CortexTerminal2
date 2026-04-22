@@ -64,6 +64,19 @@ public sealed class DeviceFlowControllerTests : IClassFixture<GatewayApplication
         var payload = await response.Content.ReadFromJsonAsync<CreateSessionResult>();
         payload.Should().Be(CreateSessionResult.Failure("no-worker-available"));
     }
+
+    [Fact]
+    public async Task RootPath_ServesGatewayConsoleShell()
+    {
+        using var client = _factory.CreateClient();
+
+        using var response = await client.GetAsync("/");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.Content.Headers.ContentType?.MediaType.Should().Be("text/html");
+        var html = await response.Content.ReadAsStringAsync();
+        html.Should().Contain("<title>Gateway Console</title>");
+    }
 }
 
 public sealed class GatewayApplicationFactory : WebApplicationFactory<Program>
