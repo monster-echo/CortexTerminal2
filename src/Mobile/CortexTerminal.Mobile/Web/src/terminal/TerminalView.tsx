@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import type { TerminalGateway, TerminalGatewayConnection } from "../services/terminalGateway"
 import { createTerminalSessionModel, type TerminalSessionState } from "./useTerminalSession"
+import { createBrowserTerminal } from "./createBrowserTerminal"
 
 export function TerminalView(props: {
   gateway: TerminalGateway
@@ -8,9 +9,11 @@ export function TerminalView(props: {
 }) {
   const { gateway, sessionId } = props
   const [status, setStatus] = useState<TerminalSessionState>("live")
-  const [output, setOutput] = useState("")
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const connectionRef = useRef<TerminalGatewayConnection | null>(null)
+  const terminalContainerRef = useRef<HTMLDivElement | null>(null)
+  const browserTerminalRef = useRef<ReturnType<typeof createBrowserTerminal> | null>(null)
+
   const session = useMemo(
     () =>
       createTerminalSessionModel({
@@ -19,16 +22,46 @@ export function TerminalView(props: {
         },
         onStateChange: setStatus,
         onStream: ({ text }) => {
-          setOutput((current) => current + text)
+          browserTerminalRef.current?.write(text)
         },
       }),
     [sessionId]
   )
 
+  // Mount xterm terminal
+  useEffect(() => {
+    const element = terminalContainerRef.current
+    if (!element) {
+      return
+    }
+
+    const browserTerminal = createBrowserTerminal(element, (data) => {
+      session.onTerminalData(data)
+    })
+    browserTerminalRef.current = browserTerminal
+
+    // Initial fit and resize
+    const size = browserTerminal.fit()
+    void connectionRef.current?.resize(size.columns, size.rows)
+
+    // Handle container resize
+    const observer = new ResizeObserver(() => {
+      const next = browserTerminal.fit()
+      void connectionRef.current?.resize(next.columns, next.rows)
+    })
+    observer.observe(element)
+
+    return () => {
+      observer.disconnect()
+      browserTerminal.dispose()
+      browserTerminalRef.current = null
+    }
+  }, [session])
+
+  // Connect to terminal gateway
   useEffect(() => {
     let isActive = true
     setStatus("live")
-    setOutput("")
     setErrorMessage(null)
 
     void gateway
@@ -60,6 +93,13 @@ export function TerminalView(props: {
         }
 
         connectionRef.current = connection
+
+        // Resize after connection is established
+        const browserTerminal = browserTerminalRef.current
+        if (browserTerminal) {
+          const size = browserTerminal.fit()
+          void connection.resize(size.columns, size.rows)
+        }
       })
       .catch((error: unknown) => {
         if (!isActive) {
@@ -80,11 +120,16 @@ export function TerminalView(props: {
   }, [gateway, session, sessionId])
 
   return (
-    <div id="terminal-container">
+    <div>
       <div data-testid="terminal-status">{status}</div>
       {errorMessage ? <p role="alert">{errorMessage}</p> : null}
-      <pre data-testid="terminal-output">{output}</pre>
-      <button onClick={() => session.onTerminalData("\t")}>send-tab</button>
+      <div 
+        ref={terminalContainerRef}
+        style={{ 
+          height: "600px",
+          width: "100%",
+        }}
+      />
     </div>
   )
 }

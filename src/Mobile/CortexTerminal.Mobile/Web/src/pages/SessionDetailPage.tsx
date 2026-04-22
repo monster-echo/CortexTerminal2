@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import type { TerminalGateway } from "../services/terminalGateway"
 import { TerminalView } from "../terminal/TerminalView"
-import type { ConsoleApi, SessionDetail } from "../services/consoleApi"
+import type { ConsoleApi, SessionDetail, WorkerDetail } from "../services/consoleApi"
 
 export function SessionDetailPage(props: {
   api: ConsoleApi
@@ -11,6 +11,7 @@ export function SessionDetailPage(props: {
 }) {
   const { api, sessionId, navigate, terminalGateway } = props
   const [session, setSession] = useState<SessionDetail | null>(null)
+  const [worker, setWorker] = useState<WorkerDetail | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
@@ -19,6 +20,7 @@ export function SessionDetailPage(props: {
 
     setIsLoading(true)
     setSession(null)
+    setWorker(null)
     setErrorMessage(null)
 
     api
@@ -29,6 +31,16 @@ export function SessionDetailPage(props: {
         }
 
         setSession(value)
+
+        // Load worker info after session is loaded
+        return api.getWorker(value.workerId)
+      })
+      .then((workerValue) => {
+        if (!isActive || !workerValue) {
+          return
+        }
+
+        setWorker(workerValue)
       })
       .catch((error: unknown) => {
         if (!isActive) {
@@ -58,16 +70,48 @@ export function SessionDetailPage(props: {
       {session ? (
         <>
           <h2>Session {session.sessionId}</h2>
-          <dl>
-            <div>
-              <dt>Worker</dt>
-              <dd>{session.workerId}</dd>
+          <div style={{ display: "flex", gap: "1rem", marginBottom: "1rem" }}>
+            <div style={{ flex: "1" }}>
+              <h3>Session Info</h3>
+              <dl>
+                <div>
+                  <dt>Worker</dt>
+                  <dd>{session.workerId}</dd>
+                </div>
+                <div>
+                  <dt>Status</dt>
+                  <dd>{session.status}</dd>
+                </div>
+              </dl>
             </div>
-            <div>
-              <dt>Status</dt>
-              <dd>{session.status}</dd>
-            </div>
-          </dl>
+            {worker ? (
+              <div style={{ flex: "1" }}>
+                <h3>Worker Info</h3>
+                <dl>
+                  <div>
+                    <dt>Worker ID</dt>
+                    <dd>{worker.workerId}</dd>
+                  </div>
+                  <div>
+                    <dt>Name</dt>
+                    <dd>{worker.displayName}</dd>
+                  </div>
+                  <div>
+                    <dt>Status</dt>
+                    <dd>{worker.isOnline ? "Online" : "Offline"}</dd>
+                  </div>
+                  <div>
+                    <dt>Sessions</dt>
+                    <dd>{worker.sessionCount}</dd>
+                  </div>
+                  <div>
+                    <dt>Last seen</dt>
+                    <dd>{new Date(worker.lastSeenAt).toLocaleString()}</dd>
+                  </div>
+                </dl>
+              </div>
+            ) : null}
+          </div>
           <TerminalView gateway={terminalGateway} sessionId={session.sessionId} />
         </>
       ) : null}
