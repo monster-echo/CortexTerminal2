@@ -21,6 +21,9 @@ export function createTerminalSessionModel(deps: {
   }
 
   return {
+    getState() {
+      return state
+    },
     onTerminalData(data: string) {
       deps.writeInput(new TextEncoder().encode(data))
     },
