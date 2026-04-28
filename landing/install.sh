@@ -7,7 +7,7 @@ set -e
 # Usage: curl -fsSL https://monster-echo.github.io/CortexTerminal2/install.sh | sh
 
 REPO="monster-echo/CortexTerminal2"
-BIN_NAME="cortexterminal-worker"
+BIN_NAME="cortex"
 INSTALL_DIR="${CORTEX_TERMINAL_HOME:-$HOME/.cortexterminal}"
 DEFAULT_GATEWAY_URL="https://gateway.ct.rwecho.top"
 
@@ -52,7 +52,7 @@ download_worker() {
   RID=$1
   ARCHIVE_EXT=$2
 
-  ASSET_NAME="cortexterminal-worker-${RID}.${ARCHIVE_EXT}"
+  ASSET_NAME="cortex-${RID}.${ARCHIVE_EXT}"
   DOWNLOAD_URL="https://github.com/${REPO}/releases/latest/download/${ASSET_NAME}"
   TMP_DIR=$(mktemp -d)
   TMP_FILE="${TMP_DIR}/${ASSET_NAME}"

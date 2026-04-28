@@ -37,7 +37,7 @@ var savedToken = await tokenStore.GetAccessTokenAsync(CancellationToken.None);
 
 if (string.IsNullOrWhiteSpace(savedToken))
 {
-    Console.Error.WriteLine("Worker is not authenticated. Run 'cortexterminal-worker login' first.");
+    Console.Error.WriteLine("Worker is not authenticated. Run 'cortex login' first.");
     Console.Error.WriteLine($"  Gateway: {gatewayUrl}");
     return;
 }

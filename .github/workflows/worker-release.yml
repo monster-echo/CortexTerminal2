@@ -51,7 +51,7 @@ jobs:
 
       - name: Create archive (tar.gz)
         if: matrix.archive == 'tar.gz'
-        run: tar -czf cortexterminal-worker-${{ matrix.rid }}.tar.gz -C ./publish/worker-${{ matrix.rid }} .
+        run: tar -czf cortex-${{ matrix.rid }}.tar.gz -C ./publish/worker-${{ matrix.rid }} .
 
       - name: Create archive (zip)
         if: matrix.archive == 'zip'
@@ -59,13 +59,13 @@ jobs:
         run: |
           Compress-Archive `
             -Path ./publish/worker-${{ matrix.rid }}/* `
-            -DestinationPath cortexterminal-worker-${{ matrix.rid }}.zip
+            -DestinationPath cortex-${{ matrix.rid }}.zip
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            cortexterminal-worker-${{ matrix.rid }}.tar.gz
-            cortexterminal-worker-${{ matrix.rid }}.zip
+            cortex-${{ matrix.rid }}.tar.gz
+            cortex-${{ matrix.rid }}.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
