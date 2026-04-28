@@ -1,0 +1,1 @@
+import{t as e}from"./useMatch-CYhx-AXb.js";function t(t){return e({from:t.from,shouldThrow:t.shouldThrow,structuralSharing:t.structuralSharing,strict:t.strict,select:e=>{let n=t.strict===!1?e.params:e._strictParams;return t.select?t.select(n):n}})}export{t};
