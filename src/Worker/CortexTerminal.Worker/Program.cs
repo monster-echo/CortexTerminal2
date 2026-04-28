@@ -8,15 +8,15 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-var builder = Host.CreateApplicationBuilder(args);
-var gatewayUrl = Environment.GetEnvironmentVariable("CORTEX_GATEWAY_URL")
-    ?? builder.Configuration["Worker:GatewayUrl"];
+var gatewayUrl = Environment.GetEnvironmentVariable("CORTEX_GATEWAY_URL");
+if (string.IsNullOrWhiteSpace(gatewayUrl))
+{
+    var tempBuilder = Host.CreateApplicationBuilder(args);
+    gatewayUrl = tempBuilder.Configuration["Worker:GatewayUrl"];
+}
 if (string.IsNullOrWhiteSpace(gatewayUrl))
     throw new InvalidOperationException("Gateway URL is not configured. Set CORTEX_GATEWAY_URL or Worker:GatewayUrl in appsettings.json.");
 var gatewayBaseUrl = new Uri(gatewayUrl);
-var workerId = Environment.GetEnvironmentVariable("CORTEX_WORKER_ID")
-    ?? builder.Configuration["Worker:WorkerId"]
-    ?? $"worker-{Environment.MachineName}".ToLowerInvariant();
 var installDir = AppContext.BaseDirectory;
 
 // Parse CLI args for subcommands
@@ -25,11 +25,20 @@ var command = args.FirstOrDefault(arg => !arg.StartsWith("--"));
 if (command == "login")
 {
     var loginTokenStore = new FileWorkerTokenStore(installDir);
-    using var httpClient = new HttpClient { BaseAddress = gatewayBaseUrl };
+    using var httpClient = new HttpClient(new SocketsHttpHandler { ConnectTimeout = TimeSpan.FromSeconds(10) })
+    {
+        BaseAddress = gatewayBaseUrl,
+        Timeout = TimeSpan.FromSeconds(30),
+    };
     var loginService = new DeviceFlowLoginService(httpClient, loginTokenStore);
     await loginService.LoginAsync(CancellationToken.None);
     return;
 }
+
+var builder = Host.CreateApplicationBuilder(args);
+var workerId = Environment.GetEnvironmentVariable("CORTEX_WORKER_ID")
+    ?? builder.Configuration["Worker:WorkerId"]
+    ?? $"worker-{Environment.MachineName}".ToLowerInvariant();
 
 // Normal worker mode
 var tokenStore = new FileWorkerTokenStore(installDir);

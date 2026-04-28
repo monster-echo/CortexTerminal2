@@ -56,6 +56,9 @@ TemporaryDependencyNodeTargetIdentifier=net10.0
 [sourceFiles]
 <NUGET>/microsoft.net.test.sdk/17.14.1/build/net8.0/Microsoft.NET.Test.Sdk.Program.cs
  @folderNames=..,..,..,..,..,Users,echo,.nuget,packages,microsoft.net.test.sdk,17.14.1,build,net8.0
+Auth/
+ DeviceFlowLoginServiceTests.cs
+ FileWorkerTokenStoreTests.cs
 obj/Debug/net10.0/
  .NETCoreApp,Version=v10.0.AssemblyAttributes.cs
  CortexTerminal.Worker.Tests.AssemblyInfo.cs
@@ -73,7 +76,7 @@ Runtime/
 [metadataReferences]
 ../../../src/
  Shared/CortexTerminal.Contracts/obj/Debug/net10.0/ref/CortexTerminal.Contracts.dll
- Worker/CortexTerminal.Worker/obj/Debug/net10.0/ref/CortexTerminal.Worker.dll
+ Worker/CortexTerminal.Worker/obj/Debug/net10.0/ref/cortex.dll
 <DOTNET>/packs/Microsoft.AspNetCore.App.Ref/10.0.6/ref/net10.0/
  Microsoft.AspNetCore.Antiforgery.dll
  Microsoft.AspNetCore.Authentication.Abstractions.dll

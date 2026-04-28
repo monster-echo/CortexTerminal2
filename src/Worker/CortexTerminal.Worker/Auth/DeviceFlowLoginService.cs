@@ -20,7 +20,7 @@ public sealed class DeviceFlowLoginService
         // 1. Start device flow
         using var startResponse = await _httpClient.PostAsync("/api/auth/device-flow", content: null, cancellationToken);
         startResponse.EnsureSuccessStatusCode();
-        var start = await startResponse.Content.ReadFromJsonAsync<DeviceFlowStartResponse>(cancellationToken: cancellationToken)
+        var start = await startResponse.Content.ReadFromJsonAsync(WorkerJsonContext.Default.DeviceFlowStartResponse, cancellationToken)
             ?? throw new InvalidOperationException("Empty response from device-flow endpoint.");
 
         // 2. Display instructions
@@ -43,6 +43,7 @@ public sealed class DeviceFlowLoginService
             using var pollResponse = await _httpClient.PostAsJsonAsync(
                 "/api/auth/device-flow/token",
                 new DeviceFlowPollRequest(start.DeviceCode),
+                WorkerJsonContext.Default.DeviceFlowPollRequest,
                 cancellationToken);
 
             if (pollResponse.StatusCode == System.Net.HttpStatusCode.BadRequest)
@@ -64,7 +65,7 @@ public sealed class DeviceFlowLoginService
             }
 
             pollResponse.EnsureSuccessStatusCode();
-            var token = await pollResponse.Content.ReadFromJsonAsync<DeviceFlowTokenResponse>(cancellationToken: cancellationToken);
+            var token = await pollResponse.Content.ReadFromJsonAsync(WorkerJsonContext.Default.DeviceFlowTokenResponse, cancellationToken);
 
             if (token is not null)
             {

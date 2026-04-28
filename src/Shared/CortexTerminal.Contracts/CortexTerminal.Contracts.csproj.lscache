@@ -252,6 +252,9 @@ Streaming/TerminalFrames.cs
 <NUGET>/messagepackanalyzer/3.1.4/analyzers/roslyn4.3/cs/
  MessagePack.Analyzers.CodeFixes.dll
  MessagePack.SourceGenerator.dll
+<NUGET>/microsoft.net.illink.tasks/10.0.6/analyzers/dotnet/cs/
+ ILLink.CodeFixProvider.dll
+ ILLink.RoslynAnalyzer.dll
 
 [analyzerConfigFiles]
 <DOTNET>/sdk/10.0.202/Sdks/Microsoft.NET.Sdk/analyzers/build/config/analysislevel_10_default.globalconfig

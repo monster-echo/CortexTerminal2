@@ -16,6 +16,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\Shared\CortexTerminal.Contracts\CortexTerminal.Contracts.csproj" />
+    <TrimmerRootAssembly Include="CortexTerminal.Contracts" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.6" />
