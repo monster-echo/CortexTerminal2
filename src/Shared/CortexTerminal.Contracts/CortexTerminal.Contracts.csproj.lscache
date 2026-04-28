@@ -54,7 +54,10 @@ TemporaryDependencyNodeTargetIdentifier=net10.0
 /warnaserror+:NU1605,SYSLIB0011
 
 [sourceFiles]
-Auth/DeviceFlowDtos.cs
+Auth/
+ DeviceFlowDtos.cs
+ DevLoginDtos.cs
+Console/ConsoleDtos.cs
 obj/Debug/net10.0/
  .NETCoreApp,Version=v10.0.AssemblyAttributes.cs
  CortexTerminal.Contracts.AssemblyInfo.cs

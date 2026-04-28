@@ -1,7 +1,7 @@
 import { useState } from "react"
+import { Terminal } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 
 export function LoginPage(props: {
@@ -10,6 +10,7 @@ export function LoginPage(props: {
 }) {
   const { login, navigate } = props
   const [username, setUsername] = useState("")
+  const [password, setPassword] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
@@ -27,7 +28,7 @@ export function LoginPage(props: {
 
     try {
       await login(nextUsername)
-      navigate("/sessions")
+      navigate("/")
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Login failed.")
     } finally {
@@ -36,38 +37,66 @@ export function LoginPage(props: {
   }
 
   return (
-    <div className="flex min-h-[calc(100vh-12rem)] items-center justify-center">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>Sign in</CardTitle>
-          <CardDescription>
-            Use the development login endpoint to enter the Gateway console.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <label htmlFor="username" className="text-sm font-medium leading-none">
-                Username
-              </label>
-              <Input
-                id="username"
-                autoComplete="username"
-                onChange={(event) => setUsername(event.target.value)}
-                value={username}
-              />
-            </div>
-            <Button disabled={isSubmitting} type="submit" className="w-full">
-              Sign in
-            </Button>
-          </form>
-          {errorMessage ? (
-            <Alert variant="destructive" className="mt-4">
-              <AlertDescription>{errorMessage}</AlertDescription>
-            </Alert>
-          ) : null}
-        </CardContent>
-      </Card>
+    <div className="space-y-6">
+      <div className="flex flex-col items-center gap-3">
+        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary shadow-lg shadow-primary/25">
+          <Terminal className="h-7 w-7 text-primary-foreground" />
+        </div>
+        <div className="text-center">
+          <h1 className="text-2xl font-bold tracking-tight">CortexTerminal</h1>
+          <p className="text-sm text-muted-foreground">Gateway Console</p>
+        </div>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-2">
+          <label htmlFor="username" className="text-sm font-medium leading-none">
+            Username
+          </label>
+          <Input
+            id="username"
+            autoComplete="username"
+            onChange={(event) => setUsername(event.target.value)}
+            value={username}
+            placeholder="Enter your username"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <label htmlFor="password" className="text-sm font-medium leading-none">
+            Password
+          </label>
+          <Input
+            id="password"
+            type="password"
+            autoComplete="current-password"
+            onChange={(event) => setPassword(event.target.value)}
+            value={password}
+            placeholder="Enter your password"
+          />
+        </div>
+
+        <Button disabled={isSubmitting} type="submit" className="w-full" size="lg">
+          Sign in
+        </Button>
+      </form>
+
+      {errorMessage ? (
+        <Alert variant="destructive">
+          <AlertDescription>{errorMessage}</AlertDescription>
+        </Alert>
+      ) : null}
+
+      <p className="text-center text-sm text-muted-foreground">
+        Don&apos;t have an account?{" "}
+        <button
+          type="button"
+          onClick={() => navigate("/register")}
+          className="font-medium text-primary hover:underline"
+        >
+          Create account
+        </button>
+      </p>
     </div>
   )
 }

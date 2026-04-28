@@ -8,6 +8,11 @@ public sealed record WriteInputFrame(
     [property: Key(1)] byte[] Payload);
 
 [MessagePackObject]
+public sealed record LatencyProbeFrame(
+    [property: Key(0)] string SessionId,
+    [property: Key(1)] string ProbeId);
+
+[MessagePackObject]
 public sealed record StartSessionCommand(
     [property: Key(0)] string SessionId,
     [property: Key(1)] int Columns,

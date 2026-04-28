@@ -1,0 +1,112 @@
+{
+  "brand": { "name": "CortexTerminal" },
+  "nav": {
+    "dashboard": "仪表盘",
+    "sessions": "会话",
+    "workers": "工作节点",
+    "users": "用户",
+    "settings": "设置",
+    "auditLog": "审计日志"
+  },
+  "auth": {
+    "signIn": "登录",
+    "signInWith": "使用 {{provider}} 登录",
+    "signInToContinue": "登录以继续",
+    "or": "或",
+    "username": "用户名",
+    "password": "密码",
+    "signOut": "退出登录",
+    "signOutConfirm": "确定要退出登录吗？"
+  },
+  "dashboard": {
+    "title": "仪表盘",
+    "welcomeBack": "欢迎回来, {{name}}",
+    "activeSessions": "活跃会话",
+    "detachedSessions": "断开会话",
+    "onlineWorkers": "在线节点",
+    "systemUptime": "系统运行时间",
+    "recentSessions": "最近会话",
+    "workerStatus": "节点状态",
+    "newSession": "新建会话",
+    "viewAll": "查看全部",
+    "worker": "节点",
+    "created": "创建时间",
+    "status": "状态",
+    "session": "会话",
+    "noSessions": "暂无会话",
+    "noSessionsDescription": "创建一个终端会话后将在此显示。",
+    "noWorkers": "暂无工作节点",
+    "noWorkersDescription": "工作节点连接到网关后将在此显示。",
+    "na": "暂无"
+  },
+  "sessions": {
+    "title": "会话",
+    "newSession": "新建会话",
+    "filter": { "all": "全部", "live": "活跃", "detached": "断开", "exited": "已退出" },
+    "status": { "live": "活跃", "detached": "断开", "exited": "已退出", "expired": "已过期" },
+    "delete": { "button": "删除", "confirm": "删除会话", "message": "确定要删除此会话吗？此操作无法撤销。" },
+    "created": "{{time}}创建",
+    "dimensions": "{{cols}}x{{rows}}"
+  },
+  "terminal": {
+    "latency": "{{ms}}ms",
+    "fullscreen": "全屏",
+    "exitFullscreen": "退出全屏"
+  },
+  "workers": {
+    "title": "工作节点",
+    "description": "监控已连接的工作节点及其会话。",
+    "status": { "_label": "状态", "online": "在线", "offline": "离线" },
+    "sessions": "{{count}} 个会话",
+    "sessionsColumn": "会话数",
+    "uptime": "运行时间",
+    "address": "地址",
+    "workerId": "节点 ID",
+    "backToWorkers": "返回节点列表",
+    "loadError": "无法加载节点信息",
+    "detailSubtitle": "节点详情与会话",
+    "connectedAt": "连接时间",
+    "sessionsTitle": "此节点上的会话",
+    "noSessions": "此节点上没有运行中的会话。",
+    "sessionId": "会话 ID",
+    "created": "创建时间",
+    "emptyTitle": "没有节点连接",
+    "emptyDescription": "当工作节点连接到网关时将显示在此处。"
+  },
+  "users": {
+    "title": "用户管理",
+    "name": "姓名",
+    "invite": "邀请",
+    "role": { "_label": "角色", "admin": "管理员", "user": "用户" },
+    "actions": { "editRole": "编辑角色", "disable": "禁用", "enable": "启用", "delete": "删除" }
+  },
+  "settings": {
+    "title": "设置",
+    "profile": "个人资料",
+    "general": "通用",
+    "language": "语言",
+    "theme": "主题",
+    "displayName": "显示名称",
+    "security": "安全",
+    "dangerZone": "危险区域"
+  },
+  "auditLog": {
+    "title": "审计日志",
+    "timestamp": "时间",
+    "user": "用户",
+    "action": "操作",
+    "target": "目标"
+  },
+  "common": {
+    "search": "搜索...",
+    "loading": "加载中...",
+    "error": "错误",
+    "cancel": "取消",
+    "confirm": "确认",
+    "save": "保存",
+    "delete": "删除",
+    "edit": "编辑",
+    "close": "关闭",
+    "goToDashboard": "前往仪表盘"
+  }
+}

@@ -70,7 +70,9 @@ public sealed class WorkerSessionRuntime : IAsyncDisposable
         {
             await foreach (var chunk in chunks)
             {
+                _logger.LogInformation("Pumping {Stream} chunk for session {SessionId}, {ByteCount} bytes.", chunk.Stream, chunk.SessionId, chunk.Payload.Length);
                 await forward(chunk, CancellationToken.None);
+                _logger.LogInformation("Forwarded {Stream} chunk for session {SessionId}.", chunk.Stream, chunk.SessionId);
             }
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)

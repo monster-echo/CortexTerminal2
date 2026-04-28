@@ -37,16 +37,20 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
     {
         _subscriptions.Add(_gatewayClient.OnStartSession(HandleStartSessionAsync));
         _subscriptions.Add(_gatewayClient.OnWriteInput(HandleWriteInputAsync));
+        _subscriptions.Add(_gatewayClient.OnLatencyProbe(HandleLatencyProbeAsync));
         _subscriptions.Add(_gatewayClient.OnResizeSession(HandleResizeSessionAsync));
         _subscriptions.Add(_gatewayClient.OnCloseSession(HandleCloseSessionAsync));
         _subscriptions.Add(_gatewayClient.OnReconnected(_ => RegisterWorkerAsync(CancellationToken.None)));
 
+        _logger.LogInformation("Worker {WorkerId} is starting.", _workerId);
         await _gatewayClient.StartAsync(cancellationToken);
         await RegisterWorkerAsync(cancellationToken);
+        _logger.LogInformation("Worker {WorkerId} has started.", _workerId);
     }
 
     public async Task StopAsync(CancellationToken cancellationToken)
     {
+        _logger.LogInformation("Worker {WorkerId} is stopping.", _workerId);
         foreach (var subscription in _subscriptions)
         {
             subscription.Dispose();
@@ -54,6 +58,7 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
 
         _subscriptions.Clear();
 
+        _logger.LogInformation("Closing {SessionCount} active sessions for worker {WorkerId}.", _sessions.Count, _workerId);
         foreach (var session in _sessions.ToArray())
         {
             if (_sessions.TryRemove(session.Key, out var runtime))
@@ -62,16 +67,21 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
                 await runtime.DisposeAsync();
             }
         }
+        _logger.LogInformation("Worker {WorkerId} has stopped.", _workerId);
     }
 
     public async ValueTask DisposeAsync()
     {
         await StopAsync(CancellationToken.None);
         await _gatewayClient.DisposeAsync();
+        _logger.LogInformation("Worker {WorkerId} has been disposed.", _workerId);
     }
 
     private Task RegisterWorkerAsync(CancellationToken cancellationToken)
-        => _gatewayClient.RegisterAsync(_workerId, cancellationToken);
+    {
+        _logger.LogInformation("Registering worker {WorkerId}.", _workerId);
+        return _gatewayClient.RegisterAsync(_workerId, cancellationToken);
+    }
 
     private async Task HandleStartSessionAsync(StartSessionCommand command)
     {
@@ -80,6 +90,7 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
             await _gatewayClient.ForwardStartFailedAsync(
                 new SessionStartFailedEvent(command.SessionId, "duplicate-session"),
                 CancellationToken.None);
+            _logger.LogWarning("Received start command for duplicate session {SessionId}.", command.SessionId);
             return;
         }
 
@@ -88,6 +99,7 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
             _ptyHost,
             _gatewayClient,
             _loggerFactory.CreateLogger<WorkerSessionRuntime>());
+
 
         runtime.Terminated += RemoveSessionAsync;
 
@@ -103,6 +115,7 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
 
         try
         {
+            _logger.LogInformation("Starting session {SessionId}.", command.SessionId);
             await runtime.StartAsync(command.Columns, command.Rows, CancellationToken.None);
         }
         catch (Exception exception)
@@ -121,17 +134,35 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
     }
 
     private Task HandleWriteInputAsync(WriteInputFrame frame)
-        => _sessions.TryGetValue(frame.SessionId, out var runtime)
-            ? runtime.WriteInputAsync(frame.Payload, CancellationToken.None)
-            : LogMissingSessionAsync(frame.SessionId, "write");
+    {
+        var payload = frame.Payload.ToArray();
+        _logger.LogInformation("Received input for session {SessionId}: {Payload}", frame.SessionId, BitConverter.ToString(payload));
+
+        return _sessions.TryGetValue(frame.SessionId, out var runtime)
+        ? runtime.WriteInputAsync(frame.Payload, CancellationToken.None)
+        : LogMissingSessionAsync(frame.SessionId, "write");
+    }
+
+    private Task HandleLatencyProbeAsync(LatencyProbeFrame frame)
+    {
+        _logger.LogDebug("Received latency probe for session {SessionId}: {ProbeId}", frame.SessionId, frame.ProbeId);
+
+        return _sessions.ContainsKey(frame.SessionId)
+            ? _gatewayClient.ForwardLatencyProbeAsync(frame, CancellationToken.None)
+            : LogMissingSessionAsync(frame.SessionId, "latency-probe");
+    }
 
     private Task HandleResizeSessionAsync(ResizePtyRequest request)
-        => _sessions.TryGetValue(request.SessionId, out var runtime)
-            ? runtime.ResizeAsync(request.Columns, request.Rows, CancellationToken.None)
-            : LogMissingSessionAsync(request.SessionId, "resize");
+    {
+        _logger.LogInformation("Received resize for session {SessionId}: {Columns}x{Rows}", request.SessionId, request.Columns, request.Rows);
+        return _sessions.TryGetValue(request.SessionId, out var runtime)
+        ? runtime.ResizeAsync(request.Columns, request.Rows, CancellationToken.None)
+        : LogMissingSessionAsync(request.SessionId, "resize");
+    }
 
     private async Task HandleCloseSessionAsync(CloseSessionRequest request)
     {
+        _logger.LogInformation("Received close for session {SessionId}", request.SessionId);
         if (_sessions.TryRemove(request.SessionId, out var runtime))
         {
             await runtime.CloseAsync(CancellationToken.None);
@@ -144,6 +175,8 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
 
     private Task RemoveSessionAsync(string sessionId)
     {
+        _logger.LogInformation("Removing session {SessionId}", sessionId);
+
         _sessions.TryRemove(sessionId, out _);
         return Task.CompletedTask;
     }

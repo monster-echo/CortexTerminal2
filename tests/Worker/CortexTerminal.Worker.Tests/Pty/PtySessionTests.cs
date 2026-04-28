@@ -134,6 +134,37 @@ public sealed class PtySessionTests
         fake.LastRows.Should().Be(50);
     }
 
+    [Fact]
+    public async Task ReadStdoutChunksAsync_PreservesMultipleChunkOrder()
+    {
+        var fakeHost = new SequencedFakePtyHost(stdoutChunks: [[0x61], [0x62, 0x63]], stderrChunks: []);
+        var scrollbackBuffer = new ScrollbackBuffer(1024);
+        var session = new PtySession(fakeHost, scrollbackBuffer);
+
+        await session.StartAsync("sess_1", 120, 40, CancellationToken.None);
+        var stdoutChunks = await ReadAllAsync(session.ReadStdoutChunksAsync("sess_1", CancellationToken.None));
+
+        AssertChunks(
+            stdoutChunks,
+            ("sess_1", "stdout", [0x61]),
+            ("sess_1", "stdout", [0x62, 0x63]));
+
+        AssertChunks(
+            scrollbackBuffer.Snapshot(),
+            ("sess_1", "stdout", [0x61]),
+            ("sess_1", "stdout", [0x62, 0x63]));
+    }
+
+    [Fact]
+    public async Task ReadStdoutChunksAsync_WhenSessionNotStarted_YieldsNothing()
+    {
+        var session = new PtySession(new FakePtyHost([], []), new ScrollbackBuffer(1024));
+
+        var stdoutChunks = await ReadAllAsync(session.ReadStdoutChunksAsync("sess_1", CancellationToken.None));
+
+        stdoutChunks.Should().BeEmpty();
+    }
+
     private static async Task<List<TerminalChunk>> ReadAllAsync(IAsyncEnumerable<TerminalChunk> source)
     {
         var chunks = new List<TerminalChunk>();
@@ -202,6 +233,41 @@ internal sealed class FakePtyProcess(byte[] stdout, byte[] stderr) : IPtyProcess
         LastRows = rows;
         return Task.CompletedTask;
     }
+
+    public Task<int> WaitForExitAsync(CancellationToken cancellationToken) => Task.FromResult(0);
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+}
+
+internal sealed class SequencedFakePtyHost(byte[][] stdoutChunks, byte[][] stderrChunks) : IPtyHost
+{
+    public Task<IPtyProcess> StartAsync(int columns, int rows, CancellationToken cancellationToken)
+        => Task.FromResult<IPtyProcess>(new SequencedFakePtyProcess(stdoutChunks, stderrChunks));
+}
+
+internal sealed class SequencedFakePtyProcess(byte[][] stdoutChunks, byte[][] stderrChunks) : IPtyProcess
+{
+    public async IAsyncEnumerable<byte[]> ReadStdoutAsync([EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        foreach (var chunk in stdoutChunks)
+        {
+            yield return chunk;
+            await Task.Yield();
+        }
+    }
+
+    public async IAsyncEnumerable<byte[]> ReadStderrAsync([EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        foreach (var chunk in stderrChunks)
+        {
+            yield return chunk;
+            await Task.Yield();
+        }
+    }
+
+    public Task WriteAsync(byte[] payload, CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task ResizeAsync(int columns, int rows, CancellationToken cancellationToken) => Task.CompletedTask;
 
     public Task<int> WaitForExitAsync(CancellationToken cancellationToken) => Task.FromResult(0);
 

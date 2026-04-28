@@ -6,13 +6,49 @@
 
 @layer base {
   :root {
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 242 65% 58%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 222 47% 11%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 242 65% 58%;
+    --radius: 0.75rem;
+    --chart-1: 242 65% 58%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+
+    --status-live: 142 71% 45%;
+    --status-detached: 38 92% 50%;
+    --status-exited: 0 72% 51%;
+    --status-offline: 215 16% 47%;
+    --terminal-bg: 222 47% 11%;
+
+    color-scheme: light;
+  }
+
+  .dark {
     --background: 222 47% 11%;
     --foreground: 210 40% 98%;
-    --card: 224 36% 15%;
+    --card: 217 33% 17%;
     --card-foreground: 210 40% 98%;
-    --popover: 224 36% 15%;
+    --popover: 217 33% 17%;
     --popover-foreground: 210 40% 98%;
-    --primary: 213 94% 68%;
+    --primary: 228 74% 73%;
     --primary-foreground: 222 47% 11%;
     --secondary: 217 33% 24%;
     --secondary-foreground: 210 40% 98%;
@@ -24,18 +60,26 @@
     --destructive-foreground: 210 40% 98%;
     --border: 217 33% 24%;
     --input: 217 33% 24%;
-    --ring: 213 94% 68%;
-    --radius: 0.5rem;
-    --chart-1: 220 70% 50%;
+    --ring: 228 74% 73%;
+    --radius: 0.75rem;
+    --chart-1: 228 74% 73%;
     --chart-2: 160 60% 45%;
     --chart-3: 30 80% 55%;
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
+
+    --status-live: 142 71% 45%;
+    --status-detached: 38 92% 50%;
+    --status-exited: 0 72% 51%;
+    --status-offline: 215 20% 65%;
+    --terminal-bg: 222 47% 11%;
+
     color-scheme: dark;
   }
 
   body {
-    @apply min-h-screen bg-[hsl(var(--background))] text-[hsl(var(--foreground))] antialiased;
+    @apply min-h-screen bg-background text-foreground antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
 
   #root {

@@ -21,6 +21,7 @@ public sealed class WorkerRuntimeHostTests
         await host.StartAsync(CancellationToken.None);
         await gateway.RaiseStartSessionAsync(new StartSessionCommand("sess-1", 120, 40));
         await gateway.RaiseWriteInputAsync(new WriteInputFrame("sess-1", [0x01]));
+        await gateway.RaiseLatencyProbeAsync(new LatencyProbeFrame("sess-1", "probe-1"));
         await gateway.RaiseResizeSessionAsync(new ResizePtyRequest("sess-1", 100, 45));
         await gateway.RaiseCloseSessionAsync(new CloseSessionRequest("sess-1"));
 
@@ -28,6 +29,7 @@ public sealed class WorkerRuntimeHostTests
         gateway.RegisteredWorkerIds.Should().Equal("worker-1");
         host.ActiveSessionCount.Should().Be(0);
         process.WrittenPayloads.Should().ContainSingle().Which.Should().Equal([0x01]);
+        gateway.LatencyProbes.Should().ContainSingle().Which.Should().BeEquivalentTo(new LatencyProbeFrame("sess-1", "probe-1"));
         process.ResizeRequests.Should().ContainSingle().Which.Should().Be((100, 45));
         process.DisposeCount.Should().Be(1);
     }
@@ -84,6 +86,7 @@ internal sealed class FakeWorkerGatewayClient : IWorkerGatewayClient
 {
     private readonly List<Func<StartSessionCommand, Task>> _startHandlers = [];
     private readonly List<Func<WriteInputFrame, Task>> _writeHandlers = [];
+    private readonly List<Func<LatencyProbeFrame, Task>> _latencyProbeHandlers = [];
     private readonly List<Func<ResizePtyRequest, Task>> _resizeHandlers = [];
     private readonly List<Func<CloseSessionRequest, Task>> _closeHandlers = [];
     private readonly List<Func<string?, Task>> _reconnectHandlers = [];
@@ -94,6 +97,7 @@ internal sealed class FakeWorkerGatewayClient : IWorkerGatewayClient
     public List<string> RegisteredWorkerIds { get; } = [];
     public List<TerminalChunk> StdoutChunks { get; } = [];
     public List<TerminalChunk> StderrChunks { get; } = [];
+    public List<LatencyProbeFrame> LatencyProbes { get; } = [];
     public List<SessionExited> ExitedEvents { get; } = [];
     public List<SessionStartFailedEvent> StartFailedEvents { get; } = [];
     public int StartCallCount { get; private set; }
@@ -117,6 +121,9 @@ internal sealed class FakeWorkerGatewayClient : IWorkerGatewayClient
     public IDisposable OnWriteInput(Func<WriteInputFrame, Task> handler)
         => Register(_writeHandlers, handler);
 
+    public IDisposable OnLatencyProbe(Func<LatencyProbeFrame, Task> handler)
+        => Register(_latencyProbeHandlers, handler);
+
     public IDisposable OnResizeSession(Func<ResizePtyRequest, Task> handler)
         => Register(_resizeHandlers, handler);
 
@@ -137,6 +144,12 @@ internal sealed class FakeWorkerGatewayClient : IWorkerGatewayClient
     {
         StderrChunks.Add(chunk);
         _stderrWaiters.GetOrAdd(chunk.SessionId, _ => new(TaskCreationOptions.RunContinuationsAsynchronously)).TrySetResult(chunk);
+        return Task.CompletedTask;
+    }
+
+    public Task ForwardLatencyProbeAsync(LatencyProbeFrame frame, CancellationToken cancellationToken)
+    {
+        LatencyProbes.Add(frame);
         return Task.CompletedTask;
     }
 
@@ -164,6 +177,14 @@ internal sealed class FakeWorkerGatewayClient : IWorkerGatewayClient
     public async Task RaiseWriteInputAsync(WriteInputFrame frame)
     {
         foreach (var handler in _writeHandlers)
+        {
+            await handler(frame);
+        }
+    }
+
+    public async Task RaiseLatencyProbeAsync(LatencyProbeFrame frame)
+    {
+        foreach (var handler in _latencyProbeHandlers)
         {
             await handler(frame);
         }

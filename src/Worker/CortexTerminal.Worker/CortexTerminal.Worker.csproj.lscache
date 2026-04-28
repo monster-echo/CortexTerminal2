@@ -62,8 +62,10 @@ Program.cs
 Pty/
  IPtyHost.cs
  PtySession.cs
+ PtySupportException.cs
  ScrollbackBuffer.cs
  UnixPtyHost.cs
+ UnixPtyProcess.cs
 Registration/
  IWorkerGatewayClient.cs
  WorkerGatewayClient.cs
@@ -280,7 +282,11 @@ Runtime/
  microsoft.extensions.options.configurationextensions/10.0.0/lib/net10.0/Microsoft.Extensions.Options.ConfigurationExtensions.dll
  microsoft.extensions.options/10.0.6/lib/net10.0/Microsoft.Extensions.Options.dll
  microsoft.extensions.primitives/10.0.6/lib/net10.0/Microsoft.Extensions.Primitives.dll
+ porta.pty/1.0.7/lib/netstandard2.0/Porta.Pty.dll
  system.diagnostics.eventlog/10.0.0/lib/net10.0/System.Diagnostics.EventLog.dll
+ vanara.core/4.2.1/lib/net7.0/Vanara.Core.dll
+ vanara.pinvoke.kernel32/4.2.1/lib/net7.0/Vanara.PInvoke.Kernel32.dll
+ vanara.pinvoke.shared/4.2.1/lib/net7.0/Vanara.PInvoke.Shared.dll
 
 [analyzerReferences]
 <DOTNET>/packs/Microsoft.NETCore.App.Ref/10.0.6/analyzers/dotnet/cs/

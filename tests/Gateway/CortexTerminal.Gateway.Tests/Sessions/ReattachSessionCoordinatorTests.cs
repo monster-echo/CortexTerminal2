@@ -39,20 +39,26 @@ public sealed class ReattachSessionCoordinatorTests
     }
 
     [Fact]
-    public async Task ReattachSessionAsync_WhenAlreadyAttached_ReturnsAlreadyAttached()
+    public async Task ReattachSessionAsync_WhenAlreadyAttached_ReassignsSessionToNewClient()
     {
         var coordinator = CreateCoordinator();
         var createResult = await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), clientConnectionId: "client-1", CancellationToken.None);
+        var nowUtc = new DateTimeOffset(2025, 1, 1, 12, 0, 0, TimeSpan.Zero);
 
         var result = await coordinator.ReattachSessionAsync(
             "user-1",
             new ReattachSessionRequest(createResult.Response!.SessionId),
             "client-2",
-            new DateTimeOffset(2025, 1, 1, 12, 0, 0, TimeSpan.Zero),
+            nowUtc,
             CancellationToken.None);
 
-        result.IsSuccess.Should().BeFalse();
-        result.ErrorCode.Should().Be("session-already-attached");
+        result.Should().BeEquivalentTo(ReattachSessionResult.Success());
+        coordinator.TryGetSession(createResult.Response.SessionId, out var session).Should().BeTrue();
+        session.AttachmentState.Should().Be(SessionAttachmentState.Attached);
+        session.AttachedClientConnectionId.Should().Be("client-2");
+        session.ReplayPending.Should().BeTrue();
+        session.LeaseExpiresAtUtc.Should().BeNull();
+        session.LastActivityAtUtc.Should().Be(nowUtc);
     }
 
     [Fact]

@@ -13,6 +13,9 @@ public sealed class SignalRWorkerCommandDispatcher(IHubContext<WorkerHub> hubCon
     public Task WriteInputAsync(string workerConnectionId, WriteInputFrame frame, CancellationToken cancellationToken)
         => hubContext.Clients.Client(workerConnectionId).SendAsync("WriteInput", frame, cancellationToken);
 
+    public Task ProbeLatencyAsync(string workerConnectionId, LatencyProbeFrame frame, CancellationToken cancellationToken)
+        => hubContext.Clients.Client(workerConnectionId).SendAsync("ProbeLatency", frame, cancellationToken);
+
     public Task ResizeSessionAsync(string workerConnectionId, ResizePtyRequest request, CancellationToken cancellationToken)
         => hubContext.Clients.Client(workerConnectionId).SendAsync("ResizeSession", request, cancellationToken);
 

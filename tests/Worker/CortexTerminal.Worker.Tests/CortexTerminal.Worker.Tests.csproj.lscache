@@ -63,6 +63,8 @@ obj/Debug/net10.0/
 Pty/
  PtySessionTests.cs
  ScrollbackBufferTests.cs
+ UnixPtyHostTests.cs
+ UnixPtyProcessTests.cs
 Registration/WorkerGatewayClientTests.cs
 Runtime/
  WorkerRuntimeHostTests.cs
@@ -401,6 +403,10 @@ Runtime/
   Microsoft.VisualStudio.TestPlatform.ObjectModel.dll
   testhost.dll
  newtonsoft.json/13.0.3/lib/net6.0/Newtonsoft.Json.dll
+ porta.pty/1.0.7/lib/netstandard2.0/Porta.Pty.dll
+ vanara.core/4.2.1/lib/net7.0/Vanara.Core.dll
+ vanara.pinvoke.kernel32/4.2.1/lib/net7.0/Vanara.PInvoke.Kernel32.dll
+ vanara.pinvoke.shared/4.2.1/lib/net7.0/Vanara.PInvoke.Shared.dll
  xunit.abstractions/2.0.3/lib/netstandard2.0/xunit.abstractions.dll
  xunit.assert/2.9.3/lib/net6.0/xunit.assert.dll
  xunit.extensibility.core/2.9.3/lib/netstandard1.1/xunit.core.dll

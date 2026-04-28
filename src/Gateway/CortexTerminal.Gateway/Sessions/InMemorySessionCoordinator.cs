@@ -99,7 +99,15 @@ public sealed class InMemorySessionCoordinator : ISessionCoordinator
                     return Task.FromResult(ReattachSessionResult.Success());
                 }
 
-                return Task.FromResult(ReattachSessionResult.Failure("session-already-attached"));
+                _sessions[request.SessionId] = session with
+                {
+                    AttachedClientConnectionId = clientConnectionId,
+                    LeaseExpiresAtUtc = null,
+                    ReplayPending = true,
+                    LastActivityAtUtc = nowUtc
+                };
+
+                return Task.FromResult(ReattachSessionResult.Success());
             }
 
             if (session.AttachmentState != SessionAttachmentState.DetachedGracePeriod)
@@ -109,14 +117,14 @@ public sealed class InMemorySessionCoordinator : ISessionCoordinator
 
             if (!session.LeaseExpiresAtUtc.HasValue)
             {
-            _sessions[request.SessionId] = session with
-            {
-                AttachmentState = SessionAttachmentState.Expired,
-                AttachedClientConnectionId = null,
-                LeaseExpiresAtUtc = null,
-                ReplayPending = false,
-                LastActivityAtUtc = nowUtc
-            };
+                _sessions[request.SessionId] = session with
+                {
+                    AttachmentState = SessionAttachmentState.Expired,
+                    AttachedClientConnectionId = null,
+                    LeaseExpiresAtUtc = null,
+                    ReplayPending = false,
+                    LastActivityAtUtc = nowUtc
+                };
 
                 return Task.FromResult(ReattachSessionResult.Failure("session-detached-without-lease"));
             }
@@ -135,14 +143,14 @@ public sealed class InMemorySessionCoordinator : ISessionCoordinator
                 return Task.FromResult(ReattachSessionResult.Failure("session-expired"));
             }
 
-                _sessions[request.SessionId] = session with
-                {
-                    AttachmentState = SessionAttachmentState.Attached,
-                    AttachedClientConnectionId = clientConnectionId,
-                    LeaseExpiresAtUtc = null,
-                    ReplayPending = true,
-                    LastActivityAtUtc = nowUtc
-                };
+            _sessions[request.SessionId] = session with
+            {
+                AttachmentState = SessionAttachmentState.Attached,
+                AttachedClientConnectionId = clientConnectionId,
+                LeaseExpiresAtUtc = null,
+                ReplayPending = true,
+                LastActivityAtUtc = nowUtc
+            };
 
             return Task.FromResult(ReattachSessionResult.Success());
         }
@@ -157,8 +165,8 @@ public sealed class InMemorySessionCoordinator : ISessionCoordinator
                 return;
             }
 
-                _sessions[sessionId] = session with
-                {
+            _sessions[sessionId] = session with
+            {
                 AttachmentState = SessionAttachmentState.Exited,
                 AttachedClientConnectionId = null,
                 ExitCode = null,
@@ -166,7 +174,7 @@ public sealed class InMemorySessionCoordinator : ISessionCoordinator
                 ReplayPending = false,
                 LeaseExpiresAtUtc = null,
                 LastActivityAtUtc = _timeProvider.GetUtcNow()
-                };
+            };
         }
     }
 
@@ -179,8 +187,8 @@ public sealed class InMemorySessionCoordinator : ISessionCoordinator
                 return;
             }
 
-                _sessions[sessionId] = session with
-                {
+            _sessions[sessionId] = session with
+            {
                 AttachmentState = SessionAttachmentState.Exited,
                 AttachedClientConnectionId = null,
                 ExitCode = exitCode,
@@ -188,7 +196,7 @@ public sealed class InMemorySessionCoordinator : ISessionCoordinator
                 ReplayPending = false,
                 LeaseExpiresAtUtc = null,
                 LastActivityAtUtc = _timeProvider.GetUtcNow()
-                };
+            };
         }
     }
 
@@ -203,11 +211,11 @@ public sealed class InMemorySessionCoordinator : ISessionCoordinator
                 return;
             }
 
-                _sessions[sessionId] = session with
-                {
-                    ReplayPending = false,
-                    LastActivityAtUtc = _timeProvider.GetUtcNow()
-                };
+            _sessions[sessionId] = session with
+            {
+                ReplayPending = false,
+                LastActivityAtUtc = _timeProvider.GetUtcNow()
+            };
         }
     }
 

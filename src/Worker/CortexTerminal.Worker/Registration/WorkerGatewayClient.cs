@@ -28,6 +28,9 @@ public sealed class WorkerGatewayClient : IWorkerGatewayClient
     public IDisposable OnWriteInput(Func<WriteInputFrame, Task> handler)
         => _connection.On<WriteInputFrame>("WriteInput", handler);
 
+    public IDisposable OnLatencyProbe(Func<LatencyProbeFrame, Task> handler)
+        => _connection.On<LatencyProbeFrame>("ProbeLatency", handler);
+
     public IDisposable OnResizeSession(Func<ResizePtyRequest, Task> handler)
         => _connection.On<ResizePtyRequest>("ResizeSession", handler);
 
@@ -55,6 +58,9 @@ public sealed class WorkerGatewayClient : IWorkerGatewayClient
 
     public Task ForwardStderrAsync(TerminalChunk chunk, CancellationToken cancellationToken)
         => _connection.InvokeAsync("ForwardStderr", chunk, cancellationToken);
+
+    public Task ForwardLatencyProbeAsync(LatencyProbeFrame frame, CancellationToken cancellationToken)
+        => _connection.InvokeAsync("ForwardLatencyProbe", frame, cancellationToken);
 
     public Task ForwardExitedAsync(SessionExited evt, CancellationToken cancellationToken)
         => _connection.InvokeAsync("SessionExited", evt, cancellationToken);

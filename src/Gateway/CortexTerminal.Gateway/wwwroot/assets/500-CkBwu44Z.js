@@ -1,0 +1,1 @@
+import{t as e}from"./general-error-BM4lCB0B.js";var t=e;export{t as component};

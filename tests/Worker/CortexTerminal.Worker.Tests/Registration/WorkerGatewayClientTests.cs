@@ -28,6 +28,7 @@ public sealed class WorkerGatewayClientTests
         await client.RegisterAsync("worker-1", CancellationToken.None);
         await client.ForwardStdoutAsync(new TerminalChunk("sess-1", "stdout", [0x01]), CancellationToken.None);
         await client.ForwardStderrAsync(new TerminalChunk("sess-1", "stderr", [0x02]), CancellationToken.None);
+        await client.ForwardLatencyProbeAsync(new LatencyProbeFrame("sess-1", "probe-1"), CancellationToken.None);
         await client.ForwardExitedAsync(new SessionExited("sess-1", 7, "process-exited"), CancellationToken.None);
         await client.ForwardStartFailedAsync(new SessionStartFailedEvent("sess-2", "failed"), CancellationToken.None);
 
@@ -36,6 +37,8 @@ public sealed class WorkerGatewayClientTests
             .Which.Should().BeEquivalentTo(new TerminalChunk("sess-1", "stdout", [0x01]));
         server.State.StderrChunks.Should().ContainSingle()
             .Which.Should().BeEquivalentTo(new TerminalChunk("sess-1", "stderr", [0x02]));
+        server.State.LatencyProbes.Should().ContainSingle()
+            .Which.Should().BeEquivalentTo(new LatencyProbeFrame("sess-1", "probe-1"));
         server.State.ExitedEvents.Should().ContainSingle()
             .Which.Should().BeEquivalentTo(new SessionExited("sess-1", 7, "process-exited"));
         server.State.StartFailedEvents.Should().ContainSingle()
@@ -51,11 +54,13 @@ public sealed class WorkerGatewayClientTests
 
         StartSessionCommand? start = null;
         WriteInputFrame? write = null;
+        LatencyProbeFrame? probe = null;
         ResizePtyRequest? resize = null;
         CloseSessionRequest? close = null;
 
         var startTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var writeTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var probeTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var resizeTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var closeTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -70,6 +75,12 @@ public sealed class WorkerGatewayClientTests
             {
                 write = frame;
                 writeTcs.TrySetResult();
+                return Task.CompletedTask;
+            }),
+            client.OnLatencyProbe(frame =>
+            {
+                probe = frame;
+                probeTcs.TrySetResult();
                 return Task.CompletedTask;
             }),
             client.OnResizeSession(request =>
@@ -87,10 +98,11 @@ public sealed class WorkerGatewayClientTests
 
         await client.StartAsync(CancellationToken.None);
         await connection.InvokeAsync("DispatchCommands");
-        await Task.WhenAll(startTcs.Task, writeTcs.Task, resizeTcs.Task, closeTcs.Task);
+        await Task.WhenAll(startTcs.Task, writeTcs.Task, probeTcs.Task, resizeTcs.Task, closeTcs.Task);
 
         start.Should().BeEquivalentTo(new StartSessionCommand("sess-1", 120, 40));
         write.Should().BeEquivalentTo(new WriteInputFrame("sess-1", [0x0A]));
+        probe.Should().BeEquivalentTo(new LatencyProbeFrame("sess-1", "probe-1"));
         resize.Should().BeEquivalentTo(new ResizePtyRequest("sess-1", 90, 30));
         close.Should().BeEquivalentTo(new CloseSessionRequest("sess-1"));
     }
@@ -163,6 +175,12 @@ internal sealed class TestWorkerHub(TestWorkerHubState state) : Hub
         return Task.CompletedTask;
     }
 
+    public Task ForwardLatencyProbe(LatencyProbeFrame frame)
+    {
+        state.LatencyProbes.Enqueue(frame);
+        return Task.CompletedTask;
+    }
+
     public Task SessionExited(SessionExited evt)
     {
         state.ExitedEvents.Enqueue(evt);
@@ -179,6 +197,7 @@ internal sealed class TestWorkerHub(TestWorkerHubState state) : Hub
         => Task.WhenAll(
             Clients.Caller.SendAsync("StartSession", new StartSessionCommand("sess-1", 120, 40)),
             Clients.Caller.SendAsync("WriteInput", new WriteInputFrame("sess-1", [0x0A])),
+            Clients.Caller.SendAsync("ProbeLatency", new LatencyProbeFrame("sess-1", "probe-1")),
             Clients.Caller.SendAsync("ResizeSession", new ResizePtyRequest("sess-1", 90, 30)),
             Clients.Caller.SendAsync("CloseSession", new CloseSessionRequest("sess-1")));
 }
@@ -188,6 +207,7 @@ internal sealed class TestWorkerHubState
     public ConcurrentQueue<string> RegisteredWorkerIds { get; } = [];
     public ConcurrentQueue<TerminalChunk> StdoutChunks { get; } = [];
     public ConcurrentQueue<TerminalChunk> StderrChunks { get; } = [];
+    public ConcurrentQueue<LatencyProbeFrame> LatencyProbes { get; } = [];
     public ConcurrentQueue<SessionExited> ExitedEvents { get; } = [];
     public ConcurrentQueue<SessionStartFailedEvent> StartFailedEvents { get; } = [];
 }

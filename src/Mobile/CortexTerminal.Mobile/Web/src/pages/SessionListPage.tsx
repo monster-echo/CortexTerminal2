@@ -1,10 +1,17 @@
 import { useEffect, useState } from "react"
+import { Plus, ChevronRight } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { SessionList } from "@/components/SessionList"
+import { Badge } from "@/components/ui/badge"
 import type { ConsoleApi, SessionSummary } from "@/services/consoleApi"
+
+const statusColors: Record<string, string> = {
+  live: "bg-emerald-500",
+  detached: "bg-amber-500",
+  exited: "bg-red-500",
+  expired: "bg-zinc-500",
+}
 
 export function SessionListPage(props: {
   api: ConsoleApi
@@ -13,9 +20,9 @@ export function SessionListPage(props: {
   const { api, navigate } = props
   const [sessions, setSessions] = useState<SessionSummary[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [isCreatingSession, setIsCreatingSession] = useState(false)
-  const [loadErrorMessage, setLoadErrorMessage] = useState<string | null>(null)
-  const [createErrorMessage, setCreateErrorMessage] = useState<string | null>(null)
+  const [isCreating, setIsCreating] = useState(false)
+  const [filter, setFilter] = useState<"all" | "live" | "detached">("all")
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   useEffect(() => {
     let isActive = true
@@ -23,24 +30,16 @@ export function SessionListPage(props: {
     api
       .listSessions()
       .then((value) => {
-        if (!isActive) {
-          return
-        }
-
+        if (!isActive) return
         setSessions(value)
-        setLoadErrorMessage(null)
+        setErrorMessage(null)
       })
       .catch((error: unknown) => {
-        if (!isActive) {
-          return
-        }
-
-        setLoadErrorMessage(error instanceof Error ? error.message : "Could not load sessions.")
+        if (!isActive) return
+        setErrorMessage(error instanceof Error ? error.message : "Could not load sessions.")
       })
       .finally(() => {
-        if (isActive) {
-          setIsLoading(false)
-        }
+        if (isActive) setIsLoading(false)
       })
 
     return () => {
@@ -48,56 +47,105 @@ export function SessionListPage(props: {
     }
   }, [api])
 
-  const handleStartSession = async () => {
-    setIsCreatingSession(true)
-    setCreateErrorMessage(null)
-
+  const handleCreate = async () => {
+    setIsCreating(true)
+    setErrorMessage(null)
     try {
       const created = await api.createSession()
       navigate(`/sessions/${created.sessionId}`)
     } catch (error) {
-      setCreateErrorMessage(error instanceof Error ? error.message : "Could not start session.")
+      setErrorMessage(error instanceof Error ? error.message : "Could not start session.")
     } finally {
-      setIsCreatingSession(false)
+      setIsCreating(false)
     }
   }
 
+  const filtered = sessions.filter((s) => {
+    if (filter === "all") return true
+    if (filter === "live") return s.status === "live"
+    if (filter === "detached") return s.status === "detached"
+    return true
+  })
+
+  const filters = [
+    { key: "all", label: "All" },
+    { key: "live", label: "Live" },
+    { key: "detached", label: "Detached" },
+  ] as const
+
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-start justify-between">
-          <div>
-            <CardTitle>Sessions</CardTitle>
-            <CardDescription>
-              Your sessions are the main entry point into the Gateway console.
-            </CardDescription>
-          </div>
-          <Button disabled={isCreatingSession} onClick={() => void handleStartSession()}>
-            Start session
-          </Button>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-bold">Sessions</h1>
+        <Button onClick={() => void handleCreate()} disabled={isCreating} size="sm">
+          <Plus className="mr-1 h-4 w-4" /> New
+        </Button>
+      </div>
+
+      <div className="flex gap-1.5">
+        {filters.map(({ key, label }) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setFilter(key)}
+            className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+              filter === key
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-muted-foreground hover:bg-muted/80"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {errorMessage ? (
+        <Alert variant="destructive">
+          <AlertDescription>{errorMessage}</AlertDescription>
+        </Alert>
+      ) : null}
+
+      {isLoading ? (
+        <div className="space-y-2">
+          <Skeleton className="h-[72px] rounded-xl" />
+          <Skeleton className="h-[72px] rounded-xl" />
+          <Skeleton className="h-[72px] rounded-xl" />
         </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {isLoading ? (
-          <div className="space-y-2">
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
-          </div>
-        ) : null}
-        {loadErrorMessage ? (
-          <Alert variant="destructive">
-            <AlertDescription>{loadErrorMessage}</AlertDescription>
-          </Alert>
-        ) : null}
-        {createErrorMessage ? (
-          <Alert variant="destructive">
-            <AlertDescription role="status">{createErrorMessage}</AlertDescription>
-          </Alert>
-        ) : null}
-        {!isLoading && !loadErrorMessage ? (
-          <SessionList sessions={sessions} onOpen={(sessionId) => navigate(`/sessions/${sessionId}`)} />
-        ) : null}
-      </CardContent>
-    </Card>
+      ) : filtered.length === 0 ? (
+        <div className="flex flex-col items-center gap-3 py-12 text-muted-foreground">
+          <p className="text-sm">No {filter === "all" ? "" : filter} sessions</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {filtered.map((session) => (
+            <div
+              key={session.sessionId}
+              className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 cursor-pointer active:scale-[0.98] transition-transform"
+              onClick={() => navigate(`/sessions/${session.sessionId}`)}
+            >
+              <span
+                className={`h-3 w-3 rounded-full shrink-0 ${statusColors[session.status] ?? "bg-zinc-400"}`}
+              />
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-mono text-xs font-semibold">{session.sessionId}</p>
+                <p className="text-[11px] text-muted-foreground">
+                  {session.workerId} &middot;{" "}
+                  {new Date(session.lastActivityAt).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </p>
+              </div>
+              <div className="shrink-0">
+                <Badge variant="secondary" className="text-[10px] py-0 h-5">
+                  {session.status}
+                </Badge>
+              </div>
+              <ChevronRight className="h-4 w-4 text-muted-foreground/50 shrink-0" />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }

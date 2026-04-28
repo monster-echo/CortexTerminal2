@@ -6,7 +6,8 @@ namespace CortexTerminal.Contracts.Sessions;
 public sealed record CreateSessionRequest(
     [property: Key(0)] string Runtime,
     [property: Key(1)] int Columns,
-    [property: Key(2)] int Rows);
+    [property: Key(2)] int Rows,
+    [property: Key(3)] string? ClientRequestId = null);
 
 [MessagePackObject]
 public sealed record CreateSessionResponse(

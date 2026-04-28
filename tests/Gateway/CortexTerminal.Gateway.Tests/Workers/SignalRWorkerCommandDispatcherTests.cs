@@ -64,6 +64,23 @@ public sealed class SignalRWorkerCommandDispatcherTests
     }
 
     [Fact]
+    public async Task ProbeLatencyAsync_TargetsOnlySelectedWorkerConnection()
+    {
+        var workerClient = new RecordingClientProxy();
+        var hubContext = new TestHubContext<WorkerHub>(new Dictionary<string, IClientProxy>
+        {
+            ["worker-1"] = workerClient,
+            ["worker-2"] = new RecordingClientProxy()
+        });
+        var dispatcher = new SignalRWorkerCommandDispatcher(hubContext);
+
+        await dispatcher.ProbeLatencyAsync("worker-1", new LatencyProbeFrame("sess-1", "probe-1"), CancellationToken.None);
+
+        workerClient.Invocations.Should().ContainSingle()
+            .Which.Method.Should().Be("ProbeLatency");
+    }
+
+    [Fact]
     public async Task CloseSessionAsync_TargetsOnlySelectedWorkerConnection()
     {
         var workerClient = new RecordingClientProxy();

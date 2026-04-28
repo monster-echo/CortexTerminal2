@@ -12,7 +12,8 @@ public sealed class TerminalHub(
     ISessionCoordinator sessions,
     IReplayCache replayCache,
     TimeProvider timeProvider,
-    IWorkerCommandDispatcher workerCommands) : Hub
+    IWorkerCommandDispatcher workerCommands,
+    ISessionLaunchCoordinator sessionLaunchCoordinator) : Hub
 {
     public Task<CreateSessionResult> CreateSession(CreateSessionRequest request)
         => CreateSessionCoreAsync(request, Context.ConnectionAborted);
@@ -24,29 +25,11 @@ public sealed class TerminalHub(
         => ReattachSessionCoreAsync(request, Context.ConnectionAborted);
 
     private async Task<CreateSessionResult> CreateSessionCoreAsync(CreateSessionRequest request, CancellationToken cancellationToken)
-    {
-        var result = await sessions.CreateSessionAsync(Context.UserIdentifier ?? "unknown", request, Context.ConnectionId, cancellationToken);
-        if (!result.IsSuccess || result.Response is null || !sessions.TryGetSession(result.Response.SessionId, out var session))
-        {
-            return result;
-        }
-
-        try
-        {
-            await workerCommands.StartSessionAsync(session.WorkerConnectionId, new StartSessionCommand(session.SessionId, session.Columns, session.Rows), cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch
-        {
-            sessions.MarkSessionStartFailed(session.SessionId, "worker-start-dispatch-failed");
-            return CreateSessionResult.Failure("worker-start-dispatch-failed");
-        }
-
-        return result;
-    }
+        => await sessionLaunchCoordinator.CreateSessionAsync(
+            Context.UserIdentifier ?? "unknown",
+            request,
+            Context.ConnectionId,
+            cancellationToken);
 
     private async Task DetachSessionCoreAsync(string sessionId, CancellationToken cancellationToken)
     {
@@ -96,6 +79,12 @@ public sealed class TerminalHub(
     {
         var session = RequireOwnedSession(frame.SessionId);
         await workerCommands.WriteInputAsync(session.WorkerConnectionId, frame, Context.ConnectionAborted);
+    }
+
+    public async Task ProbeLatency(LatencyProbeFrame frame)
+    {
+        var session = RequireOwnedSession(frame.SessionId);
+        await workerCommands.ProbeLatencyAsync(session.WorkerConnectionId, frame, Context.ConnectionAborted);
     }
 
     public async Task ResizeSession(ResizePtyRequest request)

@@ -68,31 +68,71 @@ public sealed class InteractiveSessionFlowTests : IClassFixture<GatewayApplicati
     [Fact]
     public async Task CreateSession_WhenStartSessionDispatchFails_ReturnsUnavailableAndExitsSession()
     {
-        using var factory = _factory.WithWebHostBuilder(builder =>
+        var workerRegistry = new InMemoryWorkerRegistry();
+        workerRegistry.Register("worker-integration-1", "conn-integration-1");
+        var sessions = new InMemorySessionCoordinator(workerRegistry);
+        var sessionLaunchCoordinator = new SessionLaunchCoordinator(
+            sessions,
+            new ThrowingWorkerCommandDispatcher("dispatch failed"));
+
+        var payload = await sessionLaunchCoordinator.CreateSessionAsync(
+            "test-user",
+            new CreateSessionRequest("shell", 120, 40),
+            clientConnectionId: null,
+            CancellationToken.None);
+
+        payload.Should().Be(CreateSessionResult.Failure("worker-start-dispatch-failed"));
+
+        var persistedSessions = GetSessions(sessions);
+        persistedSessions.Values.Should().ContainSingle();
+        var session = persistedSessions.Values.Single();
+        session.AttachmentState.Should().Be(SessionAttachmentState.Exited);
+        session.ExitReason.Should().Be("worker-start-dispatch-failed");
+    }
+
+    [Fact]
+    public async Task CreateSession_WithSameClientRequestId_ReturnsSameSessionOnlyOnce()
+    {
+        var workerRegistry = new InMemoryWorkerRegistry();
+        workerRegistry.Register("worker-integration-1", "conn-integration-1");
+        using var baseFactory = new GatewayApplicationFactory();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
         {
             builder.ConfigureServices(services =>
             {
-                services.AddSingleton<IWorkerCommandDispatcher>(new ThrowingWorkerCommandDispatcher("dispatch failed"));
+                services.AddSingleton<IWorkerRegistry>(workerRegistry);
+                services.AddSingleton<ISessionCoordinator>(new InMemorySessionCoordinator(workerRegistry));
+                services.AddSingleton<IWorkerCommandDispatcher, RecordingWorkerCommandDispatcher>();
+                services.AddSingleton<ISessionLaunchCoordinator>(serviceProvider =>
+                    new SessionLaunchCoordinator(
+                        serviceProvider.GetRequiredService<ISessionCoordinator>(),
+                        serviceProvider.GetRequiredService<IWorkerCommandDispatcher>()));
             });
         });
 
-        var registry = factory.Services.GetRequiredService<IWorkerRegistry>();
-        registry.Register("worker-integration-1", "conn-integration-1");
-
         using var client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", CreateAccessToken());
+        var request = new CreateSessionRequest("shell", 120, 40, "boot-1");
 
-        using var response = await client.PostAsJsonAsync("/api/sessions", new CreateSessionRequest("shell", 120, 40));
+        using var firstResponse = await client.PostAsJsonAsync("/api/sessions", request);
+        using var secondResponse = await client.PostAsJsonAsync("/api/sessions", request);
 
-        response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
-        var payload = await response.Content.ReadFromJsonAsync<CreateSessionResult>();
-        payload.Should().Be(CreateSessionResult.Failure("worker-start-dispatch-failed"));
+        firstResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        secondResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var firstPayload = await firstResponse.Content.ReadFromJsonAsync<CreateSessionResponse>();
+        var secondPayload = await secondResponse.Content.ReadFromJsonAsync<CreateSessionResponse>();
+
+        firstPayload.Should().NotBeNull();
+        secondPayload.Should().NotBeNull();
+        secondPayload!.SessionId.Should().Be(firstPayload!.SessionId);
 
         var sessions = GetSessions(factory.Services.GetRequiredService<ISessionCoordinator>());
         sessions.Values.Should().ContainSingle();
-        var session = sessions.Values.Single();
-        session.AttachmentState.Should().Be(SessionAttachmentState.Exited);
-        session.ExitReason.Should().Be("worker-start-dispatch-failed");
+
+        var dispatcher = factory.Services.GetRequiredService<IWorkerCommandDispatcher>();
+        dispatcher.Should().BeOfType<RecordingWorkerCommandDispatcher>();
+        ((RecordingWorkerCommandDispatcher)dispatcher).StartCommands.Should().ContainSingle();
     }
 
     private static System.Collections.Concurrent.ConcurrentDictionary<string, SessionRecord> GetSessions(ISessionCoordinator coordinator)
@@ -118,5 +158,28 @@ public sealed class InteractiveSessionFlowTests : IClassFixture<GatewayApplicati
         token.Header["typ"] = "at+jwt";
 
         return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+
+    private sealed class RecordingWorkerCommandDispatcher : IWorkerCommandDispatcher
+    {
+        public List<CortexTerminal.Contracts.Streaming.StartSessionCommand> StartCommands { get; } = [];
+
+        public Task StartSessionAsync(string workerConnectionId, CortexTerminal.Contracts.Streaming.StartSessionCommand command, CancellationToken cancellationToken)
+        {
+            StartCommands.Add(command);
+            return Task.CompletedTask;
+        }
+
+        public Task WriteInputAsync(string workerConnectionId, CortexTerminal.Contracts.Streaming.WriteInputFrame frame, CancellationToken cancellationToken)
+            => Task.CompletedTask;
+
+        public Task ProbeLatencyAsync(string workerConnectionId, CortexTerminal.Contracts.Streaming.LatencyProbeFrame frame, CancellationToken cancellationToken)
+            => Task.CompletedTask;
+
+        public Task ResizeSessionAsync(string workerConnectionId, ResizePtyRequest request, CancellationToken cancellationToken)
+            => Task.CompletedTask;
+
+        public Task CloseSessionAsync(string workerConnectionId, CloseSessionRequest request, CancellationToken cancellationToken)
+            => Task.CompletedTask;
     }
 }

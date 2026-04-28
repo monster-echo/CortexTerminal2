@@ -28,7 +28,7 @@ export interface TerminalGateway {
 type TerminalChunkDto = {
   sessionId?: string
   stream?: string
-  payload?: Uint8Array | number[]
+  payload?: Uint8Array | number[] | string
 }
 
 type SessionIdDto = {
@@ -81,7 +81,7 @@ export function createTerminalGateway(deps: {
 
       return {
         writeInput(payload) {
-          return connection.invoke("WriteInput", { sessionId, payload })
+          return connection.invoke("WriteInput", { sessionId, payload: encodeSignalRBytes(payload) })
         },
         resize(columns, rows) {
           return connection.invoke("ResizeSession", { sessionId, columns, rows })
@@ -104,12 +104,12 @@ function registerTerminalHandlers(
 ) {
   connection.on("StdoutChunk", (chunk: TerminalChunkDto) => {
     if (chunk.sessionId === sessionId) {
-      handlers.onStdout(toUint8Array(chunk.payload))
+      handlers.onStdout(decodeSignalRBytes(chunk.payload))
     }
   })
   connection.on("StderrChunk", (chunk: TerminalChunkDto) => {
     if (chunk.sessionId === sessionId) {
-      handlers.onStderr(toUint8Array(chunk.payload))
+      handlers.onStderr(decodeSignalRBytes(chunk.payload))
     }
   })
   connection.on("SessionReattached", (evt: SessionIdDto) => {
@@ -119,7 +119,7 @@ function registerTerminalHandlers(
   })
   connection.on("ReplayChunk", (chunk: TerminalChunkDto) => {
     if (chunk.sessionId === sessionId && (chunk.stream === "stdout" || chunk.stream === "stderr")) {
-      handlers.onReplayChunk(toUint8Array(chunk.payload), chunk.stream)
+      handlers.onReplayChunk(decodeSignalRBytes(chunk.payload), chunk.stream)
     }
   })
   connection.on("ReplayCompleted", (evt: SessionIdDto) => {
@@ -144,12 +144,20 @@ function registerTerminalHandlers(
   })
 }
 
-function toUint8Array(payload: Uint8Array | number[] | undefined) {
+export function decodeSignalRBytes(payload: Uint8Array | number[] | string | undefined) {
   if (payload instanceof Uint8Array) {
     return payload
   }
 
+  if (typeof payload === "string") {
+    return Uint8Array.from(Array.from(atob(payload), (character) => character.charCodeAt(0)))
+  }
+
   return new Uint8Array(payload ?? [])
+}
+
+export function encodeSignalRBytes(payload: Uint8Array) {
+  return btoa(String.fromCharCode(...payload))
 }
 
 function disconnectedConnection(): TerminalGatewayConnection {

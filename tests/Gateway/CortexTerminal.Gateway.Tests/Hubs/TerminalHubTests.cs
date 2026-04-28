@@ -89,5 +89,11 @@ public sealed class TerminalHubTests
     }
 
     private static TerminalHub CreateTerminalHub(ISessionCoordinator sessions, IReplayCache replayCache, TimeProvider timeProvider)
-        => (TerminalHub)Activator.CreateInstance(typeof(TerminalHub), sessions, replayCache, timeProvider, new NoOpWorkerCommandDispatcher())!;
+        => (TerminalHub)Activator.CreateInstance(
+            typeof(TerminalHub),
+            sessions,
+            replayCache,
+            timeProvider,
+            new NoOpWorkerCommandDispatcher(),
+            new SessionLaunchCoordinator(sessions, new NoOpWorkerCommandDispatcher()))!;
 }

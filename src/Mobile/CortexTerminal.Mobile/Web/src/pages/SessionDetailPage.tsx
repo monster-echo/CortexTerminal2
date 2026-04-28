@@ -1,12 +1,19 @@
 import { useEffect, useState } from "react"
+import { ArrowLeft } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import type { TerminalGateway } from "../services/terminalGateway"
 import { TerminalView } from "../terminal/TerminalView"
-import type { ConsoleApi, SessionDetail, WorkerDetail } from "../services/consoleApi"
+import type { ConsoleApi, SessionDetail } from "../services/consoleApi"
+
+const statusColors: Record<string, string> = {
+  live: "bg-emerald-500",
+  detached: "bg-amber-500",
+  exited: "bg-red-500",
+  expired: "bg-zinc-500",
+}
 
 export function SessionDetailPage(props: {
   api: ConsoleApi
@@ -16,48 +23,27 @@ export function SessionDetailPage(props: {
 }) {
   const { api, sessionId, navigate, terminalGateway } = props
   const [session, setSession] = useState<SessionDetail | null>(null)
-  const [worker, setWorker] = useState<WorkerDetail | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   useEffect(() => {
     let isActive = true
-
     setIsLoading(true)
     setSession(null)
-    setWorker(null)
     setErrorMessage(null)
 
     api
       .getSession(sessionId)
       .then((value) => {
-        if (!isActive) {
-          return
-        }
-
+        if (!isActive) return
         setSession(value)
-
-        // Load worker info after session is loaded
-        return api.getWorker(value.workerId)
-      })
-      .then((workerValue) => {
-        if (!isActive || !workerValue) {
-          return
-        }
-
-        setWorker(workerValue)
       })
       .catch((error: unknown) => {
-        if (!isActive) {
-          return
-        }
-
+        if (!isActive) return
         setErrorMessage(error instanceof Error ? error.message : "Could not load session.")
       })
       .finally(() => {
-        if (isActive) {
-          setIsLoading(false)
-        }
+        if (isActive) setIsLoading(false)
       })
 
     return () => {
@@ -65,87 +51,49 @@ export function SessionDetailPage(props: {
     }
   }, [api, sessionId])
 
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Session {session?.sessionId ?? sessionId}</h1>
-        <Button onClick={() => navigate("/sessions")} variant="ghost" size="sm">
-          ← Back to sessions
-        </Button>
+  if (isLoading) {
+    return (
+      <div className="flex flex-col h-[calc(100vh-3.5rem)] space-y-3 p-1">
+        <Skeleton className="h-10 w-48" />
+        <Skeleton className="flex-1 rounded-xl" />
       </div>
-      {isLoading ? (
-        <Card>
-          <CardHeader>
-            <Skeleton className="h-6 w-48" />
-            <span className="sr-only">Loading session…</span>
-          </CardHeader>
-          <CardContent>
-            <Skeleton className="h-20 w-full" />
-          </CardContent>
-        </Card>
-      ) : null}
-      {errorMessage ? (
+    )
+  }
+
+  if (errorMessage) {
+    return (
+      <div className="p-4">
         <Alert variant="destructive">
           <AlertDescription>{errorMessage}</AlertDescription>
         </Alert>
-      ) : null}
-      {session ? (
-        <>
-          <div className="grid gap-6 md:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Session Info</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Session ID</span>
-                  <span className="font-mono text-sm">{session.sessionId}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Worker</span>
-                  <span className="font-mono text-sm">{session.workerId}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Status</span>
-                  <Badge variant="outline">{session.status}</Badge>
-                </div>
-              </CardContent>
-            </Card>
-            {worker ? (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Worker Info</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Worker ID</span>
-                    <span className="font-mono text-sm">{worker.workerId}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Name</span>
-                    <span className="text-sm">{worker.displayName}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Status</span>
-                    <Badge variant={worker.isOnline ? "default" : "secondary"}>
-                      {worker.isOnline ? "Online" : "Offline"}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Sessions</span>
-                    <span className="text-sm">{worker.sessionCount}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Last seen</span>
-                    <span className="text-sm">{new Date(worker.lastSeenAt).toLocaleString()}</span>
-                  </div>
-                </CardContent>
-              </Card>
-            ) : null}
-          </div>
-          <TerminalView gateway={terminalGateway} sessionId={session.sessionId} />
-        </>
-      ) : null}
+        <Button onClick={() => navigate("/sessions")} variant="ghost" className="mt-3 w-full">
+          <ArrowLeft className="mr-2 h-4 w-4" /> Back to sessions
+        </Button>
+      </div>
+    )
+  }
+
+  if (!session) return null
+
+  return (
+    <div className="flex flex-col h-[calc(100vh-3.5rem)]">
+      <div className="flex items-center gap-3 px-1 py-2 shrink-0">
+        <Button onClick={() => navigate("/sessions")} variant="ghost" size="icon" className="h-8 w-8">
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-mono text-sm font-semibold">{session.sessionId}</p>
+          <p className="text-[11px] text-muted-foreground">on {session.workerId}</p>
+        </div>
+        <span
+          className={`h-2.5 w-2.5 rounded-full shrink-0 ${statusColors[session.status] ?? "bg-zinc-400"}`}
+        />
+        <Badge variant="secondary" className="text-[10px] py-0 h-5">
+          {session.status}
+        </Badge>
+      </div>
+
+      <TerminalView gateway={terminalGateway} sessionId={session.sessionId} />
     </div>
   )
 }
