@@ -4,6 +4,9 @@ on:
   push:
     tags: ['v*']
 
+permissions:
+  contents: write
+
 jobs:
   build-and-release:
     name: Build Worker (${{ matrix.rid }})
@@ -63,8 +66,6 @@ jobs:
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            cortexterminal-worker-${{ matrix.rid }}.tar.gz
-            cortexterminal-worker-${{ matrix.rid }}.zip
+          files: cortexterminal-worker-${{ matrix.rid }}.*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
