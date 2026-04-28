@@ -75,7 +75,7 @@ public sealed class DeviceFlowControllerTests : IClassFixture<GatewayApplication
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         response.Content.Headers.ContentType?.MediaType.Should().Be("text/html");
         var html = await response.Content.ReadAsStringAsync();
-        html.Should().Contain("<title>Gateway Console</title>");
+        html.Should().Contain("<title>CortexTerminal</title>");
     }
 }
 
