@@ -51,12 +51,15 @@ jobs:
 
       - name: Create archive (tar.gz)
         if: matrix.archive == 'tar.gz'
-        run: tar -czf cortex-${{ matrix.rid }}.tar.gz -C ./publish/worker-${{ matrix.rid }} .
+        run: |
+          find ./publish/worker-${{ matrix.rid }} -name '*.pdb' -delete
+          tar -czf cortex-${{ matrix.rid }}.tar.gz -C ./publish/worker-${{ matrix.rid }} .
 
       - name: Create archive (zip)
         if: matrix.archive == 'zip'
         shell: pwsh
         run: |
+          Get-ChildItem -Path ./publish/worker-${{ matrix.rid }} -Filter *.pdb | Remove-Item
           Compress-Archive `
             -Path ./publish/worker-${{ matrix.rid }}/* `
             -DestinationPath cortex-${{ matrix.rid }}.zip
