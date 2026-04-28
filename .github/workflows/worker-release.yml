@@ -66,6 +66,8 @@ jobs:
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: cortexterminal-worker-${{ matrix.rid }}.*
+          files: |
+            cortexterminal-worker-${{ matrix.rid }}.tar.gz
+            cortexterminal-worker-${{ matrix.rid }}.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
