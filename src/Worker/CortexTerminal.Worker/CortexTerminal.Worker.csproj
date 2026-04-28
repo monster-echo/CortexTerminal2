@@ -9,6 +9,10 @@
     <AssemblyName>cortex</AssemblyName>
     <DebugType>embedded</DebugType>
     <DebugSymbols>false</DebugSymbols>
+    <PublishTrimmed>true</PublishTrimmed>
+    <TrimMode>partial</TrimMode>
+    <NoWarn>IL2026;IL3050;IL2087;IL2104</NoWarn>
+    <TrimmerRemoveSymbols>true</TrimmerRemoveSymbols>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\Shared\CortexTerminal.Contracts\CortexTerminal.Contracts.csproj" />
