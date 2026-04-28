@@ -151,6 +151,9 @@ builder.Configuration.GetSection("Auth").Bind(oAuthOptions);
 
 var app = builder.Build();
 
+// Trust forwarded headers from reverse proxy (Caddy/Nginx)
+app.UseForwardedHeaders();
+
 // Auto-create database tables
 if (!string.IsNullOrEmpty(connectionString))
 {
