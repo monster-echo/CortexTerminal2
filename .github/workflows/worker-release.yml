@@ -17,9 +17,6 @@ jobs:
           - rid: linux-arm64
             os: ubuntu-24.04-arm
             archive: tar.gz
-          - rid: osx-x64
-            os: macos-13
-            archive: tar.gz
           - rid: osx-arm64
             os: macos-latest
             archive: tar.gz

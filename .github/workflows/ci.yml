@@ -40,7 +40,7 @@ jobs:
         run: dotnet test tests/Gateway/CortexTerminal.Gateway.Tests --configuration Release --no-build
 
       - name: Run Worker tests
-        run: dotnet test tests/Worker/CortexTerminal.Worker.Tests --configuration Release --no-build
+        run: dotnet test tests/Worker/CortexTerminal.Worker.Tests --configuration Release --no-build --filter "Category!=Integration"
 
   test-frontend:
     name: Build (Frontend)

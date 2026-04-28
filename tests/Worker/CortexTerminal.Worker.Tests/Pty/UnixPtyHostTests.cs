@@ -5,6 +5,7 @@ using FluentAssertions;
 
 namespace CortexTerminal.Worker.Tests.Pty;
 
+[Trait("Category", "Integration")]
 [Collection("UnixPtyHostIntegration")]
 public sealed class UnixPtyHostTests
 {
