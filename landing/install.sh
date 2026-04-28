@@ -5,25 +5,22 @@ set -e
 # Downloads and installs the latest worker binary for your platform.
 #
 # Usage: curl -fsSL https://monster-echo.github.io/CortexTerminal2/install.sh | sh
-# With mirror: CORTEX_MIRROR=https://ghfast.top curl -fsSL ... | sh
 
 REPO="monster-echo/CortexTerminal2"
 BIN_NAME="cortexterminal-worker"
 INSTALL_DIR="${CORTEX_TERMINAL_HOME:-$HOME/.cortexterminal}"
 DEFAULT_GATEWAY_URL="https://gateway.ct.rwecho.top"
-MIRROR="${CORTEX_MIRROR:-}"
 
 # ---- Color output ----
 if [ -t 1 ]; then
-  BOLD="\033[1m"; GREEN="\033[32m"; CYAN="\033[36m"; RED="\033[31m"; YELLOW="\033[33m"; RESET="\033[0m"
+  BOLD="\033[1m"; GREEN="\033[32m"; CYAN="\033[36m"; RED="\033[31m"; RESET="\033[0m"
 else
-  BOLD=""; GREEN=""; CYAN=""; RED=""; YELLOW=""; RESET=""
+  BOLD=""; GREEN=""; CYAN=""; RED=""; RESET=""
 fi
 
-info()     { printf "  ${CYAN}%s${RESET}\n" "$*"; }
-ok()       { printf "  ${GREEN}✓${RESET} %s\n" "$*"; }
-warn()     { printf "  ${YELLOW}!${RESET} %s\n" "$*"; }
-fail()     { printf "  ${RED}✗${RESET} %s\n" "$*" >&2; exit 1; }
+info()  { printf "  ${CYAN}%s${RESET}\n" "$*"; }
+ok()    { printf "  ${GREEN}✓${RESET} %s\n" "$*"; }
+fail()  { printf "  ${RED}✗${RESET} %s\n" "$*" >&2; exit 1; }
 
 # ---- Detect platform ----
 detect_platform() {
@@ -50,84 +47,33 @@ detect_platform() {
   echo "$RID" "$ARCHIVE_EXT"
 }
 
-# ---- Build download URL ----
-build_url() {
-  ASSET_NAME="$1"
-  GITHUB_URL="https://github.com/${REPO}/releases/latest/download/${ASSET_NAME}"
-
-  if [ -n "$MIRROR" ]; then
-    # User-provided mirror: replace github.com host
-    echo "${GITHUB_URL}" | sed "s|https://github.com|${MIRROR}|"
-  else
-    echo "$GITHUB_URL"
-  fi
-}
-
-# ---- Try download with fallback mirrors ----
-try_download() {
-  URL="$1"
-  OUTPUT="$2"
-
-  if command -v curl >/dev/null 2>&1; then
-    HTTP_CODE=$(curl -fsSL --connect-timeout 10 --max-time 300 -w "%{http_code}" -o "$OUTPUT" "$URL" 2>/dev/null) || HTTP_CODE="000"
-  elif command -v wget >/dev/null 2>&1; then
-    wget -q --timeout=10 -O "$OUTPUT" "$URL" && HTTP_CODE="200" || HTTP_CODE="000"
-  else
-    fail "Neither curl nor wget found. Install one to continue."
-  fi
-
-  echo "$HTTP_CODE"
-}
-
 # ---- Download latest release ----
 download_worker() {
   RID=$1
   ARCHIVE_EXT=$2
 
   ASSET_NAME="cortexterminal-worker-${RID}.${ARCHIVE_EXT}"
+  DOWNLOAD_URL="https://github.com/${REPO}/releases/latest/download/${ASSET_NAME}"
   TMP_DIR=$(mktemp -d)
   TMP_FILE="${TMP_DIR}/${ASSET_NAME}"
 
   info "Detected platform: ${BOLD}${RID}${RESET}"
+  info "Downloading ${ASSET_NAME} ..."
 
-  # Build URL list: user mirror (or direct) -> fallback mirrors
-  GITHUB_URL="https://github.com/${REPO}/releases/latest/download/${ASSET_NAME}"
-  MIRRORS="https://ghfast.top"
-
-  if [ -n "$MIRROR" ]; then
-    URLS="$(echo "$GITHUB_URL" | sed "s|https://github.com|${MIRROR}|")"
-    URLS="$URLS $GITHUB_URL"
+  if command -v curl >/dev/null 2>&1; then
+    HTTP_CODE=$(curl -fsSL -w "%{http_code}" -o "$TMP_FILE" "$DOWNLOAD_URL")
+  elif command -v wget >/dev/null 2>&1; then
+    wget -q -O "$TMP_FILE" "$DOWNLOAD_URL" && HTTP_CODE="200" || HTTP_CODE="404"
   else
-    URLS="$GITHUB_URL"
-    for M in $MIRRORS; do
-      URLS="$URLS $(echo "$GITHUB_URL" | sed "s|https://github.com|${M}|")"
-    done
+    fail "Neither curl nor wget found. Install one to continue."
   fi
 
-  DOWNLOADED=false
-  for URL in $URLS; do
-    info "Trying ${URL} ..."
-    HTTP_CODE=$(try_download "$URL" "$TMP_FILE")
-
-    if [ "$HTTP_CODE" = "200" ]; then
-      FILE_SIZE=$(wc -c < "$TMP_FILE" 2>/dev/null || echo 0)
-      if [ "$FILE_SIZE" -gt 1000 ] 2>/dev/null; then
-        DOWNLOADED=true
-        ok "Downloaded successfully"
-        break
-      else
-        warn "Downloaded file too small (${FILE_SIZE} bytes), trying next mirror..."
-        rm -f "$TMP_FILE"
-      fi
-    else
-      warn "Failed (HTTP ${HTTP_CODE}), trying next..."
-    fi
-  done
-
-  if [ "$DOWNLOADED" != "true" ]; then
+  if [ "$HTTP_CODE" != "200" ]; then
     rm -rf "$TMP_DIR"
-    fail "All download attempts failed. Try setting a mirror: CORTEX_MIRROR=https://ghfast.top sh install.sh"
+    fail "Failed to download worker binary (HTTP ${HTTP_CODE}). Check: ${DOWNLOAD_URL}"
   fi
+
+  ok "Downloaded successfully"
 
   # Extract
   info "Extracting to ${INSTALL_DIR} ..."
