@@ -1,5 +1,4 @@
 using System.Net.Http.Json;
-using System.Reflection;
 using CortexTerminal.Worker.Auth;
 using CortexTerminal.Worker.Pty;
 using CortexTerminal.Worker.Registration;
@@ -18,7 +17,7 @@ var gatewayBaseUrl = new Uri(gatewayUrl);
 var workerId = Environment.GetEnvironmentVariable("CORTEX_WORKER_ID")
     ?? builder.Configuration["Worker:WorkerId"]
     ?? $"worker-{Environment.MachineName}".ToLowerInvariant();
-var installDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? ".";
+var installDir = AppContext.BaseDirectory;
 
 // Parse CLI args for subcommands
 var command = args.FirstOrDefault(arg => !arg.StartsWith("--"));
