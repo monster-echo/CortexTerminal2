@@ -24,6 +24,6 @@ EXPOSE 5045
 ENV ASPNETCORE_URLS=http://+:5045
 ENV ASPNETCORE_ENVIRONMENT=Production
 COPY --from=build /app/publish .
-RUN adduser --disabled-password --gecos "" appuser && chown -R appuser:appuser /app
+RUN useradd --system --create-home appuser && chown -R appuser:appuser /app
 USER appuser
 ENTRYPOINT ["dotnet", "CortexTerminal.Gateway.dll"]
