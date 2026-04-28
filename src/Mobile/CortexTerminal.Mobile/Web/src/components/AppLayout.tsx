@@ -1,7 +1,6 @@
 import type { ReactNode } from "react"
 import { LayoutDashboard, MonitorPlay, Server, Settings } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 
 const tabs = [
   { id: "dashboard", label: "Home", path: "/", icon: LayoutDashboard },
@@ -28,7 +27,7 @@ export function AppLayout(props: {
 }) {
   const { children, currentPath, isAuthenticated, username, onNavigate } = props
   const activeTab = activeTabFromPath(currentPath)
-  const isFullScreen = currentPath.startsWith("/sessions/") && isAuthenticated
+  const isDetailPage = (currentPath.startsWith("/sessions/") || currentPath.startsWith("/workers/")) && isAuthenticated
 
   if (!isAuthenticated) {
     return (
@@ -40,32 +39,33 @@ export function AppLayout(props: {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <header className="sticky top-0 z-50 border-b border-border bg-card">
-        <div className="flex h-14 items-center justify-between px-4">
-          <div>
-            <h1 className="text-lg font-semibold tracking-tight text-foreground">
-              {currentPath === "/" || currentPath === "" ? "Dashboard" : ""}
-              {currentPath.startsWith("/sessions/") ? "Terminal" : ""}
-              {currentPath === "/sessions" ? "Sessions" : ""}
-              {currentPath === "/workers" ? "Workers" : ""}
-              {currentPath.startsWith("/workers/") ? "Worker" : ""}
-              {currentPath === "/settings" ? "Settings" : ""}
-            </h1>
-            {username ? (
-              <p className="text-xs text-muted-foreground">Hello, {username}</p>
-            ) : null}
+      {!isDetailPage ? (
+        <header className="sticky top-0 z-50 border-b border-border bg-card">
+          <div className="flex h-14 items-center justify-between px-4">
+            <div>
+              <h1 className="text-lg font-semibold tracking-tight text-foreground">
+                {currentPath === "/" || currentPath === "" ? "Dashboard" : ""}
+                {currentPath === "/sessions" ? "Sessions" : ""}
+                {currentPath === "/workers" ? "Workers" : ""}
+                {currentPath.startsWith("/workers/") ? "Worker" : ""}
+                {currentPath === "/settings" ? "Settings" : ""}
+              </h1>
+              {username ? (
+                <p className="text-xs text-muted-foreground">Hello, {username}</p>
+              ) : null}
+            </div>
+            <Badge variant="secondary" className="text-[10px]">
+              Gateway
+            </Badge>
           </div>
-          <Badge variant="secondary" className="text-[10px]">
-            Gateway
-          </Badge>
-        </div>
-      </header>
+        </header>
+      ) : null}
 
-      <main className={`flex-1 overflow-auto ${isFullScreen ? "pb-0" : "pb-20"}`}>
-        <div className={isFullScreen ? "" : "p-4"}>{children}</div>
+      <main className={`flex-1 overflow-auto ${isDetailPage ? "pb-0" : "pb-20"}`}>
+        <div className={isDetailPage ? "" : "p-4"}>{children}</div>
       </main>
 
-      {!isFullScreen ? (
+      {!isDetailPage ? (
         <nav
           className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card"
           role="navigation"

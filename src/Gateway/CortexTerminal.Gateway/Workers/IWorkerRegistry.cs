@@ -7,6 +7,7 @@ public interface IWorkerRegistry
     bool TryGetLeastBusy(out RegisteredWorker worker);
     bool TryGetLeastBusyForUser(string userId, out RegisteredWorker worker);
     bool TryGetWorker(string workerId, out RegisteredWorker worker);
+    RegisteredWorker? FindByConnectionId(string connectionId);
     IReadOnlyList<RegisteredWorker> GetWorkersForUser(string userId);
     bool SetWorkerOwner(string workerId, string ownerUserId);
 }

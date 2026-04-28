@@ -26,7 +26,7 @@ public sealed class GatewayConsoleFlowTests : IClassFixture<GatewayApplicationFa
         var resizeTcs = new TaskCompletionSource<ResizePtyRequest>(TaskCreationOptions.RunContinuationsAsynchronously);
         var closeTcs = new TaskCompletionSource<CloseSessionRequest>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        await using var worker = factory.CreateHubConnection("/hubs/worker");
+        await using var worker = factory.CreateAuthenticatedHubConnection("/hubs/worker");
         worker.On<WriteInputFrame>("WriteInput", frame =>
         {
             writeInputTcs.TrySetResult(frame);

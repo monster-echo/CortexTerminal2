@@ -93,6 +93,7 @@ export interface ConsoleApi {
     fromDate?: string
     toDate?: string
   }): Promise<AuditLogResponse>
+  verifyDeviceCode(userCode: string): Promise<void>
 }
 
 type FetchFn = (input: string, init?: RequestInit) => Promise<Response>
@@ -158,6 +159,9 @@ export function createConsoleApi(
     requiresAuth = true
   ) => {
     const headers = new Headers(init?.headers)
+    if (init?.body && !headers.has('Content-Type')) {
+      headers.set('Content-Type', 'application/json')
+    }
 
     const token = getToken()
     if (requiresAuth && token) {
@@ -256,6 +260,12 @@ export function createConsoleApi(
       if (params.toDate) searchParams.set('toDate', params.toDate)
       const qs = searchParams.toString()
       return request<AuditLogResponse>(`/api/audit-log${qs ? `?${qs}` : ''}`)
+    },
+    verifyDeviceCode(userCode) {
+      return requestVoid('/api/auth/device-flow/verify', {
+        method: 'POST',
+        body: JSON.stringify({ userCode }),
+      })
     },
   }
 }

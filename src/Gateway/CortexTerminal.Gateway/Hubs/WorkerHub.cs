@@ -2,11 +2,14 @@ using CortexTerminal.Contracts.Streaming;
 using CortexTerminal.Gateway.Audit;
 using CortexTerminal.Gateway.Sessions;
 using CortexTerminal.Gateway.Workers;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
+using System.Security.Claims;
 
 namespace CortexTerminal.Gateway.Hubs;
 
+[Authorize]
 public sealed class WorkerHub(
     IWorkerRegistry workers,
     ISessionCoordinator sessions,
@@ -15,15 +18,22 @@ public sealed class WorkerHub(
     IHubContext<TerminalHub> terminalHubContext,
     ILogger<WorkerHub> logger) : Hub
 {
+    private string GetUserId()
+        => Context.User?.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? Context.User?.FindFirstValue(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)
+            ?? Context.UserIdentifier
+            ?? "unknown";
+
     public void RegisterWorker(string workerId)
     {
-        logger.LogInformation("Worker {WorkerId} registered with connection {ConnectionId}.", workerId, Context.ConnectionId);
-        workers.Register(workerId, Context.ConnectionId);
+        var userId = GetUserId();
+        logger.LogInformation("Worker {WorkerId} registered with connection {ConnectionId} by user {UserId}.", workerId, Context.ConnectionId, userId);
+        workers.Register(workerId, Context.ConnectionId, ownerUserId: userId);
         auditLog.Record(new AuditLogEntry(
             Id: Guid.NewGuid().ToString("N"),
             Timestamp: DateTimeOffset.UtcNow,
-            UserId: workerId,
-            UserName: workerId,
+            UserId: userId,
+            UserName: userId,
             Action: "worker.connect",
             TargetEntity: "worker",
             TargetId: workerId
@@ -32,7 +42,14 @@ public sealed class WorkerHub(
 
     public override Task OnDisconnectedAsync(Exception? exception)
     {
-        // In Phase 1, workers just unregister on disconnect
+        // Find and unregister the worker that belonged to this connection
+        var worker = workers.FindByConnectionId(Context.ConnectionId);
+        if (worker is not null)
+        {
+            workers.Unregister(worker.WorkerId);
+            logger.LogInformation("Worker {WorkerId} disconnected (connection {ConnectionId}).", worker.WorkerId, Context.ConnectionId);
+        }
+
         return base.OnDisconnectedAsync(exception);
     }
 

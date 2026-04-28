@@ -71,8 +71,8 @@ export function UserAuthForm({
   }
 
   function handleOAuth(provider: string) {
-    // Future: redirect to OAuth provider
-    toast.info(`OAuth ${provider} sign-in coming soon`)
+    const redirect = redirectTo || '/sessions'
+    window.location.href = `/api/auth/${provider}?redirect=${encodeURIComponent(redirect)}`
   }
 
   const isDevMode = import.meta.env.VITE_AUTH_MODE === 'dev'

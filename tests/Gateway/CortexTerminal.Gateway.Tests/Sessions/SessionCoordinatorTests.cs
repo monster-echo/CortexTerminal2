@@ -117,6 +117,9 @@ public sealed class SessionCoordinatorTests
             return workerId == _worker.WorkerId;
         }
 
+        public RegisteredWorker? FindByConnectionId(string connectionId)
+            => _worker.ConnectionId == connectionId ? _worker : null;
+
         public IReadOnlyList<RegisteredWorker> GetWorkersForUser(string userId)
             => Array.Empty<RegisteredWorker>();
 
@@ -155,6 +158,9 @@ public sealed class SessionCoordinatorTests
 
         public bool TryGetWorker(string workerId, out RegisteredWorker worker)
             => _inner.TryGetWorker(workerId, out worker);
+
+        public RegisteredWorker? FindByConnectionId(string connectionId)
+            => _inner.FindByConnectionId(connectionId);
 
         public IReadOnlyList<RegisteredWorker> GetWorkersForUser(string userId)
             => _inner.GetWorkersForUser(userId);

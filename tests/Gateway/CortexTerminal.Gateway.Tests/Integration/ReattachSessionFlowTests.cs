@@ -30,7 +30,7 @@ public sealed class ReattachSessionFlowTests : IClassFixture<GatewayApplicationF
         var services = factory.Services;
         var sessions = services.GetRequiredService<ISessionCoordinator>();
 
-        await using var worker = factory.CreateHubConnection("/hubs/worker");
+        await using var worker = factory.CreateAuthenticatedHubConnection("/hubs/worker");
         await worker.StartAsync();
         await worker.InvokeAsync("RegisterWorker", "worker-integration-replay");
 

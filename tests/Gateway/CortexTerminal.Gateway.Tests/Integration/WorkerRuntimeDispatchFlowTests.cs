@@ -26,7 +26,7 @@ public sealed class WorkerRuntimeDispatchFlowTests : IClassFixture<GatewayApplic
         using var factory = new GatewayApplicationFactory();
         var startSessionTcs = new TaskCompletionSource<StartSessionCommand>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        await using var worker = factory.CreateHubConnection("/hubs/worker");
+        await using var worker = factory.CreateAuthenticatedHubConnection("/hubs/worker");
         worker.On<StartSessionCommand>("StartSession", command =>
         {
             startSessionTcs.TrySetResult(command);
@@ -53,7 +53,7 @@ public sealed class WorkerRuntimeDispatchFlowTests : IClassFixture<GatewayApplic
         using var factory = new GatewayApplicationFactory();
         var exitedTcs = new TaskCompletionSource<SessionExited>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        await using var worker = factory.CreateHubConnection("/hubs/worker");
+        await using var worker = factory.CreateAuthenticatedHubConnection("/hubs/worker");
         await worker.StartAsync();
         await worker.InvokeAsync("RegisterWorker", "worker-integration-exit");
 
@@ -93,7 +93,7 @@ public sealed class WorkerRuntimeDispatchFlowTests : IClassFixture<GatewayApplic
         using var factory = new GatewayApplicationFactory();
         var stdoutTcs = new TaskCompletionSource<TerminalChunk>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        await using var worker = factory.CreateHubConnection("/hubs/worker");
+        await using var worker = factory.CreateAuthenticatedHubConnection("/hubs/worker");
         await worker.StartAsync();
         await worker.InvokeAsync("RegisterWorker", "worker-integration-stdout");
 

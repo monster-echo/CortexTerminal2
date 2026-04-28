@@ -9,6 +9,7 @@ set -e
 REPO="monster-echo/CortexTerminal2"
 BIN_NAME="cortexterminal-worker"
 INSTALL_DIR="${CORTEX_TERMINAL_HOME:-$HOME/.cortexterminal}"
+DEFAULT_GATEWAY_URL="https://gateway.ct.rwecho.top"
 
 # ---- Color output ----
 if [ -t 1 ]; then
@@ -121,10 +122,7 @@ download_worker ${RID_AND_EXT}
 add_to_path
 
 printf "\n"
-printf "  ${BOLD}Next steps:${RESET}\n"
-printf "  %s\n" "  1. Set your gateway URL:  export CORTEX_GATEWAY_URL=http://your-gateway:5045"
-printf "  %s\n" "  2. Start the worker:       ${BIN_NAME}"
-printf "  %s\n" "  3. Open the gateway:       http://your-gateway:5045"
-printf "\n"
-printf "  ${GREEN}Done! Your terminal is ready.${RESET}\n"
+printf "  ${GREEN}Done! Next steps:${RESET}\n"
+printf "  %s\n" "  1. Run '${BIN_NAME} login' to authenticate this worker"
+printf "  %s\n" "  2. Run '${BIN_NAME}' to start the worker"
 printf "\n"

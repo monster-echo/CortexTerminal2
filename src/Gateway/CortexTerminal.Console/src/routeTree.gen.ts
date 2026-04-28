@@ -19,6 +19,7 @@ import { Route as errors404RouteImport } from './routes/(errors)/404'
 import { Route as errors403RouteImport } from './routes/(errors)/403'
 import { Route as errors401RouteImport } from './routes/(errors)/401'
 import { Route as authSignInRouteImport } from './routes/(auth)/sign-in'
+import { Route as authActivateRouteImport } from './routes/(auth)/activate'
 import { Route as AuthenticatedWorkersRouteRouteImport } from './routes/_authenticated/workers/route'
 import { Route as AuthenticatedSettingsRouteRouteImport } from './routes/_authenticated/settings/route'
 import { Route as AuthenticatedSessionsRouteRouteImport } from './routes/_authenticated/sessions/route'
@@ -78,6 +79,11 @@ const errors401Route = errors401RouteImport.update({
 const authSignInRoute = authSignInRouteImport.update({
   id: '/(auth)/sign-in',
   path: '/sign-in',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const authActivateRoute = authActivateRouteImport.update({
+  id: '/(auth)/activate',
+  path: '/activate',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedWorkersRouteRoute =
@@ -151,6 +157,7 @@ export interface FileRoutesByFullPath {
   '/sessions': typeof AuthenticatedSessionsRouteRouteWithChildren
   '/settings': typeof AuthenticatedSettingsRouteRouteWithChildren
   '/workers': typeof AuthenticatedWorkersRouteRouteWithChildren
+  '/activate': typeof authActivateRoute
   '/sign-in': typeof authSignInRoute
   '/401': typeof errors401Route
   '/403': typeof errors403Route
@@ -169,6 +176,7 @@ export interface FileRoutesByFullPath {
   '/workers/': typeof AuthenticatedWorkersIndexRoute
 }
 export interface FileRoutesByTo {
+  '/activate': typeof authActivateRoute
   '/sign-in': typeof authSignInRoute
   '/401': typeof errors401Route
   '/403': typeof errors403Route
@@ -193,6 +201,7 @@ export interface FileRoutesById {
   '/_authenticated/sessions': typeof AuthenticatedSessionsRouteRouteWithChildren
   '/_authenticated/settings': typeof AuthenticatedSettingsRouteRouteWithChildren
   '/_authenticated/workers': typeof AuthenticatedWorkersRouteRouteWithChildren
+  '/(auth)/activate': typeof authActivateRoute
   '/(auth)/sign-in': typeof authSignInRoute
   '/(errors)/401': typeof errors401Route
   '/(errors)/403': typeof errors403Route
@@ -218,6 +227,7 @@ export interface FileRouteTypes {
     | '/sessions'
     | '/settings'
     | '/workers'
+    | '/activate'
     | '/sign-in'
     | '/401'
     | '/403'
@@ -236,6 +246,7 @@ export interface FileRouteTypes {
     | '/workers/'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/activate'
     | '/sign-in'
     | '/401'
     | '/403'
@@ -259,6 +270,7 @@ export interface FileRouteTypes {
     | '/_authenticated/sessions'
     | '/_authenticated/settings'
     | '/_authenticated/workers'
+    | '/(auth)/activate'
     | '/(auth)/sign-in'
     | '/(errors)/401'
     | '/(errors)/403'
@@ -280,6 +292,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  authActivateRoute: typeof authActivateRoute
   authSignInRoute: typeof authSignInRoute
   errors401Route: typeof errors401Route
   errors403Route: typeof errors403Route
@@ -358,6 +371,13 @@ declare module '@tanstack/react-router' {
       path: '/sign-in'
       fullPath: '/sign-in'
       preLoaderRoute: typeof authSignInRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/(auth)/activate': {
+      id: '/(auth)/activate'
+      path: '/activate'
+      fullPath: '/activate'
+      preLoaderRoute: typeof authActivateRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/workers': {
@@ -515,6 +535,7 @@ const AuthenticatedRouteRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  authActivateRoute: authActivateRoute,
   authSignInRoute: authSignInRoute,
   errors401Route: errors401Route,
   errors403Route: errors403Route,

@@ -42,6 +42,9 @@ public sealed class InMemoryWorkerRegistry : IWorkerRegistry
     public bool TryGetWorker(string workerId, out RegisteredWorker worker)
         => _workers.TryGetValue(workerId, out worker!);
 
+    public RegisteredWorker? FindByConnectionId(string connectionId)
+        => _workers.Values.FirstOrDefault(w => w.ConnectionId == connectionId);
+
     public IReadOnlyList<RegisteredWorker> GetWorkersForUser(string userId)
         => _workers.Values.Where(worker => worker.OwnerUserId == userId).ToArray();
 

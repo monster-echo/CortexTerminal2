@@ -12,11 +12,13 @@ export interface TerminalGatewayHandlers {
   onReplayChunk(payload: Uint8Array, stream: "stdout" | "stderr"): void
   onReplayCompleted(): void
   onSessionExpired(reason?: string): void
+  onLatencyProbeAck?(probeId: string): void
 }
 
 export interface TerminalGatewayConnection {
   writeInput(payload: Uint8Array): Promise<void>
   resize(columns: number, rows: number): Promise<void>
+  probeLatency(probeId: string): Promise<void>
   close(): Promise<void>
   dispose(): Promise<void>
 }
@@ -37,6 +39,11 @@ type SessionIdDto = {
 
 type SessionExpiredDto = SessionIdDto & {
   reason?: string
+}
+
+type LatencyProbeDto = {
+  probeId?: string
+  sessionId?: string
 }
 
 type SessionCommandResult = {
@@ -85,6 +92,9 @@ export function createTerminalGateway(deps: {
         },
         resize(columns, rows) {
           return connection.invoke("ResizeSession", { sessionId, columns, rows })
+        },
+        probeLatency(probeId) {
+          return connection.invoke("ProbeLatency", { probeId, sessionId } as LatencyProbeDto)
         },
         close() {
           return connection.invoke("CloseSession", { sessionId })
@@ -142,6 +152,11 @@ function registerTerminalHandlers(
       handlers.onSessionExpired(evt.reason)
     }
   })
+  connection.on("LatencyProbeAck", (probe: LatencyProbeDto) => {
+    if (probe.sessionId === sessionId && probe.probeId) {
+      handlers.onLatencyProbeAck?.(probe.probeId)
+    }
+  })
 }
 
 export function decodeSignalRBytes(payload: Uint8Array | number[] | string | undefined) {
@@ -164,6 +179,7 @@ function disconnectedConnection(): TerminalGatewayConnection {
   return {
     writeInput: async () => undefined,
     resize: async () => undefined,
+    probeLatency: async () => undefined,
     close: async () => undefined,
     dispose: async () => undefined,
   }

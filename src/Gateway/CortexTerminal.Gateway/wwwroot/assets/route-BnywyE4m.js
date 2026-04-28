@@ -1,0 +1,1 @@
+import{n as e}from"./Match-B_-uTrDH.js";var t=e;export{t as component};

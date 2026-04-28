@@ -29,7 +29,7 @@ export function SettingsPage(props: {
   onLogout: () => void
 }) {
   const { username, onLogout } = props
-  const [theme, setTheme] = useState<Theme>(getStoredTheme)
+  const [theme] = useState<Theme>(getStoredTheme)
 
   useEffect(() => {
     applyTheme(theme)

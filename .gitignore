@@ -7,3 +7,7 @@ dist/
 artifacts/
 .superpowers/
 .worktrees/
+.DS_Store
+*.lscache
+.playwright-mcp/
+.vscode/

@@ -1,5 +1,7 @@
+import { useEffect } from 'react'
 import { useSearch } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import {
   Card,
   CardContent,
@@ -11,9 +13,24 @@ import {
 import { AuthLayout } from '../auth-layout'
 import { UserAuthForm } from './components/user-auth-form'
 
+const errorMessages: Record<string, string> = {
+  github_denied: 'GitHub authorization was denied.',
+  github_token_failed: 'Failed to obtain GitHub access token.',
+  github_user_failed: 'Failed to retrieve GitHub user info.',
+  google_denied: 'Google authorization was denied.',
+  google_token_failed: 'Failed to obtain Google access token.',
+  google_user_failed: 'Failed to retrieve Google user info.',
+}
+
 export function SignIn() {
-  const { redirect } = useSearch({ from: '/(auth)/sign-in' })
+  const { redirect, error } = useSearch({ from: '/(auth)/sign-in' })
   const { t } = useTranslation()
+
+  useEffect(() => {
+    if (error) {
+      toast.error(errorMessages[error] ?? `Login failed: ${error}`)
+    }
+  }, [error])
 
   return (
     <AuthLayout>
