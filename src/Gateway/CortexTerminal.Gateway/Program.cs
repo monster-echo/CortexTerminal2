@@ -2,6 +2,7 @@ using System.Text;
 using CortexTerminal.Contracts.Auth;
 using CortexTerminal.Contracts.Console;
 using CortexTerminal.Contracts.Sessions;
+using CortexTerminal.Gateway.Audit;
 using CortexTerminal.Gateway.Hubs;
 using CortexTerminal.Gateway.Sessions;
 using CortexTerminal.Gateway.Workers;
@@ -71,13 +72,34 @@ builder.Services
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey)),
             NameClaimType = ClaimTypes.NameIdentifier
         };
+
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+
+                if (!string.IsNullOrEmpty(accessToken)
+                    && (path.StartsWithSegments("/hubs/terminal")
+                        || path.StartsWithSegments("/hubs/worker")))
+                {
+                    context.Token = accessToken;
+                }
+
+                return Task.CompletedTask;
+            }
+        };
     });
 
 builder.Services.AddAuthorization();
+builder.Services.AddControllers();
 builder.Services.AddSignalR().AddMessagePackProtocol();
 builder.Services.AddSingleton<IWorkerRegistry, InMemoryWorkerRegistry>();
 builder.Services.AddSingleton<ISessionCoordinator, InMemorySessionCoordinator>();
 builder.Services.AddSingleton<IWorkerCommandDispatcher, SignalRWorkerCommandDispatcher>();
+builder.Services.AddSingleton<ISessionLaunchCoordinator, SessionLaunchCoordinator>();
+builder.Services.AddSingleton<IAuditLogStore, InMemoryAuditLogStore>();
 builder.Services.AddSingleton<IReplayCache>(_ => new ReplayCache(64 * 1024));
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddHostedService<DetachedSessionExpiryService>();
@@ -90,12 +112,24 @@ app.UseStaticFiles();
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.MapControllers();
 
 
 if (app.Environment.IsDevelopment())
 {
-    app.MapPost("/api/dev/login", (DevLoginRequest request) =>
-        Results.Ok(new DevLoginResponse(CreateAccessToken(request.Username)))).AllowAnonymous();
+    app.MapPost("/api/dev/login", (DevLoginRequest request, IAuditLogStore auditLog) =>
+    {
+        auditLog.Record(new AuditLogEntry(
+            Id: Guid.NewGuid().ToString("N"),
+            Timestamp: DateTimeOffset.UtcNow,
+            UserId: request.Username,
+            UserName: request.Username,
+            Action: "user.login",
+            TargetEntity: "user",
+            TargetId: request.Username
+        ));
+        return Results.Ok(new DevLoginResponse(CreateAccessToken(request.Username)));
+    }).AllowAnonymous();
 }
 
 app.MapPost("/api/auth/device-flow", () =>
@@ -108,8 +142,8 @@ app.MapPost("/api/auth/device-flow", () =>
 
 app.MapPost("/api/sessions", async (
     CreateSessionRequest request,
-    ISessionCoordinator sessions,
-    IWorkerCommandDispatcher workerCommands,
+    ISessionLaunchCoordinator sessionLaunchCoordinator,
+    IAuditLogStore auditLog,
     System.Security.Claims.ClaimsPrincipal user,
     CancellationToken cancellationToken) =>
 {
@@ -118,23 +152,24 @@ app.MapPost("/api/sessions", async (
         return Results.BadRequest("Only shell runtime is allowed in phase 1.");
     }
 
-    var result = await sessions.CreateSessionAsync(GetUserId(user), request, clientConnectionId: null, cancellationToken);
-    if (result.IsSuccess && result.Response is not null && sessions.TryGetSession(result.Response.SessionId, out var session))
+    var userId = GetUserId(user);
+    var result = await sessionLaunchCoordinator.CreateSessionAsync(
+        userId,
+        request,
+        clientConnectionId: null,
+        cancellationToken);
+
+    if (result.IsSuccess)
     {
-        try
-        {
-            await workerCommands.StartSessionAsync(session.WorkerConnectionId, new CortexTerminal.Contracts.Streaming.StartSessionCommand(session.SessionId, session.Columns, session.Rows), cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch
-        {
-            sessions.MarkSessionStartFailed(session.SessionId, "worker-start-dispatch-failed");
-            return Results.Json(CreateSessionResult.Failure("worker-start-dispatch-failed"),
-                statusCode: StatusCodes.Status503ServiceUnavailable);
-        }
+        auditLog.Record(new AuditLogEntry(
+            Id: Guid.NewGuid().ToString("N"),
+            Timestamp: DateTimeOffset.UtcNow,
+            UserId: userId,
+            UserName: userId,
+            Action: "session.create",
+            TargetEntity: "session",
+            TargetId: result.Response!.SessionId
+        ));
     }
 
     return result.IsSuccess

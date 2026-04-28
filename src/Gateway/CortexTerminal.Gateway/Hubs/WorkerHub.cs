@@ -1,7 +1,9 @@
 using CortexTerminal.Contracts.Streaming;
+using CortexTerminal.Gateway.Audit;
 using CortexTerminal.Gateway.Sessions;
 using CortexTerminal.Gateway.Workers;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.Extensions.Logging;
 
 namespace CortexTerminal.Gateway.Hubs;
 
@@ -9,10 +11,24 @@ public sealed class WorkerHub(
     IWorkerRegistry workers,
     ISessionCoordinator sessions,
     IReplayCache replayCache,
-    IHubContext<TerminalHub> terminalHubContext) : Hub
+    IAuditLogStore auditLog,
+    IHubContext<TerminalHub> terminalHubContext,
+    ILogger<WorkerHub> logger) : Hub
 {
     public void RegisterWorker(string workerId)
-        => workers.Register(workerId, Context.ConnectionId);
+    {
+        logger.LogInformation("Worker {WorkerId} registered with connection {ConnectionId}.", workerId, Context.ConnectionId);
+        workers.Register(workerId, Context.ConnectionId);
+        auditLog.Record(new AuditLogEntry(
+            Id: Guid.NewGuid().ToString("N"),
+            Timestamp: DateTimeOffset.UtcNow,
+            UserId: workerId,
+            UserName: workerId,
+            Action: "worker.connect",
+            TargetEntity: "worker",
+            TargetId: workerId
+        ));
+    }
 
     public override Task OnDisconnectedAsync(Exception? exception)
     {
@@ -22,9 +38,17 @@ public sealed class WorkerHub(
 
     public async Task ForwardStdout(TerminalChunk chunk)
     {
-        if (!sessions.TryGetSession(chunk.SessionId, out var session) ||
-            session.WorkerConnectionId != Context.ConnectionId)
+        logger.LogInformation("ForwardStdout: session={SessionId}, worker={ConnectionId}, {ByteCount} bytes.", chunk.SessionId, Context.ConnectionId, chunk.Payload.Length);
+
+        if (!sessions.TryGetSession(chunk.SessionId, out var session))
         {
+            logger.LogWarning("ForwardStdout DROP: session {SessionId} not found.", chunk.SessionId);
+            return;
+        }
+
+        if (session.WorkerConnectionId != Context.ConnectionId)
+        {
+            logger.LogWarning("ForwardStdout DROP: session {SessionId} worker mismatch. Expected={Expected}, Actual={Actual}.", chunk.SessionId, session.WorkerConnectionId, Context.ConnectionId);
             return;
         }
 
@@ -33,24 +57,45 @@ public sealed class WorkerHub(
         if (!sessions.TryGetSession(chunk.SessionId, out session) ||
             session.WorkerConnectionId != Context.ConnectionId)
         {
+            logger.LogWarning("ForwardStdout DROP: session {SessionId} changed after replay append.", chunk.SessionId);
             return;
         }
 
-        if (session.AttachmentState != SessionAttachmentState.Attached ||
-            session.AttachedClientConnectionId is null ||
-            session.ReplayPending)
+        if (session.AttachmentState != SessionAttachmentState.Attached)
         {
+            logger.LogWarning("ForwardStdout DROP: session {SessionId} not attached. State={State}.", chunk.SessionId, session.AttachmentState);
+            return;
+        }
+
+        if (session.AttachedClientConnectionId is null)
+        {
+            logger.LogWarning("ForwardStdout DROP: session {SessionId} has no attached client.", chunk.SessionId);
+            return;
+        }
+
+        if (session.ReplayPending)
+        {
+            logger.LogWarning("ForwardStdout DROP: session {SessionId} replay pending.", chunk.SessionId);
             return;
         }
 
         await terminalHubContext.Clients.Client(session.AttachedClientConnectionId).SendAsync("StdoutChunk", chunk);
+        logger.LogDebug("ForwardStdout DELIVERED: session={SessionId} to client={ClientId}.", chunk.SessionId, session.AttachedClientConnectionId);
     }
 
     public async Task ForwardStderr(TerminalChunk chunk)
     {
-        if (!sessions.TryGetSession(chunk.SessionId, out var session) ||
-            session.WorkerConnectionId != Context.ConnectionId)
+        logger.LogDebug("ForwardStderr: session={SessionId}, worker={ConnectionId}, {ByteCount} bytes.", chunk.SessionId, Context.ConnectionId, chunk.Payload.Length);
+
+        if (!sessions.TryGetSession(chunk.SessionId, out var session))
         {
+            logger.LogWarning("ForwardStderr DROP: session {SessionId} not found.", chunk.SessionId);
+            return;
+        }
+
+        if (session.WorkerConnectionId != Context.ConnectionId)
+        {
+            logger.LogWarning("ForwardStderr DROP: session {SessionId} worker mismatch. Expected={Expected}, Actual={Actual}.", chunk.SessionId, session.WorkerConnectionId, Context.ConnectionId);
             return;
         }
 
@@ -59,17 +104,62 @@ public sealed class WorkerHub(
         if (!sessions.TryGetSession(chunk.SessionId, out session) ||
             session.WorkerConnectionId != Context.ConnectionId)
         {
+            logger.LogWarning("ForwardStderr DROP: session {SessionId} changed after replay append.", chunk.SessionId);
             return;
         }
 
-        if (session.AttachmentState != SessionAttachmentState.Attached ||
-            session.AttachedClientConnectionId is null ||
-            session.ReplayPending)
+        if (session.AttachmentState != SessionAttachmentState.Attached)
         {
+            logger.LogWarning("ForwardStderr DROP: session {SessionId} not attached. State={State}.", chunk.SessionId, session.AttachmentState);
+            return;
+        }
+
+        if (session.AttachedClientConnectionId is null)
+        {
+            logger.LogWarning("ForwardStderr DROP: session {SessionId} has no attached client.", chunk.SessionId);
+            return;
+        }
+
+        if (session.ReplayPending)
+        {
+            logger.LogWarning("ForwardStderr DROP: session {SessionId} replay pending.", chunk.SessionId);
             return;
         }
 
         await terminalHubContext.Clients.Client(session.AttachedClientConnectionId).SendAsync("StderrChunk", chunk);
+        logger.LogDebug("ForwardStderr DELIVERED: session={SessionId} to client={ClientId}.", chunk.SessionId, session.AttachedClientConnectionId);
+    }
+
+    public async Task ForwardLatencyProbe(LatencyProbeFrame frame)
+    {
+        logger.LogDebug("ForwardLatencyProbe: session={SessionId}, probe={ProbeId}, worker={ConnectionId}.", frame.SessionId, frame.ProbeId, Context.ConnectionId);
+
+        if (!sessions.TryGetSession(frame.SessionId, out var session))
+        {
+            logger.LogWarning("ForwardLatencyProbe DROP: session {SessionId} not found.", frame.SessionId);
+            return;
+        }
+
+        if (session.WorkerConnectionId != Context.ConnectionId)
+        {
+            logger.LogWarning("ForwardLatencyProbe DROP: session {SessionId} worker mismatch. Expected={Expected}, Actual={Actual}.", frame.SessionId, session.WorkerConnectionId, Context.ConnectionId);
+            return;
+        }
+
+        if (session.AttachmentState != SessionAttachmentState.Attached)
+        {
+            logger.LogWarning("ForwardLatencyProbe DROP: session {SessionId} not attached. State={State}.", frame.SessionId, session.AttachmentState);
+            return;
+        }
+
+        if (session.AttachedClientConnectionId is null)
+        {
+            logger.LogWarning("ForwardLatencyProbe DROP: session {SessionId} has no attached client.", frame.SessionId);
+            return;
+        }
+
+        await terminalHubContext.Clients.Client(session.AttachedClientConnectionId).SendAsync("LatencyProbeAck", frame);
+        logger.LogDebug("ForwardLatencyProbe DELIVERED: session={SessionId} probe={ProbeId} to client={ClientId}.", frame.SessionId, frame.ProbeId, session.AttachedClientConnectionId);
     }
 
     public async Task SessionStartFailed(SessionStartFailedEvent evt)

@@ -21,7 +21,7 @@ public sealed class DevLoginEndpointTests : IClassFixture<GatewayApplicationFact
     {
         using var client = _factory.CreateClient();
 
-        using var response = await client.PostAsJsonAsync("/api/dev/login", new DevLoginRequest("alice"));
+        using var response = await client.PostAsJsonAsync("/api/dev/login", new DevLoginRequest("alice", "password"));
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var payload = await response.Content.ReadFromJsonAsync<DevLoginResponse>();

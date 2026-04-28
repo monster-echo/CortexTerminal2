@@ -185,7 +185,7 @@ public sealed class ContractSerializationTests
     [Fact]
     public void DevLoginRequest_RoundTrips()
     {
-        var req = new DevLoginRequest("dev-123");
+        var req = new DevLoginRequest("dev-123", "password");
         var clone = RoundTrip(req);
 
         clone.Username.Should().Be("dev-123");

@@ -71,7 +71,7 @@ public sealed class ConsoleQueryEndpointTests : IClassFixture<GatewayApplication
     private async Task<string> GetAccessTokenAsync(string username)
     {
         using var client = _factory.CreateClient();
-        using var response = await client.PostAsJsonAsync("/api/dev/login", new CortexTerminal.Contracts.Auth.DevLoginRequest(username));
+        using var response = await client.PostAsJsonAsync("/api/dev/login", new CortexTerminal.Contracts.Auth.DevLoginRequest(username, "password"));
         response.EnsureSuccessStatusCode();
         var payload = await response.Content.ReadFromJsonAsync<CortexTerminal.Contracts.Auth.DevLoginResponse>();
         return payload!.AccessToken;

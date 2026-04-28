@@ -1,11 +1,13 @@
 using CortexTerminal.Contracts.Sessions;
 using CortexTerminal.Contracts.Streaming;
+using CortexTerminal.Gateway.Audit;
 using CortexTerminal.Gateway.Hubs;
 using CortexTerminal.Gateway.Sessions;
 using CortexTerminal.Gateway.Tests.Workers;
 using CortexTerminal.Gateway.Workers;
 using FluentAssertions;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace CortexTerminal.Gateway.Tests.Hubs;
@@ -139,7 +141,13 @@ public sealed class TerminalHubReconnectTests
     }
 
     private static TerminalHub CreateTerminalHub(ISessionCoordinator sessions, IReplayCache replayCache, TimeProvider timeProvider)
-        => (TerminalHub)Activator.CreateInstance(typeof(TerminalHub), sessions, replayCache, timeProvider, new NoOpWorkerCommandDispatcher())!;
+        => (TerminalHub)Activator.CreateInstance(
+            typeof(TerminalHub),
+            sessions,
+            replayCache,
+            timeProvider,
+            new NoOpWorkerCommandDispatcher(),
+            new SessionLaunchCoordinator(sessions, new NoOpWorkerCommandDispatcher()))!;
 
     private static WorkerHub CreateWorkerHub(
         IWorkerRegistry workers,
@@ -151,7 +159,9 @@ public sealed class TerminalHubReconnectTests
             workers,
             sessions,
             replayCache,
-            new TestHubContext<TerminalHub>(terminalClients ?? new Dictionary<string, IClientProxy>()))!;
+            new InMemoryAuditLogStore(),
+            new TestHubContext<TerminalHub>(terminalClients ?? new Dictionary<string, IClientProxy>()),
+            NullLogger<WorkerHub>.Instance)!;
 
     private static async Task<T> InvokeAsync<T>(object instance, string methodName, params object?[] arguments)
     {

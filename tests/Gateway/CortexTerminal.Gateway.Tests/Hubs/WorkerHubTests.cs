@@ -1,11 +1,13 @@
 using CortexTerminal.Contracts.Sessions;
 using CortexTerminal.Contracts.Streaming;
+using CortexTerminal.Gateway.Audit;
 using CortexTerminal.Gateway.Hubs;
 using CortexTerminal.Gateway.Sessions;
 using CortexTerminal.Gateway.Tests.Workers;
 using CortexTerminal.Gateway.Workers;
 using FluentAssertions;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace CortexTerminal.Gateway.Tests.Hubs;
@@ -130,6 +132,36 @@ public sealed class WorkerHubTests
     }
 
     [Fact]
+    public async Task ForwardLatencyProbe_AttachedClient_ReceivesAckWithoutReplayBuffering()
+    {
+        var workers = new InMemoryWorkerRegistry();
+        workers.Register("worker-1", "worker-conn-1");
+        var sessions = new InMemorySessionCoordinator(workers);
+        var replayCache = new ReplayCache(1024);
+        var terminalHub = CreateTerminalHub(sessions, replayCache, TimeProvider.System);
+        terminalHub.Context = new TestHubCallerContext("client-1", "user-1");
+        terminalHub.Clients = new TestHubCallerClients(new RecordingClientProxy());
+
+        var createResult = await terminalHub.CreateSession(new CreateSessionRequest("shell", 120, 40));
+        var sessionId = createResult.Response!.SessionId;
+        var client = new RecordingClientProxy();
+        var workerHub = CreateWorkerHub(workers, sessions, replayCache, new Dictionary<string, IClientProxy>
+        {
+            ["client-1"] = client
+        });
+        workerHub.Context = new TestHubCallerContext("worker-conn-1");
+        workerHub.Clients = new TestHubCallerClients(new RecordingClientProxy());
+
+        var probe = new LatencyProbeFrame(sessionId, "probe-1");
+
+        await workerHub.ForwardLatencyProbe(probe);
+
+        client.Invocations.Select(static invocation => invocation.Method).Should().Equal("LatencyProbeAck");
+        client.Invocations[0].Arguments[0].Should().BeEquivalentTo(probe);
+        replayCache.GetSnapshot(sessionId).Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task SessionExited_UpdatesSessionStateAndNotifiesAttachedClient()
     {
         var workers = new InMemoryWorkerRegistry();
@@ -170,8 +202,16 @@ public sealed class WorkerHubTests
             workers,
             sessions,
             replayCache,
-            new TestHubContext<TerminalHub>(terminalClients))!;
+            new InMemoryAuditLogStore(),
+            new TestHubContext<TerminalHub>(terminalClients),
+            NullLogger<WorkerHub>.Instance)!;
 
     private static TerminalHub CreateTerminalHub(ISessionCoordinator sessions, IReplayCache replayCache, TimeProvider timeProvider)
-        => (TerminalHub)Activator.CreateInstance(typeof(TerminalHub), sessions, replayCache, timeProvider, new NoOpWorkerCommandDispatcher())!;
+        => (TerminalHub)Activator.CreateInstance(
+            typeof(TerminalHub),
+            sessions,
+            replayCache,
+            timeProvider,
+            new NoOpWorkerCommandDispatcher(),
+            new SessionLaunchCoordinator(sessions, new NoOpWorkerCommandDispatcher()))!;
 }
