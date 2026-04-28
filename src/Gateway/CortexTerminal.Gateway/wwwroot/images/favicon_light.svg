@@ -1,1 +1,60 @@
-<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="24" height="24" viewBox="948,463.5,24,24"><defs><clipPath id="clip-1"><rect x="948" y="463.5" width="24" height="24" id="clip-1" stroke="none"/></clipPath></defs><g fill="none" fill-rule="nonzero" stroke="none" stroke-width="1" stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="10" stroke-dasharray="" stroke-dashoffset="0" font-family="none" font-weight="none" font-size="none" text-anchor="none" style="mix-blend-mode: normal"><g><g id="Group 1"><g clip-path="url(#clip-1)" id="Group 1"><path d="M963,469.5v12c0,1.65685 1.34315,3 3,3c1.65685,0 3,-1.34315 3,-3c0,-1.65685 -1.34315,-3 -3,-3h-12c-1.65685,0 -3,1.34315 -3,3c0,1.65685 1.34315,3 3,3c1.65685,0 3,-1.34315 3,-3v-12c0,-1.65685 -1.34315,-3 -3,-3c-1.65685,0 -3,1.34315 -3,3c0,1.65685 1.34315,3 3,3h12c1.65685,0 3,-1.34315 3,-3c0,-1.65685 -1.34315,-3 -3,-3c-1.65685,0 -3,1.34315 -3,3" id="Path 1" stroke="#f2f2f2"/></g></g></g></g></svg>
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- 定义区域 -->
+  <defs>
+    <!-- 蓝色渐变 -->
+    <linearGradient id="blueGrad" x1="220" y1="520" x2="450" y2="220" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3BA5F9"/>
+      <stop offset="1" stop-color="#38E6FF"/>
+    </linearGradient>
+    
+    <!-- 紫色渐变 -->
+    <linearGradient id="purpleGrad" x1="574" y1="804" x2="804" y2="504" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#9333EA"/>
+      <stop offset="1" stop-color="#C084FC"/>
+    </linearGradient>
+
+    <!-- 针对白色背景优化的霓虹外溢光 -->
+    <filter id="neonGlowWhite" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="12" result="blur"/>
+      <feFlood flood-opacity="0.3" result="flood"/>
+      <feComposite in="flood" in2="blur" operator="in" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+      </feMerge>
+    </filter>
+    
+    <!-- 针对白色背景的底层柔和阴影 -->
+    <filter id="softShadow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="30" result="blur"/>
+      <feFlood flood-color="#000" flood-opacity="0.05" result="flood"/>
+      <feComposite in="flood" in2="blur" operator="in"/>
+    </filter>
+  </defs>
+
+  <!-- 背景：纯白色 -->
+  <rect width="1024" height="1024" rx="160" fill="#FFFFFF"/>
+
+  <!-- 绘图组 -->
+  
+  <!-- 1. 最底层：环境柔和阴影 (用于增加层次感) -->
+  <g filter="url(#softShadow)">
+    <path d="M 220 502 V 310 C 220 260.3 260.3 220 310 220 H 502" stroke="#000" stroke-width="70" stroke-linecap="round"/>
+    <path d="M 804 522 V 714 C 804 763.7 763.7 804 714 804 H 522" stroke="#000" stroke-width="70" stroke-linecap="round"/>
+  </g>
+
+  <!-- 2. 中间层：彩色外溢光 (在白色背景上表现为柔和色晕) -->
+  <g filter="url(#neonGlowWhite)">
+    <path d="M 220 502 V 310 C 220 260.3 260.3 220 310 220 H 502" stroke="url(#blueGrad)" stroke-width="65" stroke-linecap="round"/>
+    <path d="M 804 522 V 714 C 804 763.7 763.7 804 714 804 H 522" stroke="url(#purpleGrad)" stroke-width="65" stroke-linecap="round"/>
+  </g>
+
+  <!-- 3. 顶层：核心清晰线条 -->
+  <g>
+    <!-- 蓝色 L 线条 -->
+    <path d="M 220 502 V 310 C 220 260.3 260.3 220 310 220 H 502" stroke="url(#blueGrad)" stroke-width="60" stroke-linecap="round"/>
+    <!-- 紫色 L 线条 -->
+    <path d="M 804 522 V 714 C 804 763.7 763.7 804 714 804 H 522" stroke="url(#purpleGrad)" stroke-width="60" stroke-linecap="round"/>
+    <!-- 中心深色 Chevron (在白色背景下必须使用深色才能看清) -->
+    <path d="M 440 384 L 584 512 L 440 640" stroke="#1A1A1A" stroke-width="65" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>
