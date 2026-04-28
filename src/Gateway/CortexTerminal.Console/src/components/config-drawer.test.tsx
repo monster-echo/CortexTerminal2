@@ -80,7 +80,7 @@ describe('ConfigDrawer (integration)', () => {
       await vi.waitFor(() =>
         expect(document.documentElement.classList.contains('light')).toBe(true)
       )
-      expect(getCookie('vite-ui-theme')).toBe('light')
+      expect(getCookie('cortexterminal-theme')).toBe('light')
     })
 
     it('applies dark theme to <html> and cookie', async () => {
@@ -90,12 +90,12 @@ describe('ConfigDrawer (integration)', () => {
       await vi.waitFor(() =>
         expect(document.documentElement.classList.contains('dark')).toBe(true)
       )
-      expect(getCookie('vite-ui-theme')).toBe('dark')
+      expect(getCookie('cortexterminal-theme')).toBe('dark')
     })
 
     it('applies system theme: stores cookie and applies a resolved light or dark class', async () => {
       // Pre-seed light so mounted theme is not system; re-selecting System alone would not fire setTheme.
-      setCookie('vite-ui-theme', 'light')
+      setCookie('cortexterminal-theme', 'light')
 
       const screen = await renderConfigDrawer()
       await openDrawer(screen)
@@ -103,7 +103,7 @@ describe('ConfigDrawer (integration)', () => {
       await userEvent.click(
         screen.getByRole('radio', { name: /select system/i })
       )
-      await vi.waitFor(() => expect(getCookie('vite-ui-theme')).toBe('system'))
+      await vi.waitFor(() => expect(getCookie('cortexterminal-theme')).toBe('system'))
       await vi.waitFor(() => {
         const root = document.documentElement
         const hasLight = root.classList.contains('light')
@@ -175,14 +175,14 @@ describe('ConfigDrawer (integration)', () => {
       await openDrawer(screen)
 
       await userEvent.click(screen.getByRole('radio', { name: /select dark/i }))
-      await vi.waitFor(() => expect(getCookie('vite-ui-theme')).toBe('dark'))
+      await vi.waitFor(() => expect(getCookie('cortexterminal-theme')).toBe('dark'))
 
       await userEvent.click(
         screen.getByRole('button', {
           name: /reset theme preference to default/i,
         })
       )
-      await vi.waitFor(() => expect(getCookie('vite-ui-theme')).toBe('system'))
+      await vi.waitFor(() => expect(getCookie('cortexterminal-theme')).toBe('system'))
     })
 
     it('resets direction via section control after choosing RTL', async () => {
@@ -294,7 +294,7 @@ describe('ConfigDrawer (integration)', () => {
       screen.getByRole('radio', { name: /select full layout/i })
     )
 
-    await vi.waitFor(() => expect(getCookie('vite-ui-theme')).toBe('dark'))
+    await vi.waitFor(() => expect(getCookie('cortexterminal-theme')).toBe('dark'))
     await vi.waitFor(() => expect(getCookie('dir')).toBe('rtl'))
     await vi.waitFor(() => expect(getCookie('layout_variant')).toBe('floating'))
     await vi.waitFor(() =>
@@ -309,7 +309,7 @@ describe('ConfigDrawer (integration)', () => {
 
     await vi.waitFor(() => expect(getCookie('sidebar_state')).toBe('true'))
     await vi.waitFor(() => expect(getCookie('dir')).toBeUndefined())
-    await vi.waitFor(() => expect(getCookie('vite-ui-theme')).toBeUndefined())
+    await vi.waitFor(() => expect(getCookie('cortexterminal-theme')).toBeUndefined())
     await vi.waitFor(() => expect(getCookie('layout_variant')).toBe('inset'))
     await vi.waitFor(() => expect(getCookie('layout_collapsible')).toBe('icon'))
     await vi.waitFor(() =>
