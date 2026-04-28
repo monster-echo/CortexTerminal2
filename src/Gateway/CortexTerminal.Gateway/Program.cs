@@ -6,12 +6,14 @@ using CortexTerminal.Contracts.Console;
 using CortexTerminal.Contracts.Sessions;
 using CortexTerminal.Gateway.Audit;
 using CortexTerminal.Gateway.Auth;
+using CortexTerminal.Gateway.Data;
 using CortexTerminal.Gateway.Hubs;
 using CortexTerminal.Gateway.Sessions;
 using CortexTerminal.Gateway.Workers;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -124,7 +126,6 @@ builder.Services.AddSingleton<IWorkerRegistry, InMemoryWorkerRegistry>();
 builder.Services.AddSingleton<ISessionCoordinator, InMemorySessionCoordinator>();
 builder.Services.AddSingleton<IWorkerCommandDispatcher, SignalRWorkerCommandDispatcher>();
 builder.Services.AddSingleton<ISessionLaunchCoordinator, SessionLaunchCoordinator>();
-builder.Services.AddSingleton<IAuditLogStore, InMemoryAuditLogStore>();
 builder.Services.AddSingleton<InMemoryDeviceFlowStore>();
 builder.Services.AddSingleton<IReplayCache>(_ => new ReplayCache(64 * 1024));
 builder.Services.AddSingleton(TimeProvider.System);
@@ -132,10 +133,41 @@ builder.Services.AddHostedService<DetachedSessionExpiryService>();
 builder.Services.AddHttpClient();
 builder.Services.AddSingleton<OAuthStateService>();
 
+var connectionString = builder.Configuration["GATEWAY_POSTGRES_CONNECTION_STRING"]
+    ?? builder.Configuration.GetConnectionString("DefaultConnection");
+if (!string.IsNullOrEmpty(connectionString))
+{
+    builder.Services.AddDbContext<AppDbContext>(options =>
+        options.UseNpgsql(connectionString));
+    builder.Services.AddSingleton<IAuditLogStore, PostgresAuditLogStore>();
+}
+else
+{
+    builder.Services.AddSingleton<IAuditLogStore, InMemoryAuditLogStore>();
+}
+
 var oAuthOptions = new OAuthOptions();
 builder.Configuration.GetSection("Auth").Bind(oAuthOptions);
 
 var app = builder.Build();
+
+// Auto-create database tables
+if (!string.IsNullOrEmpty(connectionString))
+{
+    using (var scope = app.Services.CreateScope())
+    {
+        try
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await db.Database.EnsureCreatedAsync();
+        }
+        catch (Exception ex)
+        {
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+            logger.LogWarning(ex, "Failed to connect to PostgreSQL database. Running without database persistence.");
+        }
+    }
+}
 
 // Serve static files for the gateway console
 app.UseDefaultFiles();
@@ -236,7 +268,7 @@ app.MapGet("/api/auth/github", (string? redirect, OAuthStateService stateService
     return Results.Redirect(authorizeUrl);
 }).AllowAnonymous();
 
-app.MapGet("/api/auth/callback/github", async (string? code, string? state, OAuthStateService stateService, IHttpClientFactory httpClientFactory, IAuditLogStore auditLog, HttpContext ctx) =>
+app.MapGet("/api/auth/callback/github", async (string? code, string? state, OAuthStateService stateService, IHttpClientFactory httpClientFactory, IAuditLogStore auditLog, IServiceProvider serviceProvider, HttpContext ctx) =>
 {
     if (string.IsNullOrEmpty(code))
         return Results.Redirect("/sign-in?error=github_denied");
@@ -268,19 +300,28 @@ app.MapGet("/api/auth/callback/github", async (string? code, string? state, OAut
     userResponse.EnsureSuccessStatusCode();
 
     var userJson = await userResponse.Content.ReadFromJsonAsync<JsonElement>();
-    var username = userJson.TryGetProperty("login", out var loginProp) ? loginProp.GetString() : null;
-    if (string.IsNullOrEmpty(username))
+    var githubLogin = userJson.TryGetProperty("login", out var loginProp) ? loginProp.GetString() : null;
+    if (string.IsNullOrEmpty(githubLogin))
         return Results.Redirect($"/sign-in?error=github_user_failed&redirect={Uri.EscapeDataString(redirectUrl)}");
 
-    var jwt = CreateAccessToken(username);
+    var email = userJson.TryGetProperty("email", out var emailProp) ? emailProp.GetString() : null;
+    var displayName = userJson.TryGetProperty("name", out var nameProp) ? nameProp.GetString() : githubLogin;
+    var avatarUrl = userJson.TryGetProperty("avatar_url", out var avatarProp) ? avatarProp.GetString() : null;
+
+    // Auto-register / lookup user in database
+    var dbUser = await EnsureUser(serviceProvider, githubLogin, email, displayName, avatarUrl, "github", githubLogin);
+    if (dbUser is null || dbUser.Status == "disabled")
+        return Results.Redirect($"/sign-in?error=account_disabled&redirect={Uri.EscapeDataString(redirectUrl)}");
+
+    var jwt = CreateAccessToken(dbUser.Username);
     auditLog.Record(new AuditLogEntry(
         Id: Guid.NewGuid().ToString("N"),
         Timestamp: DateTimeOffset.UtcNow,
-        UserId: username,
-        UserName: username,
+        UserId: dbUser.Id,
+        UserName: dbUser.Username,
         Action: "user.oauth_login",
         TargetEntity: "user",
-        TargetId: username
+        TargetId: dbUser.Id
     ));
 
     return Results.Redirect($"/sign-in?token={jwt}&redirect={Uri.EscapeDataString(redirectUrl)}");
@@ -297,7 +338,7 @@ app.MapGet("/api/auth/google", (string? redirect, OAuthStateService stateService
     return Results.Redirect(authorizeUrl);
 }).AllowAnonymous();
 
-app.MapGet("/api/auth/callback/google", async (string? code, string? state, OAuthStateService stateService, IHttpClientFactory httpClientFactory, IAuditLogStore auditLog, HttpContext ctx) =>
+app.MapGet("/api/auth/callback/google", async (string? code, string? state, OAuthStateService stateService, IHttpClientFactory httpClientFactory, IAuditLogStore auditLog, IServiceProvider serviceProvider, HttpContext ctx) =>
 {
     if (string.IsNullOrEmpty(code))
         return Results.Redirect("/sign-in?error=google_denied");
@@ -330,21 +371,31 @@ app.MapGet("/api/auth/callback/google", async (string? code, string? state, OAut
     userResponse.EnsureSuccessStatusCode();
 
     var userJson = await userResponse.Content.ReadFromJsonAsync<JsonElement>();
-    var username = userJson.TryGetProperty("name", out var nameProp) ? nameProp.GetString() : null;
-    if (string.IsNullOrEmpty(username))
-        username = userJson.TryGetProperty("email", out var emailProp) ? emailProp.GetString() : null;
-    if (string.IsNullOrEmpty(username))
+    var googleSub = userJson.TryGetProperty("id", out var subProp) ? subProp.GetString() : null;
+    var email = userJson.TryGetProperty("email", out var emailProp) ? emailProp.GetString() : null;
+    var displayName = userJson.TryGetProperty("name", out var nameProp) ? nameProp.GetString() : email;
+    var avatarUrl = userJson.TryGetProperty("picture", out var picProp) ? picProp.GetString() : null;
+
+    if (string.IsNullOrEmpty(googleSub) && string.IsNullOrEmpty(email))
         return Results.Redirect($"/sign-in?error=google_user_failed&redirect={Uri.EscapeDataString(redirectUrl)}");
 
-    var jwt = CreateAccessToken(username);
+    var username = displayName ?? email ?? googleSub!;
+    var providerId = googleSub ?? email ?? "unknown";
+
+    // Auto-register / lookup user in database
+    var dbUser = await EnsureUser(serviceProvider, username, email, displayName, avatarUrl, "google", providerId);
+    if (dbUser is null || dbUser.Status == "disabled")
+        return Results.Redirect($"/sign-in?error=account_disabled&redirect={Uri.EscapeDataString(redirectUrl)}");
+
+    var jwt = CreateAccessToken(dbUser.Username);
     auditLog.Record(new AuditLogEntry(
         Id: Guid.NewGuid().ToString("N"),
         Timestamp: DateTimeOffset.UtcNow,
-        UserId: username,
-        UserName: username,
+        UserId: dbUser.Id,
+        UserName: dbUser.Username,
         Action: "user.oauth_login",
         TargetEntity: "user",
-        TargetId: username
+        TargetId: dbUser.Id
     ));
 
     return Results.Redirect($"/sign-in?token={jwt}&redirect={Uri.EscapeDataString(redirectUrl)}");
@@ -468,9 +519,213 @@ app.MapGet("/api/me/workers/{workerId}", (string workerId, ClaimsPrincipal user,
 app.MapHub<TerminalHub>("/hubs/terminal");
 app.MapHub<WorkerHub>("/hubs/worker");
 
+// --- User Management Endpoints ---
+
+app.MapGet("/api/users", async (ClaimsPrincipal user, IServiceProvider serviceProvider) =>
+{
+    var userId = GetUserId(user);
+    if (!await IsAdmin(serviceProvider, userId))
+        return Results.Forbid();
+
+    await using var scope = serviceProvider.CreateAsyncScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var users = await db.Users
+        .OrderBy(u => u.CreatedAtUtc)
+        .Select(u => new
+        {
+            u.Id,
+            Name = u.DisplayName ?? u.Username,
+            u.Email,
+            u.Role,
+            u.Status,
+            u.AvatarUrl
+        })
+        .ToListAsync();
+
+    return Results.Ok(users);
+}).RequireAuthorization();
+
+app.MapPost("/api/users/invite", async (InviteUserRequest request, ClaimsPrincipal user, IServiceProvider serviceProvider, IAuditLogStore auditLog) =>
+{
+    var userId = GetUserId(user);
+    if (!await IsAdmin(serviceProvider, userId))
+        return Results.Forbid();
+
+    await using var scope = serviceProvider.CreateAsyncScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+    var newUser = new User
+    {
+        Id = Guid.NewGuid().ToString("N"),
+        Username = request.Email,
+        Email = request.Email,
+        DisplayName = request.Email,
+        Role = request.Role ?? "user",
+        Status = "active",
+        AuthProvider = "invited",
+        CreatedAtUtc = DateTimeOffset.UtcNow,
+        UpdatedAtUtc = DateTimeOffset.UtcNow
+    };
+
+    db.Users.Add(newUser);
+    await db.SaveChangesAsync();
+
+    auditLog.Record(new AuditLogEntry(
+        Id: Guid.NewGuid().ToString("N"),
+        Timestamp: DateTimeOffset.UtcNow,
+        UserId: userId,
+        UserName: userId,
+        Action: "user.invite",
+        TargetEntity: "user",
+        TargetId: newUser.Id
+    ));
+
+    return Results.Ok(new
+    {
+        newUser.Id,
+        Name = newUser.DisplayName,
+        newUser.Email,
+        newUser.Role,
+        newUser.Status,
+        newUser.AvatarUrl
+    });
+}).RequireAuthorization();
+
+app.MapPatch("/api/users/{userId}", async (string userId, UpdateUserRequest request, ClaimsPrincipal user, IServiceProvider serviceProvider, IAuditLogStore auditLog) =>
+{
+    var currentUserId = GetUserId(user);
+    if (!await IsAdmin(serviceProvider, currentUserId))
+        return Results.Forbid();
+
+    await using var scope = serviceProvider.CreateAsyncScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+    var targetUser = await db.Users.FindAsync(userId);
+    if (targetUser is null)
+        return Results.NotFound();
+
+    if (request.Role is not null)
+        targetUser.Role = request.Role;
+    if (request.Status is not null)
+        targetUser.Status = request.Status;
+    targetUser.UpdatedAtUtc = DateTimeOffset.UtcNow;
+
+    await db.SaveChangesAsync();
+
+    auditLog.Record(new AuditLogEntry(
+        Id: Guid.NewGuid().ToString("N"),
+        Timestamp: DateTimeOffset.UtcNow,
+        UserId: currentUserId,
+        UserName: currentUserId,
+        Action: "user.update",
+        TargetEntity: "user",
+        TargetId: userId
+    ));
+
+    return Results.Ok();
+}).RequireAuthorization();
+
+app.MapDelete("/api/users/{userId}", async (string userId, ClaimsPrincipal user, IServiceProvider serviceProvider, IAuditLogStore auditLog) =>
+{
+    var currentUserId = GetUserId(user);
+    if (!await IsAdmin(serviceProvider, currentUserId))
+        return Results.Forbid();
+
+    await using var scope = serviceProvider.CreateAsyncScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+    var targetUser = await db.Users.FindAsync(userId);
+    if (targetUser is null)
+        return Results.NotFound();
+
+    db.Users.Remove(targetUser);
+    await db.SaveChangesAsync();
+
+    auditLog.Record(new AuditLogEntry(
+        Id: Guid.NewGuid().ToString("N"),
+        Timestamp: DateTimeOffset.UtcNow,
+        UserId: currentUserId,
+        UserName: currentUserId,
+        Action: "user.delete",
+        TargetEntity: "user",
+        TargetId: userId
+    ));
+
+    return Results.Ok();
+}).RequireAuthorization();
+
 // Fallback to index.html for client-side routing
 app.MapFallbackToFile("index.html");
 
 app.Run();
+
+// --- Helper Methods ---
+
+static async Task<User?> EnsureUser(IServiceProvider serviceProvider, string username, string? email, string? displayName, string? avatarUrl, string authProvider, string authProviderId)
+{
+    var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
+    using var scope = scopeFactory.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+    // Try find by auth provider
+    var existing = await db.Users.FirstOrDefaultAsync(u => u.AuthProvider == authProvider && u.AuthProviderId == authProviderId);
+    if (existing is not null)
+    {
+        // Update profile info from latest OAuth response
+        existing.Email = email ?? existing.Email;
+        existing.DisplayName = displayName ?? existing.DisplayName;
+        existing.AvatarUrl = avatarUrl ?? existing.AvatarUrl;
+        existing.UpdatedAtUtc = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync();
+        return existing;
+    }
+
+    // First-user-is-admin
+    var userCount = await db.Users.CountAsync();
+    var role = userCount == 0 ? "admin" : "user";
+
+    var newUser = new User
+    {
+        Id = Guid.NewGuid().ToString("N"),
+        Username = username,
+        Email = email,
+        DisplayName = displayName ?? username,
+        AvatarUrl = avatarUrl,
+        Role = role,
+        Status = "active",
+        AuthProvider = authProvider,
+        AuthProviderId = authProviderId,
+        CreatedAtUtc = DateTimeOffset.UtcNow,
+        UpdatedAtUtc = DateTimeOffset.UtcNow
+    };
+
+    db.Users.Add(newUser);
+    await db.SaveChangesAsync();
+    return newUser;
+}
+
+static async Task<bool> IsAdmin(IServiceProvider serviceProvider, string userId)
+{
+    // If no database, all authenticated users are treated as admin
+    try
+    {
+        var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
+        using var scope = scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var user = await db.Users.FindAsync(userId);
+        // Also check by username since JWT contains username as NameIdentifier
+        if (user is null)
+            user = await db.Users.FirstOrDefaultAsync(u => u.Username == userId);
+        return user?.Role == "admin";
+    }
+    catch (InvalidOperationException)
+    {
+        // No DbContext registered (no database), treat all as admin
+        return true;
+    }
+}
+
+public record InviteUserRequest(string Email, string? Role);
+public record UpdateUserRequest(string? Role, string? Status);
 
 public partial class Program;
