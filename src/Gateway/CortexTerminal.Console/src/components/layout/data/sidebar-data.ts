@@ -5,6 +5,7 @@ import {
   Users,
   Settings,
   FileText,
+  Globe,
 } from 'lucide-react'
 import { Logo } from '@/assets/logo'
 import { type SidebarData } from '../types'
@@ -27,6 +28,11 @@ export const sidebarData: SidebarData = {
       title: 'Overview',
       items: [
         { title: 'Dashboard', icon: LayoutDashboard, url: '/dashboard' },
+        {
+          title: 'Homepage',
+          icon: Globe,
+          url: 'https://monster-echo.github.io/CortexTerminal/',
+        },
       ],
     },
     {

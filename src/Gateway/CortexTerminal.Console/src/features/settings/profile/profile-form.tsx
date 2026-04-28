@@ -52,7 +52,7 @@ const defaultValues: Partial<ProfileFormValues> = {
   bio: 'I own a computer.',
   urls: [
     { value: 'https://cortexterminal.com' },
-    { value: 'https://github.com/monster-echo/CortexTerminal2' },
+    { value: 'https://github.com/monster-echo/CortexTerminal' },
   ],
 }
 
