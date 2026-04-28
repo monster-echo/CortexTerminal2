@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-backend:
+    name: Build & Test (.NET)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore CortexTerminal.sln
+
+      - name: Build
+        run: dotnet build CortexTerminal.sln --configuration Release --no-restore
+
+      - name: Run Gateway tests
+        run: dotnet test tests/Gateway/CortexTerminal.Gateway.Tests --configuration Release --no-build
+
+      - name: Run Worker tests
+        run: dotnet test tests/Worker/CortexTerminal.Worker.Tests --configuration Release --no-build
+
+  test-frontend:
+    name: Build (Frontend)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/Gateway/CortexTerminal.Console
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: src/Gateway/CortexTerminal.Console/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build frontend
+        run: pnpm build

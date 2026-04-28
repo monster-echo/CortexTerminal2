@@ -1,0 +1,73 @@
+name: Worker Platform Release
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  build-and-release:
+    name: Build Worker (${{ matrix.rid }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - rid: linux-x64
+            os: ubuntu-latest
+            archive: tar.gz
+          - rid: linux-arm64
+            os: ubuntu-24.04-arm
+            archive: tar.gz
+          - rid: osx-x64
+            os: macos-13
+            archive: tar.gz
+          - rid: osx-arm64
+            os: macos-latest
+            archive: tar.gz
+          - rid: win-x64
+            os: windows-latest
+            archive: zip
+      fail-fast: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Publish Worker
+        run: |
+          dotnet publish src/Worker/CortexTerminal.Worker/CortexTerminal.Worker.csproj `
+            --configuration Release `
+            --runtime ${{ matrix.rid }} `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:PublishTrimmed=false `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            --output ./publish/worker-${{ matrix.rid }}
+        shell: pwsh
+
+      - name: Create archive (tar.gz)
+        if: matrix.archive == 'tar.gz'
+        run: |
+          cd ./publish/worker-${{ matrix.rid }}
+          tar -czf ../../../cortexterminal-worker-${{ matrix.rid }}.tar.gz .
+
+      - name: Create archive (zip)
+        if: matrix.archive == 'zip'
+        shell: pwsh
+        run: |
+          Compress-Archive `
+            -Path ./publish/worker-${{ matrix.rid }}/* `
+            -DestinationPath cortexterminal-worker-${{ matrix.rid }}.zip
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            cortexterminal-worker-${{ matrix.rid }}.tar.gz
+            cortexterminal-worker-${{ matrix.rid }}.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
