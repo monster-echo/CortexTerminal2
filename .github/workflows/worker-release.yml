@@ -51,9 +51,7 @@ jobs:
 
       - name: Create archive (tar.gz)
         if: matrix.archive == 'tar.gz'
-        run: |
-          cd ./publish/worker-${{ matrix.rid }}
-          tar -czf ../../../cortexterminal-worker-${{ matrix.rid }}.tar.gz .
+        run: tar -czf cortexterminal-worker-${{ matrix.rid }}.tar.gz -C ./publish/worker-${{ matrix.rid }} .
 
       - name: Create archive (zip)
         if: matrix.archive == 'zip'
