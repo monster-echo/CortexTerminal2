@@ -119,7 +119,10 @@ install_service() {
 
   if [ "$PLATFORM_OS" = "linux" ] && command -v systemctl >/dev/null 2>&1; then
     info "Installing systemd service ..."
+    CURRENT_USER=$(whoami)
+    CURRENT_GROUP=$(id -gn)
     sed -e "s|{{INSTALL_DIR}}|${INSTALL_DIR}|g" -e "s|{{HOME}}|${HOME}|g" \
+      -e "s|{{USER}}|${CURRENT_USER}|g" -e "s|{{GROUP}}|${CURRENT_GROUP}|g" \
       "${INSTALL_DIR}/cortexterm-worker.service" > /tmp/cortexterm-worker.service 2>/dev/null || true
     if [ -f /tmp/cortexterm-worker.service ]; then
       sudo cp /tmp/cortexterm-worker.service /etc/systemd/system/cortexterm-worker.service
