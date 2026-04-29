@@ -28,21 +28,18 @@ if (string.IsNullOrWhiteSpace(gatewayUrl))
     throw new InvalidOperationException("Gateway URL is not configured. Set CORTEX_GATEWAY_URL or Worker:GatewayUrl in appsettings.json.");
 var gatewayBaseUrl = new Uri(gatewayUrl);
 
-// Detect proxy from environment (HTTPS_PROXY / HTTP_PROXY)
-var proxyUri = Environment.GetEnvironmentVariable("HTTPS_PROXY")
-    ?? Environment.GetEnvironmentVariable("HTTP_PROXY");
-Uri? proxy = null;
-if (!string.IsNullOrWhiteSpace(proxyUri) && Uri.TryCreate(proxyUri, UriKind.Absolute, out var p))
-    proxy = p;
-
 // Parse CLI args for subcommands
 var command = args.FirstOrDefault(arg => !arg.StartsWith("--"));
 
 if (command == "login")
 {
     var loginTokenStore = new FileWorkerTokenStore(installDir);
-    var loginHandler = new SocketsHttpHandler { ConnectTimeout = TimeSpan.FromSeconds(10) };
-    if (proxy is not null) loginHandler.Proxy = new System.Net.WebProxy(proxy);
+    var loginHandler = new SocketsHttpHandler
+    {
+        ConnectTimeout = TimeSpan.FromSeconds(10),
+        Proxy = HttpClient.DefaultProxy,
+        UseProxy = true,
+    };
     using var httpClient = new HttpClient(loginHandler)
     {
         BaseAddress = gatewayBaseUrl,
@@ -79,8 +76,7 @@ builder.Services.AddSingleton<IWorkerGatewayClient>(_ =>
         .WithUrl(new Uri(gatewayBaseUrl, "/hubs/worker"), options =>
         {
             options.AccessTokenProvider = () => Task.FromResult<string?>(currentToken);
-            if (proxy is not null)
-                options.Proxy = new System.Net.WebProxy(proxy);
+            options.Proxy = HttpClient.DefaultProxy;
         })
         .AddMessagePackProtocol()
         .WithAutomaticReconnect()
@@ -90,8 +86,11 @@ builder.Services.AddSingleton<IWorkerGatewayClient>(_ =>
 });
 
 // Background service that refreshes the token every 24 hours
-var refreshHandler = new SocketsHttpHandler();
-if (proxy is not null) refreshHandler.Proxy = new System.Net.WebProxy(proxy);
+var refreshHandler = new SocketsHttpHandler
+{
+    Proxy = HttpClient.DefaultProxy,
+    UseProxy = true,
+};
 builder.Services.AddSingleton(_ => new HttpClient(refreshHandler) { BaseAddress = gatewayBaseUrl });
 builder.Services.AddHostedService<TokenRefreshService>(sp =>
 {
