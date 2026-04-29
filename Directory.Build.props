@@ -6,4 +6,11 @@
     <Version>0.1.0</Version>
     <LangVersion>preview</LangVersion>
   </PropertyGroup>
+  <ItemGroup>
+    <!-- System.Security.Cryptography.Xml 9.0.0 transitively pulled by Microsoft.Build.Tasks.Core
+         via Microsoft.EntityFrameworkCore.Design. Cannot upgrade directly. Suppressing audit
+         until upstream packages pick up the patched version. -->
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-37gx-xxp4-5rgx" />
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-w3x6-4m5h-cxqf" />
+  </ItemGroup>
 </Project>
