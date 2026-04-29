@@ -89,7 +89,7 @@ export function SessionListPage() {
       <Header>
         <div>
           <p className='text-sm font-medium text-muted-foreground'>
-            Gateway Console
+            {t('workers.gatewayConsole')}
           </p>
           <h1 className='text-lg font-semibold'>{t('sessions.title')}</h1>
         </div>
@@ -102,7 +102,7 @@ export function SessionListPage() {
               {t('sessions.title')}
             </h2>
             <p className='text-muted-foreground'>
-              Create a new terminal session or reconnect to an existing one.
+              {t('sessions.description')}
             </p>
           </div>
           <Button
@@ -116,7 +116,7 @@ export function SessionListPage() {
 
         <Card>
           <CardHeader className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
-            <CardTitle>Active and recent sessions</CardTitle>
+            <CardTitle>{t('sessions.activeAndRecent')}</CardTitle>
             <Tabs
               value={filter}
               onValueChange={(v) => setFilter(v as FilterTab)}
@@ -149,28 +149,28 @@ export function SessionListPage() {
               <p className='text-sm text-destructive'>
                 {sessionsQuery.error instanceof Error
                   ? sessionsQuery.error.message
-                  : 'Could not load sessions.'}
+                  : t('sessions.loadError')}
               </p>
             ) : sessions.length === 0 ? (
               <div className='rounded-lg border border-dashed p-10 text-center'>
                 <TerminalSquare className='mx-auto mb-3 size-8 text-muted-foreground' />
-                <h3 className='text-lg font-semibold'>No sessions yet</h3>
+                <h3 className='text-lg font-semibold'>{t('sessions.noSessions')}</h3>
                 <p className='mt-1 text-sm text-muted-foreground'>
                   {filter === 'all'
-                    ? 'Start a shell session and it will appear here.'
-                    : 'No sessions match the selected filter.'}
+                    ? t('sessions.noSessionsDescription')
+                    : t('sessions.noMatchingSessions')}
                 </p>
               </div>
             ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Session</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Worker</TableHead>
-                    <TableHead>Created</TableHead>
-                    <TableHead>Last activity</TableHead>
-                    <TableHead className='text-right'>Action</TableHead>
+                    <TableHead>{t('sessions.columns.session')}</TableHead>
+                    <TableHead>{t('sessions.columns.status')}</TableHead>
+                    <TableHead>{t('sessions.columns.worker')}</TableHead>
+                    <TableHead>{t('sessions.columns.created')}</TableHead>
+                    <TableHead>{t('sessions.columns.lastActivity')}</TableHead>
+                    <TableHead className='text-right'>{t('sessions.columns.action')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -204,7 +204,7 @@ export function SessionListPage() {
                               })
                             }
                           >
-                            Open terminal
+                            {t('sessions.openTerminal')}
                           </Button>
                           <Button
                             variant='ghost'

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { WorkerSummary } from '@/services/console-api'
@@ -44,6 +45,7 @@ export function NewSessionDialog({
   onCreateSession,
   isCreating,
 }: NewSessionDialogProps) {
+  const { t } = useTranslation()
   const [selectedWorker, setSelectedWorker] = useState<string>('__auto__')
 
   useEffect(() => {
@@ -62,10 +64,8 @@ export function NewSessionDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>New Session</DialogTitle>
-          <DialogDescription>
-            Select a worker to run your terminal session, or auto-select.
-          </DialogDescription>
+          <DialogTitle>{t('newSession.title')}</DialogTitle>
+          <DialogDescription>{t('newSession.description')}</DialogDescription>
         </DialogHeader>
 
         <div className="py-4">
@@ -75,7 +75,7 @@ export function NewSessionDialog({
             </div>
           ) : onlineWorkers.length === 0 ? (
             <p className="text-center text-sm text-muted-foreground py-8">
-              No workers available.
+              {t('newSession.noWorkersAvailable')}
             </p>
           ) : (
             <RadioGroup
@@ -94,9 +94,9 @@ export function NewSessionDialog({
               >
                 <RadioGroupItem value="__auto__" id="worker-auto" />
                 <div className="flex-1">
-                  <div className="font-medium text-sm">Auto-select</div>
+                  <div className="font-medium text-sm">{t('newSession.autoSelect')}</div>
                   <div className="text-xs text-muted-foreground">
-                    Pick the first available worker
+                    {t('newSession.autoSelectDescription')}
                   </div>
                 </div>
               </Label>
@@ -144,14 +144,14 @@ export function NewSessionDialog({
             onClick={() => onOpenChange(false)}
             disabled={isCreating}
           >
-            Cancel
+            {t('common.cancel')}
           </Button>
           <Button
             onClick={handleCreate}
             disabled={isCreating || isLoadingWorkers || onlineWorkers.length === 0}
           >
             {isCreating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Create Session
+            {t('newSession.createSession')}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
-import { useTranslation } from 'react-i18next'
+import { useTranslation, Trans } from 'react-i18next'
 import { useNavigate } from '@tanstack/react-router'
 import { formatDistanceToNow } from 'date-fns'
 import { ArrowUpCircle, Loader2, Server } from 'lucide-react'
@@ -73,7 +73,7 @@ export function WorkerListPage() {
       <Header>
         <div>
           <p className='text-sm font-medium text-muted-foreground'>
-            Gateway Console
+            {t('workers.gatewayConsole')}
           </p>
           <h1 className='text-lg font-semibold'>{t('workers.title')}</h1>
         </div>
@@ -120,7 +120,7 @@ export function WorkerListPage() {
                   <TableRow>
                     <TableHead>{t('workers.status._label', 'Status')}</TableHead>
                     <TableHead>{t('workers.workerId', 'Worker ID')}</TableHead>
-                    <TableHead>Version</TableHead>
+                    <TableHead>{t('workers.version')}</TableHead>
                     <TableHead>{t('workers.address')}</TableHead>
                     <TableHead>{t('workers.sessionsColumn', 'Sessions')}</TableHead>
                     <TableHead>{t('workers.uptime')}</TableHead>
@@ -197,20 +197,23 @@ export function WorkerListPage() {
           onOpenChange={(open) => {
             if (!open) setUpgradeTarget(null)
           }}
-          title='Upgrade Worker'
+          title={t('workers.upgrade.title')}
           desc={
             upgradeTarget ? (
-              <p>
-                Upgrade <strong>{upgradeTarget.workerName}</strong> from{' '}
-                <code>{upgradeTarget.currentVersion}</code> to{' '}
-                <code>{upgradeTarget.targetVersion}</code>? The worker will
-                briefly go offline during the upgrade.
-              </p>
+              <Trans
+                i18nKey="workers.upgrade.description"
+                values={{
+                  workerName: upgradeTarget.workerName,
+                  currentVersion: upgradeTarget.currentVersion,
+                  targetVersion: upgradeTarget.targetVersion,
+                }}
+                components={{ strong: <strong />, code: <code /> }}
+              />
             ) : (
               ''
             )
           }
-          confirmText='Upgrade'
+          confirmText={t('workers.upgrade.button')}
           destructive
           isLoading={upgradeMutation.isPending}
           handleConfirm={() => upgradeMutation.mutate()}

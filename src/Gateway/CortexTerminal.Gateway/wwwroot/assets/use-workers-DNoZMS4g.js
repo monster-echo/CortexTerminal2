@@ -1,0 +1,1 @@
+import{t as e}from"./useQuery-PprIWEF3.js";import{t}from"./api-BEYvIlTk.js";function n(){return e({queryKey:[`workers`],queryFn:()=>t().listWorkers(),staleTime:3e4})}export{n as t};

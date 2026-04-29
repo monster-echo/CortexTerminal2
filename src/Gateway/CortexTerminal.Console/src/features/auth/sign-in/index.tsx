@@ -13,22 +13,22 @@ import {
 import { AuthLayout } from '../auth-layout'
 import { UserAuthForm } from './components/user-auth-form'
 
-const errorMessages: Record<string, string> = {
-  github_denied: 'GitHub authorization was denied.',
-  github_token_failed: 'Failed to obtain GitHub access token.',
-  github_user_failed: 'Failed to retrieve GitHub user info.',
-  google_denied: 'Google authorization was denied.',
-  google_token_failed: 'Failed to obtain Google access token.',
-  google_user_failed: 'Failed to retrieve Google user info.',
-}
-
 export function SignIn() {
   const { redirect, error } = useSearch({ from: '/(auth)/sign-in' })
   const { t } = useTranslation()
 
+  const errorMessages: Record<string, string> = {
+    github_denied: t('auth.error.githubDenied'),
+    github_token_failed: t('auth.error.githubTokenFailed'),
+    github_user_failed: t('auth.error.githubUserFailed'),
+    google_denied: t('auth.error.googleDenied'),
+    google_token_failed: t('auth.error.googleTokenFailed'),
+    google_user_failed: t('auth.error.googleUserFailed'),
+  }
+
   useEffect(() => {
     if (error) {
-      toast.error(errorMessages[error] ?? `Login failed: ${error}`)
+      toast.error(errorMessages[error] ?? t('auth.loginFailed', { error }))
     }
   }, [error])
 
@@ -49,8 +49,8 @@ export function SignIn() {
         <CardFooter>
           <p className='px-8 text-center text-sm text-muted-foreground'>
             {import.meta.env.VITE_AUTH_MODE === 'dev'
-              ? 'Dev mode: use any username to sign in.'
-              : 'Sign in with your organizational account.'}
+              ? t('auth.devModeHint')
+              : t('auth.orgAccountHint')}
           </p>
         </CardFooter>
       </Card>

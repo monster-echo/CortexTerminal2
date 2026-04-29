@@ -1,4 +1,5 @@
 import { Link } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import { Menu, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
@@ -10,6 +11,7 @@ import {
 import { Button } from '../ui/button'
 
 export function AppTitle() {
+  const { t } = useTranslation()
   const { setOpenMobile } = useSidebar()
   return (
     <SidebarMenu>
@@ -25,8 +27,8 @@ export function AppTitle() {
               onClick={() => setOpenMobile(false)}
               className='grid flex-1 text-start text-sm leading-tight'
             >
-              <span className='truncate font-bold'>CortexTerminal</span>
-              <span className='truncate text-xs'>Gateway Console</span>
+              <span className='truncate font-bold'>{t('brand.name')}</span>
+              <span className='truncate text-xs'>{t('common.gatewayConsole')}</span>
             </Link>
             <ToggleSidebar />
           </div>
@@ -41,6 +43,7 @@ function ToggleSidebar({
   onClick,
   ...props
 }: React.ComponentProps<typeof Button>) {
+  const { t } = useTranslation()
   const { toggleSidebar } = useSidebar()
 
   return (
@@ -58,7 +61,7 @@ function ToggleSidebar({
     >
       <X className='md:hidden' />
       <Menu className='max-md:hidden' />
-      <span className='sr-only'>Toggle Sidebar</span>
+      <span className='sr-only'>{t('common.toggleSidebar')}</span>
     </Button>
   )
 }

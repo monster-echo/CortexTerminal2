@@ -6,7 +6,15 @@
     "workers": "工作节点",
     "users": "用户",
     "settings": "设置",
-    "auditLog": "审计日志"
+    "auditLog": "审计日志",
+    "homepage": "主页",
+    "groups": {
+      "overview": "概览",
+      "terminal": "终端",
+      "infrastructure": "基础设施",
+      "admin": "管理",
+      "system": "系统"
+    }
   },
   "auth": {
     "signIn": "登录",
@@ -16,7 +24,28 @@
     "username": "用户名",
     "password": "密码",
     "signOut": "退出登录",
-    "signOutConfirm": "确定要退出登录吗？"
+    "signOutConfirm": "确定要退出登录吗？",
+    "devModeHint": "开发模式：使用任意用户名即可登录。",
+    "orgAccountHint": "使用您的组织账户登录。",
+    "signInDescription": "在下方输入您的邮箱和密码以登录账户。",
+    "termsPrefix": "点击登录即表示您同意我们的",
+    "and": "和",
+    "termsOfService": "服务条款",
+    "privacyPolicy": "隐私政策",
+    "loginFailed": "登录失败：{{error}}",
+    "signedInAs": "已登录为 {{username}}",
+    "error": {
+      "githubDenied": "GitHub 授权被拒绝。",
+      "githubTokenFailed": "获取 GitHub 访问令牌失败。",
+      "githubUserFailed": "获取 GitHub 用户信息失败。",
+      "googleDenied": "Google 授权被拒绝。",
+      "googleTokenFailed": "获取 Google 访问令牌失败。",
+      "googleUserFailed": "获取 Google 用户信息失败。"
+    },
+    "validation": {
+      "usernameRequired": "请输入用户名。",
+      "passwordRequired": "请输入密码。"
+    }
   },
   "dashboard": {
     "title": "仪表盘",
@@ -42,6 +71,21 @@
   "sessions": {
     "title": "会话",
     "newSession": "新建会话",
+    "description": "创建新的终端会话或重新连接到已有会话。",
+    "activeAndRecent": "活跃和最近的会话",
+    "loadError": "无法加载会话。",
+    "noSessions": "暂无会话",
+    "noSessionsDescription": "启动一个终端会话后将在此显示。",
+    "noMatchingSessions": "没有匹配所选筛选条件的会话。",
+    "openTerminal": "打开终端",
+    "columns": {
+      "session": "会话",
+      "status": "状态",
+      "worker": "节点",
+      "created": "创建时间",
+      "lastActivity": "最后活动",
+      "action": "操作"
+    },
     "filter": { "all": "全部", "live": "活跃", "detached": "断开", "exited": "已退出" },
     "status": { "live": "活跃", "detached": "断开", "exited": "已退出", "expired": "已过期" },
     "delete": { "button": "删除", "confirm": "删除会话", "message": "确定要删除此会话吗？此操作无法撤销。" },
@@ -56,6 +100,8 @@
   "workers": {
     "title": "工作节点",
     "description": "监控已连接的工作节点及其会话。",
+    "gatewayConsole": "网关控制台",
+    "version": "版本",
     "status": { "_label": "状态", "online": "在线", "offline": "离线" },
     "sessions": "{{count}} 个会话",
     "sessionsColumn": "会话数",
@@ -71,7 +117,12 @@
     "sessionId": "会话 ID",
     "created": "创建时间",
     "emptyTitle": "没有节点连接",
-    "emptyDescription": "当工作节点连接到网关时将显示在此处。"
+    "emptyDescription": "当工作节点连接到网关时将显示在此处。",
+    "upgrade": {
+      "title": "升级工作节点",
+      "description": "将 <strong>{{workerName}}</strong> 从 <code>{{currentVersion}}</code> 升级到 <code>{{targetVersion}}</code>？升级期间节点将短暂离线。",
+      "button": "升级"
+    }
   },
   "users": {
     "title": "用户管理",
@@ -107,6 +158,34 @@
     "delete": "删除",
     "edit": "编辑",
     "close": "关闭",
-    "goToDashboard": "前往仪表盘"
+    "goToDashboard": "前往仪表盘",
+    "gatewayConsole": "网关控制台",
+    "toggleSidebar": "切换侧边栏",
+    "toggleNavigation": "切换导航菜单",
+    "continue": "继续",
+    "skipToMain": "跳转到主要内容"
+  },
+  "command": {
+    "placeholder": "输入命令或搜索...",
+    "noResults": "未找到结果。"
+  },
+  "theme": {
+    "label": "主题",
+    "light": "浅色",
+    "dark": "深色",
+    "system": "跟随系统"
+  },
+  "newSession": {
+    "title": "新建会话",
+    "description": "选择一个工作节点来运行您的终端会话，或自动选择。",
+    "noWorkersAvailable": "没有可用的工作节点。",
+    "autoSelect": "自动选择",
+    "autoSelectDescription": "选择第一个可用的工作节点",
+    "createSession": "创建会话"
+  },
+  "signOut": {
+    "title": "退出登录",
+    "description": "确定要退出登录吗？您需要重新登录才能访问您的账户。",
+    "confirmText": "退出登录"
   }
 }

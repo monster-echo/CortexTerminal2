@@ -20,11 +20,6 @@ import {
 import { Input } from '@/components/ui/input'
 import { PasswordInput } from '@/components/password-input'
 
-const formSchema = z.object({
-  username: z.string().trim().min(1, 'Please enter your username.').max(64),
-  password: z.string().min(1, 'Please enter your password.'),
-})
-
 const consoleApi = createConsoleApi({
   getToken: () => useAuthStore.getState().auth.accessToken,
   onUnauthorized: () => useAuthStore.getState().auth.reset(),
@@ -46,6 +41,11 @@ export function UserAuthForm({
   const { auth } = useAuthStore()
   const { t } = useTranslation()
 
+  const formSchema = z.object({
+    username: z.string().trim().min(1, t('auth.validation.usernameRequired')).max(64),
+    password: z.string().min(1, t('auth.validation.passwordRequired')),
+  })
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -61,11 +61,11 @@ export function UserAuthForm({
       const session = await consoleApi.login(data.username, data.password)
       auth.setUser({ username: session.username })
       auth.setAccessToken(session.token)
-      toast.success(`Signed in as ${session.username}`)
+      toast.success(t('auth.signedInAs', { username: session.username }))
 
       navigate({ to: redirectTo || '/dashboard', replace: true })
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Login failed.'
+      const message = error instanceof Error ? error.message : t('auth.loginFailed', { error: '' })
       toast.error(message)
     } finally {
       setIsLoading(false)

@@ -28,13 +28,6 @@ import { NewSessionDialog } from '@/components/new-session-dialog'
 import { useWorkers } from '@/hooks/use-workers'
 import { useSessions } from '@/hooks/use-sessions'
 
-const statusBadgeLabel: Record<SessionStatus, string> = {
-  live: 'Live',
-  detached: 'Detached',
-  expired: 'Expired',
-  exited: 'Exited',
-}
-
 const sessionStatusToBadge: Record<SessionStatus, SessionStatus | 'online' | 'offline'> = {
   live: 'live',
   detached: 'detached',
@@ -45,6 +38,13 @@ const sessionStatusToBadge: Record<SessionStatus, SessionStatus | 'online' | 'of
 export function Dashboard() {
   const { t } = useTranslation()
   const navigate = useNavigate()
+
+  const statusBadgeLabel: Record<SessionStatus, string> = {
+    live: t('sessions.status.live'),
+    detached: t('sessions.status.detached'),
+    expired: t('sessions.status.expired'),
+    exited: t('sessions.status.exited'),
+  }
   const [newSessionDialogOpen, setNewSessionDialogOpen] = useState(false)
   const [isCreatingSession, setIsCreatingSession] = useState(false)
 
@@ -275,7 +275,7 @@ export function Dashboard() {
                         </div>
                         <StatusBadge
                           status={status}
-                          label={status === 'online' ? 'Online' : 'Offline'}
+                          label={status === 'online' ? t('workers.status.online') : t('workers.status.offline')}
                         />
                       </div>
                     )

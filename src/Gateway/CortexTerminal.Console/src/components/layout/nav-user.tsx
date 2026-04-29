@@ -1,4 +1,5 @@
 import { Link } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import { ChevronsUpDown, FileTerminal, LogOut } from 'lucide-react'
 import { getDisplayNameInitials } from '@/lib/utils'
 import useDialogState from '@/hooks/use-dialog-state'
@@ -29,6 +30,7 @@ type NavUserProps = {
 }
 
 export function NavUser({ user }: NavUserProps) {
+  const { t } = useTranslation()
   const { isMobile } = useSidebar()
   const [open, setOpen] = useDialogState()
   const initials = getDisplayNameInitials(user.name)
@@ -81,7 +83,7 @@ export function NavUser({ user }: NavUserProps) {
                 <DropdownMenuItem asChild>
                   <Link to='/sessions'>
                     <FileTerminal />
-                    Sessions
+                    {t('nav.sessions')}
                   </Link>
                 </DropdownMenuItem>
               </DropdownMenuGroup>
@@ -91,7 +93,7 @@ export function NavUser({ user }: NavUserProps) {
                 onClick={() => setOpen(true)}
               >
                 <LogOut />
-                Sign out
+                {t('auth.signOut')}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
