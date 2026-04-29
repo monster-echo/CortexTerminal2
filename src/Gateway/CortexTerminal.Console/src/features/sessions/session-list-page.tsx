@@ -93,7 +93,7 @@ export function SessionListPage() {
       to: '/sessions/new',
       search: {
         bootstrapId,
-        ...(workerId ? { workerId } : {}),
+        workerId,
       },
     })
   }, [navigate])

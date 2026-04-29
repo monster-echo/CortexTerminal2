@@ -114,7 +114,7 @@ export function Dashboard() {
       to: '/sessions/new',
       search: {
         bootstrapId,
-        ...(workerId ? { workerId } : {}),
+        workerId,
       },
     })
   }, [navigate])
