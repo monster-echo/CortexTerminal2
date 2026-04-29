@@ -23,6 +23,10 @@ export interface CreateSessionResponse {
 export interface WorkerSummary {
   workerId: string
   name?: string
+  hostname?: string
+  operatingSystem?: string
+  architecture?: string
+  version?: string
   address?: string
   isOnline: boolean
   sessionCount: number
@@ -31,6 +35,12 @@ export interface WorkerSummary {
 
 export interface WorkerDetail extends WorkerSummary {
   sessions: SessionSummary[]
+}
+
+export interface GatewayInfo {
+  version: string
+  latestWorkerVersion?: string
+  latestGatewayVersion?: string
 }
 
 export interface UserSummary {
@@ -76,7 +86,8 @@ export interface ConsoleApi {
       columns: number
       rows: number
     },
-    clientRequestId?: string
+    clientRequestId?: string,
+    workerId?: string
   ): Promise<CreateSessionResponse>
   deleteSession(sessionId: string): Promise<void>
   listWorkers(): Promise<WorkerSummary[]>
@@ -94,6 +105,7 @@ export interface ConsoleApi {
     toDate?: string
   }): Promise<AuditLogResponse>
   verifyDeviceCode(userCode: string): Promise<void>
+  getGatewayInfo(): Promise<GatewayInfo>
 }
 
 type FetchFn = (input: string, init?: RequestInit) => Promise<Response>
@@ -102,9 +114,11 @@ type SessionSummaryDto = Omit<SessionSummary, 'status'> & {
   status: 'Attached' | 'DetachedGracePeriod' | 'Expired' | 'Exited'
 }
 
-type WorkerSummaryDto = Omit<WorkerSummary, 'isOnline' | 'sessionCount'> & {
+type WorkerSummaryDto = Omit<WorkerSummary, 'isOnline' | 'sessionCount' | 'connectedAt'> & {
   isOnline: boolean
   sessionCount: number
+  lastSeenAtUtc?: string
+  version?: string
 }
 
 type WorkerDetailDto = WorkerSummaryDto & {
@@ -117,6 +131,7 @@ export function createConsoleApi(
     fetchFn?: FetchFn
     getToken?: () => string | null
     onUnauthorized?: () => void
+    onTokenRefreshed?: (newToken: string) => void
   } = {}
 ): ConsoleApi {
   const {
@@ -124,27 +139,79 @@ export function createConsoleApi(
     fetchFn = fetch.bind(globalThis),
     getToken = () => null,
     onUnauthorized,
+    onTokenRefreshed,
   } = deps
+
+  let refreshPromise: Promise<string | null> | null = null
+
+  async function tryRefreshToken(): Promise<string | null> {
+    if (refreshPromise) return refreshPromise
+    refreshPromise = (async () => {
+      try {
+        const token = getToken()
+        if (!token) return null
+        const response = await fetchFn(`${baseUrl}/api/auth/refresh`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        })
+        if (!response.ok) return null
+        const data = (await response.json()) as { accessToken: string }
+        onTokenRefreshed?.(data.accessToken)
+        return data.accessToken
+      } catch {
+        return null
+      } finally {
+        refreshPromise = null
+      }
+    })()
+    return refreshPromise
+  }
+
+  async function buildHeaders(
+    init: RequestInit | undefined,
+    requiresAuth: boolean,
+    tokenOverride?: string
+  ) {
+    const headers = new Headers(init?.headers)
+    if (init?.body && !headers.has('Content-Type')) {
+      headers.set('Content-Type', 'application/json')
+    }
+    const token = tokenOverride ?? getToken()
+    if (requiresAuth && token) {
+      headers.set('Authorization', `Bearer ${token}`)
+    }
+    return headers
+  }
 
   const request = async <T>(
     path: string,
     init?: RequestInit,
     requiresAuth = true
-  ) => {
-    const headers = new Headers(init?.headers)
-    if (init?.body && !headers.has('Content-Type')) {
-      headers.set('Content-Type', 'application/json')
-    }
+  ): Promise<T> => {
+    const headers = await buildHeaders(init, requiresAuth)
+    const response = await fetchFn(`${baseUrl}${path}`, { ...init, headers })
 
-    const token = getToken()
-    if (requiresAuth && token) {
-      headers.set('Authorization', `Bearer ${token}`)
+    if (response.status === 401 && requiresAuth && onTokenRefreshed) {
+      const newToken = await tryRefreshToken()
+      if (newToken) {
+        const retryHeaders = await buildHeaders(init, requiresAuth, newToken)
+        const retryResponse = await fetchFn(`${baseUrl}${path}`, {
+          ...init,
+          headers: retryHeaders,
+        })
+        if (retryResponse.ok) {
+          return (await retryResponse.json()) as T
+        }
+        throw await createConsoleApiError(
+          retryResponse,
+          requiresAuth,
+          onUnauthorized
+        )
+      }
     }
-
-    const response = await fetchFn(`${baseUrl}${path}`, {
-      ...init,
-      headers,
-    })
 
     if (!response.ok) {
       throw await createConsoleApiError(response, requiresAuth, onUnauthorized)
@@ -158,20 +225,25 @@ export function createConsoleApi(
     init?: RequestInit,
     requiresAuth = true
   ) => {
-    const headers = new Headers(init?.headers)
-    if (init?.body && !headers.has('Content-Type')) {
-      headers.set('Content-Type', 'application/json')
-    }
+    const headers = await buildHeaders(init, requiresAuth)
+    const response = await fetchFn(`${baseUrl}${path}`, { ...init, headers })
 
-    const token = getToken()
-    if (requiresAuth && token) {
-      headers.set('Authorization', `Bearer ${token}`)
+    if (response.status === 401 && requiresAuth && onTokenRefreshed) {
+      const newToken = await tryRefreshToken()
+      if (newToken) {
+        const retryHeaders = await buildHeaders(init, requiresAuth, newToken)
+        const retryResponse = await fetchFn(`${baseUrl}${path}`, {
+          ...init,
+          headers: retryHeaders,
+        })
+        if (retryResponse.ok) return
+        throw await createConsoleApiError(
+          retryResponse,
+          requiresAuth,
+          onUnauthorized
+        )
+      }
     }
-
-    const response = await fetchFn(`${baseUrl}${path}`, {
-      ...init,
-      headers,
-    })
 
     if (!response.ok) {
       throw await createConsoleApiError(response, requiresAuth, onUnauthorized)
@@ -204,7 +276,7 @@ export function createConsoleApi(
       )
       return mapSessionSummary(session)
     },
-    createSession(size = { columns: 120, rows: 40 }, clientRequestId) {
+    createSession(size = { columns: 120, rows: 40 }, clientRequestId, workerId) {
       return request<CreateSessionResponse>('/api/sessions', {
         method: 'POST',
         body: JSON.stringify({
@@ -212,6 +284,7 @@ export function createConsoleApi(
           columns: size.columns,
           rows: size.rows,
           clientRequestId,
+          workerId: workerId || undefined,
         }),
       })
     },
@@ -266,6 +339,9 @@ export function createConsoleApi(
         method: 'POST',
         body: JSON.stringify({ userCode }),
       })
+    },
+    getGatewayInfo() {
+      return request<GatewayInfo>('/api/gateway/info')
     },
   }
 }
@@ -336,10 +412,14 @@ function mapWorkerSummary(dto: WorkerSummaryDto): WorkerSummary {
   return {
     workerId: dto.workerId,
     name: dto.name,
+    hostname: dto.hostname,
+    operatingSystem: dto.operatingSystem,
+    architecture: dto.architecture,
+    version: dto.version,
     address: dto.address,
     isOnline: dto.isOnline,
     sessionCount: dto.sessionCount,
-    connectedAt: dto.connectedAt,
+    connectedAt: dto.lastSeenAtUtc,
   }
 }
 

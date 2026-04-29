@@ -61,29 +61,78 @@ export function createConsoleApi(deps: {
   fetchFn?: FetchFn
   getToken?: () => string | null
   onUnauthorized?: () => void
+  onTokenRefreshed?: (newToken: string) => void
 } = {}): ConsoleApi {
   const {
     baseUrl = "",
     fetchFn = fetch.bind(globalThis),
     getToken = () => null,
     onUnauthorized,
+    onTokenRefreshed,
   } = deps
 
-  const request = async <T>(path: string, init?: RequestInit, requiresAuth = true) => {
+  let refreshPromise: Promise<string | null> | null = null
+
+  async function tryRefreshToken(): Promise<string | null> {
+    if (refreshPromise) return refreshPromise
+    refreshPromise = (async () => {
+      try {
+        const token = getToken()
+        if (!token) return null
+        const response = await fetchFn(`${baseUrl}/api/auth/refresh`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        })
+        if (!response.ok) return null
+        const data = (await response.json()) as { accessToken: string }
+        onTokenRefreshed?.(data.accessToken)
+        return data.accessToken
+      } catch {
+        return null
+      } finally {
+        refreshPromise = null
+      }
+    })()
+    return refreshPromise
+  }
+
+  async function buildHeaders(
+    init: RequestInit | undefined,
+    requiresAuth: boolean,
+    tokenOverride?: string
+  ) {
     const headers = new Headers(init?.headers)
     if (init?.body && !headers.has("Content-Type")) {
       headers.set("Content-Type", "application/json")
     }
-
-    const token = getToken()
+    const token = tokenOverride ?? getToken()
     if (requiresAuth && token) {
       headers.set("Authorization", `Bearer ${token}`)
     }
+    return headers
+  }
 
-    const response = await fetchFn(`${baseUrl}${path}`, {
-      ...init,
-      headers,
-    })
+  const request = async <T>(path: string, init?: RequestInit, requiresAuth = true) => {
+    const headers = await buildHeaders(init, requiresAuth)
+    const response = await fetchFn(`${baseUrl}${path}`, { ...init, headers })
+
+    if (response.status === 401 && requiresAuth && onTokenRefreshed) {
+      const newToken = await tryRefreshToken()
+      if (newToken) {
+        const retryHeaders = await buildHeaders(init, requiresAuth, newToken)
+        const retryResponse = await fetchFn(`${baseUrl}${path}`, {
+          ...init,
+          headers: retryHeaders,
+        })
+        if (retryResponse.ok) {
+          return (await retryResponse.json()) as T
+        }
+        throw createConsoleApiError(retryResponse.status, requiresAuth, onUnauthorized)
+      }
+    }
 
     if (!response.ok) {
       throw createConsoleApiError(response.status, requiresAuth, onUnauthorized)

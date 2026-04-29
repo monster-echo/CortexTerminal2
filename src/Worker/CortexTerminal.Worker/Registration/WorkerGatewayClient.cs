@@ -68,6 +68,9 @@ public sealed class WorkerGatewayClient : IWorkerGatewayClient
     public Task ForwardStartFailedAsync(SessionStartFailedEvent evt, CancellationToken cancellationToken)
         => _connection.InvokeAsync("SessionStartFailed", evt, cancellationToken);
 
+    public Task SendWorkerInfoAsync(WorkerInfoFrame info, CancellationToken ct)
+        => _connection.InvokeAsync("UpdateWorkerInfo", info, ct);
+
     public ValueTask DisposeAsync() => _connection.DisposeAsync();
 
     private async Task HandleReconnectedAsync(string? connectionId)

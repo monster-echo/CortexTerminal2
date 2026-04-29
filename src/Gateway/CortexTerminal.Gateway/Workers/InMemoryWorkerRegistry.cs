@@ -66,4 +66,21 @@ public sealed class InMemoryWorkerRegistry : IWorkerRegistry
 
         return false;
     }
+
+    public void UpdateMetadata(string workerId, WorkerMetadata? metadata)
+    {
+        while (_workers.TryGetValue(workerId, out var existing))
+        {
+            var updated = existing with { Metadata = metadata, LastSeenAtUtc = DateTimeOffset.UtcNow };
+            if (_workers.TryUpdate(workerId, updated, existing))
+            {
+                return;
+            }
+        }
+    }
+
+    public IReadOnlyList<RegisteredWorker> GetOnlineWorkersForUser(string userId)
+        => _workers.Values
+            .Where(w => w.OwnerUserId is null || w.OwnerUserId == userId)
+            .ToArray();
 }

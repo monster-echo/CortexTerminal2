@@ -7,7 +7,8 @@ public sealed record CreateSessionRequest(
     [property: Key(0)] string Runtime,
     [property: Key(1)] int Columns,
     [property: Key(2)] int Rows,
-    [property: Key(3)] string? ClientRequestId = null);
+    [property: Key(3)] string? ClientRequestId = null,
+    [property: Key(4)] string? WorkerId = null);
 
 [MessagePackObject]
 public sealed record CreateSessionResponse(

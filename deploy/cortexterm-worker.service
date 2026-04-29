@@ -5,8 +5,9 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User={{USER}}
-Group={{GROUP}}
+# Uncomment for system-level service (not needed for user-level systemd)
+# User={{USER}}
+# Group={{GROUP}}
 ExecStart={{INSTALL_DIR}}/cortex
 WorkingDirectory={{HOME}}
 Restart=always

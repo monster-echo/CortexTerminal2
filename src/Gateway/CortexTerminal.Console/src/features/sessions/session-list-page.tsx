@@ -21,11 +21,14 @@ import { Main } from '@/components/layout/main'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { StatusDot } from '@/components/shared/status-dot'
 import { StatusBadge } from '@/components/shared/status-badge'
+import { NewSessionDialog } from '@/components/new-session-dialog'
 
 function createApi() {
   return createConsoleApi({
     getToken: () => useAuthStore.getState().auth.accessToken,
     onUnauthorized: () => useAuthStore.getState().auth.reset(),
+    onTokenRefreshed: (newToken) =>
+      useAuthStore.getState().auth.setAccessToken(newToken),
   })
 }
 
@@ -52,6 +55,13 @@ export function SessionListPage() {
     sessionId: string
   } | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [newSessionDialogOpen, setNewSessionDialogOpen] = useState(false)
+  const [isCreatingSession, setIsCreatingSession] = useState(false)
+
+  const workersQuery = useQuery({
+    queryKey: ['workers', api],
+    queryFn: () => api.listWorkers(),
+  })
 
   const sessionsQuery = useQuery({
     queryKey: ['sessions', api],
@@ -75,6 +85,19 @@ export function SessionListPage() {
     }
   }, [api, deleteTarget, queryClient])
 
+  const handleCreateSession = useCallback((workerId?: string) => {
+    const bootstrapId = crypto.randomUUID()
+    setIsCreatingSession(true)
+    setNewSessionDialogOpen(false)
+    navigate({
+      to: '/sessions/new',
+      search: {
+        bootstrapId,
+        ...(workerId ? { workerId } : {}),
+      },
+    })
+  }, [navigate])
+
   return (
     <>
       <Header>
@@ -97,12 +120,8 @@ export function SessionListPage() {
             </p>
           </div>
           <Button
-            onClick={() =>
-              navigate({
-                to: '/sessions/new',
-                search: { bootstrapId: crypto.randomUUID() },
-              })
-            }
+            onClick={() => setNewSessionDialogOpen(true)}
+            disabled={isCreatingSession}
           >
             <Plus />
             {t('sessions.newSession')}
@@ -238,6 +257,15 @@ export function SessionListPage() {
           destructive
           isLoading={isDeleting}
           handleConfirm={handleDelete}
+        />
+
+        <NewSessionDialog
+          open={newSessionDialogOpen}
+          onOpenChange={setNewSessionDialogOpen}
+          workers={workersQuery.data ?? []}
+          isLoadingWorkers={workersQuery.isLoading}
+          onCreateSession={handleCreateSession}
+          isCreating={isCreatingSession}
         />
       </Main>
     </>

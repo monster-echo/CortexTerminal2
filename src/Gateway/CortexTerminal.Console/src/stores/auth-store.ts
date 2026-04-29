@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { getCookie, setCookie, removeCookie } from '@/lib/cookies'
 
 const ACCESS_TOKEN = 'cortex_terminal_access_token'
+const REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000 // 24 hours
 
 interface AuthUser {
   username: string
@@ -18,10 +19,48 @@ interface AuthState {
   }
 }
 
+let refreshTimer: ReturnType<typeof setInterval> | null = null
+
+async function refreshToken() {
+  const token = useAuthStore.getState().auth.accessToken
+  if (!token) return
+
+  try {
+    const response = await fetch('/api/auth/refresh', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    })
+    if (!response.ok) return
+    const data = (await response.json()) as { accessToken: string }
+    useAuthStore.getState().auth.setAccessToken(data.accessToken)
+  } catch {
+    // Silently ignore refresh failures — the 401 retry in console-api will handle it
+  }
+}
+
+function startRefreshTimer() {
+  stopRefreshTimer()
+  refreshTimer = setInterval(refreshToken, REFRESH_INTERVAL_MS)
+}
+
+function stopRefreshTimer() {
+  if (refreshTimer) {
+    clearInterval(refreshTimer)
+    refreshTimer = null
+  }
+}
+
 export const useAuthStore = create<AuthState>()((set) => {
   const cookieState = getCookie(ACCESS_TOKEN)
   const initToken = cookieState ? JSON.parse(cookieState) : ''
   const initUser = getUserFromToken(initToken)
+
+  if (initToken) {
+    startRefreshTimer()
+  }
 
   return {
     auth: {
@@ -32,6 +71,7 @@ export const useAuthStore = create<AuthState>()((set) => {
       setAccessToken: (accessToken) =>
         set((state) => {
           setCookie(ACCESS_TOKEN, JSON.stringify(accessToken))
+          startRefreshTimer()
           return {
             ...state,
             auth: {
@@ -44,6 +84,7 @@ export const useAuthStore = create<AuthState>()((set) => {
       resetAccessToken: () =>
         set((state) => {
           removeCookie(ACCESS_TOKEN)
+          stopRefreshTimer()
           return {
             ...state,
             auth: { ...state.auth, accessToken: '', user: null },
@@ -52,6 +93,7 @@ export const useAuthStore = create<AuthState>()((set) => {
       reset: () =>
         set((state) => {
           removeCookie(ACCESS_TOKEN)
+          stopRefreshTimer()
           return {
             ...state,
             auth: { ...state.auth, user: null, accessToken: '' },

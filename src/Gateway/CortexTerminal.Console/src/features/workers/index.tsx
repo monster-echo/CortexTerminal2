@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate } from '@tanstack/react-router'
 import { createConsoleApi } from '@/services/console-api'
 import { formatDistanceToNow } from 'date-fns'
-import { Loader2, Server } from 'lucide-react'
+import { ArrowUpCircle, Loader2, Server } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth-store'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -24,6 +24,8 @@ function createApi() {
   return createConsoleApi({
     getToken: () => useAuthStore.getState().auth.accessToken,
     onUnauthorized: () => useAuthStore.getState().auth.reset(),
+    onTokenRefreshed: (newToken) =>
+      useAuthStore.getState().auth.setAccessToken(newToken),
   })
 }
 
@@ -35,6 +37,11 @@ export function WorkerListPage() {
   const workersQuery = useQuery({
     queryKey: ['workers', api],
     queryFn: () => api.listWorkers(),
+  })
+
+  const gatewayInfoQuery = useQuery({
+    queryKey: ['gateway-info', api],
+    queryFn: () => api.getGatewayInfo(),
   })
 
   const workers = workersQuery.data ?? []
@@ -91,6 +98,7 @@ export function WorkerListPage() {
                   <TableRow>
                     <TableHead>{t('workers.status._label', 'Status')}</TableHead>
                     <TableHead>{t('workers.workerId', 'Worker ID')}</TableHead>
+                    <TableHead>Version</TableHead>
                     <TableHead>{t('workers.address')}</TableHead>
                     <TableHead>{t('workers.sessionsColumn', 'Sessions')}</TableHead>
                     <TableHead>{t('workers.uptime')}</TableHead>
@@ -122,6 +130,18 @@ export function WorkerListPage() {
                         </TableCell>
                         <TableCell className='font-mono text-xs sm:text-sm'>
                           {worker.name ?? worker.workerId}
+                        </TableCell>
+                        <TableCell>
+                          <div className='flex items-center gap-1.5'>
+                            <span className='font-mono text-xs'>
+                              {worker.version ?? '—'}
+                            </span>
+                            {gatewayInfoQuery.data?.latestWorkerVersion &&
+                              worker.version &&
+                              worker.version !== gatewayInfoQuery.data.latestWorkerVersion && (
+                                <ArrowUpCircle className='size-3.5 text-amber-500' />
+                              )}
+                          </div>
                         </TableCell>
                         <TableCell className='font-mono text-xs'>
                           {worker.address ?? '\u2014'}

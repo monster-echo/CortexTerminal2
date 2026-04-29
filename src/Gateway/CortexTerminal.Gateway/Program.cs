@@ -1,4 +1,5 @@
 using System.Net.Http.Headers;
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using CortexTerminal.Contracts.Auth;
@@ -35,7 +36,7 @@ string CreateAccessToken(string username)
         issuer: "https://gateway.local/",
         audience: "cortex-terminal-gateway",
         claims: claims,
-        expires: DateTime.UtcNow.AddMinutes(5),
+        expires: DateTime.UtcNow.AddDays(7),
         signingCredentials: credentials);
     token.Header["typ"] = "at+jwt";
 
@@ -123,8 +124,6 @@ builder.Services
 builder.Services.AddAuthorization();
 builder.Services.AddControllers();
 builder.Services.AddSignalR().AddMessagePackProtocol();
-builder.Services.AddSingleton<IWorkerRegistry, InMemoryWorkerRegistry>();
-builder.Services.AddSingleton<ISessionCoordinator, InMemorySessionCoordinator>();
 builder.Services.AddSingleton<IWorkerCommandDispatcher, SignalRWorkerCommandDispatcher>();
 builder.Services.AddSingleton<ISessionLaunchCoordinator, SessionLaunchCoordinator>();
 builder.Services.AddSingleton<InMemoryDeviceFlowStore>();
@@ -141,10 +140,14 @@ if (!string.IsNullOrEmpty(connectionString))
     builder.Services.AddDbContext<AppDbContext>(options =>
         options.UseNpgsql(connectionString));
     builder.Services.AddSingleton<IAuditLogStore, PostgresAuditLogStore>();
+    builder.Services.AddSingleton<IWorkerRegistry, PostgresWorkerRegistry>();
+    builder.Services.AddSingleton<ISessionCoordinator, PostgresSessionCoordinator>();
 }
 else
 {
     builder.Services.AddSingleton<IAuditLogStore, InMemoryAuditLogStore>();
+    builder.Services.AddSingleton<IWorkerRegistry, InMemoryWorkerRegistry>();
+    builder.Services.AddSingleton<ISessionCoordinator, InMemorySessionCoordinator>();
 }
 
 var oAuthOptions = new OAuthOptions();
@@ -261,7 +264,8 @@ app.MapPost("/api/auth/device-flow/verify", (DeviceFlowVerifyRequest verifyReque
 app.MapPost("/api/auth/refresh", (ClaimsPrincipal user) =>
 {
     var userId = GetUserId(user);
-    var accessToken = CreateWorkerAccessToken(userId);
+    var isWorker = user.HasClaim("role", "worker");
+    var accessToken = isWorker ? CreateWorkerAccessToken(userId) : CreateAccessToken(userId);
     return Results.Ok(new { accessToken });
 }).RequireAuthorization();
 
@@ -475,6 +479,28 @@ app.MapGet("/api/me/sessions/{sessionId}", (string sessionId, ClaimsPrincipal us
     return Results.Ok(ToSessionSummaryResponse(session));
 }).RequireAuthorization();
 
+// ---- Gateway Info ----
+var gatewayVersion = Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "0.0.0";
+var githubRepo = builder.Configuration["GitHub:Repo"] ?? "monster-echo/CortexTerminal2";
+var latestVersionCache = new LatestVersionCache();
+
+app.MapGet("/api/gateway/info", async (IConfiguration config) =>
+{
+    var latestWorkerVersion = await latestVersionCache.GetLatestAsync(
+        $"https://api.github.com/repos/{githubRepo}/releases",
+        "worker-v");
+    var latestGatewayVersion = await latestVersionCache.GetLatestAsync(
+        $"https://api.github.com/repos/{githubRepo}/releases",
+        "gateway-v");
+
+    return Results.Ok(new
+    {
+        Version = gatewayVersion,
+        LatestWorkerVersion = latestWorkerVersion,
+        LatestGatewayVersion = latestGatewayVersion
+    });
+}).RequireAuthorization();
+
 app.MapGet("/api/me/workers", (ClaimsPrincipal user, IWorkerRegistry workers, ISessionCoordinator sessions) =>
 {
     var userId = GetUserId(user);
@@ -484,7 +510,11 @@ app.MapGet("/api/me/workers", (ClaimsPrincipal user, IWorkerRegistry workers, IS
         .Select(worker => new
         {
             worker.WorkerId,
-            Name = worker.WorkerId,
+            Name = worker.Metadata?.Name ?? worker.WorkerId,
+            Hostname = worker.Metadata?.Hostname,
+            OperatingSystem = worker.Metadata?.OperatingSystem,
+            Architecture = worker.Metadata?.Architecture,
+            Version = worker.Metadata?.Version,
             Address = worker.ConnectionId,
             IsOnline = true,
             LastSeenAtUtc = worker.LastSeenAtUtc,
@@ -518,6 +548,10 @@ app.MapGet("/api/me/workers/{workerId}", (string workerId, ClaimsPrincipal user,
     {
         worker.WorkerId,
         Name = worker.WorkerId,
+        Version = worker.Metadata?.Version,
+        Hostname = worker.Metadata?.Hostname,
+        OperatingSystem = worker.Metadata?.OperatingSystem,
+        Architecture = worker.Metadata?.Architecture,
         Address = worker.ConnectionId,
         IsOnline = true,
         LastSeenAtUtc = worker.LastSeenAtUtc,
@@ -737,5 +771,73 @@ static async Task<bool> IsAdmin(IServiceProvider serviceProvider, string userId)
 
 public record InviteUserRequest(string Email, string? Role);
 public record UpdateUserRequest(string? Role, string? Status);
+
+internal sealed class LatestVersionCache
+{
+    private readonly HttpClient _http = new()
+    {
+        DefaultRequestHeaders =
+        {
+            UserAgent = { new System.Net.Http.Headers.ProductInfoHeaderValue("CortexTerminal", "1.0") }
+        }
+    };
+
+    private string? _workerLatest;
+    private string? _gatewayLatest;
+    private DateTimeOffset _lastRefresh = DateTimeOffset.MinValue;
+    private readonly SemaphoreSlim _lock = new(1, 1);
+    private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(30);
+
+    public async Task<string?> GetLatestAsync(string releasesUrl, string tagPrefix)
+    {
+        await RefreshIfNeededAsync(releasesUrl);
+        return tagPrefix == "worker-v" ? _workerLatest : _gatewayLatest;
+    }
+
+    private async Task RefreshIfNeededAsync(string releasesUrl)
+    {
+        if (DateTimeOffset.UtcNow - _lastRefresh < CacheDuration) return;
+
+        await _lock.WaitAsync();
+        try
+        {
+            if (DateTimeOffset.UtcNow - _lastRefresh < CacheDuration) return;
+
+            try
+            {
+                using var resp = await _http.GetAsync(releasesUrl);
+                if (!resp.IsSuccessStatusCode) return;
+
+                using var doc = await JsonDocument.ParseAsync(await resp.Content.ReadAsStreamAsync());
+                foreach (var release in doc.RootElement.EnumerateArray())
+                {
+                    if (!release.TryGetProperty("tag_name", out var tagEl)) continue;
+                    var tag = tagEl.GetString() ?? "";
+                    var version = tag.StartsWith("worker-v") ? tag["worker-v".Length..]
+                        : tag.StartsWith("gateway-v") ? tag["gateway-v".Length..]
+                        : null;
+                    if (version is null) continue;
+
+                    if (tag.StartsWith("worker-v") && _workerLatest is null)
+                        _workerLatest = version;
+                    else if (tag.StartsWith("gateway-v") && _gatewayLatest is null)
+                        _gatewayLatest = version;
+
+                    if (_workerLatest is not null && _gatewayLatest is not null) break;
+                }
+
+                _lastRefresh = DateTimeOffset.UtcNow;
+            }
+            catch
+            {
+                // GitHub API unavailable — keep cached values
+            }
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+}
 
 public partial class Program;

@@ -127,6 +127,12 @@ public sealed class SessionCoordinatorTests
         {
             return false;
         }
+
+        public void UpdateMetadata(string workerId, WorkerMetadata? metadata)
+            => throw new NotSupportedException();
+
+        public IReadOnlyList<RegisteredWorker> GetOnlineWorkersForUser(string userId)
+            => throw new NotSupportedException();
     }
 
     private sealed class CoordinatedWorkerRegistry : IWorkerRegistry
@@ -167,5 +173,11 @@ public sealed class SessionCoordinatorTests
 
         public bool SetWorkerOwner(string workerId, string ownerUserId)
             => _inner.SetWorkerOwner(workerId, ownerUserId);
+
+        public void UpdateMetadata(string workerId, WorkerMetadata? metadata)
+            => _inner.UpdateMetadata(workerId, metadata);
+
+        public IReadOnlyList<RegisteredWorker> GetOnlineWorkersForUser(string userId)
+            => _inner.GetOnlineWorkersForUser(userId);
     }
 }

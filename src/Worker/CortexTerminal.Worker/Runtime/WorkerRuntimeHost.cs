@@ -1,4 +1,6 @@
 using System.Collections.Concurrent;
+using System.Reflection;
+using System.Runtime.InteropServices;
 using CortexTerminal.Contracts.Sessions;
 using CortexTerminal.Contracts.Streaming;
 using CortexTerminal.Worker.Pty;
@@ -77,10 +79,27 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         _logger.LogInformation("Worker {WorkerId} has been disposed.", _workerId);
     }
 
-    private Task RegisterWorkerAsync(CancellationToken cancellationToken)
+    private async Task RegisterWorkerAsync(CancellationToken cancellationToken)
     {
         _logger.LogInformation("Registering worker {WorkerId}.", _workerId);
-        return _gatewayClient.RegisterAsync(_workerId, cancellationToken);
+        await _gatewayClient.RegisterAsync(_workerId, cancellationToken);
+
+        var info = new WorkerInfoFrame(
+            _workerId,
+            Environment.MachineName,
+            RuntimeInformation.OSDescription,
+            RuntimeInformation.OSArchitecture.ToString(),
+            Environment.MachineName,
+            Assembly.GetEntryAssembly()?.GetName().Version?.ToString());
+
+        try
+        {
+            await _gatewayClient.SendWorkerInfoAsync(info, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to send worker info for {WorkerId}.", _workerId);
+        }
     }
 
     private async Task HandleStartSessionAsync(StartSessionCommand command)

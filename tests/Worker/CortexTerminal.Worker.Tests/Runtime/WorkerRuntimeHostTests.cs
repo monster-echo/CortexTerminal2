@@ -166,6 +166,9 @@ internal sealed class FakeWorkerGatewayClient : IWorkerGatewayClient
         return Task.CompletedTask;
     }
 
+    public Task SendWorkerInfoAsync(WorkerInfoFrame info, CancellationToken ct)
+        => Task.CompletedTask;
+
     public async Task RaiseStartSessionAsync(StartSessionCommand command)
     {
         foreach (var handler in _startHandlers)

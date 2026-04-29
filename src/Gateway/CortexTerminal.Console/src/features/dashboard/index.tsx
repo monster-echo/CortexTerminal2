@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from '@tanstack/react-router'
@@ -26,11 +26,14 @@ import { StatusBadge } from '@/components/shared/status-badge'
 import { StatusDot } from '@/components/shared/status-dot'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
+import { NewSessionDialog } from '@/components/new-session-dialog'
 
 function createApi() {
   return createConsoleApi({
     getToken: () => useAuthStore.getState().auth.accessToken,
     onUnauthorized: () => useAuthStore.getState().auth.reset(),
+    onTokenRefreshed: (newToken) =>
+      useAuthStore.getState().auth.setAccessToken(newToken),
   })
 }
 
@@ -52,6 +55,13 @@ export function Dashboard() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const api = useMemo(() => createApi(), [])
+  const [newSessionDialogOpen, setNewSessionDialogOpen] = useState(false)
+  const [isCreatingSession, setIsCreatingSession] = useState(false)
+
+  const workersQuery = useQuery({
+    queryKey: ['workers', api],
+    queryFn: () => api.listWorkers(),
+  })
 
   const sessionsQuery = useQuery({
     queryKey: ['sessions', api],
@@ -95,6 +105,19 @@ export function Dashboard() {
     }
     return Array.from(map.values())
   }, [sessions])
+
+  const handleCreateSession = useCallback((workerId?: string) => {
+    const bootstrapId = crypto.randomUUID()
+    setIsCreatingSession(true)
+    setNewSessionDialogOpen(false)
+    navigate({
+      to: '/sessions/new',
+      search: {
+        bootstrapId,
+        ...(workerId ? { workerId } : {}),
+      },
+    })
+  }, [navigate])
 
   return (
     <>
@@ -167,12 +190,8 @@ export function Dashboard() {
               <CardTitle>{t('dashboard.recentSessions')}</CardTitle>
               <Button
                 size='sm'
-                onClick={() =>
-                  navigate({
-                    to: '/sessions/new',
-                    search: { bootstrapId: crypto.randomUUID() },
-                  })
-                }
+                onClick={() => setNewSessionDialogOpen(true)}
+                disabled={isCreatingSession}
               >
                 <Plus className='mr-1 h-4 w-4' />
                 {t('dashboard.newSession')}
@@ -317,6 +336,15 @@ export function Dashboard() {
             </CardContent>
           </Card>
         </div>
+
+        <NewSessionDialog
+          open={newSessionDialogOpen}
+          onOpenChange={setNewSessionDialogOpen}
+          workers={workersQuery.data ?? []}
+          isLoadingWorkers={workersQuery.isLoading}
+          onCreateSession={handleCreateSession}
+          isCreating={isCreatingSession}
+        />
       </Main>
     </>
   )

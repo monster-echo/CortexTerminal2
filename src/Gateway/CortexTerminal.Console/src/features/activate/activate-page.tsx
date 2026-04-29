@@ -12,6 +12,8 @@ const consoleApi = createConsoleApi({
   onUnauthorized: () => {
     useAuthStore.getState().auth.reset()
   },
+  onTokenRefreshed: (newToken) =>
+    useAuthStore.getState().auth.setAccessToken(newToken),
 })
 
 export function ActivatePage() {

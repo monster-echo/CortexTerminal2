@@ -11,3 +11,4 @@ artifacts/
 *.lscache
 .playwright-mcp/
 .vscode/
+.gstack/

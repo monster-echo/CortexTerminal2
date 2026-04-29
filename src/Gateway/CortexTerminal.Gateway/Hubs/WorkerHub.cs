@@ -40,6 +40,25 @@ public sealed class WorkerHub(
         ));
     }
 
+    public void UpdateWorkerInfo(WorkerInfoFrame info)
+    {
+        var worker = workers.FindByConnectionId(Context.ConnectionId);
+        if (worker is null)
+        {
+            logger.LogWarning("UpdateWorkerInfo from unknown connection {ConnectionId}.", Context.ConnectionId);
+            return;
+        }
+
+        workers.UpdateMetadata(worker.WorkerId, new WorkerMetadata(
+            info.Hostname,
+            info.OperatingSystem,
+            info.Architecture,
+            info.MachineName,
+            info.Version));
+        logger.LogInformation("Worker {WorkerId} updated info: hostname={Hostname}, os={OS}, arch={Arch}, version={Version}.",
+            worker.WorkerId, info.Hostname, info.OperatingSystem, info.Architecture, info.Version);
+    }
+
     public override Task OnDisconnectedAsync(Exception? exception)
     {
         // Find and unregister the worker that belonged to this connection

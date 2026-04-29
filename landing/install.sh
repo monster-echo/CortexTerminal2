@@ -118,28 +118,37 @@ install_service() {
   PLATFORM_OS=$(echo "$RID_AND_EXT" | cut -d' ' -f1 | cut -d'-' -f1)
 
   if [ "$PLATFORM_OS" = "linux" ] && command -v systemctl >/dev/null 2>&1; then
-    info "Installing systemd service ..."
-    CURRENT_USER=$(whoami)
-    CURRENT_GROUP=$(id -gn)
+    SERVICE_TEMPLATE="${INSTALL_DIR}/cortexterm-worker.service"
+    [ ! -f "$SERVICE_TEMPLATE" ] && return 0
+
+    info "Installing systemd user service ..."
+    SERVICE_FILE=$(mktemp)
     sed -e "s|{{INSTALL_DIR}}|${INSTALL_DIR}|g" -e "s|{{HOME}}|${HOME}|g" \
-      -e "s|{{USER}}|${CURRENT_USER}|g" -e "s|{{GROUP}}|${CURRENT_GROUP}|g" \
-      "${INSTALL_DIR}/cortexterm-worker.service" > /tmp/cortexterm-worker.service 2>/dev/null || true
-    if [ -f /tmp/cortexterm-worker.service ]; then
-      sudo cp /tmp/cortexterm-worker.service /etc/systemd/system/cortexterm-worker.service
-      sudo systemctl daemon-reload
-      sudo systemctl enable cortexterm-worker
-      ok "systemd service installed. Run: sudo systemctl start cortexterm-worker"
-    fi
+      "$SERVICE_TEMPLATE" > "$SERVICE_FILE"
+
+    USER_UNIT_DIR="$HOME/.config/systemd/user"
+    mkdir -p "$USER_UNIT_DIR"
+    cp "$SERVICE_FILE" "$USER_UNIT_DIR/cortexterm-worker.service"
+    systemctl --user daemon-reload
+    systemctl --user enable cortexterm-worker
+    loginctl enable-linger "$(whoami)" 2>/dev/null || true
+    rm -f "$SERVICE_FILE"
+    ok "systemd user service installed. Run: systemctl --user start cortexterm-worker"
+
   elif [ "$PLATFORM_OS" = "osx" ]; then
+    PLIST_TEMPLATE="${INSTALL_DIR}/com.cortexterm.worker.plist"
+    [ ! -f "$PLIST_TEMPLATE" ] && return 0
+
     info "Installing LaunchAgent ..."
     PLIST_DIR="$HOME/Library/LaunchAgents"
     mkdir -p "$PLIST_DIR"
+    PLIST_FILE=$(mktemp)
     sed -e "s|{{INSTALL_DIR}}|${INSTALL_DIR}|g" -e "s|{{HOME}}|${HOME}|g" \
-      "${INSTALL_DIR}/com.cortexterm.worker.plist" > "$PLIST_DIR/com.cortexterm.worker.plist" 2>/dev/null || true
-    if [ -f "$PLIST_DIR/com.cortexterm.worker.plist" ]; then
-      launchctl load "$PLIST_DIR/com.cortexterm.worker.plist" 2>/dev/null || true
-      ok "LaunchAgent installed and loaded (auto-start on login)"
-    fi
+      "$PLIST_TEMPLATE" > "$PLIST_FILE"
+    cp "$PLIST_FILE" "$PLIST_DIR/com.cortexterm.worker.plist"
+    rm -f "$PLIST_FILE"
+    launchctl load "$PLIST_DIR/com.cortexterm.worker.plist" 2>/dev/null || true
+    ok "LaunchAgent installed and loaded (auto-start on login)"
   fi
 }
 

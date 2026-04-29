@@ -2,7 +2,7 @@ name: Worker Platform Release
 
 on:
   push:
-    tags: ['v*']
+    tags: ['worker-v*']
 
 permissions:
   contents: write
@@ -32,6 +32,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Extract version from tag
+        id: version
+        shell: bash
+        run: echo "VERSION=${GITHUB_REF#refs/tags/worker-v}" >> "$GITHUB_OUTPUT"
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
@@ -45,6 +50,7 @@ jobs:
             --self-contained true `
             -p:PublishSingleFile=true `
             -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:Version=${{ steps.version.outputs.VERSION }} `
             --output ./publish/worker-${{ matrix.rid }}
         shell: pwsh
 
@@ -52,7 +58,10 @@ jobs:
         if: matrix.archive == 'tar.gz'
         run: |
           find ./publish/worker-${{ matrix.rid }} -name '*.pdb' -delete
-          cp deploy/com.cortexterm.worker.plist deploy/cortexterm-worker.service ./publish/worker-${{ matrix.rid }}/ 2>/dev/null || true
+          case "${{ matrix.rid }}" in
+            linux-*) cp deploy/cortexterm-worker.service ./publish/worker-${{ matrix.rid }}/ ;;
+            osx-*)   cp deploy/com.cortexterm.worker.plist ./publish/worker-${{ matrix.rid }}/ ;;
+          esac
           tar -czf cortex-${{ matrix.rid }}.tar.gz -C ./publish/worker-${{ matrix.rid }} .
 
       - name: Create archive (zip)
@@ -60,7 +69,6 @@ jobs:
         shell: pwsh
         run: |
           Get-ChildItem -Path ./publish/worker-${{ matrix.rid }} -Filter *.pdb | Remove-Item
-          Copy-Item -Path deploy/cortexterm-worker.service,deploy/com.cortexterm.worker.plist -Destination ./publish/worker-${{ matrix.rid }}/ -ErrorAction SilentlyContinue
           Compress-Archive `
             -Path ./publish/worker-${{ matrix.rid }}/* `
             -DestinationPath cortex-${{ matrix.rid }}.zip

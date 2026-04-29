@@ -22,11 +22,13 @@ function createApi() {
   return createConsoleApi({
     getToken: () => useAuthStore.getState().auth.accessToken,
     onUnauthorized: () => useAuthStore.getState().auth.reset(),
+    onTokenRefreshed: (newToken) =>
+      useAuthStore.getState().auth.setAccessToken(newToken),
   })
 }
 
-export function NewSessionPage(props: { bootstrapId?: string }) {
-  const { bootstrapId } = props
+export function NewSessionPage(props: { bootstrapId?: string; workerId?: string }) {
+  const { bootstrapId, workerId } = props
   const navigate = useNavigate()
   const api = useMemo(() => createApi(), [])
   const latestSizeRef = useRef<TerminalSize | null>(null)
@@ -76,7 +78,7 @@ export function NewSessionPage(props: { bootstrapId?: string }) {
       )
 
       void getOrStartSessionCreation(bootstrapId, () =>
-        api.createSession(nextSize, bootstrapId)
+        api.createSession(nextSize, bootstrapId, workerId)
       )
         .then((result) => {
           if (!isActiveRef.current) {
@@ -114,7 +116,7 @@ export function NewSessionPage(props: { bootstrapId?: string }) {
           )
         })
     },
-    [api, bootstrapId, moveScope, navigate, pushEvent]
+    [api, bootstrapId, workerId, moveScope, navigate, pushEvent]
   )
 
   const handleResize = useCallback(

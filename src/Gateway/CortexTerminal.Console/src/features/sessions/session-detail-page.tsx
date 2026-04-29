@@ -14,6 +14,8 @@ export function SessionDetailPage(props: { sessionId: string }) {
       createConsoleApi({
         getToken: () => useAuthStore.getState().auth.accessToken,
         onUnauthorized: () => useAuthStore.getState().auth.reset(),
+        onTokenRefreshed: (newToken) =>
+          useAuthStore.getState().auth.setAccessToken(newToken),
       }),
     []
   )

@@ -10,6 +10,20 @@ public interface IWorkerRegistry
     RegisteredWorker? FindByConnectionId(string connectionId);
     IReadOnlyList<RegisteredWorker> GetWorkersForUser(string userId);
     bool SetWorkerOwner(string workerId, string ownerUserId);
+    void UpdateMetadata(string workerId, WorkerMetadata? metadata);
+    IReadOnlyList<RegisteredWorker> GetOnlineWorkersForUser(string userId);
 }
 
-public sealed record RegisteredWorker(string WorkerId, string ConnectionId, string? OwnerUserId = null, DateTimeOffset? LastSeenAtUtc = null);
+public sealed record RegisteredWorker(
+    string WorkerId,
+    string ConnectionId,
+    string? OwnerUserId = null,
+    DateTimeOffset? LastSeenAtUtc = null,
+    WorkerMetadata? Metadata = null);
+
+public sealed record WorkerMetadata(
+    string? Hostname = null,
+    string? OperatingSystem = null,
+    string? Architecture = null,
+    string? Name = null,
+    string? Version = null);

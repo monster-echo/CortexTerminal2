@@ -13,6 +13,8 @@ import { createAuthService, type AuthSession } from "./services/auth"
 import { createConsoleApi } from "./services/consoleApi"
 import { createTerminalGateway } from "./services/terminalGateway"
 
+const REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000 // 24 hours
+
 export function App() {
   const auth = useMemo(() => createAuthService(window.localStorage), [])
   const [session, setSession] = useState<AuthSession | null>(() => auth.getSession())
@@ -35,15 +37,50 @@ export function App() {
     setHash(loginHash)
   }, [auth])
 
+  const handleTokenRefreshed = useCallback(
+    (newToken: string) => {
+      const current = auth.getSession()
+      if (current) {
+        auth.setSession({ ...current, token: newToken })
+      }
+    },
+    [auth]
+  )
+
   const api = useMemo(
     () =>
       createConsoleApi({
         fetchFn: window.fetch.bind(window),
         getToken: () => auth.getToken(),
         onUnauthorized: handleUnauthorized,
+        onTokenRefreshed: handleTokenRefreshed,
       }),
-    [auth, handleUnauthorized]
+    [auth, handleUnauthorized, handleTokenRefreshed]
   )
+
+  // Periodic token refresh
+  useEffect(() => {
+    if (!session) return
+    const timer = setInterval(async () => {
+      const token = auth.getToken()
+      if (!token) return
+      try {
+        const response = await fetch("/api/auth/refresh", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        })
+        if (!response.ok) return
+        const data = (await response.json()) as { accessToken: string }
+        handleTokenRefreshed(data.accessToken)
+      } catch {
+        // Silently ignore
+      }
+    }, REFRESH_INTERVAL_MS)
+    return () => clearInterval(timer)
+  }, [session, auth, handleTokenRefreshed])
   const terminalGateway = useMemo(
     () =>
       createTerminalGateway({

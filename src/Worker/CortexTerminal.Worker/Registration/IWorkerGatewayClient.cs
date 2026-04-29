@@ -18,4 +18,5 @@ public interface IWorkerGatewayClient : IAsyncDisposable
     Task ForwardLatencyProbeAsync(LatencyProbeFrame frame, CancellationToken cancellationToken);
     Task ForwardExitedAsync(SessionExited evt, CancellationToken cancellationToken);
     Task ForwardStartFailedAsync(SessionStartFailedEvent evt, CancellationToken cancellationToken);
+    Task SendWorkerInfoAsync(WorkerInfoFrame info, CancellationToken ct);
 }
