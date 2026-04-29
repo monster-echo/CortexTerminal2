@@ -113,12 +113,40 @@ add_to_path() {
   fi
 }
 
+# ---- Install as service ----
+install_service() {
+  PLATFORM_OS=$(echo "$RID_AND_EXT" | cut -d' ' -f1 | cut -d'-' -f1)
+
+  if [ "$PLATFORM_OS" = "linux" ] && command -v systemctl >/dev/null 2>&1; then
+    info "Installing systemd service ..."
+    sed -e "s|{{INSTALL_DIR}}|${INSTALL_DIR}|g" -e "s|{{HOME}}|${HOME}|g" \
+      "${INSTALL_DIR}/cortexterm-worker.service" > /tmp/cortexterm-worker.service 2>/dev/null || true
+    if [ -f /tmp/cortexterm-worker.service ]; then
+      sudo cp /tmp/cortexterm-worker.service /etc/systemd/system/cortexterm-worker.service
+      sudo systemctl daemon-reload
+      sudo systemctl enable cortexterm-worker
+      ok "systemd service installed. Run: sudo systemctl start cortexterm-worker"
+    fi
+  elif [ "$PLATFORM_OS" = "osx" ]; then
+    info "Installing LaunchAgent ..."
+    PLIST_DIR="$HOME/Library/LaunchAgents"
+    mkdir -p "$PLIST_DIR"
+    sed -e "s|{{INSTALL_DIR}}|${INSTALL_DIR}|g" -e "s|{{HOME}}|${HOME}|g" \
+      "${INSTALL_DIR}/com.cortexterm.worker.plist" > "$PLIST_DIR/com.cortexterm.worker.plist" 2>/dev/null || true
+    if [ -f "$PLIST_DIR/com.cortexterm.worker.plist" ]; then
+      launchctl load "$PLIST_DIR/com.cortexterm.worker.plist" 2>/dev/null || true
+      ok "LaunchAgent installed and loaded (auto-start on login)"
+    fi
+  fi
+}
+
 # ---- Main ----
 printf "\n"
 printf "  ${BOLD}CortexTerminal Worker Installer${RESET}\n"
 printf "  %s\n\n" "──────────────────────────────────────────"
 RID_AND_EXT=$(detect_platform)
 download_worker ${RID_AND_EXT}
+install_service
 add_to_path
 
 printf "\n"

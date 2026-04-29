@@ -1,0 +1,22 @@
+[Unit]
+Description=CortexTerminal Worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart={{INSTALL_DIR}}/cortex
+WorkingDirectory={{HOME}}
+Restart=always
+RestartSec=5
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=cortex
+
+# Environment
+Environment=DOTNET_SYSTEM_NET_DISABLEIPV6=1
+
+[Install]
+WantedBy=multi-user.target

@@ -52,6 +52,7 @@ jobs:
         if: matrix.archive == 'tar.gz'
         run: |
           find ./publish/worker-${{ matrix.rid }} -name '*.pdb' -delete
+          cp deploy/com.cortexterm.worker.plist deploy/cortexterm-worker.service ./publish/worker-${{ matrix.rid }}/ 2>/dev/null || true
           tar -czf cortex-${{ matrix.rid }}.tar.gz -C ./publish/worker-${{ matrix.rid }} .
 
       - name: Create archive (zip)
@@ -59,6 +60,7 @@ jobs:
         shell: pwsh
         run: |
           Get-ChildItem -Path ./publish/worker-${{ matrix.rid }} -Filter *.pdb | Remove-Item
+          Copy-Item -Path deploy/cortexterm-worker.service,deploy/com.cortexterm.worker.plist -Destination ./publish/worker-${{ matrix.rid }}/ -ErrorAction SilentlyContinue
           Compress-Archive `
             -Path ./publish/worker-${{ matrix.rid }}/* `
             -DestinationPath cortex-${{ matrix.rid }}.zip
