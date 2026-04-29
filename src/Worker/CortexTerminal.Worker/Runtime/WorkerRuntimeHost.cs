@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using CortexTerminal.Contracts.Sessions;
@@ -42,6 +43,7 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         _subscriptions.Add(_gatewayClient.OnLatencyProbe(HandleLatencyProbeAsync));
         _subscriptions.Add(_gatewayClient.OnResizeSession(HandleResizeSessionAsync));
         _subscriptions.Add(_gatewayClient.OnCloseSession(HandleCloseSessionAsync));
+        _subscriptions.Add(_gatewayClient.OnUpgradeWorker(HandleUpgradeWorkerAsync));
         _subscriptions.Add(_gatewayClient.OnReconnected(_ => RegisterWorkerAsync(CancellationToken.None)));
 
         _logger.LogInformation("Worker {WorkerId} is starting.", _workerId);
@@ -204,5 +206,93 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
     {
         _logger.LogInformation("Ignoring {Operation} for unknown session {SessionId}.", operation, sessionId);
         return Task.CompletedTask;
+    }
+
+    private async Task HandleUpgradeWorkerAsync(UpgradeWorkerCommand command)
+    {
+        _logger.LogInformation("Received upgrade command: target={TargetVersion}, url={DownloadUrl}", command.TargetVersion, command.DownloadUrl);
+
+        try
+        {
+            var installDir = AppContext.BaseDirectory;
+            var isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+            string tmpFile;
+
+            // Download
+            using (var http = new HttpClient())
+            {
+                var tmpDir = Path.Combine(Path.GetTempPath(), $"cortex-upgrade-{Guid.NewGuid():N}");
+                Directory.CreateDirectory(tmpDir);
+                tmpFile = Path.Combine(tmpDir, isWindows ? "cortex.zip" : "cortex.tar.gz");
+
+                _logger.LogInformation("Downloading upgrade from {Url} ...", command.DownloadUrl);
+                var data = await http.GetByteArrayAsync(command.DownloadUrl);
+                await File.WriteAllBytesAsync(tmpFile, data);
+                _logger.LogInformation("Download complete ({Size} bytes), extracting ...", data.Length);
+
+                // Extract to temp directory
+                var extractDir = Path.Combine(tmpDir, "extracted");
+                Directory.CreateDirectory(extractDir);
+
+                if (isWindows)
+                {
+                    System.IO.Compression.ZipFile.ExtractToDirectory(tmpFile, extractDir, overwriteFiles: true);
+                }
+                else
+                {
+                    var tar = Process.Start(new ProcessStartInfo("tar", $"-xzf \"{tmpFile}\" -C \"{extractDir}\"")
+                    {
+                        UseShellExecute = false
+                    });
+                    if (tar is not null)
+                    {
+                        await tar.WaitForExitAsync();
+                    }
+                }
+
+                // Replace binary
+                var newBinary = Path.Combine(extractDir, isWindows ? "cortex.exe" : "cortex");
+                if (!File.Exists(newBinary))
+                {
+                    _logger.LogError("Upgrade failed: binary not found in archive at {Path}", newBinary);
+                    return;
+                }
+
+                var currentBinary = Process.GetCurrentProcess().MainModule?.FileName
+                    ?? throw new InvalidOperationException("Cannot determine current process path.");
+                var backupPath = currentBinary + ".bak";
+
+                // Rename current binary, move new one into place
+                if (File.Exists(backupPath)) File.Delete(backupPath);
+                File.Move(currentBinary, backupPath);
+                File.Copy(newBinary, currentBinary, overwrite: true);
+                if (!isWindows)
+                {
+                    try { File.SetUnixFileMode(currentBinary, UnixFileMode.UserExecute | UnixFileMode.GroupExecute | UnixFileMode.OtherRead | UnixFileMode.UserRead | UnixFileMode.GroupRead); } catch { }
+                }
+
+                _logger.LogInformation("Binary replaced. Restarting ...");
+
+                // Start new process then exit
+                Process.Start(new ProcessStartInfo(currentBinary)
+                {
+                    WorkingDirectory = installDir,
+                    UseShellExecute = false
+                });
+
+                // Clean up: delete backup after a short delay (we're exiting anyway)
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(2000);
+                    try { File.Delete(backupPath); } catch { }
+                });
+
+                Environment.Exit(0);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Upgrade failed.");
+        }
     }
 }

@@ -82,3 +82,8 @@ public sealed record WorkerInfoFrame(
     [property: Key(3)] string? Architecture,
     [property: Key(4)] string? MachineName,
     [property: Key(5)] string? Version);
+
+[MessagePackObject]
+public sealed record UpgradeWorkerCommand(
+    [property: Key(0)] string TargetVersion,
+    [property: Key(1)] string DownloadUrl);

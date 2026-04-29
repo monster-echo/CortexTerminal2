@@ -5,6 +5,7 @@ using System.Text.Json;
 using CortexTerminal.Contracts.Auth;
 using CortexTerminal.Contracts.Console;
 using CortexTerminal.Contracts.Sessions;
+using CortexTerminal.Contracts.Streaming;
 using CortexTerminal.Gateway.Audit;
 using CortexTerminal.Gateway.Auth;
 using CortexTerminal.Gateway.Data;
@@ -501,31 +502,64 @@ app.MapGet("/api/gateway/info", async (IConfiguration config) =>
     });
 }).RequireAuthorization();
 
-app.MapGet("/api/me/workers", (ClaimsPrincipal user, IWorkerRegistry workers, ISessionCoordinator sessions) =>
+app.MapGet("/api/me/workers", async (ClaimsPrincipal user, IWorkerRegistry workers) =>
 {
     var userId = GetUserId(user);
-    var userSessions = sessions.GetSessionsForUser(userId);
-    var summaries = workers.GetWorkersForUser(userId)
-        .OrderBy(worker => worker.WorkerId)
-        .Select(worker => new
+    var allWorkers = await workers.GetAllWorkersForUserAsync(userId);
+
+    var summaries = allWorkers
+        .Select(w => new
         {
-            worker.WorkerId,
-            Name = worker.Metadata?.Name ?? worker.WorkerId,
-            Hostname = worker.Metadata?.Hostname,
-            OperatingSystem = worker.Metadata?.OperatingSystem,
-            Architecture = worker.Metadata?.Architecture,
-            Version = worker.Metadata?.Version,
-            Address = worker.ConnectionId,
-            IsOnline = true,
-            LastSeenAtUtc = worker.LastSeenAtUtc,
-            SessionCount = userSessions.Count(session => session.WorkerId == worker.WorkerId)
+            w.WorkerId,
+            Name = w.Name ?? w.Hostname ?? w.WorkerId,
+            w.Hostname,
+            w.OperatingSystem,
+            w.Architecture,
+            w.Version,
+            Address = (string?)null,
+            w.IsOnline,
+            w.LastSeenAtUtc,
+            SessionCount = 0
         })
         .ToArray();
 
     return Results.Ok(summaries);
 }).RequireAuthorization();
 
-app.MapGet("/api/me/workers/{workerId}", (string workerId, ClaimsPrincipal user, IWorkerRegistry workers, ISessionCoordinator sessions) =>
+app.MapGet("/api/me/workers/{workerId}", async (string workerId, ClaimsPrincipal user, IWorkerRegistry workers, ISessionCoordinator sessions) =>
+{
+    var userId = GetUserId(user);
+    var allWorkers = await workers.GetAllWorkersForUserAsync(userId);
+    var workerRecord = allWorkers.FirstOrDefault(w => w.WorkerId == workerId);
+
+    if (workerRecord is null)
+    {
+        return Results.NotFound();
+    }
+
+    var hostedSessions = sessions.GetSessionsForUser(userId)
+        .Where(session => session.WorkerId == workerId)
+        .OrderByDescending(session => session.LastActivityAtUtc)
+        .Select(ToSessionSummaryResponse)
+        .ToArray();
+
+    return Results.Ok(new
+    {
+        workerRecord.WorkerId,
+        Name = workerRecord.Name ?? workerRecord.Hostname ?? workerRecord.WorkerId,
+        workerRecord.Hostname,
+        workerRecord.OperatingSystem,
+        workerRecord.Architecture,
+        workerRecord.Version,
+        Address = (string?)null,
+        workerRecord.IsOnline,
+        workerRecord.LastSeenAtUtc,
+        SessionCount = hostedSessions.Length,
+        Sessions = hostedSessions
+    });
+}).RequireAuthorization();
+
+app.MapPost("/api/me/workers/{workerId}/upgrade", async (string workerId, ClaimsPrincipal user, IWorkerRegistry workers, IWorkerCommandDispatcher dispatcher) =>
 {
     var userId = GetUserId(user);
     if (!workers.TryGetWorker(workerId, out var worker))
@@ -538,26 +572,30 @@ app.MapGet("/api/me/workers/{workerId}", (string workerId, ClaimsPrincipal user,
         return Results.Forbid();
     }
 
-    var hostedSessions = sessions.GetSessionsForUser(userId)
-        .Where(session => session.WorkerId == workerId)
-        .OrderByDescending(session => session.LastActivityAtUtc)
-        .Select(ToSessionSummaryResponse)
-        .ToArray();
+    var latestVersion = await latestVersionCache.GetLatestAsync(
+        $"https://api.github.com/repos/{githubRepo}/releases",
+        "worker-v");
 
-    return Results.Ok(new
+    if (string.IsNullOrEmpty(latestVersion))
     {
-        worker.WorkerId,
-        Name = worker.WorkerId,
-        Version = worker.Metadata?.Version,
-        Hostname = worker.Metadata?.Hostname,
-        OperatingSystem = worker.Metadata?.OperatingSystem,
-        Architecture = worker.Metadata?.Architecture,
-        Address = worker.ConnectionId,
-        IsOnline = true,
-        LastSeenAtUtc = worker.LastSeenAtUtc,
-        SessionCount = hostedSessions.Length,
-        Sessions = hostedSessions
-    });
+        return Results.BadRequest(new { error = "Could not determine latest worker version." });
+    }
+
+    // Build RID from worker metadata
+    var os = worker.Metadata?.OperatingSystem;
+    var arch = worker.Metadata?.Architecture ?? "X64";
+    var ridOs = os != null && os.Contains("Darwin", StringComparison.OrdinalIgnoreCase) ? "osx"
+              : os != null && os.Contains("Windows", StringComparison.OrdinalIgnoreCase) ? "win"
+              : "linux";
+    var ridArch = arch.Equals("Arm64", StringComparison.OrdinalIgnoreCase) ? "arm64" : "x64";
+    var rid = $"{ridOs}-{ridArch}";
+    var ext = ridOs == "win" ? "zip" : "tar.gz";
+    var assetName = $"cortex-{rid}.{ext}";
+    var githubProxy = builder.Configuration["GitHub:Proxy"] ?? "https://proxy.0x2a.top";
+    var downloadUrl = $"{githubProxy}/https://github.com/{githubRepo}/releases/latest/download/{assetName}";
+
+    await dispatcher.UpgradeWorkerAsync(worker.ConnectionId, new UpgradeWorkerCommand(latestVersion, downloadUrl), CancellationToken.None);
+    return Results.Ok(new { message = "Upgrade command sent.", TargetVersion = latestVersion });
 }).RequireAuthorization();
 
 app.MapHub<TerminalHub>("/hubs/terminal");

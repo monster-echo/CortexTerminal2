@@ -1,5 +1,5 @@
-import { useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMemo, useState } from 'react'
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from '@tanstack/react-router'
 import { createConsoleApi } from '@/services/console-api'
@@ -19,6 +19,7 @@ import { StatusDot } from '@/components/shared/status-dot'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 
 function createApi() {
   return createConsoleApi({
@@ -32,7 +33,15 @@ function createApi() {
 export function WorkerListPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const api = useMemo(() => createApi(), [])
+
+  const [upgradeTarget, setUpgradeTarget] = useState<{
+    workerId: string
+    workerName: string
+    currentVersion: string
+    targetVersion: string
+  } | null>(null)
 
   const workersQuery = useQuery({
     queryKey: ['workers', api],
@@ -45,6 +54,31 @@ export function WorkerListPage() {
   })
 
   const workers = workersQuery.data ?? []
+
+  const upgradeMutation = useMutation({
+    mutationFn: () => {
+      if (!upgradeTarget) throw new Error('No target')
+      return api.upgradeWorker(upgradeTarget.workerId)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['workers'] })
+      setUpgradeTarget(null)
+    },
+  })
+
+  const handleUpgradeClick = (
+    e: React.MouseEvent,
+    worker: { workerId: string; name?: string; version?: string }
+  ) => {
+    e.stopPropagation()
+    if (!worker.version || !gatewayInfoQuery.data?.latestWorkerVersion) return
+    setUpgradeTarget({
+      workerId: worker.workerId,
+      workerName: worker.name ?? worker.workerId,
+      currentVersion: worker.version,
+      targetVersion: gatewayInfoQuery.data.latestWorkerVersion,
+    })
+  }
 
   return (
     <>
@@ -110,6 +144,10 @@ export function WorkerListPage() {
                     const statusLabel = worker.isOnline
                       ? t('workers.status.online')
                       : t('workers.status.offline')
+                    const hasUpgrade =
+                      gatewayInfoQuery.data?.latestWorkerVersion &&
+                      worker.version &&
+                      worker.version !== gatewayInfoQuery.data.latestWorkerVersion
 
                     return (
                       <TableRow
@@ -136,11 +174,12 @@ export function WorkerListPage() {
                             <span className='font-mono text-xs'>
                               {worker.version ?? '—'}
                             </span>
-                            {gatewayInfoQuery.data?.latestWorkerVersion &&
-                              worker.version &&
-                              worker.version !== gatewayInfoQuery.data.latestWorkerVersion && (
-                                <ArrowUpCircle className='size-3.5 text-amber-500' />
-                              )}
+                            {hasUpgrade && (
+                              <ArrowUpCircle
+                                className='size-3.5 cursor-pointer text-amber-500 hover:text-amber-600'
+                                onClick={(e) => handleUpgradeClick(e, worker)}
+                              />
+                            )}
                           </div>
                         </TableCell>
                         <TableCell className='font-mono text-xs'>
@@ -164,6 +203,30 @@ export function WorkerListPage() {
             )}
           </CardContent>
         </Card>
+
+        <ConfirmDialog
+          open={upgradeTarget !== null}
+          onOpenChange={(open) => {
+            if (!open) setUpgradeTarget(null)
+          }}
+          title='Upgrade Worker'
+          desc={
+            upgradeTarget ? (
+              <p>
+                Upgrade <strong>{upgradeTarget.workerName}</strong> from{' '}
+                <code>{upgradeTarget.currentVersion}</code> to{' '}
+                <code>{upgradeTarget.targetVersion}</code>? The worker will
+                briefly go offline during the upgrade.
+              </p>
+            ) : (
+              ''
+            )
+          }
+          confirmText='Upgrade'
+          destructive
+          isLoading={upgradeMutation.isPending}
+          handleConfirm={() => upgradeMutation.mutate()}
+        />
       </Main>
     </>
   )

@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using CortexTerminal.Gateway.Data;
 
 namespace CortexTerminal.Gateway.Workers;
 
@@ -83,4 +84,26 @@ public sealed class InMemoryWorkerRegistry : IWorkerRegistry
         => _workers.Values
             .Where(w => w.OwnerUserId is null || w.OwnerUserId == userId)
             .ToArray();
+
+    public Task<IReadOnlyList<WorkerRecord>> GetAllWorkersForUserAsync(string userId)
+    {
+        var records = _workers.Values
+            .Where(w => w.OwnerUserId == userId)
+            .Select(w => new WorkerRecord
+            {
+                WorkerId = w.WorkerId,
+                OwnerUserId = w.OwnerUserId,
+                Hostname = w.Metadata?.Hostname,
+                OperatingSystem = w.Metadata?.OperatingSystem,
+                Architecture = w.Metadata?.Architecture,
+                Name = w.Metadata?.Name,
+                Version = w.Metadata?.Version,
+                LastSeenAtUtc = w.LastSeenAtUtc ?? DateTimeOffset.UtcNow,
+                FirstConnectedAtUtc = w.LastSeenAtUtc,
+                IsOnline = true
+            })
+            .ToList();
+
+        return Task.FromResult<IReadOnlyList<WorkerRecord>>(records);
+    }
 }

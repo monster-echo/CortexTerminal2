@@ -24,6 +24,9 @@ public class WorkerRecord
     [Column("name")]
     public string? Name { get; set; }
 
+    [Column("version")]
+    public string? Version { get; set; }
+
     [Required]
     [Column("last_seen_at_utc")]
     public DateTimeOffset LastSeenAtUtc { get; set; }

@@ -1,3 +1,5 @@
+using CortexTerminal.Gateway.Data;
+
 namespace CortexTerminal.Gateway.Workers;
 
 public interface IWorkerRegistry
@@ -12,6 +14,7 @@ public interface IWorkerRegistry
     bool SetWorkerOwner(string workerId, string ownerUserId);
     void UpdateMetadata(string workerId, WorkerMetadata? metadata);
     IReadOnlyList<RegisteredWorker> GetOnlineWorkersForUser(string userId);
+    Task<IReadOnlyList<WorkerRecord>> GetAllWorkersForUserAsync(string userId);
 }
 
 public sealed record RegisteredWorker(

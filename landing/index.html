@@ -487,6 +487,27 @@
   }
   .lang-btn:hover { background: var(--surface2); color: var(--text); border-color: var(--accent); }
 
+  /* ---------- Install Tabs ---------- */
+  .install-tabs {
+    display: flex;
+    gap: 4px;
+    margin: 0 auto 12px;
+    justify-content: center;
+  }
+  .install-tab {
+    background: var(--surface3);
+    color: var(--text3);
+    border: 1px solid var(--border);
+    padding: 5px 14px;
+    border-radius: var(--radius);
+    font-size: 12px;
+    font-family: var(--font-mono);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .install-tab:hover { color: var(--text2); }
+  .install-tab.active { background: var(--accent-glow); color: var(--accent); border-color: var(--accent); }
+
   /* ---------- Responsive ---------- */
   @media (max-width: 640px) {
     .hero { padding: 60px 0 40px; }
@@ -534,6 +555,10 @@
     </p>
 
     <!-- Install command -->
+    <div class="install-tabs">
+      <button class="install-tab active" onclick="switchInstallTab('sh', this)" data-i18n="tab_bash">bash</button>
+      <button class="install-tab" onclick="switchInstallTab('ps1', this)" data-i18n="tab_powershell">PowerShell</button>
+    </div>
     <div class="install-box">
       <div class="install-header">
         <div class="dots">
@@ -543,8 +568,8 @@
         <span style="width:52px"></span>
       </div>
       <div class="install-body">
-        <span class="prompt">$</span>
-        <code>curl -fsSL https://gateway.ct.rwecho.top/install.sh | sh</code>
+        <span class="prompt" id="installPrompt">$</span>
+        <code id="installCmd">curl -fsSL https://gateway.ct.rwecho.top/install.sh | sh</code>
         <button class="copy-btn" onclick="copyInstall(this)" id="copyBtn" data-i18n="btn_copy">Copy</button>
       </div>
     </div>
@@ -677,7 +702,11 @@
       </a>
     </div>
 
-    <div class="install-box" style="margin-top: 40px;">
+    <div class="install-tabs" style="margin-top: 40px;">
+      <button class="install-tab active" onclick="switchInstallTab('sh', this)">bash</button>
+      <button class="install-tab" onclick="switchInstallTab('ps1', this)">PowerShell</button>
+    </div>
+    <div class="install-box">
       <div class="install-header">
         <div class="dots">
           <span></span><span></span><span></span>
@@ -715,6 +744,8 @@ const translations = {
     hero_desc: "CortexTerminal connects your machines to a browser-based terminal. Run a Worker on any machine, access it through the Gateway \u2014 from anywhere, on any device.",
     btn_copy: "Copy",
     btn_copied: "Copied!",
+    tab_bash: "bash",
+    tab_powershell: "PowerShell",
     install_hint: "One command. Installs the Gateway Worker on your machine.",
     arch_title: "How It Works",
     arch_desc: "A lightweight Gateway routes your browser to the Worker running on your machine.",
@@ -757,6 +788,8 @@ const translations = {
     hero_desc: "CortexTerminal \u5C06\u4F60\u7684\u673A\u5668\u8FDE\u63A5\u5230\u6D4F\u89C8\u5668\u7EC8\u7AEF\u3002\u5728\u4EFB\u4F55\u673A\u5668\u4E0A\u8FD0\u884C Worker\uFF0C\u901A\u8FC7 Gateway \u8BBF\u95EE\u2014\u2014\u968F\u65F6\u968F\u5730\uFF0C\u4EFB\u610F\u8BBE\u5907\u3002",
     btn_copy: "\u590D\u5236",
     btn_copied: "\u5DF2\u590D\u5236!",
+    tab_bash: "bash",
+    tab_powershell: "PowerShell",
     install_hint: "\u4E00\u884C\u547D\u4EE4\uFF0C\u5B89\u88C5 Gateway Worker \u5230\u4F60\u7684\u673A\u5668\u3002",
     arch_title: "\u5DE5\u4F5C\u539F\u7406",
     arch_desc: "\u8F7B\u91CF\u7EA7 Gateway \u5C06\u6D4F\u89C8\u5668\u8BF7\u6C42\u8DEF\u7531\u5230\u673A\u5668\u4E0A\u8FD0\u884C\u7684 Worker\u3002",
@@ -829,6 +862,26 @@ function copyInstall(btn) {
       btn.classList.remove('copied');
     }, 2000);
   });
+}
+
+const installCommands = {
+  sh: { prompt: '$', cmd: 'curl -fsSL https://gateway.ct.rwecho.top/install.sh | sh' },
+  ps1: { prompt: '>', cmd: 'powershell -Command "irm https://gateway.ct.rwecho.top/install.ps1 | iex"' }
+};
+
+function switchInstallTab(type, tab) {
+  const parent = tab.closest('.install-tabs') || tab.parentElement;
+  parent.querySelectorAll('.install-tab').forEach(t => t.classList.remove('active'));
+  tab.classList.add('active');
+  const box = parent.nextElementSibling;
+  if (box) {
+    const prompt = box.querySelector('.prompt');
+    const code = box.querySelector('code');
+    if (prompt && code && installCommands[type]) {
+      prompt.textContent = installCommands[type].prompt;
+      code.textContent = installCommands[type].cmd;
+    }
+  }
 }
 
 // Initialize on load

@@ -106,6 +106,7 @@ export interface ConsoleApi {
   }): Promise<AuditLogResponse>
   verifyDeviceCode(userCode: string): Promise<void>
   getGatewayInfo(): Promise<GatewayInfo>
+  upgradeWorker(workerId: string): Promise<void>
 }
 
 type FetchFn = (input: string, init?: RequestInit) => Promise<Response>
@@ -342,6 +343,11 @@ export function createConsoleApi(
     },
     getGatewayInfo() {
       return request<GatewayInfo>('/api/gateway/info')
+    },
+    upgradeWorker(workerId) {
+      return requestVoid(`/api/me/workers/${encodeURIComponent(workerId)}/upgrade`, {
+        method: 'POST',
+      })
     },
   }
 }

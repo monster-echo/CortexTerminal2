@@ -21,4 +21,7 @@ public sealed class SignalRWorkerCommandDispatcher(IHubContext<WorkerHub> hubCon
 
     public Task CloseSessionAsync(string workerConnectionId, CloseSessionRequest request, CancellationToken cancellationToken)
         => hubContext.Clients.Client(workerConnectionId).SendAsync("CloseSession", request, cancellationToken);
+
+    public Task UpgradeWorkerAsync(string workerConnectionId, UpgradeWorkerCommand command, CancellationToken cancellationToken)
+        => hubContext.Clients.Client(workerConnectionId).SendAsync("UpgradeWorker", command, cancellationToken);
 }

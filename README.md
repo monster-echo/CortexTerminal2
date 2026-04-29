@@ -39,8 +39,16 @@ Browser  -->  Gateway  -->  Worker
 
 ### 1. Install the Worker
 
+**Linux / macOS:**
+
 ```bash
 curl -fsSL https://gateway.ct.rwecho.top/install.sh | sh
+```
+
+**Windows (PowerShell):**
+
+```powershell
+powershell -Command "irm https://gateway.ct.rwecho.top/install.ps1 | iex"
 ```
 
 Supported platforms: `linux/amd64`, `linux/arm64`, `macOS (Apple Silicon)`, `Windows x64`, `Docker`

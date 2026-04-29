@@ -137,6 +137,7 @@ public sealed class PostgresWorkerRegistry : IWorkerRegistry
                         record.OperatingSystem = metadata?.OperatingSystem;
                         record.Architecture = metadata?.Architecture;
                         record.Name = metadata?.Name;
+                        record.Version = metadata?.Version;
                         record.LastSeenAtUtc = DateTimeOffset.UtcNow;
                     }
                 });
@@ -149,6 +150,17 @@ public sealed class PostgresWorkerRegistry : IWorkerRegistry
         => _workers.Values
             .Where(w => w.OwnerUserId is null || w.OwnerUserId == userId)
             .ToArray();
+
+    public async Task<IReadOnlyList<WorkerRecord>> GetAllWorkersForUserAsync(string userId)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        return await db.Workers
+            .Where(w => w.OwnerUserId == userId)
+            .OrderByDescending(w => w.IsOnline)
+            .ThenBy(w => w.WorkerId)
+            .ToListAsync();
+    }
 
     private async Task PersistAsync(Func<AppDbContext, Task> action)
     {

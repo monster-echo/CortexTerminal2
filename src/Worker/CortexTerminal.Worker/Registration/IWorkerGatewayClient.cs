@@ -12,6 +12,7 @@ public interface IWorkerGatewayClient : IAsyncDisposable
     IDisposable OnLatencyProbe(Func<LatencyProbeFrame, Task> handler);
     IDisposable OnResizeSession(Func<ResizePtyRequest, Task> handler);
     IDisposable OnCloseSession(Func<CloseSessionRequest, Task> handler);
+    IDisposable OnUpgradeWorker(Func<UpgradeWorkerCommand, Task> handler);
     IDisposable OnReconnected(Func<string?, Task> handler);
     Task ForwardStdoutAsync(TerminalChunk chunk, CancellationToken cancellationToken);
     Task ForwardStderrAsync(TerminalChunk chunk, CancellationToken cancellationToken);

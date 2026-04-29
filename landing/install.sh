@@ -31,7 +31,7 @@ detect_platform() {
   case "$OS" in
     linux)  OS="linux" ;;
     darwin) OS="osx" ;;
-    mingw*|msys*|cygwin*) OS="windows" ;;
+    mingw*|msys*|cygwin*) OS="win" ;;
     *) fail "Unsupported OS: $OS" ;;
   esac
 
@@ -43,7 +43,7 @@ detect_platform() {
 
   RID="${OS}-${ARCH}"
   ARCHIVE_EXT="tar.gz"
-  [ "$OS" = "windows" ] && ARCHIVE_EXT="zip"
+  [ "$OS" = "win" ] && ARCHIVE_EXT="zip"
 
   echo "$RID" "$ARCHIVE_EXT"
 }
@@ -155,6 +155,23 @@ install_service() {
   fi
 }
 
+# ---- Start/restart service if already authenticated ----
+start_if_authenticated() {
+  [ ! -f "${INSTALL_DIR}/.auth" ] && return 1
+
+  PLATFORM_OS=$(echo "$RID_AND_EXT" | cut -d' ' -f1 | cut -d'-' -f1)
+
+  if [ "$PLATFORM_OS" = "linux" ] && command -v systemctl >/dev/null 2>&1; then
+    systemctl --user restart cortexterm-worker 2>/dev/null && ok "Worker service restarted" && return 0
+  elif [ "$PLATFORM_OS" = "osx" ]; then
+    PLIST_DIR="$HOME/Library/LaunchAgents"
+    launchctl unload "$PLIST_DIR/com.cortexterm.worker.plist" 2>/dev/null || true
+    launchctl load "$PLIST_DIR/com.cortexterm.worker.plist" 2>/dev/null && ok "Worker service restarted" && return 0
+  fi
+
+  return 1
+}
+
 # ---- Main ----
 printf "\n"
 printf "  ${BOLD}CortexTerminal Worker Installer${RESET}\n"
@@ -165,7 +182,12 @@ install_service
 add_to_path
 
 printf "\n"
-printf "  ${GREEN}Done! Next steps:${RESET}\n"
-printf "  %s\n" "  1. Run '${BIN_NAME} login' to authenticate this worker"
-printf "  %s\n" "  2. Run '${BIN_NAME}' to start the worker"
+if start_if_authenticated; then
+  printf "  ${GREEN}Updated and running!${RESET}\n"
+else
+  printf "  ${CYAN}Worker not yet authenticated.${RESET}\n"
+  printf "  Running '${BIN_NAME} login' ...\n\n"
+  "$INSTALL_DIR/$BIN_NAME" login
+  start_if_authenticated
+fi
 printf "\n"

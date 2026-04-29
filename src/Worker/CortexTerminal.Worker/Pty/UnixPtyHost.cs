@@ -43,14 +43,20 @@ public sealed class UnixPtyHost : IPtyHost
     {
         if (OperatingSystem.IsWindows())
         {
-            var shell = Environment.GetEnvironmentVariable("COMSPEC");
-            if (!string.IsNullOrWhiteSpace(shell))
-            {
-                return (shell, Array.Empty<string>());
-            }
+            // Prefer PowerShell (pwsh) over cmd.exe
+            var pwsh = FindOnPath("pwsh.exe");
+            if (pwsh is not null)
+                return (pwsh, Array.Empty<string>());
 
-            shell = "cmd.exe";
-            return (shell, Array.Empty<string>());
+            var ps = FindOnPath("powershell.exe");
+            if (ps is not null)
+                return (ps, Array.Empty<string>());
+
+            var comspec = Environment.GetEnvironmentVariable("COMSPEC");
+            if (!string.IsNullOrWhiteSpace(comspec))
+                return (comspec, Array.Empty<string>());
+
+            return ("cmd.exe", Array.Empty<string>());
         }
 
         var shellPath = Environment.GetEnvironmentVariable("SHELL");
@@ -70,5 +76,25 @@ public sealed class UnixPtyHost : IPtyHost
         }
 
         return ("/bin/sh", Array.Empty<string>());
+    }
+
+    private static string? FindOnPath(string fileName)
+    {
+        var pathExt = Environment.GetEnvironmentVariable("PATH") ?? "";
+        var separator = OperatingSystem.IsWindows() ? ';' : ':';
+        foreach (var dir in pathExt.Split(separator, StringSplitOptions.RemoveEmptyEntries))
+        {
+            try
+            {
+                var full = Path.Combine(dir, fileName);
+                if (File.Exists(full))
+                    return full;
+            }
+            catch
+            {
+                // skip inaccessible directories
+            }
+        }
+        return null;
     }
 }

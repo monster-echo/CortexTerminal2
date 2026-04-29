@@ -37,6 +37,9 @@ public sealed class WorkerGatewayClient : IWorkerGatewayClient
     public IDisposable OnCloseSession(Func<CloseSessionRequest, Task> handler)
         => _connection.On<CloseSessionRequest>("CloseSession", handler);
 
+    public IDisposable OnUpgradeWorker(Func<UpgradeWorkerCommand, Task> handler)
+        => _connection.On<UpgradeWorkerCommand>("UpgradeWorker", handler);
+
     public IDisposable OnReconnected(Func<string?, Task> handler)
     {
         lock (_sync)
