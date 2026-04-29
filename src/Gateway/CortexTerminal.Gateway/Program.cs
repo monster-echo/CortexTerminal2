@@ -44,6 +44,20 @@ string CreateAccessToken(string username)
     return new JwtSecurityTokenHandler().WriteToken(token);
 }
 
+IResult OAuthRedirect(string redirectUrl, string? token = null, string? error = null)
+{
+    var isCustomScheme = redirectUrl.Contains("://") && !redirectUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase);
+    if (isCustomScheme)
+    {
+        var sep = redirectUrl.Contains('?') ? "&" : "?";
+        var qs = token is not null ? $"token={token}" : $"error={error}";
+        return Results.Redirect($"{redirectUrl}{sep}{qs}");
+    }
+    if (error is not null)
+        return Results.Redirect($"/sign-in?error={error}&redirect={Uri.EscapeDataString(redirectUrl)}");
+    return Results.Redirect($"/sign-in?token={token}&redirect={Uri.EscapeDataString(redirectUrl)}");
+}
+
 string CreateWorkerAccessToken(string username)
 {
     var claims = new[]
@@ -334,7 +348,7 @@ app.MapGet("/api/auth/callback/github", async (string? code, string? state, OAut
     var userJson = await userResponse.Content.ReadFromJsonAsync<JsonElement>();
     var githubLogin = userJson.TryGetProperty("login", out var loginProp) ? loginProp.GetString() : null;
     if (string.IsNullOrEmpty(githubLogin))
-        return Results.Redirect($"/sign-in?error=github_user_failed&redirect={Uri.EscapeDataString(redirectUrl)}");
+        return OAuthRedirect(redirectUrl, error: "github_user_failed");
 
     var email = userJson.TryGetProperty("email", out var emailProp) ? emailProp.GetString() : null;
     var displayName = userJson.TryGetProperty("name", out var nameProp) ? nameProp.GetString() : githubLogin;
@@ -343,7 +357,7 @@ app.MapGet("/api/auth/callback/github", async (string? code, string? state, OAut
     // Auto-register / lookup user in database
     var dbUser = await EnsureUser(serviceProvider, githubLogin, email, displayName, avatarUrl, "github", githubLogin);
     if (dbUser is null || dbUser.Status == "disabled")
-        return Results.Redirect($"/sign-in?error=account_disabled&redirect={Uri.EscapeDataString(redirectUrl)}");
+        return OAuthRedirect(redirectUrl, error: "account_disabled");
 
     var jwt = CreateAccessToken(dbUser.Username);
     auditLog.Record(new AuditLogEntry(
@@ -356,7 +370,7 @@ app.MapGet("/api/auth/callback/github", async (string? code, string? state, OAut
         TargetId: dbUser.Id
     ));
 
-    return Results.Redirect($"/sign-in?token={jwt}&redirect={Uri.EscapeDataString(redirectUrl)}");
+    return OAuthRedirect(redirectUrl, token: jwt);
 }).AllowAnonymous();
 
 app.MapGet("/api/auth/google", (string? redirect, OAuthStateService stateService, HttpContext ctx) =>
@@ -409,7 +423,7 @@ app.MapGet("/api/auth/callback/google", async (string? code, string? state, OAut
     var avatarUrl = userJson.TryGetProperty("picture", out var picProp) ? picProp.GetString() : null;
 
     if (string.IsNullOrEmpty(googleSub) && string.IsNullOrEmpty(email))
-        return Results.Redirect($"/sign-in?error=google_user_failed&redirect={Uri.EscapeDataString(redirectUrl)}");
+        return OAuthRedirect(redirectUrl, error: "google_user_failed");
 
     var username = displayName ?? email ?? googleSub!;
     var providerId = googleSub ?? email ?? "unknown";
@@ -417,7 +431,7 @@ app.MapGet("/api/auth/callback/google", async (string? code, string? state, OAut
     // Auto-register / lookup user in database
     var dbUser = await EnsureUser(serviceProvider, username, email, displayName, avatarUrl, "google", providerId);
     if (dbUser is null || dbUser.Status == "disabled")
-        return Results.Redirect($"/sign-in?error=account_disabled&redirect={Uri.EscapeDataString(redirectUrl)}");
+        return OAuthRedirect(redirectUrl, error: "account_disabled");
 
     var jwt = CreateAccessToken(dbUser.Username);
     auditLog.Record(new AuditLogEntry(
@@ -430,7 +444,7 @@ app.MapGet("/api/auth/callback/google", async (string? code, string? state, OAut
         TargetId: dbUser.Id
     ));
 
-    return Results.Redirect($"/sign-in?token={jwt}&redirect={Uri.EscapeDataString(redirectUrl)}");
+    return OAuthRedirect(redirectUrl, token: jwt);
 }).AllowAnonymous();
 
 app.MapPost("/api/sessions", async (
