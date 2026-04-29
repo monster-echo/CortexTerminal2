@@ -48,7 +48,7 @@ public sealed class DeviceFlowLoginService
 
             if (pollResponse.StatusCode == System.Net.HttpStatusCode.BadRequest)
             {
-                var errorDoc = await pollResponse.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: cancellationToken);
+                var errorDoc = await pollResponse.Content.ReadFromJsonAsync(WorkerJsonContext.Default.JsonElement, cancellationToken);
                 var errorCode = errorDoc.GetProperty("error").GetString();
 
                 if (errorCode == "authorization_pending")

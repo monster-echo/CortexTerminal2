@@ -10,6 +10,11 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 var installDir = AppContext.BaseDirectory;
+
+// Prefer IPv4: many environments advertise IPv6 via DNS but lack actual connectivity,
+// causing SocketsHttpHandler to hang on the first IPv6 attempt before falling back.
+Environment.SetEnvironmentVariable("DOTNET_SYSTEM_NET_DISABLEIPV6", "1");
+
 var gatewayUrl = Environment.GetEnvironmentVariable("CORTEX_GATEWAY_URL");
 if (string.IsNullOrWhiteSpace(gatewayUrl))
 {
