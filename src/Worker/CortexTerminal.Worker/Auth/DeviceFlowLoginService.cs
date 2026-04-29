@@ -81,20 +81,31 @@ public sealed class DeviceFlowLoginService
 
     public async Task<string?> RefreshTokenAsync(string currentToken, CancellationToken cancellationToken)
     {
-        using var response = await _httpClient.PostAsJsonAsync(
-            "/api/auth/refresh",
-            new { accessToken = currentToken },
-            cancellationToken);
-
-        if (!response.IsSuccessStatusCode)
+        HttpResponseMessage response;
+        try
+        {
+            response = await _httpClient.PostAsJsonAsync(
+                "/api/auth/refresh",
+                new { accessToken = currentToken },
+                cancellationToken);
+        }
+        catch (HttpRequestException)
+        {
             return null;
+        }
 
-        var result = await response.Content.ReadFromJsonAsync<RefreshTokenResponse>(cancellationToken: cancellationToken);
-        if (result?.AccessToken is null)
-            return null;
+        using (response)
+        {
+            if (!response.IsSuccessStatusCode)
+                return null;
 
-        await _tokenStore.SaveAccessTokenAsync(result.AccessToken, cancellationToken);
-        return result.AccessToken;
+            var result = await response.Content.ReadFromJsonAsync<RefreshTokenResponse>(cancellationToken: cancellationToken);
+            if (result?.AccessToken is null)
+                return null;
+
+            await _tokenStore.SaveAccessTokenAsync(result.AccessToken, cancellationToken);
+            return result.AccessToken;
+        }
     }
 
     private sealed record RefreshTokenResponse(string AccessToken);
