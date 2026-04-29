@@ -1,10 +1,9 @@
-import { useMemo, useState, useCallback } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useState, useCallback } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
-import { createConsoleApi, type SessionStatus } from '@/services/console-api'
+import { type SessionStatus } from '@/services/console-api'
 import { Loader2, Plus, TerminalSquare, Trash2 } from 'lucide-react'
-import { useAuthStore } from '@/stores/auth-store'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -22,15 +21,9 @@ import { ConfirmDialog } from '@/components/confirm-dialog'
 import { StatusDot } from '@/components/shared/status-dot'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { NewSessionDialog } from '@/components/new-session-dialog'
-
-function createApi() {
-  return createConsoleApi({
-    getToken: () => useAuthStore.getState().auth.accessToken,
-    onUnauthorized: () => useAuthStore.getState().auth.reset(),
-    onTokenRefreshed: (newToken) =>
-      useAuthStore.getState().auth.setAccessToken(newToken),
-  })
-}
+import { useWorkers } from '@/hooks/use-workers'
+import { useSessions } from '@/hooks/use-sessions'
+import { getApi } from '@/lib/api'
 
 type FilterTab = 'all' | 'live' | 'detached' | 'exited'
 
@@ -48,7 +41,7 @@ export function SessionListPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const api = useMemo(() => createApi(), [])
+  const api = getApi()
 
   const [filter, setFilter] = useState<FilterTab>('all')
   const [deleteTarget, setDeleteTarget] = useState<{
@@ -58,15 +51,8 @@ export function SessionListPage() {
   const [newSessionDialogOpen, setNewSessionDialogOpen] = useState(false)
   const [isCreatingSession, setIsCreatingSession] = useState(false)
 
-  const workersQuery = useQuery({
-    queryKey: ['workers', api],
-    queryFn: () => api.listWorkers(),
-  })
-
-  const sessionsQuery = useQuery({
-    queryKey: ['sessions', api],
-    queryFn: () => api.listSessions(),
-  })
+  const workersQuery = useWorkers()
+  const sessionsQuery = useSessions()
 
   const allSessions = sessionsQuery.data ?? []
   const sessions = allSessions.filter((s) =>

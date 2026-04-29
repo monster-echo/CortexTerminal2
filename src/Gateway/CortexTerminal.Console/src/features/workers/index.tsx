@@ -1,11 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from '@tanstack/react-router'
-import { createConsoleApi } from '@/services/console-api'
 import { formatDistanceToNow } from 'date-fns'
 import { ArrowUpCircle, Loader2, Server } from 'lucide-react'
-import { useAuthStore } from '@/stores/auth-store'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Table,
@@ -20,21 +18,14 @@ import { StatusBadge } from '@/components/shared/status-badge'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ConfirmDialog } from '@/components/confirm-dialog'
-
-function createApi() {
-  return createConsoleApi({
-    getToken: () => useAuthStore.getState().auth.accessToken,
-    onUnauthorized: () => useAuthStore.getState().auth.reset(),
-    onTokenRefreshed: (newToken) =>
-      useAuthStore.getState().auth.setAccessToken(newToken),
-  })
-}
+import { useWorkers } from '@/hooks/use-workers'
+import { getApi } from '@/lib/api'
 
 export function WorkerListPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const api = useMemo(() => createApi(), [])
+  const api = getApi()
 
   const [upgradeTarget, setUpgradeTarget] = useState<{
     workerId: string
@@ -43,10 +34,7 @@ export function WorkerListPage() {
     targetVersion: string
   } | null>(null)
 
-  const workersQuery = useQuery({
-    queryKey: ['workers', api],
-    queryFn: () => api.listWorkers(),
-  })
+  const workersQuery = useWorkers()
 
   const gatewayInfoQuery = useQuery({
     queryKey: ['gateway-info', api],

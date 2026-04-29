@@ -1,9 +1,7 @@
-import { useMemo, useState, useCallback } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useState, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from '@tanstack/react-router'
-import { createConsoleApi, type SessionStatus } from '@/services/console-api'
-import { useAuthStore } from '@/stores/auth-store'
+import { type SessionStatus } from '@/services/console-api'
 import {
   Activity,
   Loader2,
@@ -27,15 +25,8 @@ import { StatusDot } from '@/components/shared/status-dot'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { NewSessionDialog } from '@/components/new-session-dialog'
-
-function createApi() {
-  return createConsoleApi({
-    getToken: () => useAuthStore.getState().auth.accessToken,
-    onUnauthorized: () => useAuthStore.getState().auth.reset(),
-    onTokenRefreshed: (newToken) =>
-      useAuthStore.getState().auth.setAccessToken(newToken),
-  })
-}
+import { useWorkers } from '@/hooks/use-workers'
+import { useSessions } from '@/hooks/use-sessions'
 
 const statusBadgeLabel: Record<SessionStatus, string> = {
   live: 'Live',
@@ -54,57 +45,23 @@ const sessionStatusToBadge: Record<SessionStatus, SessionStatus | 'online' | 'of
 export function Dashboard() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const api = useMemo(() => createApi(), [])
   const [newSessionDialogOpen, setNewSessionDialogOpen] = useState(false)
   const [isCreatingSession, setIsCreatingSession] = useState(false)
 
-  const workersQuery = useQuery({
-    queryKey: ['workers', api],
-    queryFn: () => api.listWorkers(),
-  })
+  const workersQuery = useWorkers()
+  const sessionsQuery = useSessions()
 
-  const sessionsQuery = useQuery({
-    queryKey: ['sessions', api],
-    queryFn: () => api.listSessions(),
-  })
-
+  const workers = workersQuery.data ?? []
   const sessions = sessionsQuery.data ?? []
 
-  // Compute stats from sessions
+  // Compute stats from actual data sources
   const activeSessions = sessions.filter((s) => s.status === 'live').length
   const detachedSessions = sessions.filter((s) => s.status === 'detached').length
-  // Workers are derived from sessions -- unique worker IDs with live or detached sessions
-  const onlineWorkerIds = new Set(
-    sessions
-      .filter((s) => s.status === 'live' || s.status === 'detached')
-      .map((s) => s.workerId)
-  )
-  const onlineWorkers = onlineWorkerIds.size
+  const onlineWorkers = workers.filter((w) => w.isOnline).length
   const recentSessions = sessions.slice(0, 5)
 
-  // Build worker info from sessions
-  const workerInfoMap = useMemo(() => {
-    const map = new Map<
-      string,
-      { workerId: string; sessionCount: number; status: 'online' | 'offline' }
-    >()
-    for (const session of sessions) {
-      const existing = map.get(session.workerId)
-      if (existing) {
-        existing.sessionCount++
-      } else {
-        map.set(session.workerId, {
-          workerId: session.workerId,
-          sessionCount: 1,
-          status:
-            session.status === 'live' || session.status === 'detached'
-              ? 'online'
-              : 'offline',
-        })
-      }
-    }
-    return Array.from(map.values())
-  }, [sessions])
+  // Worker info comes directly from the workers API
+  const workerInfoMap = workers
 
   const handleCreateSession = useCallback((workerId?: string) => {
     const bootstrapId = crypto.randomUUID()
@@ -295,31 +252,34 @@ export function Dashboard() {
                 </div>
               ) : (
                 <div className='grid gap-3'>
-                  {workerInfoMap.map((worker) => (
-                    <div
-                      key={worker.workerId}
-                      className='flex items-center justify-between rounded-lg border p-3'
-                    >
-                      <div className='flex items-center gap-3'>
-                        <StatusDot status={worker.status} />
-                        <div>
-                          <p className='font-mono text-sm'>
-                            {truncateId(worker.workerId)}
-                          </p>
-                          <p className='text-xs text-muted-foreground'>
-                            {worker.sessionCount}{' '}
-                            {worker.sessionCount === 1
-                              ? t('dashboard.session').toLowerCase()
-                              : t('dashboard.recentSessions').toLowerCase()}
-                          </p>
+                  {workerInfoMap.map((worker) => {
+                    const status = worker.isOnline ? 'online' as const : 'offline' as const
+                    return (
+                      <div
+                        key={worker.workerId}
+                        className='flex items-center justify-between rounded-lg border p-3'
+                      >
+                        <div className='flex items-center gap-3'>
+                          <StatusDot status={status} />
+                          <div>
+                            <p className='font-mono text-sm'>
+                              {truncateId(worker.workerId)}
+                            </p>
+                            <p className='text-xs text-muted-foreground'>
+                              {worker.sessionCount}{' '}
+                              {worker.sessionCount === 1
+                                ? t('dashboard.session').toLowerCase()
+                                : t('dashboard.recentSessions').toLowerCase()}
+                            </p>
+                          </div>
                         </div>
+                        <StatusBadge
+                          status={status}
+                          label={status === 'online' ? 'Online' : 'Offline'}
+                        />
                       </div>
-                      <StatusBadge
-                        status={worker.status}
-                        label={worker.status === 'online' ? 'Online' : 'Offline'}
-                      />
-                    </div>
-                  ))}
+                    )
+                  })}
                   <div className='mt-2 flex justify-end'>
                     <Button
                       variant='ghost'

@@ -1,24 +1,15 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { createConsoleApi } from '@/services/console-api'
 import { createTerminalGateway } from '@/services/terminal-gateway'
 import { TerminalView } from '@/terminal/terminal-view'
 import { Loader2 } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth-store'
+import { getApi } from '@/lib/api'
 
 export function SessionDetailPage(props: { sessionId: string }) {
   const { sessionId } = props
 
-  const api = useMemo(
-    () =>
-      createConsoleApi({
-        getToken: () => useAuthStore.getState().auth.accessToken,
-        onUnauthorized: () => useAuthStore.getState().auth.reset(),
-        onTokenRefreshed: (newToken) =>
-          useAuthStore.getState().auth.setAccessToken(newToken),
-      }),
-    []
-  )
+  const api = getApi()
 
   const gateway = useMemo(
     () =>
@@ -29,7 +20,7 @@ export function SessionDetailPage(props: { sessionId: string }) {
   )
 
   const sessionQuery = useQuery({
-    queryKey: ['sessions', sessionId, api],
+    queryKey: ['sessions', sessionId],
     queryFn: () => api.getSession(sessionId),
   })
 

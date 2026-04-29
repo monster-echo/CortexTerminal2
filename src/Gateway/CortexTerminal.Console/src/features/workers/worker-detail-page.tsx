@@ -1,11 +1,9 @@
-import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
-import { createConsoleApi, type SessionStatus } from '@/services/console-api'
+import { type SessionStatus } from '@/services/console-api'
 import { formatDistanceToNow } from 'date-fns'
 import { ArrowLeft, Loader2 } from 'lucide-react'
-import { useAuthStore } from '@/stores/auth-store'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -21,24 +19,16 @@ import { StatusDot } from '@/components/shared/status-dot'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
-
-function createApi() {
-  return createConsoleApi({
-    getToken: () => useAuthStore.getState().auth.accessToken,
-    onUnauthorized: () => useAuthStore.getState().auth.reset(),
-    onTokenRefreshed: (newToken) =>
-      useAuthStore.getState().auth.setAccessToken(newToken),
-  })
-}
+import { getApi } from '@/lib/api'
 
 export function WorkerDetailPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { workerId } = useParams({ strict: false }) as { workerId: string }
-  const api = useMemo(() => createApi(), [])
+  const api = getApi()
 
   const workerQuery = useQuery({
-    queryKey: ['workers', workerId, api],
+    queryKey: ['workers', workerId],
     queryFn: () => api.getWorker(workerId),
   })
 

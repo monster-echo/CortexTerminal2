@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { createConsoleApi } from '@/services/console-api'
 import {
   getBootstrapTerminalLogKey,
   getSessionTerminalLogKey,
@@ -11,26 +10,17 @@ import {
   type TerminalSize,
 } from '@/terminal/terminal-viewport'
 import { ArrowLeft } from 'lucide-react'
-import { useAuthStore } from '@/stores/auth-store'
 import { useTerminalEventLogStore } from '@/stores/terminal-event-log-store'
 import { Button } from '@/components/ui/button'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { getOrStartSessionCreation } from './session-bootstrap'
-
-function createApi() {
-  return createConsoleApi({
-    getToken: () => useAuthStore.getState().auth.accessToken,
-    onUnauthorized: () => useAuthStore.getState().auth.reset(),
-    onTokenRefreshed: (newToken) =>
-      useAuthStore.getState().auth.setAccessToken(newToken),
-  })
-}
+import { getApi } from '@/lib/api'
 
 export function NewSessionPage(props: { bootstrapId?: string; workerId?: string }) {
   const { bootstrapId, workerId } = props
   const navigate = useNavigate()
-  const api = useMemo(() => createApi(), [])
+  const api = getApi()
   const latestSizeRef = useRef<TerminalSize | null>(null)
   const creationStartedRef = useRef(false)
   const isActiveRef = useRef(true)
