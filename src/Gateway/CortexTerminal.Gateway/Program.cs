@@ -174,6 +174,23 @@ if (!string.IsNullOrEmpty(connectionString))
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             await db.Database.EnsureCreatedAsync();
+
+            // EnsureCreatedAsync won't add new tables to an existing database.
+            // Create the Workers table if it doesn't exist yet.
+            await db.Database.ExecuteSqlRawAsync("""
+                CREATE TABLE IF NOT EXISTS "Workers" (
+                    "worker_id"           text        NOT NULL PRIMARY KEY,
+                    "owner_user_id"       text        NULL,
+                    "hostname"            text        NULL,
+                    "operating_system"    text        NULL,
+                    "architecture"        text        NULL,
+                    "name"                text        NULL,
+                    "version"             text        NULL,
+                    "last_seen_at_utc"    timestamptz NOT NULL,
+                    "first_connected_at_utc" timestamptz NULL,
+                    "is_online"           boolean     NOT NULL
+                );
+                """);
         }
         catch (Exception ex)
         {
