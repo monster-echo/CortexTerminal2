@@ -2,7 +2,7 @@ name: Gateway Docker Release
 
 on:
   push:
-    tags: ['v*']
+    tags: ['gateway-v*']
   workflow_dispatch:
 
 env:
@@ -23,6 +23,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/gateway-v}" >> "$GITHUB_OUTPUT"
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
@@ -35,9 +39,8 @@ jobs:
         with:
           images: ${{ env.GHCR_REGISTRY }}/${{ env.GHCR_IMAGE }}
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
+            type=raw,value=${{ steps.version.outputs.VERSION }}
+            type=raw,value=latest
             type=sha
 
       - name: Docker metadata (Aliyun)
@@ -46,6 +49,7 @@ jobs:
         with:
           images: ${{ env.ALIYUN_REGISTRY }}/${{ env.ALIYUN_IMAGE }}
           tags: |
+            type=raw,value=${{ steps.version.outputs.VERSION }}
             type=raw,value=latest
             type=sha
 
@@ -74,3 +78,5 @@ jobs:
             ${{ steps.meta-aliyun.outputs.tags }}
           labels: ${{ steps.meta-ghcr.outputs.labels }}
           platforms: linux/amd64,linux/arm64
+          build-args: |
+            VERSION=${{ steps.version.outputs.VERSION }}

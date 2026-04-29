@@ -9,13 +9,14 @@ RUN pnpm build --outDir /build/dist
 
 # ===== Stage 2: Build .NET =====
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+ARG VERSION=0.0.0
 WORKDIR /src
 COPY src/Shared/CortexTerminal.Contracts/ ./src/Shared/CortexTerminal.Contracts/
 COPY src/Gateway/CortexTerminal.Gateway/ ./src/Gateway/CortexTerminal.Gateway/
 COPY CortexTerminal.sln Directory.Build.props ./
 COPY --from=frontend /build/dist ./src/Gateway/CortexTerminal.Gateway/wwwroot/
 RUN dotnet publish src/Gateway/CortexTerminal.Gateway/CortexTerminal.Gateway.csproj \
-    -c Release -o /app/publish
+    -c Release -p:Version=${VERSION} -o /app/publish
 
 # ===== Stage 3: Runtime =====
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
