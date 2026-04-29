@@ -12,7 +12,7 @@ public sealed class UnixPtyHost : IPtyHost
             Name = "CortexTerminal.Worker",
             Cols = columns,
             Rows = rows,
-            Cwd = Environment.CurrentDirectory,
+            Cwd = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
             App = app,
             CommandLine = commandLine,
             Environment = new Dictionary<string, string>
