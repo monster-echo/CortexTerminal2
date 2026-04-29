@@ -4,20 +4,24 @@ using CortexTerminal.Worker.Pty;
 using CortexTerminal.Worker.Registration;
 using CortexTerminal.Worker.Runtime;
 using Microsoft.AspNetCore.SignalR.Client;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
+var installDir = AppContext.BaseDirectory;
 var gatewayUrl = Environment.GetEnvironmentVariable("CORTEX_GATEWAY_URL");
 if (string.IsNullOrWhiteSpace(gatewayUrl))
 {
-    var tempBuilder = Host.CreateApplicationBuilder(args);
-    gatewayUrl = tempBuilder.Configuration["Worker:GatewayUrl"];
+    var config = new ConfigurationBuilder()
+        .SetBasePath(installDir)
+        .AddJsonFile("appsettings.json", optional: true)
+        .Build();
+    gatewayUrl = config["Worker:GatewayUrl"];
 }
 if (string.IsNullOrWhiteSpace(gatewayUrl))
     throw new InvalidOperationException("Gateway URL is not configured. Set CORTEX_GATEWAY_URL or Worker:GatewayUrl in appsettings.json.");
 var gatewayBaseUrl = new Uri(gatewayUrl);
-var installDir = AppContext.BaseDirectory;
 
 // Parse CLI args for subcommands
 var command = args.FirstOrDefault(arg => !arg.StartsWith("--"));
