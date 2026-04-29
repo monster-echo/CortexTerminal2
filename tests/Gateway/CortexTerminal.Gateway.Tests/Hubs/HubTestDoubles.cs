@@ -87,6 +87,7 @@ internal sealed class NoOpWorkerCommandDispatcher : IWorkerCommandDispatcher
     public Task ProbeLatencyAsync(string workerConnectionId, LatencyProbeFrame frame, CancellationToken cancellationToken) => Task.CompletedTask;
     public Task ResizeSessionAsync(string workerConnectionId, ResizePtyRequest request, CancellationToken cancellationToken) => Task.CompletedTask;
     public Task CloseSessionAsync(string workerConnectionId, CloseSessionRequest request, CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task UpgradeWorkerAsync(string workerConnectionId, UpgradeWorkerCommand command, CancellationToken cancellationToken) => Task.CompletedTask;
 }
 
 internal sealed class ThrowingWorkerCommandDispatcher(string message) : IWorkerCommandDispatcher
@@ -105,4 +106,7 @@ internal sealed class ThrowingWorkerCommandDispatcher(string message) : IWorkerC
 
     public Task CloseSessionAsync(string workerConnectionId, CloseSessionRequest request, CancellationToken cancellationToken)
         => Task.CompletedTask;
+
+    public Task UpgradeWorkerAsync(string workerConnectionId, UpgradeWorkerCommand command, CancellationToken cancellationToken)
+        => Task.FromException(new InvalidOperationException(message));
 }

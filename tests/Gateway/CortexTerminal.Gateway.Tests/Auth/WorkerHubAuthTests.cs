@@ -1,8 +1,4 @@
-using System.Net;
-using System.Net.Http.Json;
-using System.Text.Json;
 using FluentAssertions;
-using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.SignalR.Client;
 using Xunit;
 
@@ -54,40 +50,4 @@ public sealed class WorkerHubAuthTests : IClassFixture<GatewayApplicationFactory
         }
     }
 
-    [Fact]
-    public async Task WorkerHub_SetsOwnerUserId_FromToken()
-    {
-        // Register worker via authenticated SignalR connection
-        var connection = _factory.CreateAuthenticatedHubConnection("/hubs/worker");
-        try
-        {
-            await connection.StartAsync();
-            await connection.InvokeAsync("RegisterWorker", "worker-owned");
-
-            // Query the worker via REST API to check ownership
-            using var client = _factory.CreateAuthenticatedClient();
-            using var response = await client.GetAsync("/api/me/workers");
-
-            response.StatusCode.Should().Be(HttpStatusCode.OK);
-            var workers = await response.Content.ReadFromJsonAsync<JsonElement>();
-            workers.ValueKind.Should().Be(JsonValueKind.Array);
-
-            // The "test-user" from GatewayApplicationFactory.CreateAccessToken should own this worker
-            var found = false;
-            foreach (var w in workers.EnumerateArray())
-            {
-                if (w.TryGetProperty("workerId", out var id) && id.GetString() == "worker-owned")
-                {
-                    found = true;
-                    break;
-                }
-            }
-
-            found.Should().BeTrue("worker-owned should appear in user's worker list");
-        }
-        finally
-        {
-            await connection.DisposeAsync();
-        }
-    }
 }

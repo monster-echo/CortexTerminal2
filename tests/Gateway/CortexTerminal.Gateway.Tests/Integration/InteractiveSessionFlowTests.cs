@@ -181,5 +181,8 @@ public sealed class InteractiveSessionFlowTests : IClassFixture<GatewayApplicati
 
         public Task CloseSessionAsync(string workerConnectionId, CloseSessionRequest request, CancellationToken cancellationToken)
             => Task.CompletedTask;
+
+        public Task UpgradeWorkerAsync(string workerConnectionId, CortexTerminal.Contracts.Streaming.UpgradeWorkerCommand command, CancellationToken cancellationToken)
+            => Task.CompletedTask;
     }
 }

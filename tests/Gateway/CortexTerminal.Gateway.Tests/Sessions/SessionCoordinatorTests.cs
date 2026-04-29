@@ -1,4 +1,5 @@
 using CortexTerminal.Contracts.Sessions;
+using CortexTerminal.Gateway.Data;
 using CortexTerminal.Gateway.Sessions;
 using CortexTerminal.Gateway.Workers;
 using FluentAssertions;
@@ -133,6 +134,9 @@ public sealed class SessionCoordinatorTests
 
         public IReadOnlyList<RegisteredWorker> GetOnlineWorkersForUser(string userId)
             => throw new NotSupportedException();
+
+        public Task<IReadOnlyList<WorkerRecord>> GetAllWorkersForUserAsync(string userId)
+            => Task.FromResult<IReadOnlyList<WorkerRecord>>(Array.Empty<WorkerRecord>());
     }
 
     private sealed class CoordinatedWorkerRegistry : IWorkerRegistry
@@ -179,5 +183,8 @@ public sealed class SessionCoordinatorTests
 
         public IReadOnlyList<RegisteredWorker> GetOnlineWorkersForUser(string userId)
             => _inner.GetOnlineWorkersForUser(userId);
+
+        public Task<IReadOnlyList<WorkerRecord>> GetAllWorkersForUserAsync(string userId)
+            => _inner.GetAllWorkersForUserAsync(userId);
     }
 }
