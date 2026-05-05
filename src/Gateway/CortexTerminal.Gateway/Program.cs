@@ -452,6 +452,95 @@ app.MapGet("/api/auth/callback/google", async (string? code, string? state, OAut
     return OAuthRedirect(redirectUrl, token: jwt);
 }).AllowAnonymous();
 
+// --- Phone Auth Endpoints ---
+
+app.MapPost("/api/auth/phone/send-code", (SendCodeRequest request, PhoneCodeStore codeStore, IAuditLogStore auditLog, IServiceProvider serviceProvider, IWebHostEnvironment env) =>
+{
+    // Validate phone format: 11 digits
+    if (string.IsNullOrEmpty(request.Phone) || request.Phone.Length != 11 || !request.Phone.All(char.IsDigit))
+        return Results.BadRequest(new { error = "Invalid phone number" });
+
+    string code;
+    try
+    {
+        code = codeStore.Create(request.Phone);
+    }
+    catch (InvalidOperationException)
+    {
+        return Results.StatusCode(429);
+    }
+
+    if (env.IsDevelopment())
+    {
+        Console.WriteLine($"[PhoneAuth] Verification code for {request.Phone}: {code}");
+    }
+    else
+    {
+        if (string.IsNullOrEmpty(phoneAuthOptions.AccessKeyId))
+            return Results.BadRequest(new { error = "Phone auth is not configured" });
+
+        try
+        {
+            var client = new Aliyun.Acs.Core.DefaultAcsClient(
+                Aliyun.Acs.Core.Profile.DefaultProfile.GetProfile(
+                    phoneAuthOptions.RegionId, phoneAuthOptions.AccessKeyId, phoneAuthOptions.AccessKeySecret));
+            var smsRequest = new Aliyun.Acs.Core.CommonRequest();
+            smsRequest.Domain = "dysmsapi.aliyuncs.com";
+            smsRequest.Version = "2017-05-25";
+            smsRequest.Action = "SendSms";
+            smsRequest.Method = Aliyun.Acs.Core.Http.MethodType.POST;
+            smsRequest.AddQueryParameters("PhoneNumbers", request.Phone);
+            smsRequest.AddQueryParameters("SignName", phoneAuthOptions.SignName);
+            smsRequest.AddQueryParameters("TemplateCode", phoneAuthOptions.TemplateCode);
+            smsRequest.AddQueryParameters("TemplateParam", $"{{\"code\":\"{code}\"}}");
+            var response = client.GetCommonResponse(smsRequest);
+            if (response.HttpResponse.Status != 200 || !response.Data.Contains("\"Code\":\"OK\""))
+            {
+                Console.WriteLine($"[PhoneAuth] SMS send failed: {response.Data}");
+                return Results.StatusCode(500);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[PhoneAuth] SMS send error: {ex.Message}");
+            return Results.StatusCode(500);
+        }
+    }
+
+    return Results.Ok(new { ok = true });
+}).AllowAnonymous();
+
+app.MapPost("/api/auth/phone/verify", async (VerifyCodeRequest request, PhoneCodeStore codeStore, IAuditLogStore auditLog, IServiceProvider serviceProvider) =>
+{
+    if (string.IsNullOrEmpty(request.Phone) || string.IsNullOrEmpty(request.Code))
+        return Results.BadRequest(new { error = "Phone and code are required" });
+
+    if (!codeStore.Verify(request.Phone, request.Code))
+        return Results.BadRequest(new { error = "Invalid or expired verification code" });
+
+    var providerId = $"+86{request.Phone}";
+    var last4 = request.Phone[^4..];
+    var username = $"phone_{last4}";
+    var displayName = $"{request.Phone[..3]}****{last4}";
+
+    var dbUser = await EnsureUser(serviceProvider, username, null, displayName, null, "phone", providerId);
+    if (dbUser is null || dbUser.Status == "disabled")
+        return Results.BadRequest(new { error = "Account disabled" });
+
+    var jwt = CreateAccessToken(dbUser.Username);
+    auditLog.Record(new AuditLogEntry(
+        Id: Guid.NewGuid().ToString("N"),
+        Timestamp: DateTimeOffset.UtcNow,
+        UserId: dbUser.Id,
+        UserName: dbUser.Username,
+        Action: "user.phone_login",
+        TargetEntity: "user",
+        TargetId: dbUser.Id
+    ));
+
+    return Results.Ok(new { accessToken = jwt, username = dbUser.Username });
+}).AllowAnonymous();
+
 app.MapPost("/api/sessions", async (
     CreateSessionRequest request,
     ISessionLaunchCoordinator sessionLaunchCoordinator,
@@ -845,6 +934,8 @@ static async Task<bool> IsAdmin(IServiceProvider serviceProvider, string userId)
 
 public record InviteUserRequest(string Email, string? Role);
 public record UpdateUserRequest(string? Role, string? Status);
+record SendCodeRequest(string Phone);
+record VerifyCodeRequest(string Phone, string Code);
 
 internal sealed class LatestVersionCache
 {
