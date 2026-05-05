@@ -80,6 +80,29 @@ string CreateWorkerAccessToken(string username)
     return new JwtSecurityTokenHandler().WriteToken(token);
 }
 
+static string CreateAppleClientSecret(AppleOAuthOptions options)
+{
+    var ecdsa = System.Security.Cryptography.ECDsa.Create();
+    ecdsa.ImportFromPem(options.PrivateKey);
+    var tokenDescriptor = new Microsoft.IdentityModel.Tokens.SecurityTokenDescriptor
+    {
+        Issuer = options.TeamId,
+        Subject = new System.Security.Claims.ClaimsIdentity(new[]
+        {
+            new System.Security.Claims.Claim("sub", options.ClientId),
+        }),
+        Expires = DateTime.UtcNow.AddHours(1),
+        Audience = "https://appleid.apple.com",
+        SigningCredentials = new Microsoft.IdentityModel.Tokens.SigningCredentials(
+            new Microsoft.IdentityModel.Tokens.ECDsaSecurityKey(ecdsa),
+            Microsoft.IdentityModel.Tokens.SecurityAlgorithms.EcdsaSha256)
+    };
+    var handler = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler();
+    var token = handler.CreateToken(tokenDescriptor) as System.IdentityModel.Tokens.Jwt.JwtSecurityToken;
+    token!.Header["kid"] = options.KeyId;
+    return handler.WriteToken(token);
+}
+
 static string GetUserId(ClaimsPrincipal user)
     => user.FindFirstValue(ClaimTypes.NameIdentifier)
         ?? user.FindFirstValue(JwtRegisteredClaimNames.Sub)
@@ -539,6 +562,106 @@ app.MapPost("/api/auth/phone/verify", async (VerifyCodeRequest request, PhoneCod
     ));
 
     return Results.Ok(new { accessToken = jwt, username = dbUser.Username });
+}).AllowAnonymous();
+
+// --- Apple OAuth Endpoints ---
+
+app.MapGet("/api/auth/apple", (string? redirect, OAuthStateService stateService, HttpContext ctx) =>
+{
+    if (string.IsNullOrEmpty(appleOAuthOptions.ClientId))
+        return Results.BadRequest("Apple OAuth is not configured.");
+
+    var state = stateService.Create(redirect ?? "/sessions");
+    var callbackUrl = $"{ctx.Request.Scheme}://{ctx.Request.Host}/api/auth/callback/apple";
+    var authorizeUrl = $"https://appleid.apple.com/auth/authorize?client_id={appleOAuthOptions.ClientId}&redirect_uri={Uri.EscapeDataString(callbackUrl)}&response_type=code&scope=name+email&response_mode=form_post&state={state}";
+    return Results.Redirect(authorizeUrl);
+}).AllowAnonymous();
+
+app.MapPost("/api/auth/callback/apple", async (HttpContext ctx, OAuthStateService stateService, IHttpClientFactory httpClientFactory, IAuditLogStore auditLog, IServiceProvider serviceProvider) =>
+{
+    var code = ctx.Request.Form["code"].FirstOrDefault();
+    var state = ctx.Request.Form["state"].FirstOrDefault();
+
+    if (string.IsNullOrEmpty(code))
+        return Results.Redirect("/sign-in?error=apple_denied");
+
+    var redirectUrl = stateService.Consume(state ?? "") ?? "/sessions";
+
+    var http = httpClientFactory.CreateClient();
+    var callbackUrl = $"{ctx.Request.Scheme}://{ctx.Request.Host}/api/auth/callback/apple";
+
+    // Generate Apple client secret JWT
+    var clientSecret = CreateAppleClientSecret(appleOAuthOptions);
+
+    // Exchange code for tokens
+    var tokenResponse = await http.PostAsync("https://appleid.apple.com/auth/token", new FormUrlEncodedContent(
+        new Dictionary<string, string>
+        {
+            ["client_id"] = appleOAuthOptions.ClientId,
+            ["client_secret"] = clientSecret,
+            ["code"] = code,
+            ["redirect_uri"] = callbackUrl,
+            ["grant_type"] = "authorization_code"
+        }));
+
+    if (!tokenResponse.IsSuccessStatusCode)
+    {
+        var errorBody = await tokenResponse.Content.ReadAsStringAsync();
+        Console.WriteLine($"[AppleAuth] Token exchange failed: {errorBody}");
+        return OAuthRedirect(redirectUrl, error: "apple_token_failed");
+    }
+
+    var tokenJson = await tokenResponse.Content.ReadFromJsonAsync<JsonElement>();
+    var idToken = tokenJson.TryGetProperty("id_token", out var idTokenProp) ? idTokenProp.GetString() : null;
+    if (string.IsNullOrEmpty(idToken))
+        return OAuthRedirect(redirectUrl, error: "apple_id_token_missing");
+
+    // Decode Apple ID token (JWT) to extract sub and email
+    var appleSub = "";
+    var appleEmail = "";
+    try
+    {
+        var segments = idToken.Split('.');
+        var payload = segments[1];
+        payload = payload.Replace('-', '+').Replace('_', '/');
+        switch (payload.Length % 4)
+        {
+            case 2: payload += "=="; break;
+            case 3: payload += "="; break;
+        }
+        var json = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(payload));
+        using var doc = System.Text.Json.JsonDocument.Parse(json);
+        appleSub = doc.RootElement.TryGetProperty("sub", out var subProp) ? subProp.GetString() ?? "" : "";
+        appleEmail = doc.RootElement.TryGetProperty("email", out var emailProp) ? emailProp.GetString() ?? "" : "";
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"[AppleAuth] ID token decode error: {ex.Message}");
+        return OAuthRedirect(redirectUrl, error: "apple_id_token_invalid");
+    }
+
+    if (string.IsNullOrEmpty(appleSub))
+        return OAuthRedirect(redirectUrl, error: "apple_user_failed");
+
+    var username = !string.IsNullOrEmpty(appleEmail) ? appleEmail.Split('@')[0] : $"apple_{appleSub[..Math.Min(8, appleSub.Length)]}";
+    var displayName = !string.IsNullOrEmpty(appleEmail) ? appleEmail : username;
+
+    var dbUser = await EnsureUser(serviceProvider, username, appleEmail, displayName, null, "apple", appleSub);
+    if (dbUser is null || dbUser.Status == "disabled")
+        return OAuthRedirect(redirectUrl, error: "account_disabled");
+
+    var jwt = CreateAccessToken(dbUser.Username);
+    auditLog.Record(new AuditLogEntry(
+        Id: Guid.NewGuid().ToString("N"),
+        Timestamp: DateTimeOffset.UtcNow,
+        UserId: dbUser.Id,
+        UserName: dbUser.Username,
+        Action: "user.oauth_login",
+        TargetEntity: "user",
+        TargetId: dbUser.Id
+    ));
+
+    return OAuthRedirect(redirectUrl, token: jwt);
 }).AllowAnonymous();
 
 app.MapPost("/api/sessions", async (
