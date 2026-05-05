@@ -11,6 +11,7 @@ import {
   type TerminalSize,
 } from './terminal-viewport'
 import { TerminalStatusBar } from './terminal-status-bar'
+import { TerminalVirtualKeys } from './terminal-virtual-keys'
 import { createTerminalSessionModel } from './useTerminalSession'
 import type { SessionStatus } from '@/services/console-api'
 
@@ -301,6 +302,7 @@ export function TerminalView(props: {
         onReady={handleTerminalReady}
         onResize={handleTerminalResize}
       />
+      <TerminalVirtualKeys onSendData={handleTerminalData} />
       <TerminalStatusBar
         status={effectiveStatus}
         sessionId={sessionId}
