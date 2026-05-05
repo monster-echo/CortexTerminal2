@@ -1,57 +1,43 @@
+import type { NativeBridge } from "../bridge/types"
+
 export interface AuthSession {
   token: string
   username: string
 }
 
 export interface AuthService {
-  getSession(): AuthSession | null
-  getToken(): string | null
-  isAuthenticated(): boolean
-  setSession(session: AuthSession): AuthSession
-  clearSession(): void
+  getSession(): Promise<AuthSession | null>
+  isAuthenticated(): Promise<boolean>
+  logout(): Promise<void>
+  sendCode(phone: string): Promise<void>
+  verifyCode(phone: string, code: string): Promise<string>
 }
 
-const defaultStorageKey = "gateway-console-auth"
-
-export function createAuthService(
-  storage: Pick<Storage, "getItem" | "setItem" | "removeItem">,
-  storageKey = defaultStorageKey
-): AuthService {
-  const getSession = () => {
-    const raw = storage.getItem(storageKey)
-    if (!raw) {
-      return null
-    }
-
-    try {
-      const parsed = JSON.parse(raw) as Partial<AuthSession>
-      if (typeof parsed.token === "string" && typeof parsed.username === "string") {
-        return {
-          token: parsed.token,
-          username: parsed.username,
-        }
-      }
-    } catch {
-      storage.removeItem(storageKey)
-    }
-
-    return null
-  }
+export function createAuthService(bridge: NativeBridge): AuthService {
+  let cached: AuthSession | null = null
 
   return {
-    getSession,
-    getToken() {
-      return getSession()?.token ?? null
+    async getSession() {
+      if (cached) return cached
+      const result = await bridge.request<AuthSession | null>("auth", "getSession")
+      cached = result
+      return result
     },
-    isAuthenticated() {
-      return getSession() !== null
+    async isAuthenticated() {
+      const session = await this.getSession()
+      return session !== null
     },
-    setSession(session) {
-      storage.setItem(storageKey, JSON.stringify(session))
-      return session
+    async logout() {
+      await bridge.request("auth", "logout")
+      cached = null
     },
-    clearSession() {
-      storage.removeItem(storageKey)
+    async sendCode(phone: string) {
+      await bridge.request("auth", "phone.sendCode", { phone })
+    },
+    async verifyCode(phone: string, code: string) {
+      const result = await bridge.request<{ username: string }>("auth", "phone.verifyCode", { phone, code })
+      cached = { token: "", username: result.username }
+      return result.username
     },
   }
 }
