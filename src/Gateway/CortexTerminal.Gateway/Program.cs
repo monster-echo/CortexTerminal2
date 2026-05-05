@@ -147,6 +147,11 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddHostedService<DetachedSessionExpiryService>();
 builder.Services.AddHttpClient();
 builder.Services.AddSingleton<OAuthStateService>();
+builder.Services.AddSingleton<PhoneCodeStore>();
+var phoneAuthOptions = new PhoneAuthOptions();
+builder.Configuration.GetSection("PhoneAuth").Bind(phoneAuthOptions);
+var appleOAuthOptions = new AppleOAuthOptions();
+builder.Configuration.GetSection("AppleOAuth").Bind(appleOAuthOptions);
 
 var connectionString = builder.Configuration["GATEWAY_POSTGRES_CONNECTION_STRING"]
     ?? builder.Configuration.GetConnectionString("DefaultConnection");
