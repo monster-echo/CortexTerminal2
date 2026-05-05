@@ -23,7 +23,7 @@ export function LoginPage({
   const [countdown, setCountdown] = useState(0)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [loadingProvider, setLoadingProvider] = useState<string | null>(null)
-  const timerRef = useRef<ReturnType<typeof setInterval>>()
+  const timerRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined)
 
   useEffect(() => {
     return () => {
