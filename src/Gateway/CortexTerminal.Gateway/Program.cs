@@ -1010,6 +1010,33 @@ static async Task<User?> EnsureUser(IServiceProvider serviceProvider, string use
         return existing;
     }
 
+    // Try find by email to link providers for the same person
+    if (!string.IsNullOrEmpty(email))
+    {
+        var existingByEmail = await db.Users.FirstOrDefaultAsync(u => u.Email == email);
+        if (existingByEmail is not null)
+        {
+            existingByEmail.AuthProvider = authProvider;
+            existingByEmail.AuthProviderId = authProviderId;
+            existingByEmail.DisplayName = displayName ?? existingByEmail.DisplayName;
+            existingByEmail.AvatarUrl = avatarUrl ?? existingByEmail.AvatarUrl;
+            existingByEmail.UpdatedAtUtc = DateTimeOffset.UtcNow;
+            await db.SaveChangesAsync();
+            return existingByEmail;
+        }
+    }
+
+    // Resolve username collision by appending provider suffix
+    var finalUsername = username;
+    if (await db.Users.AnyAsync(u => u.Username == username))
+    {
+        finalUsername = $"{username}_{authProvider}";
+        if (await db.Users.AnyAsync(u => u.Username == finalUsername))
+        {
+            finalUsername = $"{username}_{authProviderId}";
+        }
+    }
+
     // First-user-is-admin
     var userCount = await db.Users.CountAsync();
     var role = userCount == 0 ? "admin" : "user";
@@ -1017,7 +1044,7 @@ static async Task<User?> EnsureUser(IServiceProvider serviceProvider, string use
     var newUser = new User
     {
         Id = Guid.NewGuid().ToString("N"),
-        Username = username,
+        Username = finalUsername,
         Email = email,
         DisplayName = displayName ?? username,
         AvatarUrl = avatarUrl,
