@@ -246,7 +246,17 @@ if (!string.IsNullOrEmpty(connectionString))
 
 // Serve static files for the gateway console
 app.UseDefaultFiles();
-app.UseStaticFiles();
+app.UseStaticFiles(new StaticFileOptions
+{
+    ContentTypeProvider = new Microsoft.AspNetCore.StaticFiles.FileExtensionContentTypeProvider
+    {
+        Mappings =
+        {
+            [".ps1"] = "application/octet-stream",
+            [".sh"] = "application/x-sh",
+        }
+    }
+});
 
 app.UseAuthentication();
 app.UseAuthorization();
