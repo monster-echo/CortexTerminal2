@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { IonText } from "@ionic/react"
 import type {
   TerminalGateway,
@@ -9,11 +10,13 @@ import {
   type TerminalSessionState,
 } from "./useTerminalSession"
 import { createBrowserTerminal } from "./createBrowserTerminal"
+import { StatusDot } from "../components/StatusDot"
 
 export function TerminalView(props: {
   gateway: TerminalGateway
   sessionId: string
 }) {
+  const { t } = useTranslation()
   const { gateway, sessionId } = props
   const [status, setStatus] = useState<TerminalSessionState>("live")
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -119,7 +122,7 @@ export function TerminalView(props: {
           session.onReplayChunk(payload, stream),
         onReplayCompleted: () => session.onReplayCompleted(),
         onSessionExpired: (reason) => {
-          setErrorMessage(reason ?? "Session expired.")
+          setErrorMessage(reason ?? t('terminal.expired'))
           session.onSessionExpired()
         },
         onLatencyProbeAck: handleLatencyProbeAck,
@@ -144,7 +147,7 @@ export function TerminalView(props: {
         setErrorMessage(
           error instanceof Error
             ? error.message
-            : "Could not connect terminal.",
+            : t('terminal.connectError'),
         )
       })
 
@@ -162,66 +165,26 @@ export function TerminalView(props: {
   }, [measureLatency])
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        flex: 1,
-        minHeight: 0,
-      }}
-    >
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
       {errorMessage && (
         <IonText color="danger">
-          <p style={{ fontSize: 13, padding: "8px 4px", margin: 0 }}>
+          <p className="ion-padding-horizontal" style={{ fontSize: 13, margin: 0 }}>
             {errorMessage}
           </p>
         </IonText>
       )}
-      <div
-        ref={terminalContainerRef}
-        style={{
-          flex: 1,
-          minHeight: 0,
-          width: "100%",
-          borderRadius: 8,
-          backgroundColor: "#0d1117",
-          overflow: "hidden",
-        }}
-      />
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "0 12px",
-          height: 28,
-          flexShrink: 0,
-          fontSize: 11,
-          color: "var(--ion-color-medium)",
-          backgroundColor: "var(--ion-color-card)",
-          borderTop: "1px solid var(--ion-color-step-150)",
-          borderBottomLeftRadius: 8,
-          borderBottomRightRadius: 8,
-        }}
-      >
+      <div ref={terminalContainerRef} className="terminal-bg" />
+      <div className="terminal-status-bar">
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: "50%",
-              backgroundColor: status === "live" ? "#10b981" : "#f59e0b",
-              flexShrink: 0,
-            }}
-          />
+          <StatusDot status={status === "live" ? "live" : "detached"} small />
           <span style={{ fontWeight: 500 }}>{status}</span>
         </div>
         <span>
           {latencyState === "measuring"
-            ? "E2E —"
+            ? t('terminal.e2eMeasuring')
             : latencyMs !== null
-              ? `E2E ${Math.round(latencyMs)}ms`
-              : "E2E —"}
+              ? t('terminal.e2eLive', { ms: Math.round(latencyMs) })
+              : t('terminal.e2eMeasuring')}
         </span>
         <span>
           {cols !== null && rows !== null ? `${cols}\u00d7${rows}` : ""}

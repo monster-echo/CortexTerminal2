@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react"
+import { useTranslation } from "react-i18next"
 import {
   IonPage,
   IonContent,
@@ -7,6 +8,10 @@ import {
   IonIcon,
   IonSpinner,
   IonInput,
+  IonList,
+  IonItem,
+  IonNote,
+  IonLabel,
 } from "@ionic/react"
 import { terminalOutline, logoGithub, logoGoogle, phonePortraitOutline } from "ionicons/icons"
 import type { NativeBridge } from "../bridge/types"
@@ -18,6 +23,7 @@ export function LoginPage({
   bridge: NativeBridge
   onLogin: () => void
 }) {
+  const { t } = useTranslation()
   const [phone, setPhone] = useState("")
   const [code, setCode] = useState("")
   const [codeSent, setCodeSent] = useState(false)
@@ -41,7 +47,7 @@ export function LoginPage({
 
   const handleSendCode = async () => {
     if (phone.length !== 11) {
-      setErrorMessage("Please enter an 11-digit phone number")
+      setErrorMessage(t('auth.errorPhoneInvalid'))
       return
     }
     setErrorMessage(null)
@@ -55,7 +61,7 @@ export function LoginPage({
       }, 1000)
     } catch (error) {
       setErrorMessage(
-        error instanceof Error ? error.message : "Failed to send code",
+        error instanceof Error ? error.message : t('auth.errorSendCode'),
       )
     } finally {
       setLoadingProvider(null)
@@ -64,7 +70,7 @@ export function LoginPage({
 
   const handlePhoneLogin = async () => {
     if (code.length < 4) {
-      setErrorMessage("Please enter the verification code")
+      setErrorMessage(t('auth.errorCodeRequired'))
       return
     }
     setErrorMessage(null)
@@ -74,7 +80,7 @@ export function LoginPage({
       onLogin()
     } catch (error) {
       setErrorMessage(
-        error instanceof Error ? error.message : "Verification failed",
+        error instanceof Error ? error.message : t('auth.errorVerify'),
       )
     } finally {
       setLoadingProvider(null)
@@ -88,7 +94,7 @@ export function LoginPage({
       await bridge.request("auth", "oauth.start", { provider })
     } catch (error) {
       setErrorMessage(
-        error instanceof Error ? error.message : "Could not open browser.",
+        error instanceof Error ? error.message : t('auth.errorBrowser'),
       )
       setLoadingProvider(null)
     }
@@ -97,192 +103,108 @@ export function LoginPage({
   return (
     <IonPage>
       <IonContent className="ion-padding">
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            minHeight: "100%",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: 56,
-              height: 56,
-              borderRadius: 16,
-              backgroundColor: "var(--ion-color-primary)",
-              marginBottom: 16,
-            }}
-          >
-            <IonIcon
-              icon={terminalOutline}
-              style={{ fontSize: 28, color: "#fff" }}
-            />
-          </div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0 }}>
-            CortexTerminal
-          </h1>
-          <p
-            style={{
-              color: "var(--ion-color-medium)",
-              fontSize: 14,
-              marginBottom: 32,
-            }}
-          >
-            Sign in to continue
-          </p>
+        <div className="ion-text-center" style={{ minHeight: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+          <IonIcon icon={terminalOutline} color="primary" className="ion-padding" style={{ fontSize: 48 }} />
+          <IonLabel><h1>CortexTerminal</h1></IonLabel>
+          <IonNote>{t('auth.signInToContinue')}</IonNote>
 
           {/* Phone number login */}
-          <div style={{ width: "100%", maxWidth: 400, marginBottom: 24 }}>
-            <IonInput
-              type="tel"
-              maxlength={11}
-              placeholder="Phone number"
-              value={phone}
-              onIonInput={(e) => setPhone((e.detail.value ?? "").replace(/\D/g, ""))}
-              disabled={loadingProvider !== null}
-              style={{
-                "--padding-start": "12px",
-                border: "1px solid var(--ion-color-medium)",
-                borderRadius: 8,
-                marginBottom: 8,
-                height: 44,
-              }}
-            >
-              <div
-                slot="start"
-                style={{
-                  paddingRight: 8,
-                  borderRight: "1px solid var(--ion-color-medium)",
-                  marginRight: 8,
-                  color: "var(--ion-color-medium)",
-                  fontSize: 14,
-                }}
-              >
-                +86
-              </div>
-            </IonInput>
+          <IonList lines="none" className="ion-padding-top" style={{ width: "100%", maxWidth: 400 }}>
+            <IonItem>
+              <IonNote slot="start">+86</IonNote>
+              <IonInput
+                type="tel"
+                maxlength={11}
+                placeholder={t('auth.phonePlaceholder')}
+                value={phone}
+                onIonInput={(e) => setPhone((e.detail.value ?? "").replace(/\D/g, ""))}
+                disabled={loadingProvider !== null}
+              />
+            </IonItem>
 
-            <div style={{ display: "flex", gap: 8 }}>
+            <IonItem>
               <IonInput
                 type="number"
                 maxlength={6}
-                placeholder="Verification code"
+                placeholder={t('auth.codePlaceholder')}
                 value={code}
                 onIonInput={(e) => setCode((e.detail.value ?? "").replace(/\D/g, ""))}
                 disabled={loadingProvider !== null || !codeSent}
-                style={{
-                  "--padding-start": "12px",
-                  border: "1px solid var(--ion-color-medium)",
-                  borderRadius: 8,
-                  flex: 1,
-                  height: 44,
-                }}
               />
               <IonButton
+                slot="end"
                 fill="outline"
+                size="small"
                 onClick={handleSendCode}
                 disabled={loadingProvider !== null || countdown > 0 || phone.length !== 11}
-                style={{ height: 44, margin: 0 }}
               >
                 {loadingProvider === "phone" ? (
                   <IonSpinner name="crescent" />
                 ) : countdown > 0 ? (
                   `${countdown}s`
                 ) : codeSent ? (
-                  "Resend"
+                  t('auth.resend')
                 ) : (
-                  "Get Code"
+                  t('auth.getCode')
                 )}
               </IonButton>
-            </div>
+            </IonItem>
+          </IonList>
 
-            {codeSent && (
-              <IonButton
-                expand="block"
-                onClick={handlePhoneLogin}
-                disabled={loadingProvider !== null || code.length < 4}
-                style={{ marginTop: 12, height: 44 }}
-              >
-                {loadingProvider === "phone-login" ? (
-                  <IonSpinner name="crescent" />
-                ) : (
-                  <>
-                    <IonIcon slot="start" icon={phonePortraitOutline} style={{ fontSize: 20 }} />
-                    Login
-                  </>
-                )}
-              </IonButton>
-            )}
-          </div>
+          {codeSent && (
+            <IonButton
+              expand="block"
+              className="ion-padding-horizontal"
+              style={{ maxWidth: 400 }}
+              onClick={handlePhoneLogin}
+              disabled={loadingProvider !== null || code.length < 4}
+            >
+              {loadingProvider === "phone-login" ? (
+                <IonSpinner name="crescent" />
+              ) : (
+                <>
+                  <IonIcon slot="start" icon={phonePortraitOutline} />
+                  {t('auth.login')}
+                </>
+              )}
+            </IonButton>
+          )}
 
           {/* Divider */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              width: "100%",
-              maxWidth: 400,
-              marginBottom: 16,
-            }}
-          >
-            <div
-              style={{
-                flex: 1,
-                height: 1,
-                backgroundColor: "var(--ion-color-medium)",
-              }}
-            />
-            <span
-              style={{
-                padding: "0 16px",
-                color: "var(--ion-color-medium)",
-                fontSize: 13,
-              }}
-            >
-              or sign in with
-            </span>
-            <div
-              style={{
-                flex: 1,
-                height: 1,
-                backgroundColor: "var(--ion-color-medium)",
-              }}
-            />
-          </div>
+          <IonItem lines="none" className="ion-padding-top" style={{ maxWidth: 400 }}>
+            <IonNote className="ion-text-center" style={{ width: "100%" }}>
+              {t('auth.orSignInWith')}
+            </IonNote>
+          </IonItem>
 
           {/* OAuth buttons */}
-          <div style={{ width: "100%", maxWidth: 400 }}>
+          <div className="ion-padding-top" style={{ width: "100%", maxWidth: 400 }}>
             <IonButton
               expand="block"
               fill="outline"
+              className="ion-margin-bottom"
               onClick={() => handleOAuth("apple")}
               disabled={loadingProvider !== null}
-              style={{ marginBottom: 12 }}
             >
               {loadingProvider === "apple" ? (
                 <IonSpinner name="crescent" />
               ) : (
-                <span style={{ fontWeight: 600 }}> Sign in with Apple</span>
+                t('auth.signInWithApple')
               )}
             </IonButton>
             <IonButton
               expand="block"
               fill="outline"
+              className="ion-margin-bottom"
               onClick={() => handleOAuth("github")}
               disabled={loadingProvider !== null}
-              style={{ marginBottom: 12 }}
             >
               {loadingProvider === "github" ? (
                 <IonSpinner name="crescent" />
               ) : (
                 <>
-                  <IonIcon slot="start" icon={logoGithub} style={{ fontSize: 20 }} />
-                  Continue with GitHub
+                  <IonIcon slot="start" icon={logoGithub} />
+                  {t('auth.continueWithGithub')}
                 </>
               )}
             </IonButton>
@@ -296,16 +218,16 @@ export function LoginPage({
                 <IonSpinner name="crescent" />
               ) : (
                 <>
-                  <IonIcon slot="start" icon={logoGoogle} style={{ fontSize: 20 }} />
-                  Continue with Google
+                  <IonIcon slot="start" icon={logoGoogle} />
+                  {t('auth.continueWithGoogle')}
                 </>
               )}
             </IonButton>
           </div>
 
           {errorMessage && (
-            <IonText color="danger">
-              <p style={{ fontSize: 13, marginTop: 16 }}>{errorMessage}</p>
+            <IonText color="danger" className="ion-padding-top">
+              <p>{errorMessage}</p>
             </IonText>
           )}
         </div>

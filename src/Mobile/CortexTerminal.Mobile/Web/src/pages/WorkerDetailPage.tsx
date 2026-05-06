@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { useHistory } from "react-router-dom"
 import {
   IonPage,
@@ -14,18 +15,15 @@ import {
   IonItem,
   IonLabel,
   IonBadge,
+  IonGrid,
+  IonRow,
+  IonCol,
   IonSkeletonText,
   IonText,
 } from "@ionic/react"
 import { arrowBackOutline, cloudUploadOutline } from "ionicons/icons"
 import type { ConsoleApi, WorkerDetail } from "../services/consoleApi"
-
-const statusColors: Record<string, string> = {
-  live: "#10b981",
-  detached: "#f59e0b",
-  exited: "#ef4444",
-  expired: "#71717a",
-}
+import { StatusDot } from "../components/StatusDot"
 
 const statusBadgeColor: Record<string, string> = {
   live: "success",
@@ -42,6 +40,7 @@ export function WorkerDetailPage({
   workerId: string
 }) {
   const history = useHistory()
+  const { t } = useTranslation()
   const [worker, setWorker] = useState<WorkerDetail | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isUpgrading, setIsUpgrading] = useState(false)
@@ -62,7 +61,7 @@ export function WorkerDetailPage({
       .catch((error: unknown) => {
         if (!isActive) return
         setErrorMessage(
-          error instanceof Error ? error.message : "Could not load worker.",
+          error instanceof Error ? error.message : t('workers.loadErrorDetail'),
         )
       })
       .finally(() => {
@@ -80,7 +79,7 @@ export function WorkerDetailPage({
       await api.upgradeWorker(workerId)
     } catch (error) {
       setErrorMessage(
-        error instanceof Error ? error.message : "Upgrade failed.",
+        error instanceof Error ? error.message : t('workers.upgradeFailed'),
       )
     } finally {
       setIsUpgrading(false)
@@ -105,7 +104,7 @@ export function WorkerDetailPage({
       </IonHeader>
       <IonContent>
         {errorMessage && (
-          <div style={{ padding: "0 16px", marginTop: 8 }}>
+          <div className="ion-padding-horizontal ion-margin-top">
             <IonText color="danger">
               <p style={{ fontSize: 13 }}>{errorMessage}</p>
             </IonText>
@@ -113,7 +112,7 @@ export function WorkerDetailPage({
         )}
 
         {isLoading ? (
-          <div style={{ padding: 16 }}>
+          <div className="ion-padding">
             <IonCard>
               <IonCardContent>
                 <IonSkeletonText animated style={{ height: 32 }} />
@@ -127,134 +126,85 @@ export function WorkerDetailPage({
           </div>
         ) : worker ? (
           <>
-            <IonCard style={{ margin: 16 }}>
+            <IonCard className="ion-margin">
               <IonCardContent>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                    marginBottom: 12,
-                  }}
-                >
-                  <span
-                    style={{
-                      width: 12,
-                      height: 12,
-                      borderRadius: "50%",
-                      backgroundColor: worker.isOnline ? "#10b981" : "#71717a",
-                      flexShrink: 0,
-                    }}
-                  />
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+                  <StatusDot status={worker.isOnline ? "online" : "offline"} />
                   <div style={{ flex: 1 }}>
-                    <h2
-                      style={{
-                        fontSize: 18,
-                        fontWeight: 700,
-                        margin: 0,
-                      }}
-                    >
+                    <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>
                       {worker.name}
                     </h2>
-                    <p
-                      style={{
-                        fontFamily: "monospace",
-                        fontSize: 11,
-                        color: "var(--ion-color-medium)",
-                        margin: 0,
-                      }}
-                    >
+                    <p className="mono" style={{ fontSize: 11, color: "var(--ion-color-medium)", margin: 0 }}>
                       {worker.workerId}
                     </p>
                   </div>
-                  <IonBadge
-                    color={worker.isOnline ? "success" : "medium"}
-                  >
-                    {worker.isOnline ? "Online" : "Offline"}
+                  <IonBadge color={worker.isOnline ? "success" : "medium"}>
+                    {worker.isOnline ? t('workers.online') : t('workers.offline')}
                   </IonBadge>
                 </div>
 
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gap: 8,
-                    fontSize: 12,
-                  }}
-                >
-                  <div>
-                    <IonText color="medium">
-                      <span>Sessions</span>
-                    </IonText>
-                    <p style={{ fontWeight: 600, margin: 0 }}>
-                      {worker.sessionCount}
-                    </p>
-                  </div>
-                  <div>
-                    <IonText color="medium">
-                      <span>Last seen</span>
-                    </IonText>
-                    <p style={{ fontWeight: 600, margin: 0 }}>
-                      {new Date(worker.lastSeenAt).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </p>
-                  </div>
+                <IonGrid>
+                  <IonRow>
+                    <IonCol size="6">
+                      <IonText color="medium"><span>{t('workers.sessions')}</span></IonText>
+                      <p style={{ fontWeight: 600, margin: 0 }}>{worker.sessionCount}</p>
+                    </IonCol>
+                    <IonCol size="6">
+                      <IonText color="medium"><span>{t('workers.lastSeen')}</span></IonText>
+                      <p style={{ fontWeight: 600, margin: 0 }}>
+                        {new Date(worker.lastSeenAt).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </p>
+                    </IonCol>
+                  </IonRow>
                   {worker.hostname && (
-                    <div>
-                      <IonText color="medium">
-                        <span>Hostname</span>
-                      </IonText>
-                      <p style={{ fontWeight: 600, margin: 0 }}>
-                        {worker.hostname}
-                      </p>
-                    </div>
+                    <IonRow>
+                      <IonCol size="6">
+                        <IonText color="medium"><span>{t('workers.hostname')}</span></IonText>
+                        <p style={{ fontWeight: 600, margin: 0 }}>{worker.hostname}</p>
+                      </IonCol>
+                      {worker.version && (
+                        <IonCol size="6">
+                          <IonText color="medium"><span>{t('workers.version')}</span></IonText>
+                          <p style={{ fontWeight: 600, margin: 0 }}>{worker.version}</p>
+                        </IonCol>
+                      )}
+                    </IonRow>
                   )}
-                  {worker.version && (
-                    <div>
-                      <IonText color="medium">
-                        <span>Version</span>
-                      </IonText>
-                      <p style={{ fontWeight: 600, margin: 0 }}>
-                        {worker.version}
-                      </p>
-                    </div>
+                  {!worker.hostname && worker.version && (
+                    <IonRow>
+                      <IonCol size="6">
+                        <IonText color="medium"><span>{t('workers.version')}</span></IonText>
+                        <p style={{ fontWeight: 600, margin: 0 }}>{worker.version}</p>
+                      </IonCol>
+                    </IonRow>
                   )}
-                </div>
+                </IonGrid>
 
                 <IonButton
                   expand="block"
                   fill="outline"
                   size="small"
+                  className="ion-margin-top"
                   disabled={isUpgrading}
                   onClick={() => void handleUpgrade()}
-                  style={{ marginTop: 16 }}
                 >
                   <IonIcon icon={cloudUploadOutline} slot="start" />
-                  {isUpgrading ? "Upgrading..." : "Upgrade Worker"}
+                  {isUpgrading ? t('workers.upgrading') : t('workers.upgradeWorker')}
                 </IonButton>
               </IonCardContent>
             </IonCard>
 
-            <div style={{ padding: "0 16px" }}>
-              <p
-                style={{
-                  fontSize: 14,
-                  fontWeight: 600,
-                  marginBottom: 8,
-                }}
-              >
-                Hosted Sessions
-              </p>
+            <div className="ion-padding-horizontal">
+              <p className="section-label">{t('workers.hostedSessions')}</p>
             </div>
 
             {worker.sessions.length === 0 ? (
-              <div style={{ padding: "0 16px" }}>
+              <div className="ion-padding-horizontal">
                 <IonText color="medium">
-                  <p style={{ fontSize: 13, textAlign: "center" }}>
-                    No sessions on this worker
-                  </p>
+                  <p className="ion-text-center" style={{ fontSize: 13 }}>{t('workers.noSessions')}</p>
                 </IonText>
               </div>
             ) : (
@@ -267,26 +217,9 @@ export function WorkerDetailPage({
                       history.push(`/sessions/${session.sessionId}`)
                     }
                   >
-                    <span
-                      style={{
-                        width: 10,
-                        height: 10,
-                        borderRadius: "50%",
-                        backgroundColor:
-                          statusColors[session.status] ?? "#71717a",
-                        marginRight: 12,
-                        flexShrink: 0,
-                      }}
-                    />
+                    <StatusDot status={session.status} />
                     <IonLabel>
-                      <h3
-                        style={{
-                          fontFamily: "monospace",
-                          fontSize: 12,
-                        }}
-                      >
-                        {session.sessionId}
-                      </h3>
+                      <h3 className="mono">{session.sessionId}</h3>
                       <p>
                         {new Date(session.lastActivityAt).toLocaleTimeString(
                           [],

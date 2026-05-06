@@ -79,11 +79,13 @@ public static class MauiProgram
 		{
 			try
 			{
-				var result = await restApi.SendAsync(
-					msg.Payload?.GetProperty("method").GetString() ?? "GET",
-					msg.Payload?.GetProperty("path").GetString() ?? "",
-					msg.Payload?.GetProperty("body"),
-					default);
+				var method = msg.Payload?.TryGetProperty("method", out var methodProp) == true
+					? methodProp.GetString() ?? "GET" : "GET";
+				var path = msg.Payload?.TryGetProperty("path", out var pathProp) == true
+					? pathProp.GetString() ?? "" : "";
+				var body = msg.Payload?.TryGetProperty("body", out var bodyProp) == true
+					? (JsonElement?)bodyProp : null;
+				var result = await restApi.SendAsync(method, path, body, default);
 				return new BridgeResponse { Ok = true, Payload = result };
 			}
 			catch (Exception ex)

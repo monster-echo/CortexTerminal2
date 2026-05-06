@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { useHistory } from "react-router-dom"
 import {
   IonPage,
@@ -22,15 +23,9 @@ import {
 } from "@ionic/react"
 import { addOutline, trashOutline } from "ionicons/icons"
 import type { ConsoleApi, SessionSummary } from "../services/consoleApi"
+import { StatusDot } from "../components/StatusDot"
 
 type SessionFilter = "all" | "live" | "detached" | "exited"
-
-const statusColors: Record<string, string> = {
-  live: "#10b981",
-  detached: "#f59e0b",
-  exited: "#ef4444",
-  expired: "#71717a",
-}
 
 const statusBadgeColor: Record<string, string> = {
   live: "success",
@@ -40,6 +35,7 @@ const statusBadgeColor: Record<string, string> = {
 }
 
 export function SessionListPage({ api }: { api: ConsoleApi }) {
+  const { t } = useTranslation()
   const history = useHistory()
   const [sessions, setSessions] = useState<SessionSummary[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -60,7 +56,7 @@ export function SessionListPage({ api }: { api: ConsoleApi }) {
       .catch((error: unknown) => {
         if (!isActive) return
         setErrorMessage(
-          error instanceof Error ? error.message : "Could not load sessions.",
+          error instanceof Error ? error.message : t('sessions.loadError'),
         )
       })
       .finally(() => {
@@ -81,7 +77,7 @@ export function SessionListPage({ api }: { api: ConsoleApi }) {
       history.push(`/sessions/${created.sessionId}`)
     } catch (error) {
       setErrorMessage(
-        error instanceof Error ? error.message : "Could not start session.",
+        error instanceof Error ? error.message : t('sessions.createError'),
       )
     } finally {
       setIsCreating(false)
@@ -94,7 +90,7 @@ export function SessionListPage({ api }: { api: ConsoleApi }) {
       setSessions((prev) => prev.filter((s) => s.sessionId !== sessionId))
     } catch (error) {
       setErrorMessage(
-        error instanceof Error ? error.message : "Could not delete session.",
+        error instanceof Error ? error.message : t('sessions.deleteError'),
       )
     }
   }
@@ -108,7 +104,7 @@ export function SessionListPage({ api }: { api: ConsoleApi }) {
     <IonPage>
       <IonHeader>
         <IonToolbar>
-          <IonTitle>Sessions</IonTitle>
+          <IonTitle>{t('sessions.title')}</IonTitle>
           <IonButton
             slot="end"
             fill="solid"
@@ -117,7 +113,7 @@ export function SessionListPage({ api }: { api: ConsoleApi }) {
             disabled={isCreating}
           >
             <IonIcon icon={addOutline} slot="start" />
-            New
+            {t('sessions.new')}
           </IonButton>
         </IonToolbar>
       </IonHeader>
@@ -125,24 +121,24 @@ export function SessionListPage({ api }: { api: ConsoleApi }) {
         <IonSegment
           value={filter}
           onIonChange={(e) => setFilter(e.detail.value as SessionFilter)}
-          style={{ margin: "8px 16px" }}
+          className="ion-padding-horizontal ion-margin-top"
         >
           <IonSegmentButton value="all">
-            <IonLabel>All</IonLabel>
+            <IonLabel>{t('sessions.filterAll')}</IonLabel>
           </IonSegmentButton>
           <IonSegmentButton value="live">
-            <IonLabel>Live</IonLabel>
+            <IonLabel>{t('sessions.filterLive')}</IonLabel>
           </IonSegmentButton>
           <IonSegmentButton value="detached">
-            <IonLabel>Detached</IonLabel>
+            <IonLabel>{t('sessions.filterDetached')}</IonLabel>
           </IonSegmentButton>
           <IonSegmentButton value="exited">
-            <IonLabel>Exited</IonLabel>
+            <IonLabel>{t('sessions.filterExited')}</IonLabel>
           </IonSegmentButton>
         </IonSegment>
 
         {errorMessage && (
-          <div style={{ padding: "0 16px" }}>
+          <div className="ion-padding-horizontal">
             <IonText color="danger">
               <p style={{ fontSize: 13 }}>{errorMessage}</p>
             </IonText>
@@ -150,7 +146,7 @@ export function SessionListPage({ api }: { api: ConsoleApi }) {
         )}
 
         {isLoading ? (
-          <div style={{ padding: 16 }}>
+          <div className="ion-padding">
             {[1, 2, 3].map((i) => (
               <IonItem key={i}>
                 <IonSkeletonText animated style={{ height: 20 }} />
@@ -158,16 +154,9 @@ export function SessionListPage({ api }: { api: ConsoleApi }) {
             ))}
           </div>
         ) : filtered.length === 0 ? (
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              padding: "48px 16px",
-            }}
-          >
+          <div className="empty-state">
             <IonText color="medium">
-              <p>No {filter === "all" ? "" : filter} sessions</p>
+              <p>{t('sessions.noSessions', { filter: filter === 'all' ? '' : t('sessions.filter' + filter.charAt(0).toUpperCase() + filter.slice(1)) + ' ' })}</p>
             </IonText>
           </div>
         ) : (
@@ -180,27 +169,9 @@ export function SessionListPage({ api }: { api: ConsoleApi }) {
                     history.push(`/sessions/${session.sessionId}`)
                   }
                 >
-                  <span
-                    style={{
-                      width: 10,
-                      height: 10,
-                      borderRadius: "50%",
-                      backgroundColor:
-                        statusColors[session.status] ?? "#71717a",
-                      marginRight: 12,
-                      flexShrink: 0,
-                    }}
-                  />
+                  <StatusDot status={session.status} />
                   <IonLabel>
-                    <h3
-                      style={{
-                        fontFamily: "monospace",
-                        fontSize: 12,
-                        fontWeight: 600,
-                      }}
-                    >
-                      {session.sessionId}
-                    </h3>
+                    <h3 className="mono">{session.sessionId}</h3>
                     <p>
                       {session.workerId} &middot;{" "}
                       {new Date(session.lastActivityAt).toLocaleTimeString([], {

@@ -24,6 +24,7 @@
   </ItemGroup>
   <ItemGroup>
     <MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
+    <MauiAsset Include="Resources\Raw\wwwroot\assets\*" LogicalName="wwwroot\assets\%(Filename)%(Extension)" />
     <!-- Prevent MAUI XAML generator from scanning Web/node_modules -->
     <Compile Remove="Web\node_modules\**" />
     <Content Remove="Web\node_modules\**" />

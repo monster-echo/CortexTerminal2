@@ -1,45 +1,6 @@
 @import "@xterm/xterm/css/xterm.css";
 
 :root {
-  /* CortexTerminal dark theme */
-  --ion-background-color: #0f172a;
-  --ion-background-color-rgb: 15, 23, 42;
-  --ion-text-color: #e2e8f0;
-  --ion-text-color-rgb: 226, 232, 240;
-
-  --ion-toolbar-background: #1e293b;
-  --ion-toolbar-color: #e2e8f0;
-
-  --ion-tab-bar-background: #1e293b;
-  --ion-tab-bar-color: #94a3b8;
-  --ion-tab-bar-color-selected: #60a5fa;
-
-  --ion-card-background: #1e293b;
-
-  --ion-item-background: #1e293b;
-  --ion-item-background-hover: #334155;
-  --ion-item-background-activated: #334155;
-
-  --ion-color-primary: #3b82f6;
-  --ion-color-primary-rgb: 59, 130, 246;
-  --ion-color-primary-contrast: #ffffff;
-  --ion-color-primary-shade: #2563eb;
-  --ion-color-primary-tint: #60a5fa;
-
-  --ion-color-danger: #ef4444;
-  --ion-color-danger-rgb: 239, 68, 68;
-
-  --ion-color-medium: #94a3b8;
-  --ion-color-medium-rgb: 148, 163, 184;
-
-  --ion-color-success: #10b981;
-  --ion-color-success-rgb: 16, 185, 129;
-
-  --ion-color-warning: #f59e0b;
-  --ion-color-warning-rgb: 245, 158, 11;
-
-  color-scheme: dark;
-
   /* Safe area support (iOS notch) */
   --ion-safe-area-top: env(safe-area-inset-top);
   --ion-safe-area-bottom: env(safe-area-inset-bottom);
@@ -49,10 +10,6 @@
 
 body {
   margin: 0;
-  padding-top: var(--ion-safe-area-top);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  background-color: var(--ion-background-color);
-  color: var(--ion-text-color);
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior: none;
@@ -62,32 +19,93 @@ body {
   height: 100%;
 }
 
-/* xterm.js overrides for dark theme */
+/* xterm.js padding */
 .xterm {
   padding: 4px;
 }
 
-/* Ionic overrides */
-ion-tab-button.tab-selected {
-  color: var(--ion-tab-bar-color-selected) !important;
+/* Shared utility classes */
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-right: 12px;
 }
 
-ion-tab-bar {
-  --border: 1px solid #334155;
-  padding-bottom: var(--ion-safe-area-bottom);
+.status-dot-sm {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
-ion-toolbar {
-  --border-width: 0 0 1px 0;
-  --border-style: solid;
-  --border-color: #334155;
+.status-dot-success,
+.status-dot-sm-success {
+  background-color: var(--ion-color-success);
 }
 
-ion-item {
-  --border-color: #334155;
+.status-dot-warning,
+.status-dot-sm-warning {
+  background-color: var(--ion-color-warning);
 }
 
-ion-card {
-  --border-radius: 12px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3) !important;
+.status-dot-danger,
+.status-dot-sm-danger {
+  background-color: var(--ion-color-danger);
+}
+
+.status-dot-medium,
+.status-dot-sm-medium {
+  background-color: var(--ion-color-medium);
+}
+
+.section-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+  color: var(--ion-color-medium);
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 48px 16px;
+}
+
+.mono {
+  font-family: monospace;
+}
+
+.terminal-bg {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  border-radius: 8px;
+  background-color: #0d1117;
+  overflow: hidden;
+}
+
+.terminal-status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  height: 28px;
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--ion-color-medium);
+  background-color: var(--ion-color-step-100, #f2f2f7);
+  border-top: 1px solid var(--ion-color-step-150, #e5e5ea);
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
+}
+
+/* Dark mode overrides for terminal */
+html.dark .terminal-status-bar {
+  background-color: var(--ion-color-step-100, #1a1a1a);
+  border-top-color: var(--ion-color-step-150, #2a2a2a);
 }

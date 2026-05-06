@@ -1,0 +1,99 @@
+{
+  "brand": { "name": "CortexTerminal" },
+  "nav": {
+    "home": "Home",
+    "sessions": "Sessions",
+    "workers": "Workers",
+    "settings": "Settings"
+  },
+  "auth": {
+    "signInToContinue": "Sign in to continue",
+    "phonePlaceholder": "Phone number",
+    "codePlaceholder": "Verification code",
+    "getCode": "Get Code",
+    "resend": "Resend",
+    "login": "Login",
+    "orSignInWith": "or sign in with",
+    "signInWithApple": "Sign in with Apple",
+    "continueWithGithub": "Continue with GitHub",
+    "continueWithGoogle": "Continue with Google",
+    "errorPhoneInvalid": "Please enter an 11-digit phone number",
+    "errorSendCode": "Failed to send code",
+    "errorCodeRequired": "Please enter the verification code",
+    "errorVerify": "Verification failed",
+    "errorBrowser": "Could not open browser."
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "active": "Active",
+    "detached": "Detached",
+    "workers": "Workers",
+    "total": "Total",
+    "recentSessions": "Recent Sessions",
+    "viewAll": "View all",
+    "noSessions": "No sessions yet"
+  },
+  "sessions": {
+    "title": "Sessions",
+    "new": "New",
+    "loadError": "Could not load sessions.",
+    "createError": "Could not start session.",
+    "deleteError": "Could not delete session.",
+    "noSessions": "No {{filter}}sessions",
+    "filterAll": "All",
+    "filterLive": "Live",
+    "filterDetached": "Detached",
+    "filterExited": "Exited",
+    "statusLive": "Live",
+    "statusDetached": "Detached",
+    "statusExited": "Exited",
+    "statusExpired": "Expired"
+  },
+  "terminal": {
+    "title": "Terminal",
+    "expired": "Session expired.",
+    "connectError": "Could not connect terminal.",
+    "e2eMeasuring": "E2E —",
+    "e2eLive": "E2E {{ms}}ms"
+  },
+  "workers": {
+    "title": "Workers",
+    "loadError": "Could not load workers.",
+    "noWorkers": "No workers connected",
+    "online": "Online",
+    "offline": "Offline",
+    "loadErrorDetail": "Could not load worker.",
+    "sessions": "Sessions",
+    "lastSeen": "Last seen",
+    "hostname": "Hostname",
+    "version": "Version",
+    "upgrading": "Upgrading...",
+    "upgradeWorker": "Upgrade Worker",
+    "upgradeFailed": "Upgrade failed.",
+    "hostedSessions": "Hosted Sessions",
+    "noSessions": "No sessions on this worker"
+  },
+  "settings": {
+    "title": "Settings",
+    "appearance": "Appearance",
+    "themeLight": "Light",
+    "themeDark": "Dark",
+    "themeSystem": "System",
+    "language": "Language",
+    "account": "Account",
+    "activateWorker": "Activate Worker",
+    "activateDesc": "Enter the code from your worker terminal",
+    "activatePlaceholder": "XXXX-YYYY",
+    "activateButton": "Authorize",
+    "activateSuccess": "Worker authorized!",
+    "activateInvalid": "Invalid code",
+    "activateError": "Authorization failed",
+    "signOut": "Sign out",
+    "gatewayConsole": "Gateway Console",
+    "gatewayVersion": "CortexTerminal Gateway v{{version}}"
+  },
+  "common": {
+    "loading": "Loading...",
+    "on": "on"
+  }
+}

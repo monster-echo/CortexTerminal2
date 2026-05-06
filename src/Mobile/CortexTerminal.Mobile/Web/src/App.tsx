@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect } from "react"
+import { useTranslation } from "react-i18next"
 import { Redirect, Route, Switch } from "react-router-dom"
 import {
   IonApp,
@@ -32,7 +33,28 @@ import { SessionDetailPage } from "./pages/SessionDetailPage"
 
 setupIonicReact({ mode: "ios" })
 
+// Apply stored theme on startup
+type Theme = "light" | "dark" | "system"
+function applyTheme(theme: Theme) {
+  const root = document.documentElement
+  if (theme === "system") {
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches
+    root.classList.toggle("dark", prefersDark)
+  } else {
+    root.classList.toggle("dark", theme === "dark")
+  }
+}
+const storedTheme = (localStorage.getItem("theme") as Theme) ?? "system"
+applyTheme(storedTheme)
+
+// Listen for system theme changes when in "system" mode
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+  const current = (localStorage.getItem("theme") as Theme) ?? "system"
+  if (current === "system") applyTheme("system")
+})
+
 export function App() {
+  const { t } = useTranslation()
   const bridge = useMemo(() => createNativeBridge(), [])
   const api = useMemo(() => createConsoleApi(bridge), [bridge])
   const auth = useMemo(() => createAuthService(bridge), [bridge])
@@ -105,7 +127,7 @@ export function App() {
                 height: "100%",
               }}
             >
-              <IonLabel color="medium">Loading...</IonLabel>
+              <IonLabel color="medium">{t('common.loading')}</IonLabel>
             </div>
           </IonContent>
         </IonPage>
@@ -190,19 +212,19 @@ export function App() {
           <IonTabBar slot="bottom">
             <IonTabButton tab="dashboard" href="/dashboard">
               <IonIcon icon={homeOutline} />
-              <IonLabel>Home</IonLabel>
+              <IonLabel>{t('nav.home')}</IonLabel>
             </IonTabButton>
             <IonTabButton tab="sessions" href="/sessions">
               <IonIcon icon={terminalOutline} />
-              <IonLabel>Sessions</IonLabel>
+              <IonLabel>{t('nav.sessions')}</IonLabel>
             </IonTabButton>
             <IonTabButton tab="workers" href="/workers">
               <IonIcon icon={serverOutline} />
-              <IonLabel>Workers</IonLabel>
+              <IonLabel>{t('nav.workers')}</IonLabel>
             </IonTabButton>
             <IonTabButton tab="settings" href="/settings">
               <IonIcon icon={settingsOutline} />
-              <IonLabel>Settings</IonLabel>
+              <IonLabel>{t('nav.settings')}</IonLabel>
             </IonTabButton>
           </IonTabBar>
         </IonTabs>

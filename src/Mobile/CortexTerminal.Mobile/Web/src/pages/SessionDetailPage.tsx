@@ -1,4 +1,5 @@
 import { useMemo } from "react"
+import { useTranslation } from "react-i18next"
 import { useHistory } from "react-router-dom"
 import {
   IonPage,
@@ -21,6 +22,7 @@ export function SessionDetailPage({
   bridge: NativeBridge
   sessionId: string
 }) {
+  const { t } = useTranslation()
   const history = useHistory()
   const gateway = useMemo(() => createTerminalGateway(bridge), [bridge])
 
@@ -35,18 +37,11 @@ export function SessionDetailPage({
           >
             <IonIcon icon={arrowBackOutline} slot="icon-only" />
           </IonButton>
-          <IonTitle>Terminal</IonTitle>
+          <IonTitle>{t('terminal.title')}</IonTitle>
         </IonToolbar>
       </IonHeader>
       <IonContent scrollY={false}>
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            height: "100%",
-            padding: 8,
-          }}
-        >
+        <div className="ion-padding" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
           <TerminalView gateway={gateway} sessionId={sessionId} />
         </div>
       </IonContent>

@@ -49,6 +49,7 @@ export interface ConsoleApi {
   getWorker(workerId: string): Promise<WorkerDetail>
   upgradeWorker(workerId: string): Promise<void>
   getGatewayInfo(): Promise<GatewayInfo>
+  verifyDeviceCode(userCode: string): Promise<void>
 }
 
 type SessionSummaryDto = Omit<SessionSummary, "status"> & {
@@ -111,6 +112,9 @@ export function createConsoleApi(bridge: NativeBridge): ConsoleApi {
     },
     async getGatewayInfo() {
       return rest<GatewayInfo>("GET", "/api/gateway/info")
+    },
+    async verifyDeviceCode(userCode) {
+      await rest("POST", "/api/auth/device-flow/verify", { userCode })
     },
   }
 }

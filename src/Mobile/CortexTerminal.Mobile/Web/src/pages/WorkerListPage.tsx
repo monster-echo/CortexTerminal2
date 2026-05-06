@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { useHistory } from "react-router-dom"
 import {
   IonPage,
@@ -15,8 +16,10 @@ import {
 } from "@ionic/react"
 import { chevronForwardOutline } from "ionicons/icons"
 import type { ConsoleApi, WorkerSummary } from "../services/consoleApi"
+import { StatusDot } from "../components/StatusDot"
 
 export function WorkerListPage({ api }: { api: ConsoleApi }) {
+  const { t } = useTranslation()
   const history = useHistory()
   const [workers, setWorkers] = useState<WorkerSummary[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -34,7 +37,7 @@ export function WorkerListPage({ api }: { api: ConsoleApi }) {
       .catch((error: unknown) => {
         if (!isActive) return
         setErrorMessage(
-          error instanceof Error ? error.message : "Could not load workers.",
+          error instanceof Error ? error.message : t('workers.loadError'),
         )
       })
       .finally(() => {
@@ -49,12 +52,12 @@ export function WorkerListPage({ api }: { api: ConsoleApi }) {
     <IonPage>
       <IonHeader>
         <IonToolbar>
-          <IonTitle>Workers</IonTitle>
+          <IonTitle>{t('workers.title')}</IonTitle>
         </IonToolbar>
       </IonHeader>
       <IonContent>
         {errorMessage && (
-          <div style={{ padding: "0 16px" }}>
+          <div className="ion-padding-horizontal">
             <IonText color="danger">
               <p style={{ fontSize: 13 }}>{errorMessage}</p>
             </IonText>
@@ -62,7 +65,7 @@ export function WorkerListPage({ api }: { api: ConsoleApi }) {
         )}
 
         {isLoading ? (
-          <div style={{ padding: 16 }}>
+          <div className="ion-padding">
             {[1, 2, 3].map((i) => (
               <IonItem key={i}>
                 <IonSkeletonText animated style={{ height: 20 }} />
@@ -70,16 +73,9 @@ export function WorkerListPage({ api }: { api: ConsoleApi }) {
             ))}
           </div>
         ) : workers.length === 0 ? (
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              padding: "48px 16px",
-            }}
-          >
+          <div className="empty-state">
             <IonText color="medium">
-              <p>No workers connected</p>
+              <p>{t('workers.noWorkers')}</p>
             </IonText>
           </div>
         ) : (
@@ -90,18 +86,9 @@ export function WorkerListPage({ api }: { api: ConsoleApi }) {
                 button
                 onClick={() => history.push(`/workers/${worker.workerId}`)}
               >
-                <span
-                  style={{
-                    width: 10,
-                    height: 10,
-                    borderRadius: "50%",
-                    backgroundColor: worker.isOnline ? "#10b981" : "#71717a",
-                    marginRight: 12,
-                    flexShrink: 0,
-                  }}
-                />
+                <StatusDot status={worker.isOnline ? "online" : "offline"} />
                 <IonLabel>
-                  <h3 style={{ fontWeight: 600 }}>{worker.name}</h3>
+                  <h3>{worker.name}</h3>
                   <p>
                     {worker.sessionCount} sessions &middot;{" "}
                     {new Date(worker.lastSeenAt).toLocaleTimeString([], {
@@ -115,7 +102,7 @@ export function WorkerListPage({ api }: { api: ConsoleApi }) {
                   color={worker.isOnline ? "success" : "medium"}
                 >
                   <span style={{ fontSize: 12, fontWeight: 500 }}>
-                    {worker.isOnline ? "Online" : "Offline"}
+                    {worker.isOnline ? t('workers.online') : t('workers.offline')}
                   </span>
                 </IonText>
                 <IonIcon
