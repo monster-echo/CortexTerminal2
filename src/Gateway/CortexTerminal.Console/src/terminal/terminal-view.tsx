@@ -38,6 +38,7 @@ export function TerminalView(props: {
   const [latencyState, setLatencyState] = useState<
     'live' | 'measuring' | 'offline'
   >('measuring')
+  const [sessionExpired, setSessionExpired] = useState(false)
   const connectionRef = useRef<TerminalGatewayConnection | null>(null)
   const browserTerminalRef = useRef<BrowserTerminal | null>(null)
   const sessionRef = useRef<ReturnType<
@@ -176,6 +177,7 @@ export function TerminalView(props: {
           sessionRef.current?.onReplayCompleted()
         },
         onSessionExpired: (reason) => {
+          setSessionExpired(true)
           setErrorMessage(reason ?? 'Session expired.')
           setStatusMessage('Session is no longer available.')
           handleLatencyChange(null, 'offline')
@@ -290,8 +292,9 @@ export function TerminalView(props: {
     }
   }, [latencyProbeGeneration, handleLatencyChange, sessionId])
 
-  const effectiveStatus: SessionStatus | 'offline' =
-    sessionStatus ?? (latencyState === 'offline' ? 'offline' : 'live')
+  const effectiveStatus: SessionStatus | 'offline' = sessionExpired
+    ? 'expired'
+    : sessionStatus ?? (latencyState === 'offline' ? 'offline' : 'live')
 
   return (
     <div className='flex h-full min-h-0 flex-col'>
