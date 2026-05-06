@@ -14,9 +14,6 @@ import {
   IonCard,
   IonCardContent,
   IonText,
-  IonGrid,
-  IonRow,
-  IonCol,
   IonModal,
   IonInput,
 } from "@ionic/react"
@@ -30,10 +27,17 @@ import {
   keyOutline,
   closeOutline,
   checkmarkCircleOutline,
+  checkmarkOutline,
 } from "ionicons/icons"
 import type { ConsoleApi } from "../services/consoleApi"
 
 type Theme = "light" | "dark" | "system"
+
+const themeIconMap: Record<Theme, string> = {
+  light: sunnyOutline,
+  dark: moonOutline,
+  system: desktopOutline,
+}
 
 function getStoredTheme(): Theme {
   return (localStorage.getItem("theme") as Theme) ?? "system"
@@ -65,6 +69,10 @@ export function SettingsPage({
     () => localStorage.getItem("cortex_mobile_lang") ?? navigator.language.startsWith("zh") ? "zh" : "en"
   )
 
+  // sheet modals
+  const [showThemeSheet, setShowThemeSheet] = useState(false)
+  const [showLangSheet, setShowLangSheet] = useState(false)
+
   // activate modal state
   const [showActivate, setShowActivate] = useState(false)
   const [activateCode, setActivateCode] = useState("")
@@ -87,11 +95,13 @@ export function SettingsPage({
     setTheme(value)
     localStorage.setItem("theme", value)
     applyTheme(value)
+    setShowThemeSheet(false)
   }
 
   const handleLanguageChange = (lang: string) => {
     setLanguage(lang)
     localStorage.setItem("cortex_mobile_lang", lang)
+    setShowLangSheet(false)
     window.location.reload()
   }
 
@@ -129,6 +139,9 @@ export function SettingsPage({
     { value: "zh", label: "中文" },
   ]
 
+  const currentThemeLabel = themes.find(t => t.value === theme)?.label ?? ""
+  const currentLangLabel = languages.find(l => l.value === language)?.label ?? ""
+
   return (
     <IonPage>
       <IonHeader>
@@ -137,6 +150,7 @@ export function SettingsPage({
         </IonToolbar>
       </IonHeader>
       <IonContent>
+        {/* User card */}
         <IonCard className="ion-margin">
           <IonCardContent>
             <IonItem lines="none">
@@ -149,70 +163,86 @@ export function SettingsPage({
           </IonCardContent>
         </IonCard>
 
-        <div className="ion-padding-horizontal ion-margin-top">
-          <p className="section-label">{t('settings.appearance')}</p>
-        </div>
-        <IonGrid className="ion-padding-horizontal">
-          <IonRow>
-            {themes.map(({ value, label, icon }) => (
-              <IonCol key={value}>
-                <IonButton
-                  fill={theme === value ? "solid" : "outline"}
-                  size="small"
-                  expand="block"
-                  onClick={() => handleThemeChange(value)}
-                >
-                  <IonIcon icon={icon} slot="start" />
-                  {label}
-                </IonButton>
-              </IonCol>
-            ))}
-          </IonRow>
-        </IonGrid>
+        {/* General settings */}
+        <IonList className="ion-margin-top" lines="inset">
+          <IonItem button detail onClick={() => setShowThemeSheet(true)}>
+            <IonIcon icon={themeIconMap[theme]} slot="start" color="primary" />
+            <IonLabel>{t('settings.appearance')}</IonLabel>
+            <IonLabel slot="end" color="medium" style={{ fontSize: 14 }}>{currentThemeLabel}</IonLabel>
+          </IonItem>
+          <IonItem button detail onClick={() => setShowLangSheet(true)}>
+            <IonIcon icon={globeOutline} slot="start" color="primary" />
+            <IonLabel>{t('settings.language')}</IonLabel>
+            <IonLabel slot="end" color="medium" style={{ fontSize: 14 }}>{currentLangLabel}</IonLabel>
+          </IonItem>
+        </IonList>
 
-        <div className="ion-padding-horizontal ion-margin-top">
-          <p className="section-label">{t('settings.language')}</p>
-        </div>
-        <IonGrid className="ion-padding-horizontal">
-          <IonRow>
-            {languages.map(({ value, label }) => (
-              <IonCol key={value}>
-                <IonButton
-                  fill={language === value ? "solid" : "outline"}
-                  size="small"
-                  expand="block"
-                  onClick={() => handleLanguageChange(value)}
-                >
-                  <IonIcon icon={globeOutline} slot="start" />
-                  {label}
-                </IonButton>
-              </IonCol>
-            ))}
-          </IonRow>
-        </IonGrid>
-
-        <div className="ion-padding-horizontal ion-margin-top">
-          <p className="section-label">{t('settings.account')}</p>
-        </div>
-        <IonList className="ion-padding-horizontal">
+        {/* Account */}
+        <IonList className="ion-margin-top" lines="inset">
           <IonItem button detail onClick={openActivateModal}>
             <IonIcon icon={keyOutline} slot="start" color="primary" />
             <IonLabel>{t('settings.activateWorker')}</IonLabel>
           </IonItem>
-          <IonItem
-            button
-            detail={false}
-            onClick={onLogout}
-            style={{ color: "var(--ion-color-danger)" }}
-          >
-            <IonIcon
-              icon={logOutOutline}
-              slot="start"
-              color="danger"
-            />
+          <IonItem button onClick={onLogout}>
+            <IonIcon icon={logOutOutline} slot="start" color="danger" />
             <IonLabel color="danger">{t('settings.signOut')}</IonLabel>
           </IonItem>
         </IonList>
+
+        {/* Theme Sheet Modal */}
+        <IonModal
+          isOpen={showThemeSheet}
+          onDidDismiss={() => setShowThemeSheet(false)}
+          breakpoints={[0, 0.5, 1]}
+          initialBreakpoint={0.5}
+          handle
+        >
+          <IonContent>
+            <IonList lines="full">
+              {themes.map(({ value, label, icon }) => (
+                <IonItem
+                  key={value}
+                  button
+                  onClick={() => handleThemeChange(value)}
+                  detail={false}
+                >
+                  <IonIcon icon={icon} slot="start" color={theme === value ? "primary" : "medium"} />
+                  <IonLabel>{label}</IonLabel>
+                  {theme === value && (
+                    <IonIcon icon={checkmarkOutline} slot="end" color="primary" />
+                  )}
+                </IonItem>
+              ))}
+            </IonList>
+          </IonContent>
+        </IonModal>
+
+        {/* Language Sheet Modal */}
+        <IonModal
+          isOpen={showLangSheet}
+          onDidDismiss={() => setShowLangSheet(false)}
+          breakpoints={[0, 0.5, 1]}
+          initialBreakpoint={0.5}
+          handle
+        >
+          <IonContent>
+            <IonList lines="full">
+              {languages.map(({ value, label }) => (
+                <IonItem
+                  key={value}
+                  button
+                  onClick={() => handleLanguageChange(value)}
+                  detail={false}
+                >
+                  <IonLabel>{label}</IonLabel>
+                  {language === value && (
+                    <IonIcon icon={checkmarkOutline} slot="end" color="primary" />
+                  )}
+                </IonItem>
+              ))}
+            </IonList>
+          </IonContent>
+        </IonModal>
 
         {/* Activate Worker Modal */}
         <IonModal isOpen={showActivate} onDidDismiss={() => setShowActivate(false)}>
