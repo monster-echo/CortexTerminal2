@@ -276,7 +276,7 @@ export function TerminalVirtualKeys(props: {
         }}
         onPointerDown={handleCollapsedPointerDown}
         onPointerMove={handleCollapsedPointerMove}
-        onPointerUp={(e) => {
+        onPointerUp={() => {
           const ds = dragState.current
           const wasDragging = ds.dragging
           handleCollapsedPointerUp()
