@@ -83,7 +83,7 @@ string CreateWorkerAccessToken(string username)
 static string CreateAppleClientSecret(AppleOAuthOptions options)
 {
     var ecdsa = System.Security.Cryptography.ECDsa.Create();
-    ecdsa.ImportFromPem(options.PrivateKey);
+    ecdsa.ImportFromPem(options.PrivateKey.Replace("\\n", "\n"));
     var tokenDescriptor = new Microsoft.IdentityModel.Tokens.SecurityTokenDescriptor
     {
         Issuer = options.TeamId,
