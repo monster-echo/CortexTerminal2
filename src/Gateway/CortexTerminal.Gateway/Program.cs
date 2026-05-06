@@ -515,7 +515,7 @@ app.MapPost("/api/auth/phone/send-code", (SendCodeRequest request, PhoneCodeStor
             smsRequest.AddQueryParameters("PhoneNumbers", request.Phone);
             smsRequest.AddQueryParameters("SignName", phoneAuthOptions.SignName);
             smsRequest.AddQueryParameters("TemplateCode", phoneAuthOptions.TemplateCode);
-            smsRequest.AddQueryParameters("TemplateParam", $"{{\"code\":\"{code}\"}}");
+            smsRequest.AddQueryParameters("TemplateParam", $"{{\"code\":\"{code}\",\"time\":\"5\"}}");
             var response = client.GetCommonResponse(smsRequest);
             if (response.HttpResponse.Status != 200 || !response.Data.Contains("\"Code\":\"OK\""))
             {
