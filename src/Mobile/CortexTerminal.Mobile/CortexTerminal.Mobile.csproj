@@ -7,6 +7,7 @@
     <Nullable>enable</Nullable>
     <ApplicationId>com.cortexterminal.mobile</ApplicationId>
     <MauiHybridWebViewSupported>true</MauiHybridWebViewSupported>
+    <CodesignEntitlements>Platforms/iOS/Entitlements.plist</CodesignEntitlements>
   </PropertyGroup>
   <ItemGroup>
     <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#08080A" />

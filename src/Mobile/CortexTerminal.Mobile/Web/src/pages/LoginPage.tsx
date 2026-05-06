@@ -13,6 +13,7 @@ import type { NativeBridge } from "../bridge/types"
 
 export function LoginPage({
   bridge,
+  onLogin,
 }: {
   bridge: NativeBridge
   onLogin: () => void
@@ -70,10 +71,12 @@ export function LoginPage({
     setLoadingProvider("phone-login")
     try {
       await bridge.request("auth", "phone.verifyCode", { phone, code })
+      onLogin()
     } catch (error) {
       setErrorMessage(
         error instanceof Error ? error.message : "Verification failed",
       )
+    } finally {
       setLoadingProvider(null)
     }
   }

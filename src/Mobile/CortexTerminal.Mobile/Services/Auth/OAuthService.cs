@@ -37,17 +37,53 @@ public sealed class OAuthService
             return new BridgeResponse { Ok = false, Error = "Unsupported OAuth provider." };
         }
 
-        var redirectUrl = $"{CustomScheme}://{CallbackPath}";
-        var oauthStartUrl = $"{_gatewayBaseUri}api/auth/{provider}?redirect={Uri.EscapeDataString(redirectUrl)}";
+        var callbackUrl = $"{CustomScheme}://{CallbackPath}";
+        var oauthStartUrl = $"{_gatewayBaseUri}api/auth/{provider}?redirect={Uri.EscapeDataString(callbackUrl)}";
 
+        WebAuthenticatorResult authResult;
         try
         {
-            await Browser.OpenAsync(oauthStartUrl, BrowserLaunchMode.SystemPreferred);
+            authResult = await WebAuthenticator.Default.AuthenticateAsync(
+                new Uri(oauthStartUrl),
+                new Uri(callbackUrl));
+        }
+        catch (TaskCanceledException)
+        {
+            // User cancelled the OAuth flow
+            return new BridgeResponse { Ok = false, Error = "OAuth cancelled." };
         }
         catch (Exception ex)
         {
-            return new BridgeResponse { Ok = false, Error = $"Could not open browser: {ex.Message}" };
+            Console.WriteLine($"[OAuth] WebAuthenticator error: {ex.Message}");
+            return new BridgeResponse { Ok = false, Error = $"Could not authenticate: {ex.Message}" };
         }
+
+        // Extract token from the callback URL query string
+        var token = authResult.Properties.TryGetValue("token", out var t) ? t : null;
+        var error = authResult.Properties.TryGetValue("error", out var e) ? e : null;
+
+        if (!string.IsNullOrEmpty(error))
+        {
+            await SendOAuthErrorAsync(error);
+            return new BridgeResponse { Ok = true };
+        }
+
+        if (string.IsNullOrEmpty(token))
+        {
+            await SendOAuthErrorAsync("No token received.");
+            return new BridgeResponse { Ok = true };
+        }
+
+        var username = ExtractUsernameFromJwt(token);
+        _authService.SetOAuthToken(token, username);
+
+        await _bridge.SendEventAsync(new BridgeEvent
+        {
+            Channel = "auth",
+            Method = "oauth.success",
+            Payload = JsonSerializer.Deserialize<JsonElement>(
+                JsonSerializer.Serialize(new { username })),
+        });
 
         return new BridgeResponse { Ok = true };
     }

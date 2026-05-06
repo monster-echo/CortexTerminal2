@@ -12,13 +12,18 @@ public class AppDelegate : MauiUIApplicationDelegate
 
 	public override bool OpenUrl(UIApplication application, NSUrl url, NSDictionary options)
 	{
+		// Let MAUI handle first (needed for WebAuthenticator to complete AuthenticateAsync).
+		if (base.OpenUrl(application, url, options))
+			return true;
+
+		// Fallback: handle deep links that aren't part of an active WebAuthenticator session.
 		if (url.Scheme == "cortexterminal")
 		{
 			var uri = new Uri(url.AbsoluteString!);
 			_ = HandleDeepLinkAsync(uri);
 			return true;
 		}
-		return base.OpenUrl(application, url, options);
+		return false;
 	}
 
 	private async Task HandleDeepLinkAsync(Uri uri)
