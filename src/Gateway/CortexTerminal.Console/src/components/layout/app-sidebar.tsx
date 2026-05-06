@@ -38,9 +38,9 @@ export function AppSidebar() {
         <NavUser
           user={{
             name: user?.username ?? sidebarData.user.name,
-            email: user?.username
+            email: user?.email ?? (user?.username
               ? `${user.username}@gateway.local`
-              : sidebarData.user.email,
+              : sidebarData.user.email),
             avatar: sidebarData.user.avatar,
           }}
         />

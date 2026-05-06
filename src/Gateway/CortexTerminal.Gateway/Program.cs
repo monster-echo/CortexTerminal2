@@ -23,15 +23,17 @@ var builder = WebApplication.CreateBuilder(args);
 
 var signingKey = builder.Configuration["Auth:SigningKey"] ?? "gateway-auth-signing-key-minimum-32b";
 
-string CreateAccessToken(string username)
+string CreateAccessToken(string username, string? email = null)
 {
-    var claims = new[]
+    var claims = new List<Claim>
     {
-        new Claim(JwtRegisteredClaimNames.Sub, username),
-        new Claim(ClaimTypes.NameIdentifier, username),
-        new Claim(ClaimTypes.Name, username),
-        new Claim("oi_tkn_typ", "access_token")
+        new(JwtRegisteredClaimNames.Sub, username),
+        new(ClaimTypes.NameIdentifier, username),
+        new(ClaimTypes.Name, username),
+        new("oi_tkn_typ", "access_token")
     };
+    if (!string.IsNullOrEmpty(email))
+        claims.Add(new Claim(JwtRegisteredClaimNames.Email, email));
     var credentials = new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey)), SecurityAlgorithms.HmacSha256);
     var token = new JwtSecurityToken(
         issuer: "https://gateway.local/",
@@ -387,7 +389,7 @@ app.MapGet("/api/auth/callback/github", async (string? code, string? state, OAut
     if (dbUser is null || dbUser.Status == "disabled")
         return OAuthRedirect(redirectUrl, error: "account_disabled");
 
-    var jwt = CreateAccessToken(dbUser.Username);
+    var jwt = CreateAccessToken(dbUser.Username, dbUser.Email);
     auditLog.Record(new AuditLogEntry(
         Id: Guid.NewGuid().ToString("N"),
         Timestamp: DateTimeOffset.UtcNow,
@@ -461,7 +463,7 @@ app.MapGet("/api/auth/callback/google", async (string? code, string? state, OAut
     if (dbUser is null || dbUser.Status == "disabled")
         return OAuthRedirect(redirectUrl, error: "account_disabled");
 
-    var jwt = CreateAccessToken(dbUser.Username);
+    var jwt = CreateAccessToken(dbUser.Username, dbUser.Email);
     auditLog.Record(new AuditLogEntry(
         Id: Guid.NewGuid().ToString("N"),
         Timestamp: DateTimeOffset.UtcNow,
@@ -550,7 +552,7 @@ app.MapPost("/api/auth/phone/verify", async (VerifyCodeRequest request, PhoneCod
     if (dbUser is null || dbUser.Status == "disabled")
         return Results.BadRequest(new { error = "Account disabled" });
 
-    var jwt = CreateAccessToken(dbUser.Username);
+    var jwt = CreateAccessToken(dbUser.Username, dbUser.Email);
     auditLog.Record(new AuditLogEntry(
         Id: Guid.NewGuid().ToString("N"),
         Timestamp: DateTimeOffset.UtcNow,
@@ -650,7 +652,7 @@ app.MapPost("/api/auth/callback/apple", async (HttpContext ctx, OAuthStateServic
     if (dbUser is null || dbUser.Status == "disabled")
         return OAuthRedirect(redirectUrl, error: "account_disabled");
 
-    var jwt = CreateAccessToken(dbUser.Username);
+    var jwt = CreateAccessToken(dbUser.Username, dbUser.Email);
     auditLog.Record(new AuditLogEntry(
         Id: Guid.NewGuid().ToString("N"),
         Timestamp: DateTimeOffset.UtcNow,

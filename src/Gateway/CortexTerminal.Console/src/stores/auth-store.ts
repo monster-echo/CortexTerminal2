@@ -6,6 +6,7 @@ const REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000 // 24 hours
 
 interface AuthUser {
   username: string
+  email?: string
 }
 
 interface AuthState {
@@ -118,10 +119,11 @@ export const useAuthStore = create<AuthState>()((set) => {
         sub?: string
         unique_name?: string
         name?: string
+        email?: string
       }
 
       const username = decoded.sub ?? decoded.unique_name ?? decoded.name
-      return username ? { username } : null
+      return username ? { username, email: decoded.email } : null
     } catch {
       return null
     }
