@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useNavigate } from '@tanstack/react-router'
 import type {
   TerminalGateway,
   TerminalGatewayConnection,
@@ -27,6 +28,7 @@ export function TerminalView(props: {
 }) {
   const { gateway, onLatencyChange, sessionId, workerId, sessionStatus } =
     props
+  const navigate = useNavigate()
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [statusMessage, setStatusMessage] = useState('Connecting to terminal…')
   const [latencyProbeGeneration, setLatencyProbeGeneration] = useState(0)
@@ -39,6 +41,9 @@ export function TerminalView(props: {
     'live' | 'measuring' | 'offline'
   >('measuring')
   const [sessionExpired, setSessionExpired] = useState(false)
+  const [sessionExpiredReason, setSessionExpiredReason] = useState<
+    string | null
+  >(null)
   const connectionRef = useRef<TerminalGatewayConnection | null>(null)
   const browserTerminalRef = useRef<BrowserTerminal | null>(null)
   const sessionRef = useRef<ReturnType<
@@ -178,6 +183,7 @@ export function TerminalView(props: {
         },
         onSessionExpired: (reason) => {
           setSessionExpired(true)
+          setSessionExpiredReason(reason ?? null)
           setErrorMessage(reason ?? 'Session expired.')
           setStatusMessage('Session is no longer available.')
           handleLatencyChange(null, 'offline')
@@ -296,10 +302,43 @@ export function TerminalView(props: {
     ? 'expired'
     : sessionStatus ?? (latencyState === 'offline' ? 'offline' : 'live')
 
+  const isSessionGone =
+    sessionExpired &&
+    (sessionExpiredReason === 'session-not-found' ||
+      sessionExpiredReason === 'session-expired')
+
+  // Auto-redirect to sessions list when the session no longer exists on the server
+  useEffect(() => {
+    if (!isSessionGone) {
+      return
+    }
+
+    const timer = setTimeout(() => {
+      navigate({ to: '/sessions' })
+    }, 5000)
+
+    return () => clearTimeout(timer)
+  }, [isSessionGone, navigate])
+
   return (
     <div className='flex h-full min-h-0 flex-col'>
+      {isSessionGone && (
+        <div className='flex items-center gap-2 rounded-lg bg-destructive/90 px-4 py-2 text-sm text-white'>
+          <span>
+            Session no longer exists (server may have restarted).
+            Redirecting to sessions list…
+          </span>
+          <button
+            type='button'
+            className='ml-auto shrink-0 rounded bg-white/20 px-3 py-1 text-xs font-medium text-white hover:bg-white/30'
+            onClick={() => navigate({ to: '/sessions' })}
+          >
+            Go to Sessions
+          </button>
+        </div>
+      )}
       <TerminalViewport
-        errorMessage={errorMessage}
+        errorMessage={isSessionGone ? null : errorMessage}
         onData={handleTerminalData}
         onEvent={handleViewportEvent}
         onReady={handleTerminalReady}

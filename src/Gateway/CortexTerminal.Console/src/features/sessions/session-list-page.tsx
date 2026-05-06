@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
-import { type SessionStatus } from '@/services/console-api'
+import { type SessionStatus, type SessionSummary } from '@/services/console-api'
 import { Loader2, Plus, TerminalSquare, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -23,6 +23,7 @@ import { StatusBadge } from '@/components/shared/status-badge'
 import { NewSessionDialog } from '@/components/new-session-dialog'
 import { useWorkers } from '@/hooks/use-workers'
 import { useSessions } from '@/hooks/use-sessions'
+import { useIsMobile } from '@/hooks/use-mobile'
 import { getApi } from '@/lib/api'
 
 type FilterTab = 'all' | 'live' | 'detached' | 'exited'
@@ -42,6 +43,7 @@ export function SessionListPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const api = getApi()
+  const isMobile = useIsMobile()
 
   const [filter, setFilter] = useState<FilterTab>('all')
   const [deleteTarget, setDeleteTarget] = useState<{
@@ -161,6 +163,13 @@ export function SessionListPage() {
                     : t('sessions.noMatchingSessions')}
                 </p>
               </div>
+            ) : isMobile ? (
+              <MobileSessionList
+                sessions={sessions}
+                t={t}
+                navigate={navigate}
+                setDeleteTarget={setDeleteTarget}
+              />
             ) : (
               <Table>
                 <TableHeader>
@@ -263,4 +272,64 @@ function formatDateTime(value: string) {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(new Date(value))
+}
+
+function MobileSessionList({
+  sessions,
+  t,
+  navigate,
+  setDeleteTarget,
+}: {
+  sessions: SessionSummary[]
+  t: ReturnType<typeof useTranslation>['t']
+  navigate: ReturnType<typeof useNavigate>
+  setDeleteTarget: (target: { sessionId: string } | null) => void
+}) {
+  return (
+    <div className='flex flex-col divide-y'>
+      {sessions.map((session) => (
+        <div key={session.sessionId} className='flex items-center gap-3 py-3'>
+          <div className='min-w-0 flex-1'>
+            <div className='flex items-center gap-2'>
+              <span className='truncate font-mono text-sm'>
+                {session.sessionId}
+              </span>
+              <StatusBadge
+                status={session.status}
+                label={t(`sessions.status.${session.status}`)}
+              />
+            </div>
+            <div className='mt-1 text-xs text-muted-foreground'>
+              {formatDateTime(session.lastActivityAt)}
+            </div>
+          </div>
+          <div className='flex shrink-0 items-center gap-1'>
+            <Button
+              variant='outline'
+              size='sm'
+              onClick={() =>
+                navigate({
+                  to: '/sessions/$sessionId',
+                  params: { sessionId: session.sessionId },
+                })
+              }
+            >
+              {t('sessions.openTerminal')}
+            </Button>
+            <Button
+              variant='ghost'
+              size='icon'
+              className='size-8'
+              disabled={!DELETABLE_STATUSES.includes(session.status)}
+              onClick={() =>
+                setDeleteTarget({ sessionId: session.sessionId })
+              }
+            >
+              <Trash2 className='size-4' />
+            </Button>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
 }
