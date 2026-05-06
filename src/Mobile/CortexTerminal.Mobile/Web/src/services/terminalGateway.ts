@@ -1,9 +1,4 @@
-import {
-  HubConnectionBuilder,
-  HttpTransportType,
-  LogLevel,
-  type HubConnection,
-} from "@microsoft/signalr"
+import type { NativeBridge } from "../bridge/types"
 
 export interface TerminalGatewayHandlers {
   onStdout(payload: Uint8Array): void
@@ -27,160 +22,166 @@ export interface TerminalGateway {
   connect(sessionId: string, handlers: TerminalGatewayHandlers): Promise<TerminalGatewayConnection>
 }
 
-type TerminalChunkDto = {
-  sessionId?: string
-  stream?: string
-  payload?: Uint8Array | number[] | string
-}
+type EventPayload = Record<string, unknown>
 
-type SessionIdDto = {
-  sessionId?: string
-}
-
-type SessionExpiredDto = SessionIdDto & {
-  reason?: string
-}
-
-type LatencyProbeDto = {
-  probeId?: string
-  sessionId?: string
-}
-
-type SessionCommandResult = {
-  isSuccess: boolean
-  errorCode?: string | null
-}
-
-export function createTerminalGateway(deps: {
-  hubUrl?: string
-  accessTokenFactory?: () => string | null
-} = {}): TerminalGateway {
-  const { hubUrl = "/hubs/terminal", accessTokenFactory = () => null } = deps
-
+export function createTerminalGateway(bridge: NativeBridge): TerminalGateway {
   return {
     async connect(sessionId, handlers) {
-      const connection = new HubConnectionBuilder()
-        .withUrl(hubUrl, {
-          accessTokenFactory: () => accessTokenFactory() ?? "",
-          transport: HttpTransportType.WebSockets | HttpTransportType.LongPolling,
-        })
-        .withAutomaticReconnect()
-        .configureLogging(LogLevel.Error)
-        .build()
+      const unsubs: (() => void)[] = []
 
-      registerTerminalHandlers(connection, sessionId, handlers)
-      await connection.start()
+      unsubs.push(
+        bridge.onEvent("signalr", "StdoutChunk", (raw) => {
+          const payload = raw as EventPayload | null
+          if (payload?.sessionId === sessionId) {
+            handlers.onStdout(decodePayload(payload.payload as string | undefined))
+          }
+        }),
+      )
 
-      const result = (await connection.invoke("ReattachSession", {
-        sessionId,
-      })) as SessionCommandResult
+      unsubs.push(
+        bridge.onEvent("signalr", "StderrChunk", (raw) => {
+          const payload = raw as EventPayload | null
+          if (payload?.sessionId === sessionId) {
+            handlers.onStderr(decodePayload(payload.payload as string | undefined))
+          }
+        }),
+      )
+
+      unsubs.push(
+        bridge.onEvent("signalr", "SessionReattached", (raw) => {
+          const payload = raw as EventPayload | null
+          if (payload?.sessionId === sessionId) {
+            handlers.onSessionReattached(sessionId)
+          }
+        }),
+      )
+
+      unsubs.push(
+        bridge.onEvent("signalr", "ReplayChunk", (raw) => {
+          const payload = raw as EventPayload | null
+          if (payload?.sessionId === sessionId) {
+            const stream = payload.stream === "stderr" ? "stderr" : "stdout"
+            handlers.onReplayChunk(decodePayload(payload.payload as string | undefined), stream)
+          }
+        }),
+      )
+
+      unsubs.push(
+        bridge.onEvent("signalr", "ReplayCompleted", (raw) => {
+          const payload = raw as EventPayload | null
+          if (payload?.sessionId === sessionId) {
+            handlers.onReplayCompleted()
+          }
+        }),
+      )
+
+      unsubs.push(
+        bridge.onEvent("signalr", "SessionExpired", (raw) => {
+          const payload = raw as EventPayload | null
+          if (payload?.sessionId === sessionId) {
+            handlers.onSessionExpired(payload.reason as string | undefined)
+          }
+        }),
+      )
+
+      unsubs.push(
+        bridge.onEvent("signalr", "SessionExited", (raw) => {
+          const payload = raw as EventPayload | null
+          if (payload?.sessionId === sessionId) {
+            handlers.onSessionExpired(payload.reason as string | undefined)
+          }
+        }),
+      )
+
+      unsubs.push(
+        bridge.onEvent("signalr", "SessionStartFailed", (raw) => {
+          const payload = raw as EventPayload | null
+          if (payload?.sessionId === sessionId) {
+            handlers.onSessionExpired(payload.reason as string | undefined)
+          }
+        }),
+      )
+
+      if (handlers.onLatencyProbeAck) {
+        unsubs.push(
+          bridge.onEvent("signalr", "LatencyProbeAck", (raw) => {
+            const payload = raw as EventPayload | null
+            if (payload?.sessionId === sessionId && payload.probeId) {
+              handlers.onLatencyProbeAck!(payload.probeId as string)
+            }
+          }),
+        )
+      }
+
+      const result = await bridge.request<{
+        isSuccess: boolean
+        errorCode?: string
+      }>("signalr", "connect", { sessionId })
 
       if (!result.isSuccess) {
-        if (result.errorCode === "session-expired" || result.errorCode === "session-not-found") {
+        unsubs.forEach((fn) => fn())
+        if (
+          result.errorCode === "session-expired" ||
+          result.errorCode === "session-not-found"
+        ) {
           handlers.onSessionExpired(result.errorCode)
-          await connection.stop()
-          return disconnectedConnection()
+          return disconnectedConnection(unsubs)
         }
-
-        await connection.stop()
         throw new Error(result.errorCode ?? "Could not connect terminal.")
       }
 
       return {
         writeInput(payload) {
-          return connection.invoke("WriteInput", { sessionId, payload: encodeSignalRBytes(payload) })
+          return bridge.request("signalr", "WriteInput", {
+            sessionId,
+            payload: encodePayload(payload),
+          })
         },
         resize(columns, rows) {
-          return connection.invoke("ResizeSession", { sessionId, columns, rows })
+          return bridge.request("signalr", "ResizeSession", {
+            sessionId,
+            columns,
+            rows,
+          })
         },
         probeLatency(probeId) {
-          return connection.invoke("ProbeLatency", { probeId, sessionId } as LatencyProbeDto)
+          return bridge.request("signalr", "ProbeLatency", {
+            sessionId,
+            probeId,
+          })
         },
         close() {
-          return connection.invoke("CloseSession", { sessionId })
+          return bridge.request("signalr", "CloseSession", { sessionId })
         },
-        dispose() {
-          return connection.stop()
+        async dispose() {
+          unsubs.forEach((fn) => fn())
         },
       }
     },
   }
 }
 
-function registerTerminalHandlers(
-  connection: HubConnection,
-  sessionId: string,
-  handlers: TerminalGatewayHandlers
-) {
-  connection.on("StdoutChunk", (chunk: TerminalChunkDto) => {
-    if (chunk.sessionId === sessionId) {
-      handlers.onStdout(decodeSignalRBytes(chunk.payload))
-    }
-  })
-  connection.on("StderrChunk", (chunk: TerminalChunkDto) => {
-    if (chunk.sessionId === sessionId) {
-      handlers.onStderr(decodeSignalRBytes(chunk.payload))
-    }
-  })
-  connection.on("SessionReattached", (evt: SessionIdDto) => {
-    if (evt.sessionId === sessionId) {
-      handlers.onSessionReattached(sessionId)
-    }
-  })
-  connection.on("ReplayChunk", (chunk: TerminalChunkDto) => {
-    if (chunk.sessionId === sessionId && (chunk.stream === "stdout" || chunk.stream === "stderr")) {
-      handlers.onReplayChunk(decodeSignalRBytes(chunk.payload), chunk.stream)
-    }
-  })
-  connection.on("ReplayCompleted", (evt: SessionIdDto) => {
-    if (evt.sessionId === sessionId) {
-      handlers.onReplayCompleted()
-    }
-  })
-  connection.on("SessionExpired", (evt: SessionExpiredDto) => {
-    if (evt.sessionId === sessionId) {
-      handlers.onSessionExpired(evt.reason)
-    }
-  })
-  connection.on("SessionExited", (evt: SessionExpiredDto) => {
-    if (evt.sessionId === sessionId) {
-      handlers.onSessionExpired(evt.reason)
-    }
-  })
-  connection.on("SessionStartFailed", (evt: SessionExpiredDto) => {
-    if (evt.sessionId === sessionId) {
-      handlers.onSessionExpired(evt.reason)
-    }
-  })
-  connection.on("LatencyProbeAck", (probe: LatencyProbeDto) => {
-    if (probe.sessionId === sessionId && probe.probeId) {
-      handlers.onLatencyProbeAck?.(probe.probeId)
-    }
-  })
+function decodePayload(base64: string | undefined): Uint8Array {
+  if (!base64) return new Uint8Array(0)
+  return Uint8Array.from(
+    Array.from(atob(base64), (c) => c.charCodeAt(0)),
+  )
 }
 
-export function decodeSignalRBytes(payload: Uint8Array | number[] | string | undefined) {
-  if (payload instanceof Uint8Array) {
-    return payload
-  }
-
-  if (typeof payload === "string") {
-    return Uint8Array.from(Array.from(atob(payload), (character) => character.charCodeAt(0)))
-  }
-
-  return new Uint8Array(payload ?? [])
-}
-
-export function encodeSignalRBytes(payload: Uint8Array) {
+function encodePayload(payload: Uint8Array): string {
   return btoa(String.fromCharCode(...payload))
 }
 
-function disconnectedConnection(): TerminalGatewayConnection {
+function disconnectedConnection(
+  unsubs: (() => void)[],
+): TerminalGatewayConnection {
   return {
     writeInput: async () => undefined,
     resize: async () => undefined,
     probeLatency: async () => undefined,
     close: async () => undefined,
-    dispose: async () => undefined,
+    async dispose() {
+      unsubs.forEach((fn) => fn())
+    },
   }
 }

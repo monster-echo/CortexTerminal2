@@ -1,32 +1,55 @@
 import { useEffect, useState } from "react"
-import { Plus, ChevronRight } from "lucide-react"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Badge } from "@/components/ui/badge"
-import type { ConsoleApi, SessionSummary } from "@/services/consoleApi"
+import { useHistory } from "react-router-dom"
+import {
+  IonPage,
+  IonHeader,
+  IonToolbar,
+  IonTitle,
+  IonContent,
+  IonButton,
+  IonIcon,
+  IonSegment,
+  IonSegmentButton,
+  IonList,
+  IonItem,
+  IonLabel,
+  IonBadge,
+  IonItemSliding,
+  IonItemOptions,
+  IonItemOption,
+  IonSkeletonText,
+  IonText,
+} from "@ionic/react"
+import { addOutline, trashOutline } from "ionicons/icons"
+import type { ConsoleApi, SessionSummary } from "../services/consoleApi"
+
+type SessionFilter = "all" | "live" | "detached" | "exited"
 
 const statusColors: Record<string, string> = {
-  live: "bg-emerald-500",
-  detached: "bg-amber-500",
-  exited: "bg-red-500",
-  expired: "bg-zinc-500",
+  live: "#10b981",
+  detached: "#f59e0b",
+  exited: "#ef4444",
+  expired: "#71717a",
 }
 
-export function SessionListPage(props: {
-  api: ConsoleApi
-  navigate: (path: string) => void
-}) {
-  const { api, navigate } = props
+const statusBadgeColor: Record<string, string> = {
+  live: "success",
+  detached: "warning",
+  exited: "danger",
+  expired: "medium",
+}
+
+export function SessionListPage({ api }: { api: ConsoleApi }) {
+  const history = useHistory()
   const [sessions, setSessions] = useState<SessionSummary[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isCreating, setIsCreating] = useState(false)
-  const [filter, setFilter] = useState<"all" | "live" | "detached">("all")
+  const [filter, setFilter] = useState<SessionFilter>("all")
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
-  useEffect(() => {
+  const loadSessions = () => {
     let isActive = true
-
+    setIsLoading(true)
     api
       .listSessions()
       .then((value) => {
@@ -36,116 +59,176 @@ export function SessionListPage(props: {
       })
       .catch((error: unknown) => {
         if (!isActive) return
-        setErrorMessage(error instanceof Error ? error.message : "Could not load sessions.")
+        setErrorMessage(
+          error instanceof Error ? error.message : "Could not load sessions.",
+        )
       })
       .finally(() => {
         if (isActive) setIsLoading(false)
       })
-
     return () => {
       isActive = false
     }
-  }, [api])
+  }
+
+  useEffect(loadSessions, [api])
 
   const handleCreate = async () => {
     setIsCreating(true)
     setErrorMessage(null)
     try {
       const created = await api.createSession()
-      navigate(`/sessions/${created.sessionId}`)
+      history.push(`/sessions/${created.sessionId}`)
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Could not start session.")
+      setErrorMessage(
+        error instanceof Error ? error.message : "Could not start session.",
+      )
     } finally {
       setIsCreating(false)
     }
   }
 
+  const handleDelete = async (sessionId: string) => {
+    try {
+      await api.deleteSession(sessionId)
+      setSessions((prev) => prev.filter((s) => s.sessionId !== sessionId))
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "Could not delete session.",
+      )
+    }
+  }
+
   const filtered = sessions.filter((s) => {
     if (filter === "all") return true
-    if (filter === "live") return s.status === "live"
-    if (filter === "detached") return s.status === "detached"
-    return true
+    return s.status === filter
   })
 
-  const filters = [
-    { key: "all", label: "All" },
-    { key: "live", label: "Live" },
-    { key: "detached", label: "Detached" },
-  ] as const
-
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">Sessions</h1>
-        <Button onClick={() => void handleCreate()} disabled={isCreating} size="sm">
-          <Plus className="mr-1 h-4 w-4" /> New
-        </Button>
-      </div>
-
-      <div className="flex gap-1.5">
-        {filters.map(({ key, label }) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => setFilter(key)}
-            className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-              filter === key
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted text-muted-foreground hover:bg-muted/80"
-            }`}
+    <IonPage>
+      <IonHeader>
+        <IonToolbar>
+          <IonTitle>Sessions</IonTitle>
+          <IonButton
+            slot="end"
+            fill="solid"
+            size="small"
+            onClick={() => void handleCreate()}
+            disabled={isCreating}
           >
-            {label}
-          </button>
-        ))}
-      </div>
+            <IonIcon icon={addOutline} slot="start" />
+            New
+          </IonButton>
+        </IonToolbar>
+      </IonHeader>
+      <IonContent>
+        <IonSegment
+          value={filter}
+          onIonChange={(e) => setFilter(e.detail.value as SessionFilter)}
+          style={{ margin: "8px 16px" }}
+        >
+          <IonSegmentButton value="all">
+            <IonLabel>All</IonLabel>
+          </IonSegmentButton>
+          <IonSegmentButton value="live">
+            <IonLabel>Live</IonLabel>
+          </IonSegmentButton>
+          <IonSegmentButton value="detached">
+            <IonLabel>Detached</IonLabel>
+          </IonSegmentButton>
+          <IonSegmentButton value="exited">
+            <IonLabel>Exited</IonLabel>
+          </IonSegmentButton>
+        </IonSegment>
 
-      {errorMessage ? (
-        <Alert variant="destructive">
-          <AlertDescription>{errorMessage}</AlertDescription>
-        </Alert>
-      ) : null}
+        {errorMessage && (
+          <div style={{ padding: "0 16px" }}>
+            <IonText color="danger">
+              <p style={{ fontSize: 13 }}>{errorMessage}</p>
+            </IonText>
+          </div>
+        )}
 
-      {isLoading ? (
-        <div className="space-y-2">
-          <Skeleton className="h-[72px] rounded-xl" />
-          <Skeleton className="h-[72px] rounded-xl" />
-          <Skeleton className="h-[72px] rounded-xl" />
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 py-12 text-muted-foreground">
-          <p className="text-sm">No {filter === "all" ? "" : filter} sessions</p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {filtered.map((session) => (
-            <div
-              key={session.sessionId}
-              className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 cursor-pointer active:scale-[0.98] transition-transform"
-              onClick={() => navigate(`/sessions/${session.sessionId}`)}
-            >
-              <span
-                className={`h-3 w-3 rounded-full shrink-0 ${statusColors[session.status] ?? "bg-zinc-400"}`}
-              />
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-mono text-xs font-semibold">{session.sessionId}</p>
-                <p className="text-[11px] text-muted-foreground">
-                  {session.workerId} &middot;{" "}
-                  {new Date(session.lastActivityAt).toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </p>
-              </div>
-              <div className="shrink-0">
-                <Badge variant="secondary" className="text-[10px] py-0 h-5">
-                  {session.status}
-                </Badge>
-              </div>
-              <ChevronRight className="h-4 w-4 text-muted-foreground/50 shrink-0" />
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
+        {isLoading ? (
+          <div style={{ padding: 16 }}>
+            {[1, 2, 3].map((i) => (
+              <IonItem key={i}>
+                <IonSkeletonText animated style={{ height: 20 }} />
+              </IonItem>
+            ))}
+          </div>
+        ) : filtered.length === 0 ? (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              padding: "48px 16px",
+            }}
+          >
+            <IonText color="medium">
+              <p>No {filter === "all" ? "" : filter} sessions</p>
+            </IonText>
+          </div>
+        ) : (
+          <IonList>
+            {filtered.map((session) => (
+              <IonItemSliding key={session.sessionId}>
+                <IonItem
+                  button
+                  onClick={() =>
+                    history.push(`/sessions/${session.sessionId}`)
+                  }
+                >
+                  <span
+                    style={{
+                      width: 10,
+                      height: 10,
+                      borderRadius: "50%",
+                      backgroundColor:
+                        statusColors[session.status] ?? "#71717a",
+                      marginRight: 12,
+                      flexShrink: 0,
+                    }}
+                  />
+                  <IonLabel>
+                    <h3
+                      style={{
+                        fontFamily: "monospace",
+                        fontSize: 12,
+                        fontWeight: 600,
+                      }}
+                    >
+                      {session.sessionId}
+                    </h3>
+                    <p>
+                      {session.workerId} &middot;{" "}
+                      {new Date(session.lastActivityAt).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </p>
+                  </IonLabel>
+                  <IonBadge
+                    slot="end"
+                    color={statusBadgeColor[session.status] ?? "medium"}
+                  >
+                    {session.status}
+                  </IonBadge>
+                </IonItem>
+                <IonItemOptions side="end">
+                  <IonItemOption
+                    color="danger"
+                    onClick={() => void handleDelete(session.sessionId)}
+                  >
+                    <IonIcon icon={trashOutline} slot="icon-only" />
+                  </IonItemOption>
+                </IonItemOptions>
+              </IonItemSliding>
+            ))}
+          </IonList>
+        )}
+      </IonContent>
+    </IonPage>
   )
 }

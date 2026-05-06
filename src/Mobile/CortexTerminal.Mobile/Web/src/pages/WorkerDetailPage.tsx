@@ -1,27 +1,50 @@
 import { useEffect, useState } from "react"
-import { ArrowLeft, ChevronRight } from "lucide-react"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Badge } from "@/components/ui/badge"
-import type { ConsoleApi, WorkerDetail } from "@/services/consoleApi"
+import { useHistory } from "react-router-dom"
+import {
+  IonPage,
+  IonHeader,
+  IonToolbar,
+  IonTitle,
+  IonContent,
+  IonButton,
+  IonIcon,
+  IonCard,
+  IonCardContent,
+  IonList,
+  IonItem,
+  IonLabel,
+  IonBadge,
+  IonSkeletonText,
+  IonText,
+} from "@ionic/react"
+import { arrowBackOutline, cloudUploadOutline } from "ionicons/icons"
+import type { ConsoleApi, WorkerDetail } from "../services/consoleApi"
 
 const statusColors: Record<string, string> = {
-  live: "bg-emerald-500",
-  detached: "bg-amber-500",
-  exited: "bg-red-500",
-  expired: "bg-zinc-500",
+  live: "#10b981",
+  detached: "#f59e0b",
+  exited: "#ef4444",
+  expired: "#71717a",
 }
 
-export function WorkerDetailPage(props: {
+const statusBadgeColor: Record<string, string> = {
+  live: "success",
+  detached: "warning",
+  exited: "danger",
+  expired: "medium",
+}
+
+export function WorkerDetailPage({
+  api,
+  workerId,
+}: {
   api: ConsoleApi
   workerId: string
-  navigate: (path: string) => void
 }) {
-  const { api, workerId, navigate } = props
+  const history = useHistory()
   const [worker, setWorker] = useState<WorkerDetail | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isUpgrading, setIsUpgrading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   useEffect(() => {
@@ -38,7 +61,9 @@ export function WorkerDetailPage(props: {
       })
       .catch((error: unknown) => {
         if (!isActive) return
-        setErrorMessage(error instanceof Error ? error.message : "Could not load worker.")
+        setErrorMessage(
+          error instanceof Error ? error.message : "Could not load worker.",
+        )
       })
       .finally(() => {
         if (isActive) setIsLoading(false)
@@ -49,102 +74,239 @@ export function WorkerDetailPage(props: {
     }
   }, [api, workerId])
 
-  if (isLoading) {
-    return (
-      <div className="space-y-4">
-        <Skeleton className="h-10 w-40" />
-        <Skeleton className="h-32 rounded-xl" />
-        <Skeleton className="h-48 rounded-xl" />
-      </div>
-    )
+  const handleUpgrade = async () => {
+    setIsUpgrading(true)
+    try {
+      await api.upgradeWorker(workerId)
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "Upgrade failed.",
+      )
+    } finally {
+      setIsUpgrading(false)
+    }
   }
-
-  if (errorMessage) {
-    return (
-      <div className="space-y-4">
-        <Button onClick={() => navigate("/workers")} variant="ghost" size="sm">
-          <ArrowLeft className="mr-2 h-4 w-4" /> Back to workers
-        </Button>
-        <Alert variant="destructive">
-          <AlertDescription>{errorMessage}</AlertDescription>
-        </Alert>
-      </div>
-    )
-  }
-
-  if (!worker) return null
 
   return (
-    <div className="space-y-4">
-      <Button onClick={() => navigate("/workers")} variant="ghost" size="sm">
-        <ArrowLeft className="mr-2 h-4 w-4" /> Back to workers
-      </Button>
-
-      <Card>
-        <CardContent className="space-y-3 p-4">
-          <div className="flex items-center gap-3">
-            <span
-              className={`h-3 w-3 rounded-full shrink-0 ${worker.isOnline ? "bg-emerald-500" : "bg-zinc-400"}`}
-            />
-            <div>
-              <h2 className="text-lg font-bold">{worker.displayName}</h2>
-              <p className="font-mono text-xs text-muted-foreground">{worker.workerId}</p>
-            </div>
-            <Badge variant={worker.isOnline ? "default" : "secondary"} className="ml-auto text-[10px]">
-              {worker.isOnline ? "Online" : "Offline"}
-            </Badge>
-          </div>
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <div>
-              <span className="text-muted-foreground">Sessions</span>
-              <p className="font-semibold">{worker.sessionCount}</p>
-            </div>
-            <div>
-              <span className="text-muted-foreground">Last seen</span>
-              <p className="font-semibold">
-                {new Date(worker.lastSeenAt).toLocaleTimeString([], {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="space-y-1">
-        <h3 className="text-sm font-semibold">Hosted Sessions</h3>
-        {worker.sessions.length === 0 ? (
-          <p className="text-xs text-muted-foreground py-4 text-center">No sessions on this worker</p>
-        ) : (
-          <div className="space-y-2">
-            {worker.sessions.map((session) => (
-              <div
-                key={session.sessionId}
-                className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 cursor-pointer active:scale-[0.98] transition-transform"
-                onClick={() => navigate(`/sessions/${session.sessionId}`)}
-              >
-                <span
-                  className={`h-2.5 w-2.5 rounded-full shrink-0 ${statusColors[session.status] ?? "bg-zinc-400"}`}
-                />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-mono text-xs font-medium">{session.sessionId}</p>
-                  <p className="text-[11px] text-muted-foreground">
-                    {new Date(session.lastActivityAt).toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </p>
-                </div>
-                <Badge variant="secondary" className="text-[10px] py-0 h-5">
-                  {session.status}
-                </Badge>
-                <ChevronRight className="h-4 w-4 text-muted-foreground/50 shrink-0" />
-              </div>
-            ))}
+    <IonPage>
+      <IonHeader>
+        <IonToolbar>
+          <IonButton
+            slot="start"
+            fill="clear"
+            onClick={() => history.push("/workers")}
+          >
+            <IonIcon icon={arrowBackOutline} slot="icon-only" />
+          </IonButton>
+          <IonTitle>
+            {worker?.name ?? workerId}
+          </IonTitle>
+        </IonToolbar>
+      </IonHeader>
+      <IonContent>
+        {errorMessage && (
+          <div style={{ padding: "0 16px", marginTop: 8 }}>
+            <IonText color="danger">
+              <p style={{ fontSize: 13 }}>{errorMessage}</p>
+            </IonText>
           </div>
         )}
-      </div>
-    </div>
+
+        {isLoading ? (
+          <div style={{ padding: 16 }}>
+            <IonCard>
+              <IonCardContent>
+                <IonSkeletonText animated style={{ height: 32 }} />
+              </IonCardContent>
+            </IonCard>
+            {[1, 2].map((i) => (
+              <IonItem key={i}>
+                <IonSkeletonText animated style={{ height: 20 }} />
+              </IonItem>
+            ))}
+          </div>
+        ) : worker ? (
+          <>
+            <IonCard style={{ margin: 16 }}>
+              <IonCardContent>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    marginBottom: 12,
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 12,
+                      height: 12,
+                      borderRadius: "50%",
+                      backgroundColor: worker.isOnline ? "#10b981" : "#71717a",
+                      flexShrink: 0,
+                    }}
+                  />
+                  <div style={{ flex: 1 }}>
+                    <h2
+                      style={{
+                        fontSize: 18,
+                        fontWeight: 700,
+                        margin: 0,
+                      }}
+                    >
+                      {worker.name}
+                    </h2>
+                    <p
+                      style={{
+                        fontFamily: "monospace",
+                        fontSize: 11,
+                        color: "var(--ion-color-medium)",
+                        margin: 0,
+                      }}
+                    >
+                      {worker.workerId}
+                    </p>
+                  </div>
+                  <IonBadge
+                    color={worker.isOnline ? "success" : "medium"}
+                  >
+                    {worker.isOnline ? "Online" : "Offline"}
+                  </IonBadge>
+                </div>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: 8,
+                    fontSize: 12,
+                  }}
+                >
+                  <div>
+                    <IonText color="medium">
+                      <span>Sessions</span>
+                    </IonText>
+                    <p style={{ fontWeight: 600, margin: 0 }}>
+                      {worker.sessionCount}
+                    </p>
+                  </div>
+                  <div>
+                    <IonText color="medium">
+                      <span>Last seen</span>
+                    </IonText>
+                    <p style={{ fontWeight: 600, margin: 0 }}>
+                      {new Date(worker.lastSeenAt).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </p>
+                  </div>
+                  {worker.hostname && (
+                    <div>
+                      <IonText color="medium">
+                        <span>Hostname</span>
+                      </IonText>
+                      <p style={{ fontWeight: 600, margin: 0 }}>
+                        {worker.hostname}
+                      </p>
+                    </div>
+                  )}
+                  {worker.version && (
+                    <div>
+                      <IonText color="medium">
+                        <span>Version</span>
+                      </IonText>
+                      <p style={{ fontWeight: 600, margin: 0 }}>
+                        {worker.version}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                <IonButton
+                  expand="block"
+                  fill="outline"
+                  size="small"
+                  disabled={isUpgrading}
+                  onClick={() => void handleUpgrade()}
+                  style={{ marginTop: 16 }}
+                >
+                  <IonIcon icon={cloudUploadOutline} slot="start" />
+                  {isUpgrading ? "Upgrading..." : "Upgrade Worker"}
+                </IonButton>
+              </IonCardContent>
+            </IonCard>
+
+            <div style={{ padding: "0 16px" }}>
+              <p
+                style={{
+                  fontSize: 14,
+                  fontWeight: 600,
+                  marginBottom: 8,
+                }}
+              >
+                Hosted Sessions
+              </p>
+            </div>
+
+            {worker.sessions.length === 0 ? (
+              <div style={{ padding: "0 16px" }}>
+                <IonText color="medium">
+                  <p style={{ fontSize: 13, textAlign: "center" }}>
+                    No sessions on this worker
+                  </p>
+                </IonText>
+              </div>
+            ) : (
+              <IonList>
+                {worker.sessions.map((session) => (
+                  <IonItem
+                    key={session.sessionId}
+                    button
+                    onClick={() =>
+                      history.push(`/sessions/${session.sessionId}`)
+                    }
+                  >
+                    <span
+                      style={{
+                        width: 10,
+                        height: 10,
+                        borderRadius: "50%",
+                        backgroundColor:
+                          statusColors[session.status] ?? "#71717a",
+                        marginRight: 12,
+                        flexShrink: 0,
+                      }}
+                    />
+                    <IonLabel>
+                      <h3
+                        style={{
+                          fontFamily: "monospace",
+                          fontSize: 12,
+                        }}
+                      >
+                        {session.sessionId}
+                      </h3>
+                      <p>
+                        {new Date(session.lastActivityAt).toLocaleTimeString(
+                          [],
+                          { hour: "2-digit", minute: "2-digit" },
+                        )}
+                      </p>
+                    </IonLabel>
+                    <IonBadge
+                      slot="end"
+                      color={statusBadgeColor[session.status] ?? "medium"}
+                    >
+                      {session.status}
+                    </IonBadge>
+                  </IonItem>
+                ))}
+              </IonList>
+            )}
+          </>
+        ) : null}
+      </IonContent>
+    </IonPage>
   )
 }

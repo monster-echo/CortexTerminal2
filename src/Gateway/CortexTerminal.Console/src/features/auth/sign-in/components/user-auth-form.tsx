@@ -1,14 +1,12 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useNavigate } from '@tanstack/react-router'
-import { createConsoleApi } from '@/services/console-api'
 import { Loader2, LogIn } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
-import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -18,55 +16,91 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { PasswordInput } from '@/components/password-input'
 
-const consoleApi = createConsoleApi({
-  getToken: () => useAuthStore.getState().auth.accessToken,
-  onUnauthorized: () => useAuthStore.getState().auth.reset(),
-  onTokenRefreshed: (newToken) =>
-    useAuthStore.getState().auth.setAccessToken(newToken),
-})
-
-interface UserAuthFormProps extends React.HTMLAttributes<HTMLFormElement> {
+interface UserAuthFormProps extends React.HTMLAttributes<HTMLDivElement> {
   redirectTo?: string
 }
 
 export function UserAuthForm({
-  className,
   redirectTo,
-  ...props
 }: UserAuthFormProps) {
   const [isLoading, setIsLoading] = useState(false)
+  const [codeCountdown, setCodeCountdown] = useState(0)
+  const [codeSending, setCodeSending] = useState(false)
   const navigate = useNavigate()
   const { auth } = useAuthStore()
   const { t } = useTranslation()
 
-  const formSchema = z.object({
-    username: z.string().trim().min(1, t('auth.validation.usernameRequired')).max(64),
-    password: z.string().min(1, t('auth.validation.passwordRequired')),
+  useEffect(() => {
+    if (codeCountdown <= 0) return
+    const timer = setTimeout(() => setCodeCountdown(codeCountdown - 1), 1000)
+    return () => clearTimeout(timer)
+  }, [codeCountdown])
+
+  const phoneSchema = z.object({
+    phone: z.string().regex(/^1\d{10}$/, t('auth.validation.phoneInvalid')),
+    code: z.string().length(6, t('auth.validation.codeLength')),
   })
 
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
+  const phoneForm = useForm<z.infer<typeof phoneSchema>>({
+    resolver: zodResolver(phoneSchema),
     defaultValues: {
-      username: '',
-      password: '',
+      phone: '',
+      code: '',
     },
   })
 
-  async function onSubmit(data: z.infer<typeof formSchema>) {
-    setIsLoading(true)
-
+  const handleSendCode = useCallback(async () => {
+    const phone = phoneForm.getValues('phone')
+    if (!/^1\d{10}$/.test(phone)) {
+      phoneForm.setError('phone', { message: t('auth.validation.phoneInvalid') })
+      return
+    }
+    setCodeSending(true)
     try {
-      const session = await consoleApi.login(data.username, data.password)
-      auth.setUser({ username: session.username })
-      auth.setAccessToken(session.token)
-      toast.success(t('auth.signedInAs', { username: session.username }))
+      const res = await fetch('/api/auth/phone/send-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        if (res.status === 429) {
+          toast.error(t('auth.error.codeRateLimited'))
+        } else {
+          toast.error(data.error || t('auth.error.codeSendFailed'))
+        }
+        return
+      }
+      setCodeCountdown(60)
+      toast.success(t('auth.codeSent'))
+    } catch {
+      toast.error(t('auth.error.codeSendFailed'))
+    } finally {
+      setCodeSending(false)
+    }
+  }, [phoneForm, t])
 
+  async function onPhoneSubmit(data: z.infer<typeof phoneSchema>) {
+    setIsLoading(true)
+    try {
+      const res = await fetch('/api/auth/phone/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: data.phone, code: data.code }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        toast.error(err.error || t('auth.loginFailed', { error: '' }))
+        return
+      }
+      const result = await res.json()
+      auth.setUser({ username: result.username })
+      auth.setAccessToken(result.accessToken)
+      toast.success(t('auth.signedInAs', { username: result.username }))
       navigate({ to: redirectTo || '/dashboard', replace: true })
-    } catch (error) {
-      const message = error instanceof Error ? error.message : t('auth.loginFailed', { error: '' })
-      toast.error(message)
+    } catch {
+      toast.error(t('auth.loginFailed', { error: '' }))
     } finally {
       setIsLoading(false)
     }
@@ -77,10 +111,80 @@ export function UserAuthForm({
     window.location.href = `/api/auth/${provider}?redirect=${encodeURIComponent(redirect)}`
   }
 
-  const isDevMode = import.meta.env.VITE_AUTH_MODE === 'dev'
-
   return (
     <div className='grid gap-3'>
+      {/* Phone login form — default */}
+      <Form {...phoneForm}>
+        <form onSubmit={phoneForm.handleSubmit(onPhoneSubmit)} className="grid gap-3">
+          <FormField
+            control={phoneForm.control}
+            name="phone"
+            render={({ field }) => (
+              <FormItem>
+                <FormControl>
+                  <Input
+                    placeholder={t('auth.phonePlaceholder')}
+                    autoComplete="tel"
+                    maxLength={11}
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <div className="flex gap-2">
+            <FormField
+              control={phoneForm.control}
+              name="code"
+              render={({ field }) => (
+                <FormItem className="flex-1">
+                  <FormControl>
+                    <Input
+                      placeholder={t('auth.codePlaceholder')}
+                      autoComplete="one-time-code"
+                      maxLength={6}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleSendCode}
+              disabled={codeCountdown > 0 || codeSending}
+              className="shrink-0"
+            >
+              {codeSending
+                ? <Loader2 className="h-4 w-4 animate-spin" />
+                : codeCountdown > 0
+                  ? t('auth.codeCountdown', { seconds: codeCountdown })
+                  : t('auth.sendCode')
+              }
+            </Button>
+          </div>
+          <Button type="submit" disabled={isLoading}>
+            {isLoading ? <Loader2 className="animate-spin" /> : <LogIn />}
+            {t('auth.signIn')}
+          </Button>
+        </form>
+      </Form>
+
+      {/* Divider */}
+      <div className="relative my-2">
+        <div className="absolute inset-0 flex items-center">
+          <span className="w-full border-t" />
+        </div>
+        <div className="relative flex justify-center text-xs uppercase">
+          <span className="bg-background px-2 text-muted-foreground">
+            {t('auth.or')}
+          </span>
+        </div>
+      </div>
+
       {/* OAuth buttons */}
       <div className='grid gap-3'>
         <Button variant="outline" onClick={() => handleOAuth('github')}>
@@ -98,67 +202,13 @@ export function UserAuthForm({
           </svg>
           {t('auth.signInWith', { provider: 'Google' })}
         </Button>
+        <Button variant="outline" onClick={() => handleOAuth('apple')}>
+          <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
+          </svg>
+          {t('auth.signInWith', { provider: 'Apple' })}
+        </Button>
       </div>
-
-      {/* Divider with "or" */}
-      <div className="relative my-2">
-        <div className="absolute inset-0 flex items-center">
-          <span className="w-full border-t" />
-        </div>
-        <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-background px-2 text-muted-foreground">
-            {t('auth.or')}
-          </span>
-        </div>
-      </div>
-
-      {/* Dev login (only in dev mode) */}
-      {isDevMode && (
-        <Form {...form}>
-          <form
-            onSubmit={form.handleSubmit(onSubmit)}
-            className={cn('grid gap-3', className)}
-            {...props}
-          >
-            <FormField
-              control={form.control}
-              name="username"
-              render={({ field }) => (
-                <FormItem>
-                  <FormControl>
-                    <Input
-                      placeholder={t('auth.username')}
-                      autoComplete="username"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="password"
-              render={({ field }) => (
-                <FormItem>
-                  <FormControl>
-                    <PasswordInput
-                      placeholder={t('auth.password')}
-                      autoComplete="current-password"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <Button className="mt-2" disabled={isLoading}>
-              {isLoading ? <Loader2 className="animate-spin" /> : <LogIn />}
-              {t('auth.signIn')}
-            </Button>
-          </form>
-        </Form>
-      )}
     </div>
   )
 }

@@ -33,7 +33,7 @@ export function TerminalStatusBar({
         <span className='font-medium'>{status}</span>
         <span className='text-muted-foreground/60'>{shortId}</span>
         {workerId && (
-          <span className='text-muted-foreground/60'>{workerId}</span>
+          <span className='max-w-[120px] truncate text-muted-foreground/60 sm:max-w-[200px]'>{workerId}</span>
         )}
         {statusMessage && (
           <>

@@ -24,6 +24,11 @@ export function SignIn() {
     google_denied: t('auth.error.googleDenied'),
     google_token_failed: t('auth.error.googleTokenFailed'),
     google_user_failed: t('auth.error.googleUserFailed'),
+    apple_denied: t('auth.error.appleDenied'),
+    apple_token_failed: t('auth.error.appleTokenFailed'),
+    apple_id_token_missing: t('auth.error.appleIdTokenMissing'),
+    apple_id_token_invalid: t('auth.error.appleIdTokenInvalid'),
+    apple_user_failed: t('auth.error.appleUserFailed'),
   }
 
   useEffect(() => {
@@ -48,9 +53,7 @@ export function SignIn() {
         </CardContent>
         <CardFooter>
           <p className='px-8 text-center text-sm text-muted-foreground'>
-            {import.meta.env.VITE_AUTH_MODE === 'dev'
-              ? t('auth.devModeHint')
-              : t('auth.orgAccountHint')}
+            {t('auth.orgAccountHint')}
           </p>
         </CardFooter>
       </Card>

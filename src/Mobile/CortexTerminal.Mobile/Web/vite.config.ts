@@ -1,16 +1,16 @@
 import { defineConfig } from "vite"
 import { resolve } from "node:path"
-import { fileURLToPath, URL } from "node:url"
 
 export default defineConfig({
+  base: "./",
   resolve: {
     alias: {
-      "@": fileURLToPath(new URL("./src", import.meta.url)),
+      "@": resolve(__dirname, "./src"),
     },
   },
   build: {
     emptyOutDir: true,
-    outDir: resolve(__dirname, "../../../Gateway/CortexTerminal.Gateway/wwwroot"),
+    outDir: resolve(__dirname, "../Resources/Raw/wwwroot"),
   },
   test: {
     environment: "jsdom",

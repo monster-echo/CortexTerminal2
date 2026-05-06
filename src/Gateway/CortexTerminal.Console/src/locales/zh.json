@@ -34,17 +34,33 @@
     "privacyPolicy": "隐私政策",
     "loginFailed": "登录失败：{{error}}",
     "signedInAs": "已登录为 {{username}}",
+    "signInWithPhone": "手机号登录",
+    "phoneVerification": "手机验证",
+    "phonePlaceholder": "手机号码",
+    "codePlaceholder": "6位验证码",
+    "sendCode": "发送验证码",
+    "codeSent": "验证码已发送。",
+    "codeCountdown": "{{seconds}}秒",
     "error": {
       "githubDenied": "GitHub 授权被拒绝。",
       "githubTokenFailed": "获取 GitHub 访问令牌失败。",
       "githubUserFailed": "获取 GitHub 用户信息失败。",
       "googleDenied": "Google 授权被拒绝。",
       "googleTokenFailed": "获取 Google 访问令牌失败。",
-      "googleUserFailed": "获取 Google 用户信息失败。"
+      "googleUserFailed": "获取 Google 用户信息失败。",
+      "appleDenied": "Apple 授权被拒绝。",
+      "appleTokenFailed": "获取 Apple 访问令牌失败。",
+      "appleIdTokenMissing": "Apple ID 令牌缺失。",
+      "appleIdTokenInvalid": "Apple ID 令牌无效。",
+      "appleUserFailed": "获取 Apple 用户信息失败。",
+      "codeSendFailed": "发送验证码失败。",
+      "codeRateLimited": "请求过于频繁，请稍后再试。"
     },
     "validation": {
       "usernameRequired": "请输入用户名。",
-      "passwordRequired": "请输入密码。"
+      "passwordRequired": "请输入密码。",
+      "phoneInvalid": "请输入有效的11位手机号码。",
+      "codeLength": "验证码必须为6位数字。"
     }
   },
   "dashboard": {

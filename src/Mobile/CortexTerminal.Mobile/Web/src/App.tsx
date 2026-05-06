@@ -1,156 +1,212 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
-import { AppLayout } from "./components/AppLayout"
-import { resolveConsoleRoute, toConsoleHash } from "./console/consoleApp"
-import { DashboardPage } from "./pages/DashboardPage"
-import { LoginPage } from "./pages/LoginPage"
-import { RegisterPage } from "./pages/RegisterPage"
-import { SessionDetailPage } from "./pages/SessionDetailPage"
-import { SessionListPage } from "./pages/SessionListPage"
-import { SettingsPage } from "./pages/SettingsPage"
-import { WorkerDetailPage } from "./pages/WorkerDetailPage"
-import { WorkerListPage } from "./pages/WorkerListPage"
-import { createAuthService, type AuthSession } from "./services/auth"
+import { useMemo, useState, useEffect } from "react"
+import { Redirect, Route, Switch } from "react-router-dom"
+import {
+  IonApp,
+  IonIcon,
+  IonLabel,
+  IonPage,
+  IonContent,
+  IonRouterOutlet,
+  IonTabBar,
+  IonTabButton,
+  IonTabs,
+  setupIonicReact,
+} from "@ionic/react"
+import { IonReactRouter } from "@ionic/react-router"
+import {
+  homeOutline,
+  terminalOutline,
+  settingsOutline,
+  serverOutline,
+} from "ionicons/icons"
+import { createNativeBridge } from "./bridge/nativeBridge"
 import { createConsoleApi } from "./services/consoleApi"
-import { createTerminalGateway } from "./services/terminalGateway"
+import { createAuthService } from "./services/auth"
+import { LoginPage } from "./pages/LoginPage"
+import { DashboardPage } from "./pages/DashboardPage"
+import { SessionListPage } from "./pages/SessionListPage"
+import { WorkerListPage } from "./pages/WorkerListPage"
+import { WorkerDetailPage } from "./pages/WorkerDetailPage"
+import { SettingsPage } from "./pages/SettingsPage"
+import { SessionDetailPage } from "./pages/SessionDetailPage"
 
-const REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000 // 24 hours
+setupIonicReact({ mode: "ios" })
 
 export function App() {
-  const auth = useMemo(() => createAuthService(window.localStorage), [])
-  const [session, setSession] = useState<AuthSession | null>(() => auth.getSession())
-  const [hash, setHash] = useState(() => window.location.hash)
+  const bridge = useMemo(() => createNativeBridge(), [])
+  const api = useMemo(() => createConsoleApi(bridge), [bridge])
+  const auth = useMemo(() => createAuthService(bridge), [bridge])
+  const [isAuthenticated, setAuthenticated] = useState(false)
+  const [username, setUsername] = useState<string | null>(null)
+  const [isChecking, setIsChecking] = useState(true)
 
-  const navigate = useCallback((path: string) => {
-    const nextHash = toConsoleHash(path)
-    if (window.location.hash !== nextHash) {
-      window.location.hash = nextHash
-      return
-    }
-    setHash(nextHash)
-  }, [])
-
-  const handleUnauthorized = useCallback(() => {
-    auth.clearSession()
-    setSession(null)
-    const loginHash = toConsoleHash("/login")
-    window.location.hash = loginHash
-    setHash(loginHash)
+  useEffect(() => {
+    auth
+      .isAuthenticated()
+      .then((authed) => {
+        if (authed) {
+          return auth.getSession().then((session) => {
+            setUsername(session?.username ?? null)
+            setAuthenticated(true)
+          })
+        }
+      })
+      .catch(() => {})
+      .finally(() => setIsChecking(false))
   }, [auth])
 
-  const handleTokenRefreshed = useCallback(
-    (newToken: string) => {
-      const current = auth.getSession()
-      if (current) {
-        auth.setSession({ ...current, token: newToken })
-      }
-    },
-    [auth]
-  )
+  const handleLogin = async () => {
+    const session = await auth.getSession()
+    setUsername(session?.username ?? null)
+    setAuthenticated(true)
+  }
 
-  const api = useMemo(
-    () =>
-      createConsoleApi({
-        fetchFn: window.fetch.bind(window),
-        getToken: () => auth.getToken(),
-        onUnauthorized: handleUnauthorized,
-        onTokenRefreshed: handleTokenRefreshed,
-      }),
-    [auth, handleUnauthorized, handleTokenRefreshed]
-  )
+  const handleLogout = async () => {
+    await auth.logout()
+    setUsername(null)
+    setAuthenticated(false)
+  }
 
-  // Periodic token refresh
+  // Listen for OAuth callback events from native
   useEffect(() => {
-    if (!session) return
-    const timer = setInterval(async () => {
-      const token = auth.getToken()
-      if (!token) return
-      try {
-        const response = await fetch("/api/auth/refresh", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        })
-        if (!response.ok) return
-        const data = (await response.json()) as { accessToken: string }
-        handleTokenRefreshed(data.accessToken)
-      } catch {
-        // Silently ignore
-      }
-    }, REFRESH_INTERVAL_MS)
-    return () => clearInterval(timer)
-  }, [session, auth, handleTokenRefreshed])
-  const terminalGateway = useMemo(
-    () =>
-      createTerminalGateway({
-        accessTokenFactory: () => auth.getToken(),
-      }),
-    [auth]
-  )
-
-  useEffect(() => {
-    const onHashChange = () => {
-      setHash(window.location.hash)
-    }
-    window.addEventListener("hashchange", onHashChange)
+    const unsubSuccess = bridge.onEvent(
+      "auth",
+      "oauth.success",
+      (payload: unknown) => {
+        const { username } = payload as { username?: string }
+        setUsername(username ?? null)
+        setAuthenticated(true)
+      },
+    )
+    const unsubError = bridge.onEvent(
+      "auth",
+      "oauth.error",
+      (payload: unknown) => {
+        const { error } = payload as { error?: string }
+        console.error("OAuth error:", error)
+      },
+    )
     return () => {
-      window.removeEventListener("hashchange", onHashChange)
+      unsubSuccess()
+      unsubError()
     }
-  }, [])
+  }, [bridge])
 
-  const route = resolveConsoleRoute(hash, auth.isAuthenticated())
-
-  const handleLogin = async (username: string) => {
-    const nextSession = auth.setSession(await api.login(username))
-    setSession(nextSession)
+  if (isChecking) {
+    return (
+      <IonApp>
+        <IonPage>
+          <IonContent>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                height: "100%",
+              }}
+            >
+              <IonLabel color="medium">Loading...</IonLabel>
+            </div>
+          </IonContent>
+        </IonPage>
+      </IonApp>
+    )
   }
 
-  const handleLogout = () => {
-    auth.clearSession()
-    setSession(null)
-    navigate("/login")
-  }
-
-  const renderPage = () => {
-    switch (route.kind) {
-      case "login":
-        return <LoginPage login={handleLogin} navigate={navigate} />
-      case "register":
-        return <RegisterPage navigate={navigate} />
-      case "dashboard":
-        return <DashboardPage api={api} navigate={navigate} />
-      case "session-list":
-        return <SessionListPage api={api} navigate={navigate} />
-      case "session-detail":
-        return (
-          <SessionDetailPage
-            api={api}
-            navigate={navigate}
-            sessionId={route.sessionId}
-            terminalGateway={terminalGateway}
-          />
-        )
-      case "worker-list":
-        return <WorkerListPage api={api} navigate={navigate} />
-      case "worker-detail":
-        return <WorkerDetailPage api={api} navigate={navigate} workerId={route.workerId} />
-      case "settings":
-        return <SettingsPage username={session?.username ?? null} onLogout={handleLogout} />
-      default:
-        return null
-    }
+  if (!isAuthenticated) {
+    return (
+      <IonApp>
+        <IonReactRouter>
+          <IonRouterOutlet>
+            <Switch>
+              <Route
+                exact
+                path="/login"
+                render={() => (
+                  <LoginPage bridge={bridge} onLogin={handleLogin} />
+                )}
+              />
+              <Redirect to="/login" />
+            </Switch>
+          </IonRouterOutlet>
+        </IonReactRouter>
+      </IonApp>
+    )
   }
 
   return (
-    <AppLayout
-      currentPath={route.path}
-      isAuthenticated={session !== null}
-      onLogout={handleLogout}
-      onNavigate={navigate}
-      username={session?.username ?? null}
-    >
-      {renderPage()}
-    </AppLayout>
+    <IonApp>
+      <IonReactRouter>
+        <IonTabs>
+          <IonRouterOutlet>
+            <Switch>
+              <Route
+                exact
+                path="/dashboard"
+                render={() => <DashboardPage api={api} />}
+              />
+              <Route
+                exact
+                path="/sessions"
+                render={() => <SessionListPage api={api} />}
+              />
+              <Route
+                path="/sessions/:sessionId"
+                render={({ match }) => (
+                  <SessionDetailPage
+                    bridge={bridge}
+                    sessionId={match.params.sessionId}
+                  />
+                )}
+              />
+              <Route
+                exact
+                path="/workers"
+                render={() => <WorkerListPage api={api} />}
+              />
+              <Route
+                path="/workers/:workerId"
+                render={({ match }) => (
+                  <WorkerDetailPage
+                    api={api}
+                    workerId={match.params.workerId}
+                  />
+                )}
+              />
+              <Route
+                exact
+                path="/settings"
+                render={() => (
+                  <SettingsPage
+                    username={username}
+                    onLogout={handleLogout}
+                    api={api}
+                  />
+                )}
+              />
+              <Redirect to="/dashboard" />
+            </Switch>
+          </IonRouterOutlet>
+          <IonTabBar slot="bottom">
+            <IonTabButton tab="dashboard" href="/dashboard">
+              <IonIcon icon={homeOutline} />
+              <IonLabel>Home</IonLabel>
+            </IonTabButton>
+            <IonTabButton tab="sessions" href="/sessions">
+              <IonIcon icon={terminalOutline} />
+              <IonLabel>Sessions</IonLabel>
+            </IonTabButton>
+            <IonTabButton tab="workers" href="/workers">
+              <IonIcon icon={serverOutline} />
+              <IonLabel>Workers</IonLabel>
+            </IonTabButton>
+            <IonTabButton tab="settings" href="/settings">
+              <IonIcon icon={settingsOutline} />
+              <IonLabel>Settings</IonLabel>
+            </IonTabButton>
+          </IonTabBar>
+        </IonTabs>
+      </IonReactRouter>
+    </IonApp>
   )
 }

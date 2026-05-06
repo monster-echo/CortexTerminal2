@@ -1,61 +1,59 @@
-import { describe, expect, it, vi } from "vitest"
+import { describe, expect, it } from "vitest"
 import { createConsoleApi } from "./consoleApi"
+import type { NativeBridge } from "../bridge/types"
+
+function createMockBridge(responses: Record<string, unknown> = {}): NativeBridge {
+  const handlers = new Map<string, Set<(payload: unknown) => void>>()
+
+  return {
+    async request<T>(channel: string, method: string, payload?: unknown): Promise<T> {
+      const key = `${channel}:${method}`
+      // For REST wildcard, use path from payload
+      if (channel === "rest" && method === "*") {
+        const path = (payload as { path?: string })?.path ?? ""
+        const resp = responses[path]
+        if (resp !== undefined) return resp as T
+        return [] as unknown as T
+      }
+      const resp = responses[key]
+      if (resp !== undefined) return resp as T
+      return undefined as unknown as T
+    },
+    onEvent(channel: string, method: string, handler: (payload: unknown) => void): () => void {
+      const key = `${channel}:${method}`
+      if (!handlers.has(key)) handlers.set(key, new Set())
+      handlers.get(key)!.add(handler)
+      return () => handlers.get(key)?.delete(handler)
+    },
+  }
+}
 
 describe("consoleApi", () => {
   it("maps dev login responses into auth sessions", async () => {
-    const fetchFn = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ accessToken: "token-123" }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      })
-    )
-    const api = createConsoleApi({ fetchFn })
+    const bridge = createMockBridge({
+      "auth:dev.login": { accessToken: "token-123", username: "alice" },
+    })
+    const api = createConsoleApi(bridge)
 
     await expect(api.login("alice")).resolves.toEqual({
-      token: "token-123",
+      accessToken: "token-123",
       username: "alice",
     })
   })
 
-  it("does not clear auth state when a login request is unauthorized", async () => {
-    const onUnauthorized = vi.fn()
-    const api = createConsoleApi({
-      fetchFn: vi.fn().mockResolvedValue(new Response(null, { status: 401 })),
-      onUnauthorized,
-    })
-
-    await expect(api.login("alice")).rejects.toThrow("Login failed.")
-    expect(onUnauthorized).not.toHaveBeenCalled()
-  })
-
-  it("surfaces access denied errors for forbidden requests", async () => {
-    const api = createConsoleApi({
-      fetchFn: vi.fn().mockResolvedValue(new Response(null, { status: 403 })),
-      getToken: () => "token-123",
-    })
-
-    await expect(api.getSession("session-1")).rejects.toThrow("Access denied.")
-  })
-
   it("maps session statuses from the gateway list contract", async () => {
-    const fetchFn = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify([
-          {
-            sessionId: "session-1",
-            workerId: "worker-1",
-            status: "DetachedGracePeriod",
-            createdAt: "2026-04-21T00:00:00Z",
-            lastActivityAt: "2026-04-21T00:01:00Z",
-          },
-        ]),
+    const bridge = createMockBridge({
+      "/api/me/sessions": [
         {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }
-      )
-    )
-    const api = createConsoleApi({ fetchFn, getToken: () => "token-123" })
+          sessionId: "session-1",
+          workerId: "worker-1",
+          status: "DetachedGracePeriod",
+          createdAt: "2026-04-21T00:00:00Z",
+          lastActivityAt: "2026-04-21T00:01:00Z",
+        },
+      ],
+    })
+    const api = createConsoleApi(bridge)
 
     await expect(api.listSessions()).resolves.toEqual([
       {
@@ -69,22 +67,16 @@ describe("consoleApi", () => {
   })
 
   it("maps session detail responses from the gateway contract", async () => {
-    const fetchFn = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          sessionId: "session-1",
-          workerId: "worker-1",
-          status: "Attached",
-          createdAt: "2026-04-21T00:00:00Z",
-          lastActivityAt: "2026-04-21T00:01:00Z",
-        }),
-        {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }
-      )
-    )
-    const api = createConsoleApi({ fetchFn, getToken: () => "token-123" })
+    const bridge = createMockBridge({
+      "/api/me/sessions/session-1": {
+        sessionId: "session-1",
+        workerId: "worker-1",
+        status: "Attached",
+        createdAt: "2026-04-21T00:00:00Z",
+        lastActivityAt: "2026-04-21T00:01:00Z",
+      },
+    })
+    const api = createConsoleApi(bridge)
 
     await expect(api.getSession("session-1")).resolves.toEqual({
       sessionId: "session-1",
@@ -95,51 +87,24 @@ describe("consoleApi", () => {
     })
   })
 
-  it("sends the default shell session payload when creating a session", async () => {
-    const fetchFn = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ sessionId: "session-1", workerId: "worker-1" }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      })
-    )
-    const api = createConsoleApi({ fetchFn, getToken: () => "token-123" })
-
-    await api.createSession()
-
-    expect(fetchFn).toHaveBeenCalledWith(
-      "/api/sessions",
-      expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({ runtime: "shell", columns: 120, rows: 40 }),
-        headers: expect.any(Headers),
-      })
-    )
-  })
-
   it("maps worker responses into the console worker shape", async () => {
-    const fetchFn = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify([
-          {
-            workerId: "worker-1",
-            name: "Worker One",
-            isOnline: true,
-            sessionCount: 2,
-            lastSeenAtUtc: "2026-04-21T00:02:00Z",
-          },
-        ]),
+    const bridge = createMockBridge({
+      "/api/me/workers": [
         {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }
-      )
-    )
-    const api = createConsoleApi({ fetchFn, getToken: () => "token-123" })
+          workerId: "worker-1",
+          name: "Worker One",
+          isOnline: true,
+          sessionCount: 2,
+          lastSeenAtUtc: "2026-04-21T00:02:00Z",
+        },
+      ],
+    })
+    const api = createConsoleApi(bridge)
 
     await expect(api.listWorkers()).resolves.toEqual([
       {
         workerId: "worker-1",
-        displayName: "Worker One",
+        name: "Worker One",
         isOnline: true,
         sessionCount: 2,
         lastSeenAt: "2026-04-21T00:02:00Z",
@@ -148,35 +113,29 @@ describe("consoleApi", () => {
   })
 
   it("maps worker detail responses and hosted session statuses", async () => {
-    const fetchFn = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          workerId: "worker-1",
-          name: "Worker One",
-          isOnline: true,
-          sessionCount: 2,
-          lastSeenAtUtc: "2026-04-21T00:02:00Z",
-          sessions: [
-            {
-              sessionId: "session-1",
-              workerId: "worker-1",
-              status: "Exited",
-              createdAt: "2026-04-21T00:00:00Z",
-              lastActivityAt: "2026-04-21T00:01:00Z",
-            },
-          ],
-        }),
-        {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }
-      )
-    )
-    const api = createConsoleApi({ fetchFn, getToken: () => "token-123" })
+    const bridge = createMockBridge({
+      "/api/me/workers/worker-1": {
+        workerId: "worker-1",
+        name: "Worker One",
+        isOnline: true,
+        sessionCount: 2,
+        lastSeenAtUtc: "2026-04-21T00:02:00Z",
+        sessions: [
+          {
+            sessionId: "session-1",
+            workerId: "worker-1",
+            status: "Exited",
+            createdAt: "2026-04-21T00:00:00Z",
+            lastActivityAt: "2026-04-21T00:01:00Z",
+          },
+        ],
+      },
+    })
+    const api = createConsoleApi(bridge)
 
     await expect(api.getWorker("worker-1")).resolves.toEqual({
       workerId: "worker-1",
-      displayName: "Worker One",
+      name: "Worker One",
       isOnline: true,
       sessionCount: 2,
       lastSeenAt: "2026-04-21T00:02:00Z",

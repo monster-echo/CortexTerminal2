@@ -6,10 +6,11 @@
     <OutputType>Exe</OutputType>
     <Nullable>enable</Nullable>
     <ApplicationId>com.cortexterminal.mobile</ApplicationId>
+    <MauiHybridWebViewSupported>true</MauiHybridWebViewSupported>
   </PropertyGroup>
   <ItemGroup>
-    <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#512BD4" />
-    <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#512BD4" BaseSize="128,128" />
+    <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#08080A" />
+    <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#08080A" BaseSize="128,128" />
     <MauiImage Include="Resources\Images\*" />
   </ItemGroup>
   <ItemGroup>
@@ -20,4 +21,16 @@
   <ItemGroup>
     <ProjectReference Include="..\..\Shared\CortexTerminal.Contracts\CortexTerminal.Contracts.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
+    <!-- Prevent MAUI XAML generator from scanning Web/node_modules -->
+    <Compile Remove="Web\node_modules\**" />
+    <Content Remove="Web\node_modules\**" />
+    <None Remove="Web\node_modules\**" />
+    <EmbeddedResource Remove="Web\node_modules\**" />
+    <MauiCss Remove="Web\node_modules\**" />
+  </ItemGroup>
+  <Target Name="BuildWeb" BeforeTargets="BeforeBuild" Condition="Exists('Web/package.json')">
+    <Exec Command="npm run build" WorkingDirectory="Web" />
+  </Target>
 </Project>

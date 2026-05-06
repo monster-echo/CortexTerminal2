@@ -1,4 +1,4 @@
-import type { AuthSession } from "./auth"
+import type { NativeBridge } from "../bridge/types"
 
 export type SessionStatus = "live" | "detached" | "expired" | "exited"
 
@@ -14,7 +14,11 @@ export interface SessionDetail extends SessionSummary {}
 
 export interface WorkerSummary {
   workerId: string
-  displayName: string
+  name: string
+  hostname?: string
+  operatingSystem?: string
+  architecture?: string
+  version?: string
   isOnline: boolean
   sessionCount: number
   lastSeenAt: string
@@ -29,16 +33,23 @@ export interface CreateSessionResponse {
   workerId?: string
 }
 
+export interface GatewayInfo {
+  version: string
+  latestWorkerVersion?: string
+  latestGatewayVersion?: string
+}
+
 export interface ConsoleApi {
-  login(username: string): Promise<AuthSession>
+  login(username: string): Promise<{ accessToken: string; username: string }>
   listSessions(): Promise<SessionSummary[]>
   getSession(sessionId: string): Promise<SessionDetail>
   createSession(): Promise<CreateSessionResponse>
+  deleteSession(sessionId: string): Promise<void>
   listWorkers(): Promise<WorkerSummary[]>
   getWorker(workerId: string): Promise<WorkerDetail>
+  upgradeWorker(workerId: string): Promise<void>
+  getGatewayInfo(): Promise<GatewayInfo>
 }
-
-type FetchFn = (input: string, init?: RequestInit) => Promise<Response>
 
 type SessionSummaryDto = Omit<SessionSummary, "status"> & {
   status: "Attached" | "DetachedGracePeriod" | "Expired" | "Exited"
@@ -47,6 +58,10 @@ type SessionSummaryDto = Omit<SessionSummary, "status"> & {
 type WorkerSummaryDto = {
   workerId: string
   name: string
+  hostname?: string
+  operatingSystem?: string
+  architecture?: string
+  version?: string
   isOnline: boolean
   sessionCount: number
   lastSeenAtUtc: string
@@ -56,158 +71,48 @@ type WorkerDetailDto = WorkerSummaryDto & {
   sessions: SessionSummaryDto[]
 }
 
-export function createConsoleApi(deps: {
-  baseUrl?: string
-  fetchFn?: FetchFn
-  getToken?: () => string | null
-  onUnauthorized?: () => void
-  onTokenRefreshed?: (newToken: string) => void
-} = {}): ConsoleApi {
-  const {
-    baseUrl = "",
-    fetchFn = fetch.bind(globalThis),
-    getToken = () => null,
-    onUnauthorized,
-    onTokenRefreshed,
-  } = deps
-
-  let refreshPromise: Promise<string | null> | null = null
-
-  async function tryRefreshToken(): Promise<string | null> {
-    if (refreshPromise) return refreshPromise
-    refreshPromise = (async () => {
-      try {
-        const token = getToken()
-        if (!token) return null
-        const response = await fetchFn(`${baseUrl}/api/auth/refresh`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        })
-        if (!response.ok) return null
-        const data = (await response.json()) as { accessToken: string }
-        onTokenRefreshed?.(data.accessToken)
-        return data.accessToken
-      } catch {
-        return null
-      } finally {
-        refreshPromise = null
-      }
-    })()
-    return refreshPromise
-  }
-
-  async function buildHeaders(
-    init: RequestInit | undefined,
-    requiresAuth: boolean,
-    tokenOverride?: string
-  ) {
-    const headers = new Headers(init?.headers)
-    if (init?.body && !headers.has("Content-Type")) {
-      headers.set("Content-Type", "application/json")
-    }
-    const token = tokenOverride ?? getToken()
-    if (requiresAuth && token) {
-      headers.set("Authorization", `Bearer ${token}`)
-    }
-    return headers
-  }
-
-  const request = async <T>(path: string, init?: RequestInit, requiresAuth = true) => {
-    const headers = await buildHeaders(init, requiresAuth)
-    const response = await fetchFn(`${baseUrl}${path}`, { ...init, headers })
-
-    if (response.status === 401 && requiresAuth && onTokenRefreshed) {
-      const newToken = await tryRefreshToken()
-      if (newToken) {
-        const retryHeaders = await buildHeaders(init, requiresAuth, newToken)
-        const retryResponse = await fetchFn(`${baseUrl}${path}`, {
-          ...init,
-          headers: retryHeaders,
-        })
-        if (retryResponse.ok) {
-          return (await retryResponse.json()) as T
-        }
-        throw createConsoleApiError(retryResponse.status, requiresAuth, onUnauthorized)
-      }
-    }
-
-    if (!response.ok) {
-      throw createConsoleApiError(response.status, requiresAuth, onUnauthorized)
-    }
-
-    return (await response.json()) as T
+export function createConsoleApi(bridge: NativeBridge): ConsoleApi {
+  async function rest<T>(method: string, path: string, body?: unknown): Promise<T> {
+    return bridge.request<T>("rest", "*", { method, path, body })
   }
 
   return {
     async login(username) {
-      const response = await request<{ accessToken: string }>(
-        "/api/dev/login",
-        {
-          method: "POST",
-          body: JSON.stringify({ username }),
-        },
-        false
-      )
-
-      return {
-        token: response.accessToken,
-        username,
-      }
+      return bridge.request("auth", "dev.login", { username })
     },
     async listSessions() {
-      const sessions = await request<SessionSummaryDto[]>("/api/me/sessions")
+      const sessions = await rest<SessionSummaryDto[]>("GET", "/api/me/sessions")
       return sessions.map(mapSessionSummary)
     },
     async getSession(sessionId) {
-      const session = await request<SessionSummaryDto>(`/api/me/sessions/${encodeURIComponent(sessionId)}`)
+      const session = await rest<SessionSummaryDto>("GET", `/api/me/sessions/${encodeURIComponent(sessionId)}`)
       return mapSessionSummary(session)
     },
     createSession() {
-      return request<CreateSessionResponse>("/api/sessions", {
-        method: "POST",
-        body: JSON.stringify({
-          runtime: "shell",
-          columns: 120,
-          rows: 40,
-        }),
+      return rest<CreateSessionResponse>("POST", "/api/sessions", {
+        runtime: "shell",
+        columns: 120,
+        rows: 40,
       })
     },
+    async deleteSession(sessionId) {
+      await rest("DELETE", `/api/me/sessions/${encodeURIComponent(sessionId)}`)
+    },
     async listWorkers() {
-      const workers = await request<WorkerSummaryDto[]>("/api/me/workers")
+      const workers = await rest<WorkerSummaryDto[]>("GET", "/api/me/workers")
       return workers.map(mapWorkerSummary)
     },
     async getWorker(workerId) {
-      const worker = await request<WorkerDetailDto>(`/api/me/workers/${encodeURIComponent(workerId)}`)
-      return {
-        ...mapWorkerSummary(worker),
-        sessions: worker.sessions.map(mapSessionSummary),
-      }
+      const worker = await rest<WorkerDetailDto>("GET", `/api/me/workers/${encodeURIComponent(workerId)}`)
+      return mapWorkerDetail(worker)
+    },
+    async upgradeWorker(workerId) {
+      await rest("POST", `/api/me/workers/${encodeURIComponent(workerId)}/upgrade`)
+    },
+    async getGatewayInfo() {
+      return rest<GatewayInfo>("GET", "/api/gateway/info")
     },
   }
-}
-
-function createConsoleApiError(status: number, requiresAuth: boolean, onUnauthorized?: () => void) {
-  if (status === 401) {
-    if (requiresAuth) {
-      onUnauthorized?.()
-      return new Error("Session expired. Please sign in again.")
-    }
-
-    return new Error("Login failed.")
-  }
-
-  if (status === 403) {
-    return new Error("Access denied.")
-  }
-
-  if (status === 404) {
-    return new Error("Not found.")
-  }
-
-  return new Error(`Request failed: ${status}`)
 }
 
 function mapSessionSummary(session: SessionSummaryDto): SessionSummary {
@@ -236,9 +141,20 @@ function mapSessionStatus(status: SessionSummaryDto["status"]): SessionStatus {
 function mapWorkerSummary(worker: WorkerSummaryDto): WorkerSummary {
   return {
     workerId: worker.workerId,
-    displayName: worker.name,
+    name: worker.name,
+    hostname: worker.hostname,
+    operatingSystem: worker.operatingSystem,
+    architecture: worker.architecture,
+    version: worker.version,
     isOnline: worker.isOnline,
     sessionCount: worker.sessionCount,
     lastSeenAt: worker.lastSeenAtUtc,
+  }
+}
+
+function mapWorkerDetail(dto: WorkerDetailDto): WorkerDetail {
+  return {
+    ...mapWorkerSummary(dto),
+    sessions: dto.sessions.map(mapSessionSummary),
   }
 }

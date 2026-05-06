@@ -34,17 +34,33 @@
     "privacyPolicy": "Privacy Policy",
     "loginFailed": "Login failed: {{error}}",
     "signedInAs": "Signed in as {{username}}",
+    "signInWithPhone": "Phone",
+    "phoneVerification": "Phone Verification",
+    "phonePlaceholder": "Phone number",
+    "codePlaceholder": "6-digit code",
+    "sendCode": "Send Code",
+    "codeSent": "Verification code sent.",
+    "codeCountdown": "{{seconds}}s",
     "error": {
       "githubDenied": "GitHub authorization was denied.",
       "githubTokenFailed": "Failed to obtain GitHub access token.",
       "githubUserFailed": "Failed to retrieve GitHub user info.",
       "googleDenied": "Google authorization was denied.",
       "googleTokenFailed": "Failed to obtain Google access token.",
-      "googleUserFailed": "Failed to retrieve Google user info."
+      "googleUserFailed": "Failed to retrieve Google user info.",
+      "appleDenied": "Apple authorization was denied.",
+      "appleTokenFailed": "Failed to obtain Apple access token.",
+      "appleIdTokenMissing": "Apple ID token is missing.",
+      "appleIdTokenInvalid": "Apple ID token is invalid.",
+      "appleUserFailed": "Failed to retrieve Apple user info.",
+      "codeSendFailed": "Failed to send verification code.",
+      "codeRateLimited": "Too many requests. Please try again later."
     },
     "validation": {
       "usernameRequired": "Please enter your username.",
-      "passwordRequired": "Please enter your password."
+      "passwordRequired": "Please enter your password.",
+      "phoneInvalid": "Please enter a valid 11-digit phone number.",
+      "codeLength": "Verification code must be 6 digits."
     }
   },
   "dashboard": {

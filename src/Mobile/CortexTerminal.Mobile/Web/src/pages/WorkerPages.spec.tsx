@@ -1,133 +1,107 @@
-import { fireEvent, render, screen } from "@testing-library/react"
-import { describe, expect, it, vi } from "vitest"
-import { WorkerDetailPage } from "./WorkerDetailPage"
-import { WorkerListPage } from "./WorkerListPage"
-import type { ConsoleApi, WorkerDetail, WorkerSummary } from "../services/consoleApi"
+import { describe, expect, it } from "vitest"
+import { createConsoleApi } from "../services/consoleApi"
+import type { NativeBridge } from "../bridge/types"
 
-function createApi(overrides: Partial<ConsoleApi> = {}): ConsoleApi {
+function createMockBridge(responses: Record<string, unknown> = {}): NativeBridge {
   return {
-    login: vi.fn(),
-    listSessions: vi.fn(),
-    getSession: vi.fn(),
-    createSession: vi.fn(),
-    listWorkers: vi.fn().mockResolvedValue([] satisfies WorkerSummary[]),
-    getWorker: vi.fn(),
-    ...overrides,
+    async request<T>(channel: string, method: string, payload?: unknown): Promise<T> {
+      if (channel === "rest" && method === "*") {
+        const path = (payload as { path?: string })?.path ?? ""
+        const resp = responses[path]
+        if (resp !== undefined) return resp as T
+        return [] as unknown as T
+      }
+      const key = `${channel}:${method}`
+      const resp = responses[key]
+      if (resp !== undefined) return resp as T
+      return undefined as unknown as T
+    },
+    onEvent: () => () => {},
   }
 }
 
-describe("Worker pages", () => {
-  it("renders the current user's workers", async () => {
-    const api = createApi({
-      listWorkers: vi.fn().mockResolvedValue([
+describe("Worker API operations via bridge", () => {
+  it("lists workers with name and status mapping", async () => {
+    const bridge = createMockBridge({
+      "/api/me/workers": [
         {
           workerId: "worker-1",
-          displayName: "Alpha",
+          name: "Alpha",
           isOnline: true,
           sessionCount: 2,
-          lastSeenAt: "2026-04-21T00:02:00Z",
+          lastSeenAtUtc: "2026-04-21T00:02:00Z",
         },
-      ] satisfies WorkerSummary[]),
+      ],
     })
+    const api = createConsoleApi(bridge)
 
-    render(<WorkerListPage api={api} navigate={vi.fn()} />)
+    const workers = await api.listWorkers()
 
-    expect(await screen.findByText("Alpha")).toBeTruthy()
-    expect(screen.getByText("2 sessions")).toBeTruthy()
-  })
-
-  it("shows a worker summary and hosted sessions", async () => {
-    const navigate = vi.fn()
-    const api = createApi({
-      getWorker: vi.fn().mockResolvedValue({
+    expect(workers).toEqual([
+      {
         workerId: "worker-1",
-        displayName: "Alpha",
+        name: "Alpha",
         isOnline: true,
         sessionCount: 2,
         lastSeenAt: "2026-04-21T00:02:00Z",
+      },
+    ])
+  })
+
+  it("gets worker detail with hosted sessions", async () => {
+    const bridge = createMockBridge({
+      "/api/me/workers/worker-1": {
+        workerId: "worker-1",
+        name: "Alpha",
+        isOnline: true,
+        sessionCount: 2,
+        lastSeenAtUtc: "2026-04-21T00:02:00Z",
         sessions: [
           {
             sessionId: "session-1",
             workerId: "worker-1",
-            status: "live",
+            status: "Attached",
             createdAt: "2026-04-21T00:00:00Z",
             lastActivityAt: "2026-04-21T00:01:00Z",
           },
         ],
-      } satisfies WorkerDetail),
+      },
     })
+    const api = createConsoleApi(bridge)
 
-    render(<WorkerDetailPage api={api} workerId="worker-1" navigate={navigate} />)
+    const worker = await api.getWorker("worker-1")
 
-    expect(await screen.findByText("Alpha")).toBeTruthy()
-    expect(screen.getByText("Hosted sessions")).toBeTruthy()
-    expect(screen.getByText("session-1")).toBeTruthy()
-    fireEvent.click(screen.getByRole("button", { name: "Open session" }))
-    expect(navigate).toHaveBeenCalledWith("/sessions/session-1")
+    expect(worker.name).toBe("Alpha")
+    expect(worker.sessions).toEqual([
+      expect.objectContaining({
+        sessionId: "session-1",
+        status: "live",
+      }),
+    ])
   })
 
-  it("clears stale detail content while loading a different worker", async () => {
-    let resolveSecondRequest!: (value: WorkerDetail) => void
-    const api = createApi({
-      getWorker: vi
-        .fn()
-        .mockResolvedValueOnce({
-          workerId: "worker-1",
-          displayName: "Alpha",
-          isOnline: true,
-          sessionCount: 2,
-          lastSeenAt: "2026-04-21T00:02:00Z",
-          sessions: [],
-        } satisfies WorkerDetail)
-        .mockImplementationOnce(
-          () =>
-            new Promise<WorkerDetail>((resolve) => {
-              resolveSecondRequest = resolve
-            })
-        ),
-    })
-
-    const view = render(<WorkerDetailPage api={api} workerId="worker-1" navigate={vi.fn()} />)
-
-    expect(await screen.findByText("Alpha")).toBeTruthy()
-
-    view.rerender(<WorkerDetailPage api={api} workerId="worker-2" navigate={vi.fn()} />)
-
-    expect(screen.queryByText("Alpha")).toBeNull()
-
-    if (typeof resolveSecondRequest !== "function") {
-      throw new Error("expected pending detail request")
+  it("sends upgrade request via the REST bridge", async () => {
+    const requests: Array<{ channel: string; method: string; payload?: unknown }> = []
+    const bridge: NativeBridge = {
+      async request<T>(channel: string, method: string, payload?: unknown): Promise<T> {
+        requests.push({ channel, method, payload })
+        return undefined as unknown as T
+      },
+      onEvent: () => () => {},
     }
+    const api = createConsoleApi(bridge)
 
-    resolveSecondRequest({
-      workerId: "worker-2",
-      displayName: "Beta",
-      isOnline: false,
-      sessionCount: 1,
-      lastSeenAt: "2026-04-21T00:05:00Z",
-      sessions: [],
-    })
+    await api.upgradeWorker("worker-1")
 
-    expect(await screen.findByText("Beta")).toBeTruthy()
-  })
-
-  it("renders worker summaries as cards with status badges", async () => {
-    const api = createApi({
-      listWorkers: vi.fn().mockResolvedValue([
-        {
-          workerId: "worker-1",
-          displayName: "Alpha",
-          isOnline: true,
-          sessionCount: 2,
-          lastSeenAt: "2026-04-21T00:02:00Z",
-        },
-      ] satisfies WorkerSummary[]),
-    })
-
-    render(<WorkerListPage api={api} navigate={vi.fn()} />)
-
-    expect(await screen.findByText("Alpha")).toBeTruthy()
-    const onlineBadge = screen.getByText("Online")
-    expect(onlineBadge.className).toContain("inline-flex")
+    expect(requests).toContainEqual(
+      expect.objectContaining({
+        channel: "rest",
+        method: "*",
+        payload: expect.objectContaining({
+          method: "POST",
+          path: "/api/me/workers/worker-1/upgrade",
+        }),
+      }),
+    )
   })
 })

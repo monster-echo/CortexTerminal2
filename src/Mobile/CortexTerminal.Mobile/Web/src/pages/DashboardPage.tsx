@@ -1,35 +1,55 @@
 import { useEffect, useState } from "react"
+import { useHistory } from "react-router-dom"
 import {
-  Activity,
-  MonitorPlay,
-  Server,
-  Clock,
-  ChevronRight,
-} from "lucide-react"
-import { Card, CardContent } from "@/components/ui/card"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Badge } from "@/components/ui/badge"
-import type { ConsoleApi, SessionSummary } from "@/services/consoleApi"
+  IonPage,
+  IonHeader,
+  IonToolbar,
+  IonTitle,
+  IonContent,
+  IonCard,
+  IonCardContent,
+  IonGrid,
+  IonRow,
+  IonCol,
+  IonList,
+  IonItem,
+  IonLabel,
+  IonBadge,
+  IonIcon,
+  IonSkeletonText,
+  IonText,
+  IonButton,
+} from "@ionic/react"
+import {
+  pulseOutline,
+  desktopOutline,
+  serverOutline,
+  timeOutline,
+} from "ionicons/icons"
+import type { ConsoleApi, SessionSummary } from "../services/consoleApi"
 
 const statusColors: Record<string, string> = {
-  live: "bg-emerald-500",
-  detached: "bg-amber-500",
-  exited: "bg-red-500",
-  expired: "bg-zinc-500",
+  live: "#10b981",
+  detached: "#f59e0b",
+  exited: "#ef4444",
+  expired: "#71717a",
 }
 
-export function DashboardPage(props: {
-  api: ConsoleApi
-  navigate: (path: string) => void
-}) {
-  const { api, navigate } = props
+const statusBadgeColor: Record<string, string> = {
+  live: "success",
+  detached: "warning",
+  exited: "danger",
+  expired: "medium",
+}
+
+export function DashboardPage({ api }: { api: ConsoleApi }) {
+  const history = useHistory()
   const [sessions, setSessions] = useState<SessionSummary[]>([])
   const [workerCount, setWorkerCount] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     let isActive = true
-
     Promise.all([api.listSessions(), api.listWorkers()])
       .then(([sessionList, workerList]) => {
         if (!isActive) return
@@ -40,136 +60,187 @@ export function DashboardPage(props: {
       .finally(() => {
         if (isActive) setIsLoading(false)
       })
-
     return () => {
       isActive = false
     }
   }, [api])
 
-  const liveSessions = sessions.filter((s) => s.status === "live").length
-  const detachedSessions = sessions.filter((s) => s.status === "detached").length
+  const liveCount = sessions.filter((s) => s.status === "live").length
+  const detachedCount = sessions.filter((s) => s.status === "detached").length
 
   const stats = [
     {
       label: "Active",
-      value: liveSessions,
-      icon: Activity,
-      color: "text-emerald-500",
-      bg: "bg-emerald-500/10",
+      value: liveCount,
+      icon: pulseOutline,
+      color: "#10b981",
     },
     {
       label: "Detached",
-      value: detachedSessions,
-      icon: MonitorPlay,
-      color: "text-amber-500",
-      bg: "bg-amber-500/10",
+      value: detachedCount,
+      icon: desktopOutline,
+      color: "#f59e0b",
     },
     {
       label: "Workers",
       value: workerCount,
-      icon: Server,
-      color: "text-blue-500",
-      bg: "bg-blue-500/10",
+      icon: serverOutline,
+      color: "#3b82f6",
     },
     {
       label: "Total",
       value: sessions.length,
-      icon: Clock,
-      color: "text-violet-500",
-      bg: "bg-violet-500/10",
+      icon: timeOutline,
+      color: "#8b5cf6",
     },
   ]
 
-  if (isLoading) {
-    return (
-      <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-3">
-          {[1, 2, 3, 4].map((i) => (
-            <Skeleton key={i} className="h-24 rounded-xl" />
-          ))}
-        </div>
-        <Skeleton className="h-48 rounded-xl" />
-      </div>
-    )
-  }
-
   return (
-    <div className="space-y-5">
-      <div className="grid grid-cols-2 gap-3">
-        {stats.map((stat) => {
-          const Icon = stat.icon
-          return (
-            <Card key={stat.label} className="overflow-hidden">
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between">
-                  <div className={`rounded-lg ${stat.bg} p-2`}>
-                    <Icon className={`h-4 w-4 ${stat.color}`} />
-                  </div>
-                </div>
-                <p className="mt-3 text-2xl font-bold">{stat.value}</p>
-                <p className="text-xs text-muted-foreground">{stat.label}</p>
-              </CardContent>
-            </Card>
-          )
-        })}
-      </div>
-
-      <div className="space-y-1">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-foreground">Recent Sessions</h2>
-          <button
-            type="button"
-            onClick={() => navigate("/sessions")}
-            className="flex items-center gap-1 text-xs text-primary hover:underline"
-          >
-            View all <ChevronRight className="h-3 w-3" />
-          </button>
-        </div>
-
-        {sessions.length === 0 ? (
-          <Card className="border-dashed">
-            <CardContent className="flex flex-col items-center gap-2 py-8">
-              <MonitorPlay className="h-8 w-8 text-muted-foreground/50" />
-              <p className="text-sm text-muted-foreground">No sessions yet</p>
-            </CardContent>
-          </Card>
+    <IonPage>
+      <IonHeader>
+        <IonToolbar>
+          <IonTitle>Dashboard</IonTitle>
+        </IonToolbar>
+      </IonHeader>
+      <IonContent>
+        {isLoading ? (
+          <div style={{ padding: 16 }}>
+            <IonGrid>
+              <IonRow>
+                {[1, 2, 3, 4].map((i) => (
+                  <IonCol size="6" key={i}>
+                    <IonCard>
+                      <IonCardContent>
+                        <IonSkeletonText
+                          animated
+                          style={{ height: 80 }}
+                        />
+                      </IonCardContent>
+                    </IonCard>
+                  </IonCol>
+                ))}
+              </IonRow>
+            </IonGrid>
+          </div>
         ) : (
-          <div className="space-y-2">
-            {sessions.slice(0, 5).map((session) => (
-              <Card
-                key={session.sessionId}
-                className="cursor-pointer active:scale-[0.98] transition-transform"
-                onClick={() => navigate(`/sessions/${session.sessionId}`)}
+          <div style={{ padding: 16 }}>
+            <IonGrid>
+              <IonRow>
+                {stats.map((stat) => (
+                  <IonCol size="6" key={stat.label}>
+                    <IonCard>
+                      <IonCardContent>
+                        <IonIcon
+                          icon={stat.icon}
+                          style={{ fontSize: 20, color: stat.color }}
+                        />
+                        <p
+                          style={{
+                            fontSize: 24,
+                            fontWeight: 700,
+                            margin: "8px 0 2px",
+                          }}
+                        >
+                          {stat.value}
+                        </p>
+                        <IonText color="medium">
+                          <p style={{ fontSize: 12 }}>{stat.label}</p>
+                        </IonText>
+                      </IonCardContent>
+                    </IonCard>
+                  </IonCol>
+                ))}
+              </IonRow>
+            </IonGrid>
+
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginTop: 8,
+                marginBottom: 8,
+              }}
+            >
+              <p style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>
+                Recent Sessions
+              </p>
+              <IonButton
+                fill="clear"
+                size="small"
+                routerLink="/sessions"
               >
-                <CardContent className="flex items-center gap-3 p-3">
-                  <span
-                    className={`h-2.5 w-2.5 rounded-full shrink-0 ${statusColors[session.status] ?? "bg-zinc-400"}`}
+                View all
+              </IonButton>
+            </div>
+
+            {sessions.length === 0 ? (
+              <IonCard>
+                <IonCardContent
+                  style={{ textAlign: "center", padding: 32 }}
+                >
+                  <IonIcon
+                    icon={desktopOutline}
+                    style={{
+                      fontSize: 32,
+                      color: "var(--ion-color-medium)",
+                    }}
                   />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-mono text-xs font-medium">
-                      {session.sessionId}
-                    </p>
-                    <p className="text-[11px] text-muted-foreground">
-                      on {session.workerId}
-                    </p>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5">
+                  <p
+                    style={{
+                      color: "var(--ion-color-medium)",
+                      fontSize: 14,
+                    }}
+                  >
+                    No sessions yet
+                  </p>
+                </IonCardContent>
+              </IonCard>
+            ) : (
+              <IonList>
+                {sessions.slice(0, 5).map((session) => (
+                  <IonItem
+                    key={session.sessionId}
+                    button
+                    onClick={() =>
+                      history.push(`/sessions/${session.sessionId}`)
+                    }
+                  >
+                    <span
+                      style={{
+                        width: 10,
+                        height: 10,
+                        borderRadius: "50%",
+                        backgroundColor:
+                          statusColors[session.status] ?? "#71717a",
+                        marginRight: 12,
+                        flexShrink: 0,
+                      }}
+                    />
+                    <IonLabel>
+                      <h3
+                        style={{
+                          fontFamily: "monospace",
+                          fontSize: 12,
+                        }}
+                      >
+                        {session.sessionId}
+                      </h3>
+                      <p>on {session.workerId}</p>
+                    </IonLabel>
+                    <IonBadge
+                      slot="end"
+                      color={statusBadgeColor[session.status] ?? "medium"}
+                    >
                       {session.status}
-                    </Badge>
-                    <p className="mt-0.5 text-[10px] text-muted-foreground">
-                      {new Date(session.lastActivityAt).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                    </IonBadge>
+                  </IonItem>
+                ))}
+              </IonList>
+            )}
           </div>
         )}
-      </div>
-    </div>
+      </IonContent>
+    </IonPage>
   )
 }
