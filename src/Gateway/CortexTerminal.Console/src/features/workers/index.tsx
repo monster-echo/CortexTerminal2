@@ -63,8 +63,8 @@ export function WorkerListPage() {
     setUpgradeTarget({
       workerId: worker.workerId,
       workerName: worker.name ?? worker.workerId,
-      currentVersion: worker.version,
-      targetVersion: gatewayInfoQuery.data.latestWorkerVersion,
+      currentVersion: worker.version.replace(/(\.0)+$/, ''),
+      targetVersion: gatewayInfoQuery.data.latestWorkerVersion.replace(/(\.0)+$/, ''),
     })
   }
 
@@ -135,7 +135,9 @@ export function WorkerListPage() {
                     const hasUpgrade =
                       gatewayInfoQuery.data?.latestWorkerVersion &&
                       worker.version &&
-                      worker.version !== gatewayInfoQuery.data.latestWorkerVersion
+                      // Normalize trailing .0 (e.g. "0.3.0.0" → "0.3.0") before comparing
+                      worker.version.replace(/(\.0)+$/, '') !==
+                        gatewayInfoQuery.data.latestWorkerVersion.replace(/(\.0)+$/, '')
 
                     return (
                       <TableRow
