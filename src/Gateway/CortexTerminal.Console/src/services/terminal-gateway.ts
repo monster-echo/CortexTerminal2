@@ -111,6 +111,27 @@ export function createTerminalGateway(
         rejectPendingProbes('Terminal connection is reconnecting.')
       })
 
+      // Re-attach session after SignalR automatic reconnect (e.g. app resumes from background)
+      connection.onreconnected(async () => {
+        try {
+          const reattachResult = (await connection.invoke('ReattachSession', {
+            sessionId,
+          })) as SessionCommandResult
+
+          if (!reattachResult.isSuccess) {
+            if (
+              reattachResult.errorCode === 'session-expired' ||
+              reattachResult.errorCode === 'session-not-found'
+            ) {
+              handlers.onSessionExpired(reattachResult.errorCode)
+              await connection.stop()
+            }
+          }
+        } catch {
+          // Reattach failed — connection will be disposed by the UI layer
+        }
+      })
+
       await connection.start()
 
       const result = (await connection.invoke('ReattachSession', {
