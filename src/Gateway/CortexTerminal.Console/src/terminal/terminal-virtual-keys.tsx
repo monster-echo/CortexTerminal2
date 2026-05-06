@@ -49,6 +49,7 @@ export function TerminalVirtualKeys(props: {
   )
   const [animating, setAnimating] = useState(false)
   const containerRef = useRef<HTMLDivElement | null>(null)
+  const collapsedRef = useRef<HTMLButtonElement | null>(null)
   const dragState = useRef({
     startX: 0,
     startY: 0,
@@ -102,6 +103,31 @@ export function TerminalVirtualKeys(props: {
     ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
   }, [position])
 
+  // Snap to nearest edge with animation
+  const snapToEdge = useCallback((w: number, h: number) => {
+    setAnimating(true)
+    setTimeout(() => setAnimating(false), SNAP_ANIMATION_MS)
+
+    setPosition((prev) => {
+      if (!prev) return prev
+
+      const centerX = prev.x + w / 2
+      const screenCenterX = window.innerWidth / 2
+
+      const snapX = centerX < screenCenterX
+        ? SNAP_EDGE_MARGIN
+        : window.innerWidth - w - SNAP_EDGE_MARGIN
+
+      let snapY = prev.y
+      if (snapY < SNAP_EDGE_MARGIN) snapY = SNAP_EDGE_MARGIN
+      if (snapY + h > window.innerHeight - SNAP_EDGE_MARGIN) {
+        snapY = window.innerHeight - h - SNAP_EDGE_MARGIN
+      }
+
+      return { x: snapX, y: snapY }
+    })
+  }, [])
+
   const handleDragPointerMove = useCallback(
     (e: React.PointerEvent) => {
       const ds = dragState.current
@@ -138,7 +164,6 @@ export function TerminalVirtualKeys(props: {
     []
   )
 
-  // Snap to nearest edge on release
   const handleDragPointerUp = useCallback(() => {
     const ds = dragState.current
     if (!ds.dragging) {
@@ -154,31 +179,68 @@ export function TerminalVirtualKeys(props: {
     const el = containerRef.current
     const w = el?.offsetWidth ?? 260
     const h = el?.offsetHeight ?? 160
+    snapToEdge(w, h)
+  }, [snapToEdge])
 
-    setPosition((prev) => {
-      if (!prev) return prev
+  // Collapsed button drag handlers
+  const handleCollapsedPointerDown = useCallback((e: React.PointerEvent) => {
+    e.preventDefault()
+    const currentPos = position ?? { x: 0, y: 0 }
+    dragState.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      positionX: currentPos.x,
+      positionY: currentPos.y,
+      dragging: false,
+    }
+    ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+  }, [position])
 
-      const centerX = prev.x + w / 2
-      const screenCenterX = window.innerWidth / 2
+  const handleCollapsedPointerMove = useCallback(
+    (e: React.PointerEvent) => {
+      const ds = dragState.current
+      if (ds.startX === 0 && ds.startY === 0) return
 
-      // Snap X to nearest horizontal edge
-      const snapX = centerX < screenCenterX
-        ? SNAP_EDGE_MARGIN
-        : window.innerWidth - w - SNAP_EDGE_MARGIN
+      const dx = e.clientX - ds.startX
+      const dy = e.clientY - ds.startY
 
-      // Snap Y: keep in bounds, slightly biased toward bottom
-      let snapY = prev.y
-      if (prev.y < SNAP_EDGE_MARGIN) snapY = SNAP_EDGE_MARGIN
-      if (prev.y + h > window.innerHeight - SNAP_EDGE_MARGIN) {
-        snapY = window.innerHeight - h - SNAP_EDGE_MARGIN
+      if (
+        !ds.dragging &&
+        Math.abs(dx) < DRAG_THRESHOLD &&
+        Math.abs(dy) < DRAG_THRESHOLD
+      ) {
+        return
       }
 
-      setAnimating(true)
-      setTimeout(() => setAnimating(false), SNAP_ANIMATION_MS)
+      ds.dragging = true
+      setAnimating(false)
 
-      return { x: snapX, y: snapY }
-    })
-  }, [])
+      const size = 44 // size-11 = 2.75rem = 44px
+      const newX = Math.max(
+        0,
+        Math.min(window.innerWidth - size, ds.positionX + dx)
+      )
+      const newY = Math.max(
+        0,
+        Math.min(window.innerHeight - size, ds.positionY + dy)
+      )
+      setPosition({ x: newX, y: newY })
+    },
+    []
+  )
+
+  const handleCollapsedPointerUp = useCallback(() => {
+    const ds = dragState.current
+    const wasDragging = ds.dragging
+    ds.dragging = false
+    ds.startX = 0
+    ds.startY = 0
+
+    if (wasDragging) {
+      const size = 44
+      snapToEdge(size, size)
+    }
+  }, [snapToEdge])
 
   // Only render on touch-capable devices
   const [isTouchDevice, setIsTouchDevice] = useState(false)
@@ -203,9 +265,25 @@ export function TerminalVirtualKeys(props: {
   if (collapsed) {
     return (
       <button
-        onClick={() => setCollapsed(false)}
+        ref={collapsedRef}
         className="fixed z-50 flex size-11 items-center justify-center rounded-full bg-slate-900/90 text-slate-200 shadow-lg backdrop-blur-sm"
-        style={{ left: posX, top: posY }}
+        style={{
+          left: posX,
+          top: posY,
+          touchAction: 'none',
+          transition: animating ? `left ${SNAP_ANIMATION_MS}ms ease-out, top ${SNAP_ANIMATION_MS}ms ease-out` : 'none',
+          cursor: 'grab',
+        }}
+        onPointerDown={handleCollapsedPointerDown}
+        onPointerMove={handleCollapsedPointerMove}
+        onPointerUp={(e) => {
+          const ds = dragState.current
+          const wasDragging = ds.dragging
+          handleCollapsedPointerUp()
+          if (!wasDragging) {
+            setCollapsed(false)
+          }
+        }}
         aria-label="Show virtual keys"
       >
         <svg
