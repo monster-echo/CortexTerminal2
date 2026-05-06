@@ -19,6 +19,8 @@ const ARROW_DOWN: VirtualKey = { label: '↓', sequence: '\x1b[B' }
 const ARROW_RIGHT: VirtualKey = { label: '→', sequence: '\x1b[C' }
 
 const DRAG_THRESHOLD = 3
+const SNAP_EDGE_MARGIN = 8
+const SNAP_ANIMATION_MS = 200
 
 function applyCtrlModifier(sequence: string): string {
   const code = sequence.charCodeAt(0)
@@ -45,9 +47,13 @@ export function TerminalVirtualKeys(props: {
   const [position, setPosition] = useState<{ x: number; y: number } | null>(
     null
   )
+  const [animating, setAnimating] = useState(false)
+  const containerRef = useRef<HTMLDivElement | null>(null)
   const dragState = useRef({
     startX: 0,
     startY: 0,
+    positionX: 0,
+    positionY: 0,
     dragging: false,
   })
 
@@ -56,7 +62,7 @@ export function TerminalVirtualKeys(props: {
     if (position === null) {
       const x = window.innerWidth / 2 - 130
       const y = window.innerHeight - 200
-      setPosition({ x: Math.max(8, x), y: Math.max(8, y) })
+      setPosition({ x: Math.max(SNAP_EDGE_MARGIN, x), y: Math.max(SNAP_EDGE_MARGIN, y) })
     }
   }, [position])
 
@@ -81,19 +87,22 @@ export function TerminalVirtualKeys(props: {
     [onSendData, ctrlActive, altActive]
   )
 
-  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+  const handleDragPointerDown = useCallback((e: React.PointerEvent) => {
     const target = e.target as HTMLElement
     if (!target.closest('[data-drag-handle]')) return
-
+    e.preventDefault()
+    const currentPos = position ?? { x: 0, y: 0 }
     dragState.current = {
       startX: e.clientX,
       startY: e.clientY,
+      positionX: currentPos.x,
+      positionY: currentPos.y,
       dragging: false,
     }
     ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
-  }, [])
+  }, [position])
 
-  const handlePointerMove = useCallback(
+  const handleDragPointerMove = useCallback(
     (e: React.PointerEvent) => {
       const ds = dragState.current
       if (ds.startX === 0 && ds.startY === 0) return
@@ -110,26 +119,65 @@ export function TerminalVirtualKeys(props: {
       }
 
       ds.dragging = true
+      setAnimating(false)
 
-      if (position) {
-        const newX = Math.max(
-          0,
-          Math.min(window.innerWidth - 260, position.x + dx)
-        )
-        const newY = Math.max(
-          0,
-          Math.min(window.innerHeight - 60, position.y + dy)
-        )
-        setPosition({ x: newX, y: newY })
-        ds.startX = e.clientX
-        ds.startY = e.clientY
-      }
+      const el = containerRef.current
+      const w = el?.offsetWidth ?? 260
+      const h = el?.offsetHeight ?? 160
+
+      const newX = Math.max(
+        0,
+        Math.min(window.innerWidth - w, ds.positionX + dx)
+      )
+      const newY = Math.max(
+        0,
+        Math.min(window.innerHeight - h, ds.positionY + dy)
+      )
+      setPosition({ x: newX, y: newY })
     },
-    [position]
+    []
   )
 
-  const handlePointerUp = useCallback(() => {
-    dragState.current.dragging = false
+  // Snap to nearest edge on release
+  const handleDragPointerUp = useCallback(() => {
+    const ds = dragState.current
+    if (!ds.dragging) {
+      ds.startX = 0
+      ds.startY = 0
+      return
+    }
+
+    ds.dragging = false
+    ds.startX = 0
+    ds.startY = 0
+
+    const el = containerRef.current
+    const w = el?.offsetWidth ?? 260
+    const h = el?.offsetHeight ?? 160
+
+    setPosition((prev) => {
+      if (!prev) return prev
+
+      const centerX = prev.x + w / 2
+      const screenCenterX = window.innerWidth / 2
+
+      // Snap X to nearest horizontal edge
+      const snapX = centerX < screenCenterX
+        ? SNAP_EDGE_MARGIN
+        : window.innerWidth - w - SNAP_EDGE_MARGIN
+
+      // Snap Y: keep in bounds, slightly biased toward bottom
+      let snapY = prev.y
+      if (prev.y < SNAP_EDGE_MARGIN) snapY = SNAP_EDGE_MARGIN
+      if (prev.y + h > window.innerHeight - SNAP_EDGE_MARGIN) {
+        snapY = window.innerHeight - h - SNAP_EDGE_MARGIN
+      }
+
+      setAnimating(true)
+      setTimeout(() => setAnimating(false), SNAP_ANIMATION_MS)
+
+      return { x: snapX, y: snapY }
+    })
   }, [])
 
   // Only render on touch-capable devices
@@ -142,6 +190,15 @@ export function TerminalVirtualKeys(props: {
 
   const posX = position?.x ?? 0
   const posY = position?.y ?? 0
+
+  const containerStyle: React.CSSProperties = collapsed
+    ? { left: posX, top: posY }
+    : {
+        left: posX,
+        top: posY,
+        touchAction: 'none',
+        transition: animating ? `left ${SNAP_ANIMATION_MS}ms ease-out, top ${SNAP_ANIMATION_MS}ms ease-out` : 'none',
+      }
 
   if (collapsed) {
     return (
@@ -170,11 +227,12 @@ export function TerminalVirtualKeys(props: {
 
   return (
     <div
+      ref={containerRef}
       className="fixed z-50 rounded-xl border border-slate-700/50 bg-slate-900/90 shadow-lg backdrop-blur-sm"
-      style={{ left: posX, top: posY, touchAction: 'none' }}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
+      style={containerStyle}
+      onPointerDown={handleDragPointerDown}
+      onPointerMove={handleDragPointerMove}
+      onPointerUp={handleDragPointerUp}
     >
       {/* Drag handle */}
       <div
@@ -196,7 +254,10 @@ export function TerminalVirtualKeys(props: {
                   ? 'bg-blue-600/80 text-white'
                   : 'bg-slate-700/80 text-slate-200 active:bg-slate-600'
             }`}
-            onPointerDown={(e) => e.stopPropagation()}
+            onPointerDown={(e) => {
+              e.stopPropagation()
+              e.preventDefault()
+            }}
             onClick={() => handleKeyDown(key)}
           >
             {key.label}
@@ -208,7 +269,10 @@ export function TerminalVirtualKeys(props: {
       <div className="flex flex-col items-center gap-1 px-2 pb-2">
         <button
           className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-700/80 text-sm text-slate-200 active:bg-slate-600"
-          onPointerDown={(e) => e.stopPropagation()}
+          onPointerDown={(e) => {
+            e.stopPropagation()
+            e.preventDefault()
+          }}
           onClick={() => handleKeyDown(ARROW_UP)}
         >
           ↑
@@ -216,21 +280,30 @@ export function TerminalVirtualKeys(props: {
         <div className="flex gap-1">
           <button
             className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-700/80 text-sm text-slate-200 active:bg-slate-600"
-            onPointerDown={(e) => e.stopPropagation()}
+            onPointerDown={(e) => {
+              e.stopPropagation()
+              e.preventDefault()
+            }}
             onClick={() => handleKeyDown(ARROW_LEFT)}
           >
             ←
           </button>
           <button
             className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-700/80 text-sm text-slate-200 active:bg-slate-600"
-            onPointerDown={(e) => e.stopPropagation()}
+            onPointerDown={(e) => {
+              e.stopPropagation()
+              e.preventDefault()
+            }}
             onClick={() => handleKeyDown(ARROW_DOWN)}
           >
             ↓
           </button>
           <button
             className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-700/80 text-sm text-slate-200 active:bg-slate-600"
-            onPointerDown={(e) => e.stopPropagation()}
+            onPointerDown={(e) => {
+              e.stopPropagation()
+              e.preventDefault()
+            }}
             onClick={() => handleKeyDown(ARROW_RIGHT)}
           >
             →
@@ -241,6 +314,10 @@ export function TerminalVirtualKeys(props: {
       {/* Collapse button */}
       <button
         className="absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-slate-700 text-slate-300 shadow"
+        onPointerDown={(e) => {
+          e.stopPropagation()
+          e.preventDefault()
+        }}
         onClick={() => {
           setCollapsed(true)
           setCtrlActive(false)
