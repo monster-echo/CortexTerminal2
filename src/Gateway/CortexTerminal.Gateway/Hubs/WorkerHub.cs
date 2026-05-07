@@ -1,6 +1,7 @@
 using CortexTerminal.Contracts.Streaming;
 using CortexTerminal.Gateway.Audit;
 using CortexTerminal.Gateway.Sessions;
+using CortexTerminal.Gateway.WebSockets;
 using CortexTerminal.Gateway.Workers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
@@ -115,7 +116,7 @@ public sealed class WorkerHub(
             return;
         }
 
-        await terminalHubContext.Clients.Client(session.AttachedClientConnectionId).SendAsync("StdoutChunk", chunk);
+        await DeliverToClientAsync(session, "StdoutChunk", chunk, new WsOutputFrame { SessionId = chunk.SessionId, Stream = chunk.Stream, Payload = Convert.ToBase64String(chunk.Payload) });
         logger.LogDebug("ForwardStdout DELIVERED: session={SessionId} to client={ClientId}.", chunk.SessionId, session.AttachedClientConnectionId);
     }
 
@@ -162,7 +163,7 @@ public sealed class WorkerHub(
             return;
         }
 
-        await terminalHubContext.Clients.Client(session.AttachedClientConnectionId).SendAsync("StderrChunk", chunk);
+        await DeliverToClientAsync(session, "StderrChunk", chunk, new WsOutputFrame { SessionId = chunk.SessionId, Stream = chunk.Stream, Payload = Convert.ToBase64String(chunk.Payload) });
         logger.LogDebug("ForwardStderr DELIVERED: session={SessionId} to client={ClientId}.", chunk.SessionId, session.AttachedClientConnectionId);
     }
 
@@ -194,7 +195,7 @@ public sealed class WorkerHub(
             return;
         }
 
-        await terminalHubContext.Clients.Client(session.AttachedClientConnectionId).SendAsync("LatencyProbeAck", frame);
+        await DeliverToClientAsync(session, "LatencyProbeAck", frame, new WsLatencyAckFrame { ProbeId = frame.ProbeId, ClientTime = 0, ServerTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() });
         logger.LogDebug("ForwardLatencyProbe DELIVERED: session={SessionId} probe={ProbeId} to client={ClientId}.", frame.SessionId, frame.ProbeId, session.AttachedClientConnectionId);
     }
 
@@ -210,7 +211,7 @@ public sealed class WorkerHub(
 
         if (session.AttachedClientConnectionId is not null)
         {
-            await terminalHubContext.Clients.Client(session.AttachedClientConnectionId).SendAsync("SessionStartFailed", evt);
+            await DeliverToClientAsync(session, "SessionStartFailed", evt, new WsErrorFrame { SessionId = evt.SessionId, Code = "session-start-failed", Message = evt.Reason });
         }
     }
 
@@ -227,7 +228,26 @@ public sealed class WorkerHub(
 
         if (attachedClientConnectionId is not null)
         {
-            await terminalHubContext.Clients.Client(attachedClientConnectionId).SendAsync("SessionExited", evt);
+            await DeliverToClientAsync(session, "SessionExited", evt, new WsExitedFrame { SessionId = evt.SessionId, ExitCode = evt.ExitCode, Reason = evt.Reason });
+        }
+    }
+
+    /// <summary>
+    /// Deliver a message to the attached client. Checks if the connection is a native WebSocket
+    /// (connection ID starts with "ws-") and routes accordingly.
+    /// </summary>
+    private async Task DeliverToClientAsync(SessionRecord session, string signalRMethod, object signalRPayload, object wsFrame)
+    {
+        var clientId = session.AttachedClientConnectionId;
+        if (clientId is null) return;
+
+        if (clientId.StartsWith("ws-", StringComparison.Ordinal))
+        {
+            await TerminalWebSocketConnectionRegistry.SendToSessionAsync(session.SessionId, wsFrame, Context.ConnectionAborted);
+        }
+        else
+        {
+            await terminalHubContext.Clients.Client(clientId).SendAsync(signalRMethod, signalRPayload);
         }
     }
 }

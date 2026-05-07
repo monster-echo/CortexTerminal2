@@ -32,7 +32,7 @@
   </defs>
 
   <!-- 背景：纯白色 -->
-  <rect width="1024" height="1024" rx="160" fill="#FFFFFF"/>
+  <rect width="1024" height="1024" fill="#FFFFFF"/>
 
   <!-- 绘图组 -->
   

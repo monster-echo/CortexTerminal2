@@ -11,6 +11,7 @@ using CortexTerminal.Gateway.Auth;
 using CortexTerminal.Gateway.Data;
 using CortexTerminal.Gateway.Hubs;
 using CortexTerminal.Gateway.Sessions;
+using CortexTerminal.Gateway.WebSockets;
 using CortexTerminal.Gateway.Workers;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using System.IdentityModel.Tokens.Jwt;
@@ -151,7 +152,8 @@ builder.Services
 
                 if (!string.IsNullOrEmpty(accessToken)
                     && (path.StartsWithSegments("/hubs/terminal")
-                        || path.StartsWithSegments("/hubs/worker")))
+                        || path.StartsWithSegments("/hubs/worker")
+                        || path.StartsWithSegments("/ws/terminal")))
                 {
                     context.Token = accessToken;
                 }
@@ -173,10 +175,13 @@ builder.Services.AddHostedService<DetachedSessionExpiryService>();
 builder.Services.AddHttpClient();
 builder.Services.AddSingleton<OAuthStateService>();
 builder.Services.AddSingleton<PhoneCodeStore>();
+builder.Services.AddSingleton<TerminalWebSocketHandler>();
 var phoneAuthOptions = new PhoneAuthOptions();
 builder.Configuration.GetSection("PhoneAuth").Bind(phoneAuthOptions);
 var appleOAuthOptions = new AppleOAuthOptions();
 builder.Configuration.GetSection("AppleOAuth").Bind(appleOAuthOptions);
+var huaweiOAuthOptions = new HuaweiOAuthOptions();
+builder.Configuration.GetSection("HuaweiOAuth").Bind(huaweiOAuthOptions);
 
 var connectionString = builder.Configuration["GATEWAY_POSTGRES_CONNECTION_STRING"]
     ?? builder.Configuration.GetConnectionString("DefaultConnection");
@@ -260,6 +265,8 @@ app.UseStaticFiles(new StaticFileOptions
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(30) });
+app.UseMiddleware<TerminalWebSocketMiddleware>();
 app.MapControllers();
 
 
@@ -569,6 +576,124 @@ app.MapPost("/api/auth/phone/verify", async (VerifyCodeRequest request, PhoneCod
         UserId: dbUser.Id,
         UserName: dbUser.Username,
         Action: "user.phone_login",
+        TargetEntity: "user",
+        TargetId: dbUser.Id
+    ));
+
+    return Results.Ok(new { accessToken = jwt, username = dbUser.Username });
+}).AllowAnonymous();
+
+// --- Huawei Quick Login Endpoint ---
+
+app.MapPost("/api/auth/huawei/quick-login", async (HuaweiQuickLoginRequest request, IHttpClientFactory httpClientFactory, IAuditLogStore auditLog, IServiceProvider serviceProvider) =>
+{
+    if (string.IsNullOrEmpty(request.AuthCode))
+        return Results.BadRequest(new { error = "Authorization code is required" });
+
+    if (string.IsNullOrEmpty(huaweiOAuthOptions.ClientId) || string.IsNullOrEmpty(huaweiOAuthOptions.ClientSecret))
+        return Results.BadRequest(new { error = "Huawei OAuth is not configured" });
+
+    try
+    {
+        var http = httpClientFactory.CreateClient();
+
+        // Step 1: Exchange authorization code for access token
+        var tokenContent = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["grant_type"] = "authorization_code",
+            ["client_id"] = huaweiOAuthOptions.ClientId,
+            ["client_secret"] = huaweiOAuthOptions.ClientSecret,
+            ["code"] = request.AuthCode
+        });
+
+        var tokenResponse = await http.PostAsync("https://oauth-login.cloud.huawei.com/oauth2/v3/token", tokenContent);
+        var tokenJson = await tokenResponse.Content.ReadAsStringAsync();
+        if (!tokenResponse.IsSuccessStatusCode)
+        {
+            Console.WriteLine($"[HuaweiAuth] Token exchange failed: {tokenJson}");
+            return Results.BadRequest(new { error = "Failed to exchange authorization code" });
+        }
+
+        var tokenData = JsonSerializer.Deserialize<JsonElement>(tokenJson);
+        var accessToken = tokenData.TryGetProperty("access_token", out var atProp) ? atProp.GetString() : null;
+        if (string.IsNullOrEmpty(accessToken))
+            return Results.BadRequest(new { error = "No access token received from Huawei" });
+
+        // Step 2: Get real phone number using access token + unionID
+        var phoneContent = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["client_id"] = huaweiOAuthOptions.ClientId,
+            ["union_id"] = request.UnionID
+        });
+
+        var phoneRequest = new HttpRequestMessage(HttpMethod.Post, "https://oauth-login.cloud.huawei.com/oauth2/v6/quickLogin/getPhoneNumber")
+        {
+            Content = phoneContent
+        };
+        phoneRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+        var phoneResponse = await http.SendAsync(phoneRequest);
+        var phoneJson = await phoneResponse.Content.ReadAsStringAsync();
+        if (!phoneResponse.IsSuccessStatusCode)
+        {
+            Console.WriteLine($"[HuaweiAuth] Phone retrieval failed: {phoneJson}");
+            return Results.BadRequest(new { error = "Failed to retrieve phone number" });
+        }
+
+        var phoneData = JsonSerializer.Deserialize<JsonElement>(phoneJson);
+        var phoneNumber = phoneData.TryGetProperty("phoneNumber", out var pnProp) ? pnProp.GetString() : null;
+        var phoneZone = phoneData.TryGetProperty("phoneZone", out var pzProp) ? pzProp.GetString() : "86";
+
+        if (string.IsNullOrEmpty(phoneNumber))
+            return Results.BadRequest(new { error = "No phone number received from Huawei" });
+
+        // Step 3: Create or find user (similar to phone verify flow)
+        var providerId = $"+{phoneZone}{phoneNumber}";
+        var last4 = phoneNumber.Length >= 4 ? phoneNumber[^4..] : phoneNumber;
+        var username = $"hw_{last4}";
+        var displayName = $"{phoneNumber[..3]}****{last4}";
+
+        var dbUser = await EnsureUser(serviceProvider, username, null, displayName, null, "huawei", providerId);
+        if (dbUser is null || dbUser.Status == "disabled")
+            return Results.BadRequest(new { error = "Account disabled" });
+
+        var jwt = CreateAccessToken(dbUser.Username, dbUser.Email);
+        auditLog.Record(new AuditLogEntry(
+            Id: Guid.NewGuid().ToString("N"),
+            Timestamp: DateTimeOffset.UtcNow,
+            UserId: dbUser.Id,
+            UserName: dbUser.Username,
+            Action: "user.huawei_quick_login",
+            TargetEntity: "user",
+            TargetId: dbUser.Id
+        ));
+
+        return Results.Ok(new { accessToken = jwt, username = dbUser.Username });
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"[HuaweiAuth] Quick login error: {ex.Message}");
+        return Results.StatusCode(500);
+    }
+}).AllowAnonymous();
+
+// --- Guest Login Endpoint ---
+
+app.MapPost("/api/auth/guest", async (IAuditLogStore auditLog, IServiceProvider serviceProvider) =>
+{
+    var guestId = $"guest_{Guid.NewGuid():N}";
+    var dbUser = await EnsureUser(serviceProvider, guestId, null, $"Guest {guestId.Substring(7, 8)}", null, "guest", guestId);
+    if (dbUser is null)
+        return Results.StatusCode(500);
+
+    var jwt = CreateAccessToken(dbUser.Username, dbUser.Email);
+
+    auditLog.Record(new AuditLogEntry(
+        Id: Guid.NewGuid().ToString("N"),
+        Timestamp: DateTimeOffset.UtcNow,
+        UserId: dbUser.Id,
+        UserName: dbUser.Username,
+        Action: "user.guest_login",
         TargetEntity: "user",
         TargetId: dbUser.Id
     ));
@@ -1098,6 +1223,7 @@ public record InviteUserRequest(string Email, string? Role);
 public record UpdateUserRequest(string? Role, string? Status);
 record SendCodeRequest(string Phone);
 record VerifyCodeRequest(string Phone, string Code);
+record HuaweiQuickLoginRequest(string AuthCode, string UnionID, string OpenID);
 
 internal sealed class LatestVersionCache
 {

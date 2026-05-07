@@ -24,7 +24,7 @@ export function Logo({ className, ...props }: SVGProps<SVGSVGElement>) {
           <stop offset='1' stopColor='#C084FC' />
         </linearGradient>
       </defs>
-      <rect width='1024' height='1024' rx='160' fill='currentColor' opacity='0.1' />
+      <rect width='1024' height='1024' fill='currentColor' opacity='0.1' />
       <path d='M 220 502 V 310 C 220 260.3 260.3 220 310 220 H 502' stroke='url(#ct-blue)' strokeWidth='60' strokeLinecap='round' />
       <path d='M 804 522 V 714 C 804 763.7 763.7 804 714 804 H 522' stroke='url(#ct-purple)' strokeWidth='60' strokeLinecap='round' />
       <path d='M 440 384 L 584 512 L 440 640' stroke='currentColor' strokeWidth='65' strokeLinecap='round' strokeLinejoin='round' />
