@@ -6,6 +6,9 @@ using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
+#if IOS
+using Microsoft.Maui.Handlers;
+#endif
 
 namespace CortexTerminal.Mobile;
 
@@ -15,6 +18,15 @@ public static class MauiProgram
 	{
 		var builder = MauiApp.CreateBuilder();
 		builder.UseMauiApp<App>();
+
+#if IOS
+		// Use custom handler that disables WKWebView's automatic
+		// safe area content inset adjustment (causes blank space at bottom).
+		builder.ConfigureMauiHandlers(handlers =>
+		{
+			handlers.AddHandler<HybridWebView, FullScreenHybridWebViewHandler>();
+		});
+#endif
 
 		// Gateway URL
 		builder.Services.AddSingleton(_ => GetGatewayBaseUri());

@@ -1,0 +1,11 @@
+{
+  "name": "cortexterminal",
+  "version": "1.0.0",
+  "description": "云枢终端 (CortexTerminal) - Cloud terminal client for HarmonyOS",
+  "main": "",
+  "author": "",
+  "license": "ISC",
+  "modelVersion": "5.0.0",
+  "dependencies": {},
+  "devDependencies": {}
+}

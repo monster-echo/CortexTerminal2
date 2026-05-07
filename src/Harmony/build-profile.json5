@@ -1,0 +1,71 @@
+{
+  "app": {
+    "signingConfigs": [
+      {
+        "name": "default",
+        "type": "HarmonyOS",
+        "material": {
+          "certpath": "/Volumes/MacMiniDisk/Users/echo/.ohos/config/default_Harmony_HnF8a7Uyvrc5G0yM8GOeZcJ-u6-OowP91NxpDiMSmZM=.cer",
+          "keyAlias": "debugKey",
+          "keyPassword": "0000001BE70F03011CA5D9E92AC2FA509FD2258140B74712F90CDE1241C570F657359F2F15706CF373B637",
+          "profile": "/Volumes/MacMiniDisk/Users/echo/.ohos/config/default_Harmony_HnF8a7Uyvrc5G0yM8GOeZcJ-u6-OowP91NxpDiMSmZM=.p7b",
+          "signAlg": "SHA256withECDSA",
+          "storeFile": "/Volumes/MacMiniDisk/Users/echo/.ohos/config/default_Harmony_HnF8a7Uyvrc5G0yM8GOeZcJ-u6-OowP91NxpDiMSmZM=.p12",
+          "storePassword": "0000001BBB29414C653B5B09703BE43D11639FC20695E04C48333882F6AB4241053E6B1B2D225B28A42676"
+        }
+      }
+    ],
+    "products": [
+      {
+        "name": "default",
+        "bundleName": "top.rwecho.cortexterminal",
+        "signingConfig": "default",
+        "compatibleSdkVersion": "5.0.0(12)",
+        "runtimeOS": "HarmonyOS",
+        "targetSdkVersion": "6.0.2(22)"
+      }
+    ],
+    "buildModeSet": [
+      {
+        "name": "debug"
+      },
+      {
+        "name": "release"
+      }
+    ]
+  },
+  "modules": [
+    {
+      "name": "entry",
+      "srcPath": "./product/entry",
+      "targets": [
+        {
+          "name": "default",
+          "applyToProducts": [
+            "default"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "core",
+      "srcPath": "./common/core"
+    },
+    {
+      "name": "auth",
+      "srcPath": "./feature/auth"
+    },
+    {
+      "name": "terminal",
+      "srcPath": "./feature/terminal"
+    },
+    {
+      "name": "worker",
+      "srcPath": "./feature/worker"
+    },
+    {
+      "name": "settings",
+      "srcPath": "./feature/settings"
+    }
+  ]
+}

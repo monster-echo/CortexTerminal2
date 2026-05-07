@@ -1,0 +1,152 @@
+{
+  "lockVersion": "1.0",
+  "settings": {
+    "resolveConflict": true,
+    "resolveConflictStrict": false,
+    "installAll": true
+  },
+  "overrides": {},
+  "overrideDependencyMap": {},
+  "modules": {
+    ".": {
+      "name": "",
+      "dependencies": {},
+      "devDependencies": {},
+      "dynamicDependencies": {},
+      "maskedByOverrideDependencyMap": false
+    },
+    "common/core": {
+      "name": "core",
+      "dependencies": {},
+      "devDependencies": {},
+      "dynamicDependencies": {},
+      "maskedByOverrideDependencyMap": false
+    },
+    "feature/auth": {
+      "name": "auth",
+      "dependencies": {
+        "@rwecho/core": {
+          "specifier": "file:common/core",
+          "version": "file:common/core"
+        }
+      },
+      "devDependencies": {},
+      "dynamicDependencies": {},
+      "maskedByOverrideDependencyMap": false
+    },
+    "feature/settings": {
+      "name": "settings",
+      "dependencies": {
+        "@rwecho/core": {
+          "specifier": "file:common/core",
+          "version": "file:common/core"
+        }
+      },
+      "devDependencies": {},
+      "dynamicDependencies": {},
+      "maskedByOverrideDependencyMap": false
+    },
+    "feature/terminal": {
+      "name": "terminal",
+      "dependencies": {
+        "@rwecho/core": {
+          "specifier": "file:common/core",
+          "version": "file:common/core"
+        }
+      },
+      "devDependencies": {},
+      "dynamicDependencies": {},
+      "maskedByOverrideDependencyMap": false
+    },
+    "feature/worker": {
+      "name": "worker",
+      "dependencies": {
+        "@rwecho/core": {
+          "specifier": "file:common/core",
+          "version": "file:common/core"
+        }
+      },
+      "devDependencies": {},
+      "dynamicDependencies": {},
+      "maskedByOverrideDependencyMap": false
+    },
+    "product/entry": {
+      "name": "entry",
+      "dependencies": {
+        "@rwecho/core": {
+          "specifier": "file:common/core",
+          "version": "file:common/core"
+        },
+        "@rwecho/auth": {
+          "specifier": "file:feature/auth",
+          "version": "file:feature/auth"
+        },
+        "@rwecho/terminal": {
+          "specifier": "file:feature/terminal",
+          "version": "file:feature/terminal"
+        },
+        "@rwecho/worker": {
+          "specifier": "file:feature/worker",
+          "version": "file:feature/worker"
+        },
+        "@rwecho/settings": {
+          "specifier": "file:feature/settings",
+          "version": "file:feature/settings"
+        }
+      },
+      "devDependencies": {},
+      "dynamicDependencies": {},
+      "maskedByOverrideDependencyMap": false
+    }
+  },
+  "packages": {
+    "@rwecho/core@file:common/core": {
+      "storePath": "common/core",
+      "dependencies": {},
+      "dynamicDependencies": {},
+      "dev": false,
+      "dynamic": false,
+      "maskedByOverrideDependencyMap": false
+    },
+    "@rwecho/auth@file:feature/auth": {
+      "storePath": "feature/auth",
+      "dependencies": {
+        "@rwecho/core": "common/core"
+      },
+      "dynamicDependencies": {},
+      "dev": false,
+      "dynamic": false,
+      "maskedByOverrideDependencyMap": false
+    },
+    "@rwecho/terminal@file:feature/terminal": {
+      "storePath": "feature/terminal",
+      "dependencies": {
+        "@rwecho/core": "common/core"
+      },
+      "dynamicDependencies": {},
+      "dev": false,
+      "dynamic": false,
+      "maskedByOverrideDependencyMap": false
+    },
+    "@rwecho/worker@file:feature/worker": {
+      "storePath": "feature/worker",
+      "dependencies": {
+        "@rwecho/core": "common/core"
+      },
+      "dynamicDependencies": {},
+      "dev": false,
+      "dynamic": false,
+      "maskedByOverrideDependencyMap": false
+    },
+    "@rwecho/settings@file:feature/settings": {
+      "storePath": "feature/settings",
+      "dependencies": {
+        "@rwecho/core": "common/core"
+      },
+      "dynamicDependencies": {},
+      "dev": false,
+      "dynamic": false,
+      "maskedByOverrideDependencyMap": false
+    }
+  }
+}

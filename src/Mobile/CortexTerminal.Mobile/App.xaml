@@ -3,6 +3,10 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="CortexTerminal.Mobile.App">
     <Application.Resources>
-        <ResourceDictionary />
+        <ResourceDictionary>
+            <Style TargetType="Page" ApplyToDerivedTypes="True">
+                <Setter Property="Padding" Value="0" />
+            </Style>
+        </ResourceDictionary>
     </Application.Resources>
 </Application>

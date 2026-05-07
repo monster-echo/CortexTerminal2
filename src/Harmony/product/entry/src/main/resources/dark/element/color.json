@@ -1,0 +1,20 @@
+{
+  "color": [
+    { "name": "terminal_surface", "value": "#0f1419" },
+    { "name": "terminal_surface_container", "value": "#1a1f2e" },
+    { "name": "terminal_surface_container_high", "value": "#232a3b" },
+    { "name": "terminal_surface_container_highest", "value": "#2d3548" },
+    { "name": "terminal_primary", "value": "#e7e9ea" },
+    { "name": "terminal_secondary", "value": "#7cacf8" },
+    { "name": "terminal_secondary_container", "value": "#1d9bf0" },
+    { "name": "terminal_tertiary", "value": "#00ba7c" },
+    { "name": "terminal_error", "value": "#f4212e" },
+    { "name": "terminal_on_surface", "value": "#e7e9ea" },
+    { "name": "terminal_on_surface_variant", "value": "#71767b" },
+    { "name": "terminal_on_secondary_container", "value": "#ffffff" },
+    { "name": "terminal_outline", "value": "#536471" },
+    { "name": "terminal_outline_variant", "value": "#2f3336" },
+    { "name": "terminal_inverse_surface", "value": "#e7e9ea" },
+    { "name": "terminal_inverse_on_surface", "value": "#0f1419" }
+  ]
+}

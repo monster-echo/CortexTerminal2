@@ -8,6 +8,8 @@
     <ApplicationId>com.cortexterminal.mobile</ApplicationId>
     <MauiHybridWebViewSupported>true</MauiHybridWebViewSupported>
     <CodesignEntitlements>Platforms/iOS/Entitlements.plist</CodesignEntitlements>
+    <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">26.2</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">21.0</SupportedOSPlatformVersion>
   </PropertyGroup>
   <ItemGroup>
     <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#08080A" />

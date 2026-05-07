@@ -1,0 +1,69 @@
+{
+  "string": [
+    { "name": "app_name", "value": "云枢终端" },
+    { "name": "mainability_description", "value": "云枢终端入口能力" },
+
+    { "name": "menu_terminal", "value": "终端" },
+    { "name": "menu_workers", "value": "工作节点" },
+    { "name": "menu_settings", "value": "设置" },
+
+    { "name": "button_new_terminal", "value": "新建终端" },
+    { "name": "button_resume", "value": "恢复" },
+    { "name": "button_activate", "value": "激活节点" },
+    { "name": "button_sign_in", "value": "登录" },
+    { "name": "button_send_code", "value": "发送验证码" },
+    { "name": "button_choose_worker", "value": "选择节点" },
+
+    { "name": "label_phone_number", "value": "手机号" },
+    { "name": "label_verification_code", "value": "验证码" },
+    { "name": "label_or_sign_in_with", "value": "其他登录方式" },
+    { "name": "label_recent_session", "value": "最近会话" },
+    { "name": "label_no_sessions", "value": "暂无活跃会话" },
+    { "name": "label_start_hint", "value": "创建一个新终端会话开始使用" },
+    { "name": "label_your_sessions", "value": "你的终端会话" },
+    { "name": "label_workers_summary", "value": "%d 在线 · %d 离线" },
+
+    { "name": "status_live", "value": "在线" },
+    { "name": "status_connecting", "value": "连接中..." },
+    { "name": "status_reconnecting", "value": "重连中..." },
+    { "name": "status_replaying", "value": "恢复输出..." },
+    { "name": "status_detached", "value": "会话已保持" },
+    { "name": "status_expired", "value": "会话已过期" },
+    { "name": "status_exited", "value": "会话已退出" },
+    { "name": "status_error", "value": "连接错误" },
+
+    { "name": "settings_title", "value": "设置" },
+    { "name": "settings_gateway", "value": "网关" },
+    { "name": "settings_gateway_url", "value": "服务器地址" },
+    { "name": "settings_version", "value": "版本" },
+    { "name": "settings_appearance", "value": "外观" },
+    { "name": "settings_theme", "value": "主题" },
+    { "name": "settings_language", "value": "语言" },
+    { "name": "settings_account", "value": "账户" },
+    { "name": "settings_sign_out", "value": "退出登录" },
+
+    { "name": "worker_title", "value": "工作节点" },
+    { "name": "worker_online", "value": "在线" },
+    { "name": "worker_offline", "value": "离线" },
+    { "name": "worker_hostname", "value": "主机名" },
+    { "name": "worker_os", "value": "操作系统" },
+    { "name": "worker_arch", "value": "架构" },
+    { "name": "worker_version", "value": "版本" },
+    { "name": "worker_active_sessions", "value": "活跃会话" },
+    { "name": "worker_no_workers", "value": "暂无注册节点" },
+    { "name": "worker_no_workers_hint", "value": "激活一个节点以开始使用终端" },
+
+    { "name": "key_esc", "value": "Esc" },
+    { "name": "key_ctrl", "value": "Ctrl" },
+    { "name": "key_alt", "value": "Alt" },
+    { "name": "key_tab", "value": "Tab" },
+    { "name": "key_paste", "value": "粘贴" },
+
+    { "name": "time_just_now", "value": "刚刚" },
+    { "name": "time_minutes_ago", "value": "%d分钟前" },
+    { "name": "time_hours_ago", "value": "%d小时前" },
+    { "name": "time_days_ago", "value": "%d天前" },
+
+    { "name": "pasteboard_reason", "value": "用于从剪贴板粘贴文本到终端" }
+  ]
+}

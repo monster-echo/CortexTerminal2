@@ -1,0 +1,84 @@
+{
+	"app": {
+		"bundleName": "top.rwecho.cortexterminal",
+		"vendor": "rwecho",
+		"versionCode": 1000000,
+		"versionName": "1.0.0",
+		"icon": "$media:app_icon",
+		"label": "$string:app_name",
+		"apiReleaseType": "Release",
+		"compileSdkVersion": "6.0.2.130",
+		"targetAPIVersion": 60002022,
+		"minAPIVersion": 50000012,
+		"compileSdkType": "HarmonyOS",
+		"targetMinorAPIVersion": 0,
+		"targetPatchAPIVersion": 0,
+		"appEnvironments": [],
+		"bundleType": "app",
+		"buildMode": "debug",
+		"debug": true
+	},
+	"module": {
+		"name": "entry",
+		"type": "entry",
+		"description": "$string:app_name",
+		"mainElement": "EntryAbility",
+		"deviceTypes": [
+			"default",
+			"tablet"
+		],
+		"deliveryWithInstall": true,
+		"installationFree": false,
+		"pages": "$profile:main_pages",
+		"metadata": [
+			{
+				"name": "client_id",
+				"value": "105509583"
+			}
+		],
+		"abilities": [
+			{
+				"name": "EntryAbility",
+				"srcEntry": "./ets/entryability/EntryAbility.ets",
+				"description": "$string:app_name",
+				"icon": "$media:app_icon",
+				"label": "$string:app_name",
+				"startWindowIcon": "$media:app_icon",
+				"startWindowBackground": "$color:terminal_surface",
+				"exported": true,
+				"skills": [
+					{
+						"entities": [
+							"entity.system.home"
+						],
+						"actions": [
+							"action.system.home"
+						]
+					}
+				]
+			}
+		],
+		"requestPermissions": [
+			{
+				"name": "ohos.permission.INTERNET"
+			},
+			{
+				"name": "ohos.permission.GET_NETWORK_INFO"
+			},
+			{
+				"name": "ohos.permission.READ_PASTEBOARD",
+				"reason": "$string:pasteboard_reason",
+				"usedScene": {
+					"abilities": [
+						"EntryAbility"
+					],
+					"when": "inuse"
+				}
+			}
+		],
+		"packageName": "entry",
+		"virtualMachine": "ark12.0.2.0",
+		"compileMode": "esmodule",
+		"dependencies": []
+	}
+}

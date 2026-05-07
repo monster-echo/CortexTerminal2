@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>CortexTerminal</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body, #terminal-container {
+      width: 100%;
+      height: 100%;
+      background-color: #121414;
+      overflow: hidden;
+    }
+    /* Prevent text selection on long press */
+    * {
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    /* Allow text selection inside terminal */
+    .xterm {
+      user-select: text;
+      -webkit-user-select: text;
+    }
+  </style>
+  <link rel="stylesheet" href="xterm.css" />
+</head>
+<body>
+  <div id="terminal-container"></div>
+
+  <script src="xterm.js"></script>
+  <script src="xterm-addon-fit.js"></script>
+
+  <script>
+    // === Globals ===
+    let term = null;
+    let fitAddon = null;
+
+    // === Bridge functions (called from ArkTS via runJavaScript) ===
+
+    /**
+     * Initialize xterm.js terminal instance.
+     * @param {number} cols - Initial columns (default 80)
+     * @param {number} rows - Initial rows (default 24)
+     */
+    function initTerminal(cols, rows) {
+      if (term) {
+        term.dispose();
+      }
+
+      cols = cols || 80;
+      rows = rows || 24;
+
+      term = new Terminal({
+        cols: cols,
+        rows: rows,
+        cursorBlink: true,
+        cursorStyle: 'bar',
+        fontSize: 14,
+        fontFamily: '"JetBrains Mono", "Fira Code", "Cascadia Code", Menlo, Monaco, monospace',
+        theme: {
+          background: '#121414',
+          foreground: '#e3e2e2',
+          cursor: '#9fcaff',
+          cursorAccent: '#121414',
+          selectionBackground: '#3a95e8',
+          black: '#121414',
+          red: '#ffb4ab',
+          green: '#a2d489',
+          yellow: '#ffd180',
+          blue: '#9fcaff',
+          magenta: '#f5a8d0',
+          cyan: '#80cbc4',
+          white: '#e3e2e2',
+          brightBlack: '#8e9192',
+          brightRed: '#ffb4ab',
+          brightGreen: '#a2d489',
+          brightYellow: '#ffd180',
+          brightBlue: '#9fcaff',
+          brightMagenta: '#f5a8d0',
+          brightCyan: '#80cbc4',
+          brightWhite: '#e3e2e2'
+        },
+        scrollback: 10000,
+        allowProposedApi: true,
+        allowTransparency: false
+      });
+
+      fitAddon = new FitAddon.FitAddon();
+      term.loadAddon(fitAddon);
+
+      const container = document.getElementById('terminal-container');
+      term.open(container);
+
+      // Fit after a small delay to ensure container is sized
+      setTimeout(function() {
+        try {
+          fitAddon.fit();
+        } catch(e) {
+          console.warn('fitAddon.fit() failed:', e);
+        }
+      }, 100);
+
+      // Forward user input to ArkTS via JavaScript proxy
+      term.onData(function(data) {
+        if (window.terminalInputProxy && window.terminalInputProxy.onInput) {
+          window.terminalInputProxy.onInput(data);
+        }
+      });
+
+      // Notify ArkTS of resize events
+      term.onResize(function(size) {
+        if (window.terminalInputProxy && window.terminalInputProxy.onResize) {
+          window.terminalInputProxy.onResize(size.cols, size.rows);
+        }
+      });
+
+      console.log('Terminal initialized: ' + cols + 'x' + rows);
+    }
+
+    /**
+     * Write raw string data to the terminal.
+     * @param {string} data - Terminal escape sequence data
+     */
+    function writeOutput(data) {
+      if (term) {
+        term.write(data);
+      }
+    }
+
+    /**
+     * Write base64-encoded data to the terminal.
+     * @param {string} base64Data - Base64 encoded output data
+     */
+    function writeBase64Output(base64Data) {
+      if (term && base64Data) {
+        try {
+          var decoded = atob(base64Data);
+          term.write(decoded);
+        } catch(e) {
+          console.error('Failed to decode base64 output:', e);
+        }
+      }
+    }
+
+    /**
+     * Resize the terminal to new dimensions.
+     * @param {number} cols
+     * @param {number} rows
+     */
+    function resizeTerminal(cols, rows) {
+      if (term) {
+        term.resize(cols, rows);
+      }
+    }
+
+    /**
+     * Fit the terminal to its container.
+     */
+    function fitTerminal() {
+      if (fitAddon) {
+        try {
+          fitAddon.fit();
+        } catch(e) {
+          console.warn('fitAddon.fit() failed:', e);
+        }
+      }
+    }
+
+    /**
+     * Clear the terminal screen.
+     */
+    function clearTerminal() {
+      if (term) {
+        term.clear();
+      }
+    }
+
+    /**
+     * Reset the terminal completely.
+     */
+    function resetTerminal() {
+      if (term) {
+        term.reset();
+      }
+    }
+
+    /**
+     * Get current terminal dimensions.
+     * @returns {string} JSON with cols and rows
+     */
+    function getTerminalSize() {
+      if (term) {
+        return JSON.stringify({ cols: term.cols, rows: term.rows });
+      }
+      return JSON.stringify({ cols: 80, rows: 24 });
+    }
+
+    // === Window resize handling ===
+    window.addEventListener('resize', function() {
+      if (fitAddon) {
+        try {
+          fitAddon.fit();
+        } catch(e) {
+          // Ignore fit errors during resize
+        }
+      }
+    });
+
+    // Notify ArkTS when page is fully loaded
+    if (window.terminalInputProxy && window.terminalInputProxy.onPageLoaded) {
+      window.terminalInputProxy.onPageLoaded();
+    }
+  </script>
+</body>
+</html>

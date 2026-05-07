@@ -1,0 +1,69 @@
+{
+  "string": [
+    { "name": "app_name", "value": "CortexTerminal" },
+    { "name": "mainability_description", "value": "CortexTerminal Entry Ability" },
+
+    { "name": "menu_terminal", "value": "Terminal" },
+    { "name": "menu_workers", "value": "Workers" },
+    { "name": "menu_settings", "value": "Settings" },
+
+    { "name": "button_new_terminal", "value": "New Terminal" },
+    { "name": "button_resume", "value": "Resume" },
+    { "name": "button_activate", "value": "Activate Worker" },
+    { "name": "button_sign_in", "value": "Sign In" },
+    { "name": "button_send_code", "value": "Send Code" },
+    { "name": "button_choose_worker", "value": "Choose Worker" },
+
+    { "name": "label_phone_number", "value": "Phone Number" },
+    { "name": "label_verification_code", "value": "Verification Code" },
+    { "name": "label_or_sign_in_with", "value": "Or sign in with" },
+    { "name": "label_recent_session", "value": "Recent Session" },
+    { "name": "label_no_sessions", "value": "No active sessions" },
+    { "name": "label_start_hint", "value": "Start a new terminal session to begin" },
+    { "name": "label_your_sessions", "value": "Your terminal sessions" },
+    { "name": "label_workers_summary", "value": "%d Online · %d Offline" },
+
+    { "name": "status_live", "value": "Live" },
+    { "name": "status_connecting", "value": "Connecting..." },
+    { "name": "status_reconnecting", "value": "Reconnecting..." },
+    { "name": "status_replaying", "value": "Restoring output..." },
+    { "name": "status_detached", "value": "Session kept alive" },
+    { "name": "status_expired", "value": "Session expired" },
+    { "name": "status_exited", "value": "Session exited" },
+    { "name": "status_error", "value": "Connection error" },
+
+    { "name": "settings_title", "value": "Settings" },
+    { "name": "settings_gateway", "value": "GATEWAY" },
+    { "name": "settings_gateway_url", "value": "Server URL" },
+    { "name": "settings_version", "value": "Version" },
+    { "name": "settings_appearance", "value": "APPEARANCE" },
+    { "name": "settings_theme", "value": "Theme" },
+    { "name": "settings_language", "value": "Language" },
+    { "name": "settings_account", "value": "ACCOUNT" },
+    { "name": "settings_sign_out", "value": "Sign Out" },
+
+    { "name": "worker_title", "value": "Workers" },
+    { "name": "worker_online", "value": "Online" },
+    { "name": "worker_offline", "value": "Offline" },
+    { "name": "worker_hostname", "value": "Hostname" },
+    { "name": "worker_os", "value": "Operating System" },
+    { "name": "worker_arch", "value": "Architecture" },
+    { "name": "worker_version", "value": "Version" },
+    { "name": "worker_active_sessions", "value": "Active Sessions" },
+    { "name": "worker_no_workers", "value": "No workers registered" },
+    { "name": "worker_no_workers_hint", "value": "Activate a worker to start using terminals" },
+
+    { "name": "key_esc", "value": "Esc" },
+    { "name": "key_ctrl", "value": "Ctrl" },
+    { "name": "key_alt", "value": "Alt" },
+    { "name": "key_tab", "value": "Tab" },
+    { "name": "key_paste", "value": "Paste" },
+
+    { "name": "time_just_now", "value": "Just now" },
+    { "name": "time_minutes_ago", "value": "%dm ago" },
+    { "name": "time_hours_ago", "value": "%dh ago" },
+    { "name": "time_days_ago", "value": "%dd ago" },
+
+    { "name": "pasteboard_reason", "value": "Used to paste text from clipboard into the terminal" }
+  ]
+}

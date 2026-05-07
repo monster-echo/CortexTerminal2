@@ -1,0 +1,404 @@
+{
+  "version": 1,
+  "ohos-module-entry": {
+    "SELECT_TARGET": "default",
+    "MODULE_BUILD_DIR": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/product/entry/build",
+    "TARGETS": {
+      "default": {
+        "SOURCE_ROOT": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/product/entry/src/main",
+        "RESOURCES_PATH": [
+          "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/product/entry/src/main/resources"
+        ],
+        "BUILD_PATH": {
+          "OUTPUT_PATH": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/product/entry/build/default/outputs/default",
+          "INTERMEDIA_PATH": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/product/entry/build/default/intermediates",
+          "JS_ASSETS_PATH": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/product/entry/build/default/intermediates/loader_out/default",
+          "JS_LITE_ASSETS_PATH": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/product/entry/build/default/intermediates/loader_out_lite/default",
+          "RES_PATH": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/product/entry/build/default/intermediates/res/default",
+          "RES_PROFILE_PATH": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/product/entry/build/default/intermediates/res/default/resources/base/profile",
+          "ETS_SUPER_VISUAL_PATH": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/product/entry/build/default/cache/default/default@CompileArkTS/esmodule",
+          "JS_SUPER_VISUAL_PATH": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/product/entry/build/default/cache/default/default@CompileJS/jsbundle",
+          "WORKER_LOADER": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/product/entry/build/default/intermediates/loader/default/loader.json",
+          "MANIFEST_JSON": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/product/entry/build/default/intermediates/manifest/default",
+          "OUTPUT_METADATA_JSON": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/product/entry/build/default/intermediates/hap_metadata/default/output_metadata.json",
+          "SOURCE_MAP_DIR": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/product/entry/build/default/intermediates/source_map/default"
+        },
+        "BUILD_OPTION": {
+          "debuggable": true
+        }
+      }
+    },
+    "BUILD_OPTION": {
+      "default-default": {
+        "debuggable": true,
+        "copyFrom": "default"
+      }
+    },
+    "BUILD_PROFILE_OPT": {
+      "apiType": "stageMode",
+      "buildOption": {},
+      "targets": [
+        {
+          "name": "default",
+          "runtimeOS": "HarmonyOS",
+          "source": {
+            "pages": [
+              "pages/Index"
+            ]
+          }
+        }
+      ]
+    },
+    "BUILD_CACHE_DIR": ""
+  },
+  "ohos-module-core": {
+    "SELECT_TARGET": "default",
+    "MODULE_BUILD_DIR": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/common/core/build",
+    "TARGETS": {
+      "default": {
+        "SOURCE_ROOT": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/common/core/src/main",
+        "RESOURCES_PATH": [
+          "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/common/core/src/main/resources"
+        ],
+        "BUILD_PATH": {
+          "OUTPUT_PATH": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/common/core/build/default/outputs/default",
+          "INTERMEDIA_PATH": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/common/core/build/default/intermediates",
+          "JS_ASSETS_PATH": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/common/core/build/default/intermediates/loader_out/default",
+          "JS_LITE_ASSETS_PATH": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/common/core/build/default/intermediates/loader_out_lite/default",
+          "RES_PATH": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/common/core/build/default/intermediates/res/default",
+          "RES_PROFILE_PATH": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/common/core/build/default/intermediates/res/default/resources/base/profile",
+          "ETS_SUPER_VISUAL_PATH": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/common/core/build/default/cache/default/default@HarCompileArkTS/esmodule",
+          "JS_SUPER_VISUAL_PATH": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/common/core/build/default/cache/default/default@HarCompileJS/jsbundle",
+          "WORKER_LOADER": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/common/core/build/default/intermediates/loader/default/loader.json",
+          "MANIFEST_JSON": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/common/core/build/default/intermediates/manifest/default",
+          "OUTPUT_METADATA_JSON": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/common/core/build/default/intermediates/hap_metadata/default/output_metadata.json",
+          "SOURCE_MAP_DIR": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/common/core/build/default/intermediates/source_map/default"
+        },
+        "BUILD_OPTION": {
+          "debuggable": true
+        }
+      }
+    },
+    "BUILD_OPTION": {
+      "default-default": {
+        "debuggable": true,
+        "copyFrom": "default"
+      }
+    },
+    "BUILD_PROFILE_OPT": {
+      "apiType": "stageMode",
+      "buildOption": {}
+    },
+    "BUILD_CACHE_DIR": ""
+  },
+  "ohos-module-auth": {
+    "SELECT_TARGET": "default",
+    "MODULE_BUILD_DIR": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/auth/build",
+    "TARGETS": {
+      "default": {
+        "SOURCE_ROOT": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/auth/src/main",
+        "RESOURCES_PATH": [
+          "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/auth/src/main/resources"
+        ],
+        "BUILD_PATH": {
+          "OUTPUT_PATH": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/auth/build/default/outputs/default",
+          "INTERMEDIA_PATH": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/auth/build/default/intermediates",
+          "JS_ASSETS_PATH": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/auth/build/default/intermediates/loader_out/default",
+          "JS_LITE_ASSETS_PATH": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/auth/build/default/intermediates/loader_out_lite/default",
+          "RES_PATH": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/auth/build/default/intermediates/res/default",
+          "RES_PROFILE_PATH": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/auth/build/default/intermediates/res/default/resources/base/profile",
+          "ETS_SUPER_VISUAL_PATH": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/auth/build/default/cache/default/default@HarCompileArkTS/esmodule",
+          "JS_SUPER_VISUAL_PATH": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/auth/build/default/cache/default/default@HarCompileJS/jsbundle",
+          "WORKER_LOADER": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/auth/build/default/intermediates/loader/default/loader.json",
+          "MANIFEST_JSON": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/auth/build/default/intermediates/manifest/default",
+          "OUTPUT_METADATA_JSON": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/auth/build/default/intermediates/hap_metadata/default/output_metadata.json",
+          "SOURCE_MAP_DIR": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/auth/build/default/intermediates/source_map/default"
+        },
+        "BUILD_OPTION": {
+          "debuggable": true
+        }
+      }
+    },
+    "BUILD_OPTION": {
+      "default-default": {
+        "debuggable": true,
+        "copyFrom": "default"
+      }
+    },
+    "BUILD_PROFILE_OPT": {
+      "apiType": "stageMode",
+      "buildOption": {},
+      "targets": [
+        {
+          "name": "default"
+        }
+      ]
+    },
+    "BUILD_CACHE_DIR": ""
+  },
+  "ohos-module-terminal": {
+    "SELECT_TARGET": "default",
+    "MODULE_BUILD_DIR": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/terminal/build",
+    "TARGETS": {
+      "default": {
+        "SOURCE_ROOT": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/terminal/src/main",
+        "RESOURCES_PATH": [
+          "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/terminal/src/main/resources"
+        ],
+        "BUILD_PATH": {
+          "OUTPUT_PATH": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/terminal/build/default/outputs/default",
+          "INTERMEDIA_PATH": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/terminal/build/default/intermediates",
+          "JS_ASSETS_PATH": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/terminal/build/default/intermediates/loader_out/default",
+          "JS_LITE_ASSETS_PATH": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/terminal/build/default/intermediates/loader_out_lite/default",
+          "RES_PATH": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/terminal/build/default/intermediates/res/default",
+          "RES_PROFILE_PATH": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/terminal/build/default/intermediates/res/default/resources/base/profile",
+          "ETS_SUPER_VISUAL_PATH": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/terminal/build/default/cache/default/default@HarCompileArkTS/esmodule",
+          "JS_SUPER_VISUAL_PATH": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/terminal/build/default/cache/default/default@HarCompileJS/jsbundle",
+          "WORKER_LOADER": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/terminal/build/default/intermediates/loader/default/loader.json",
+          "MANIFEST_JSON": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/terminal/build/default/intermediates/manifest/default",
+          "OUTPUT_METADATA_JSON": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/terminal/build/default/intermediates/hap_metadata/default/output_metadata.json",
+          "SOURCE_MAP_DIR": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/terminal/build/default/intermediates/source_map/default"
+        },
+        "BUILD_OPTION": {
+          "debuggable": true
+        }
+      }
+    },
+    "BUILD_OPTION": {
+      "default-default": {
+        "debuggable": true,
+        "copyFrom": "default"
+      }
+    },
+    "BUILD_PROFILE_OPT": {
+      "apiType": "stageMode",
+      "buildOption": {},
+      "targets": [
+        {
+          "name": "default"
+        }
+      ]
+    },
+    "BUILD_CACHE_DIR": ""
+  },
+  "ohos-module-worker": {
+    "SELECT_TARGET": "default",
+    "MODULE_BUILD_DIR": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/worker/build",
+    "TARGETS": {
+      "default": {
+        "SOURCE_ROOT": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/worker/src/main",
+        "RESOURCES_PATH": [
+          "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/worker/src/main/resources"
+        ],
+        "BUILD_PATH": {
+          "OUTPUT_PATH": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/worker/build/default/outputs/default",
+          "INTERMEDIA_PATH": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/worker/build/default/intermediates",
+          "JS_ASSETS_PATH": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/worker/build/default/intermediates/loader_out/default",
+          "JS_LITE_ASSETS_PATH": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/worker/build/default/intermediates/loader_out_lite/default",
+          "RES_PATH": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/worker/build/default/intermediates/res/default",
+          "RES_PROFILE_PATH": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/worker/build/default/intermediates/res/default/resources/base/profile",
+          "ETS_SUPER_VISUAL_PATH": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/worker/build/default/cache/default/default@HarCompileArkTS/esmodule",
+          "JS_SUPER_VISUAL_PATH": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/worker/build/default/cache/default/default@HarCompileJS/jsbundle",
+          "WORKER_LOADER": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/worker/build/default/intermediates/loader/default/loader.json",
+          "MANIFEST_JSON": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/worker/build/default/intermediates/manifest/default",
+          "OUTPUT_METADATA_JSON": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/worker/build/default/intermediates/hap_metadata/default/output_metadata.json",
+          "SOURCE_MAP_DIR": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/worker/build/default/intermediates/source_map/default"
+        },
+        "BUILD_OPTION": {
+          "debuggable": true
+        }
+      }
+    },
+    "BUILD_OPTION": {
+      "default-default": {
+        "debuggable": true,
+        "copyFrom": "default"
+      }
+    },
+    "BUILD_PROFILE_OPT": {
+      "apiType": "stageMode",
+      "buildOption": {},
+      "targets": [
+        {
+          "name": "default"
+        }
+      ]
+    },
+    "BUILD_CACHE_DIR": ""
+  },
+  "ohos-module-settings": {
+    "SELECT_TARGET": "default",
+    "MODULE_BUILD_DIR": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/settings/build",
+    "TARGETS": {
+      "default": {
+        "SOURCE_ROOT": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/settings/src/main",
+        "RESOURCES_PATH": [
+          "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/settings/src/main/resources"
+        ],
+        "BUILD_PATH": {
+          "OUTPUT_PATH": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/settings/build/default/outputs/default",
+          "INTERMEDIA_PATH": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/settings/build/default/intermediates",
+          "JS_ASSETS_PATH": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/settings/build/default/intermediates/loader_out/default",
+          "JS_LITE_ASSETS_PATH": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/settings/build/default/intermediates/loader_out_lite/default",
+          "RES_PATH": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/settings/build/default/intermediates/res/default",
+          "RES_PROFILE_PATH": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/settings/build/default/intermediates/res/default/resources/base/profile",
+          "ETS_SUPER_VISUAL_PATH": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/settings/build/default/cache/default/default@HarCompileArkTS/esmodule",
+          "JS_SUPER_VISUAL_PATH": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/settings/build/default/cache/default/default@HarCompileJS/jsbundle",
+          "WORKER_LOADER": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/settings/build/default/intermediates/loader/default/loader.json",
+          "MANIFEST_JSON": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/settings/build/default/intermediates/manifest/default",
+          "OUTPUT_METADATA_JSON": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/settings/build/default/intermediates/hap_metadata/default/output_metadata.json",
+          "SOURCE_MAP_DIR": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/settings/build/default/intermediates/source_map/default"
+        },
+        "BUILD_OPTION": {
+          "debuggable": true
+        }
+      }
+    },
+    "BUILD_OPTION": {
+      "default-default": {
+        "debuggable": true,
+        "copyFrom": "default"
+      }
+    },
+    "BUILD_PROFILE_OPT": {
+      "apiType": "stageMode",
+      "buildOption": {},
+      "targets": [
+        {
+          "name": "default"
+        }
+      ]
+    },
+    "BUILD_CACHE_DIR": ""
+  },
+  "ohos-project": {
+    "SELECT_PRODUCT_NAME": "default",
+    "MODULE_BUILD_DIR": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/build",
+    "BUNDLE_NAME": "top.rwecho.cortexterminal",
+    "VERSION_CODE": 1000000,
+    "VERSION_NAME": "1.0.0",
+    "BUILD_PATH": {
+      "OUTPUT_PATH": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/build/outputs/default"
+    },
+    "MODULES": [
+      {
+        "name": "entry",
+        "srcPath": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/product/entry",
+        "targets": [
+          {
+            "name": "default",
+            "applyToProducts": [
+              "default"
+            ]
+          }
+        ],
+        "belongProjectPath": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony"
+      },
+      {
+        "name": "core",
+        "srcPath": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/common/core",
+        "belongProjectPath": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony"
+      },
+      {
+        "name": "auth",
+        "srcPath": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/auth",
+        "belongProjectPath": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony"
+      },
+      {
+        "name": "terminal",
+        "srcPath": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/terminal",
+        "belongProjectPath": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony"
+      },
+      {
+        "name": "worker",
+        "srcPath": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/worker",
+        "belongProjectPath": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony"
+      },
+      {
+        "name": "settings",
+        "srcPath": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony/feature/settings",
+        "belongProjectPath": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony"
+      }
+    ],
+    "PROFILE_OPT": {
+      "app": {
+        "signingConfigs": [
+          {
+            "name": "default",
+            "type": "HarmonyOS",
+            "material": {
+              "certpath": "/Volumes/MacMiniDisk/Users/echo/.ohos/config/default_Harmony_HnF8a7Uyvrc5G0yM8GOeZcJ-u6-OowP91NxpDiMSmZM=.cer",
+              "keyAlias": "debugKey",
+              "keyPassword": "0000001BE70F03011CA5D9E92AC2FA509FD2258140B74712F90CDE1241C570F657359F2F15706CF373B637",
+              "profile": "/Volumes/MacMiniDisk/Users/echo/.ohos/config/default_Harmony_HnF8a7Uyvrc5G0yM8GOeZcJ-u6-OowP91NxpDiMSmZM=.p7b",
+              "signAlg": "SHA256withECDSA",
+              "storeFile": "/Volumes/MacMiniDisk/Users/echo/.ohos/config/default_Harmony_HnF8a7Uyvrc5G0yM8GOeZcJ-u6-OowP91NxpDiMSmZM=.p12",
+              "storePassword": "0000001BBB29414C653B5B09703BE43D11639FC20695E04C48333882F6AB4241053E6B1B2D225B28A42676"
+            }
+          }
+        ],
+        "products": [
+          {
+            "name": "default",
+            "bundleName": "top.rwecho.cortexterminal",
+            "signingConfig": "default",
+            "compatibleSdkVersion": "5.0.0(12)",
+            "runtimeOS": "HarmonyOS",
+            "targetSdkVersion": "6.0.2(22)"
+          }
+        ],
+        "buildModeSet": [
+          {
+            "name": "debug"
+          },
+          {
+            "name": "release"
+          }
+        ]
+      },
+      "modules": [
+        {
+          "name": "entry",
+          "srcPath": "./product/entry",
+          "targets": [
+            {
+              "name": "default",
+              "applyToProducts": [
+                "default"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "core",
+          "srcPath": "./common/core"
+        },
+        {
+          "name": "auth",
+          "srcPath": "./feature/auth"
+        },
+        {
+          "name": "terminal",
+          "srcPath": "./feature/terminal"
+        },
+        {
+          "name": "worker",
+          "srcPath": "./feature/worker"
+        },
+        {
+          "name": "settings",
+          "srcPath": "./feature/settings"
+        }
+      ]
+    },
+    "CONFIG_PROPERTIES": {
+      "enableSignTask": true,
+      "skipNativeIncremental": false,
+      "hvigor.keepDependency": true
+    },
+    "OVERALL_PROJECT_PATHS": [
+      "/Volumes/MacMiniDisk/workspace/CortexTerminal2/src/Harmony"
+    ],
+    "BUILD_CACHE_DIR": ""
+  }
+}

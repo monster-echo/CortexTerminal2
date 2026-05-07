@@ -1,0 +1,27 @@
+{
+	"app": {
+		"bundleName": "top.rwecho.cortexterminal",
+		"debug": true,
+		"versionCode": 1000000,
+		"versionName": "1.0.0",
+		"minAPIVersion": 50000012,
+		"targetAPIVersion": 60002022,
+		"apiReleaseType": "Release",
+		"targetMinorAPIVersion": 0,
+		"targetPatchAPIVersion": 0,
+		"compileSdkVersion": "6.0.2.130",
+		"compileSdkType": "HarmonyOS",
+		"appEnvironments": [],
+		"bundleType": "app",
+		"buildMode": "debug"
+	},
+	"module": {
+		"name": "auth",
+		"type": "har",
+		"deviceTypes": [
+			"default"
+		],
+		"packageName": "@rwecho/auth",
+		"installationFree": false
+	}
+}
