@@ -1,1 +1,0 @@
-{"name":"@rwecho/worker","version":"1.0.0","main":"Index.ets","dependencies":{"@rwecho/core":"file:../../common/core"}}

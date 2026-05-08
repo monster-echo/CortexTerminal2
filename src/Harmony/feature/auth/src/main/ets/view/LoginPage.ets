@@ -20,21 +20,22 @@ export struct LoginPage {
   @State countdown: number = 0
   @State quickLoginAnonymousPhone: string = ''
   @State huaweiLoginAvailable: boolean = false
+  @State showPhoneLogin: boolean = false
   private authService: AuthService = new AuthService()
   private countdownTimer: number = -1
 
   // Huawei login button controller
   private huaweiButtonController: loginComponentManager.LoginWithHuaweiIDButtonController =
     new loginComponentManager.LoginWithHuaweiIDButtonController()
-      .setAgreementStatus(loginComponentManager.AgreementStatus.NOT_ACCEPTED)
+      .setAgreementStatus(loginComponentManager.AgreementStatus.ACCEPTED)
       .onClickLoginWithHuaweiIDButton(
         (error: BusinessError | undefined,
          response: loginComponentManager.HuaweiIDCredential) => {
+          console.info(`Huawei login callback: error=${JSON.stringify(error)}, response=${JSON.stringify(response)}`)
           if (error) {
             console.error(`Huawei login failed: code=${error.code}, message=${error.message}`)
-            // User cancelled or not logged in to Huawei — fall back to phone login
             if (error.code !== 1001502012 && error.code !== 1001502001) {
-              this.errorMessage = 'Huawei login failed, please use phone login'
+              this.errorMessage = `Huawei login failed (${error.code})`
             }
             return
           }
@@ -42,8 +43,14 @@ export struct LoginPage {
             const authCode = response.authorizationCode ?? ''
             const openID = response.openID ?? ''
             const unionID = response.unionID ?? ''
-            console.info(`Huawei login: authCode obtained, openID=${openID}`)
+            console.info(`Huawei login: authCode=${authCode.substring(0, 10)}..., openID=${openID}, unionID=${unionID}`)
+            if (authCode.length === 0) {
+              this.errorMessage = 'Failed to get authorization code'
+              return
+            }
             this.handleHuaweiLogin(authCode, unionID, openID)
+          } else {
+            console.warn('Huawei login: response is null, no action taken')
           }
         }
       )
@@ -77,12 +84,14 @@ export struct LoginPage {
       .margin({ top: 60 })
 
       // Huawei one-click login section
-      if (this.huaweiLoginAvailable && this.quickLoginAnonymousPhone.length > 0) {
+      if (this.huaweiLoginAvailable) {
         Column() {
-          Text(`Huawei Account: ${this.quickLoginAnonymousPhone}`)
-            .fontSize(14)
-            .fontColor($r('app.color.terminal_on_surface_variant'))
-            .margin({ bottom: 16 })
+          if (this.quickLoginAnonymousPhone.length > 0) {
+            Text(`${this.quickLoginAnonymousPhone}`)
+              .fontSize(16)
+              .fontColor($r('app.color.terminal_on_surface_variant'))
+              .margin({ bottom: 16 })
+          }
 
           LoginWithHuaweiIDButton({
             params: {
@@ -92,7 +101,7 @@ export struct LoginPage {
               supportDarkMode: true
             },
             controller: this.huaweiButtonController
-          })
+          }).width('100%').height(48).constraintSize({ maxWidth: 400 })
         }
         .width('100%')
         .alignItems(HorizontalAlign.Center)
@@ -115,31 +124,33 @@ export struct LoginPage {
         .margin({ top: 24, bottom: 8 })
       }
 
-      // Phone number input
-      Column() {
-        Text('Phone Number')
-          .fontSize(14)
-          .fontColor($r('app.color.terminal_on_surface_variant'))
-          .width('100%')
-          .margin({ bottom: 8 })
+      // Phone number input (fallback)
+      if (!this.huaweiLoginAvailable || this.showPhoneLogin) {
+        Column() {
+          Text('Phone Number')
+            .fontSize(14)
+            .fontColor($r('app.color.terminal_on_surface_variant'))
+            .width('100%')
+            .margin({ bottom: 8 })
 
-        TextInput({ placeholder: '13800138000', text: this.phoneNumber })
-          .type(InputType.PhoneNumber)
-          .maxLength(11)
-          .width('100%')
-          .height(48)
-          .borderRadius(12)
-          .backgroundColor($r('app.color.terminal_surface_container'))
-          .fontColor($r('app.color.terminal_primary'))
-          .placeholderColor($r('app.color.terminal_on_surface_variant'))
-          .onChange((value: string) => {
-            this.phoneNumber = value
-            this.errorMessage = ''
-          })
+          TextInput({ placeholder: '13800138000', text: this.phoneNumber })
+            .type(InputType.PhoneNumber)
+            .maxLength(11)
+            .width('100%')
+            .height(48)
+            .borderRadius(12)
+            .backgroundColor($r('app.color.terminal_surface_container'))
+            .fontColor($r('app.color.terminal_primary'))
+            .placeholderColor($r('app.color.terminal_on_surface_variant'))
+            .onChange((value: string) => {
+              this.phoneNumber = value
+              this.errorMessage = ''
+            })
+        }
+        .width('100%')
+        .padding({ left: 24, right: 24 })
+        .margin({ top: 24 })
       }
-      .width('100%')
-      .padding({ left: 24, right: 24 })
-      .margin({ top: 24 })
 
       // Verification code input (shown after code sent)
       if (this.codeSent) {
@@ -231,6 +242,17 @@ export struct LoginPage {
           this.guestLogin()
         })
 
+      // Show phone login link (only when Huawei login is active and phone is hidden)
+      if (this.huaweiLoginAvailable && !this.showPhoneLogin) {
+        Text('Use phone number instead')
+          .fontSize(14)
+          .fontColor($r('app.color.terminal_secondary'))
+          .margin({ top: 16 })
+          .onClick(() => {
+            this.showPhoneLogin = true
+          })
+      }
+
       Blank()
     }
     .width('100%')
@@ -257,9 +279,10 @@ export struct LoginPage {
       const anonymousPhone = response.data?.extraInfo?.quickLoginAnonymousPhone as string
       if (anonymousPhone && anonymousPhone.length > 0) {
         this.quickLoginAnonymousPhone = anonymousPhone
-        this.huaweiLoginAvailable = true
         console.info(`Huawei quick login available: ${anonymousPhone}`)
       }
+      // Huawei account exists — show the button regardless of anonymous phone
+      this.huaweiLoginAvailable = true
     } catch (error) {
       const err = error as BusinessError
       // Not logged in to Huawei or not supported — silently fall back to phone login

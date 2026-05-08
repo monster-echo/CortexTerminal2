@@ -1,0 +1,88 @@
+@import "@ionic/react/css/core.css";
+@import "@ionic/react/css/normalize.css";
+@import "@ionic/react/css/structure.css";
+@import "@ionic/react/css/typography.css";
+@import "@ionic/react/css/padding.css";
+@import "@ionic/react/css/float-elements.css";
+@import "@ionic/react/css/text-alignment.css";
+@import "@ionic/react/css/text-transformation.css";
+@import "@ionic/react/css/flex-utils.css";
+@import "@ionic/react/css/display.css";
+@import "@ionic/react/css/palettes/dark.class.css";
+
+:root {
+  --ion-color-primary: #27272a;
+  --ion-color-primary-rgb: 39, 39, 42;
+  --ion-color-primary-contrast: #ffffff;
+  --ion-color-primary-contrast-rgb: 255, 255, 255;
+  --ion-color-primary-shade: #222225;
+  --ion-color-primary-tint: #3d3d40;
+
+  --ion-color-secondary: #3b82f6;
+  --ion-color-secondary-rgb: 59, 130, 246;
+  --ion-color-secondary-contrast: #ffffff;
+  --ion-color-secondary-contrast-rgb: 255, 255, 255;
+  --ion-color-secondary-shade: #3472d8;
+  --ion-color-secondary-tint: #4f8ef7;
+
+  --ion-background-color: #ffffff;
+  --ion-background-color-rgb: 255, 255, 255;
+  --ion-text-color: #18181b;
+  --ion-text-color-rgb: 24, 24, 27;
+  --ion-toolbar-background: #ffffff;
+  --ion-card-background: #f4f4f5;
+}
+
+.ion-palette-dark {
+  --ion-color-primary: #f4f4f5;
+  --ion-color-primary-rgb: 244, 244, 245;
+  --ion-color-primary-contrast: #000000;
+  --ion-color-primary-contrast-rgb: 0, 0, 0;
+  --ion-color-primary-shade: #d7d7d8;
+  --ion-color-primary-tint: #f5f5f6;
+
+  --ion-color-secondary: #50c8ff;
+  --ion-color-secondary-rgb: 80, 200, 255;
+  --ion-color-secondary-contrast: #ffffff;
+  --ion-color-secondary-contrast-rgb: 255, 255, 255;
+  --ion-color-secondary-shade: #46b0e0;
+  --ion-color-secondary-tint: #62ceff;
+}
+
+.ion-palette-dark.md body,
+.ion-palette-dark .md body {
+  --ion-background-color: #121212;
+  --ion-background-color-rgb: 18, 18, 18;
+  --ion-text-color: #f5f5f5;
+  --ion-text-color-rgb: 245, 245, 245;
+  --ion-toolbar-background: #1f1f1f;
+  --ion-card-background: #1e1e1e;
+}
+
+.ion-palette-dark.ios body,
+.ion-palette-dark .ios body {
+  --ion-background-color: #000000;
+  --ion-background-color-rgb: 0, 0, 0;
+  --ion-text-color: #ffffff;
+  --ion-text-color-rgb: 255, 255, 255;
+  --ion-toolbar-background: #111111;
+  --ion-card-background: #1c1c1e;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  background: var(--ion-background-color);
+}
+
+*::-webkit-scrollbar {
+  display: none;
+}

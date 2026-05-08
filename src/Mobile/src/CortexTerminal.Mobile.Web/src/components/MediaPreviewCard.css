@@ -1,0 +1,9 @@
+.media-preview-card__asset {
+  width: 100%;
+  border-radius: 12px;
+  display: block;
+}
+
+.media-preview-card__note {
+  margin-top: 12px;
+}

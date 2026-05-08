@@ -1,0 +1,88 @@
+.page-stack {
+  padding: 20px;
+  display: grid;
+  gap: 16px;
+}
+
+.page-title {
+  margin-top: 0;
+}
+
+.meta-row {
+  margin-top: 12px;
+}
+
+.feature-list {
+  padding-left: 18px;
+  margin-bottom: 0;
+}
+
+.segment-spacing {
+  margin-top: 16px;
+}
+
+.button-spacing {
+  margin-top: 16px;
+}
+
+.section-title {
+  margin: 8px 0 12px;
+  text-transform: capitalize;
+}
+
+.feature-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.feature-card-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.tag-chip {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(59, 130, 246, 0.12);
+  color: var(--ion-color-secondary);
+  font-size: 12px;
+}
+
+.status-banner {
+  display: flex;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 18px;
+  align-items: flex-start;
+}
+
+.status-success {
+  background: rgba(34, 197, 94, 0.12);
+}
+
+.status-warning {
+  background: rgba(245, 158, 11, 0.12);
+}
+
+.status-offline {
+  background: rgba(59, 130, 246, 0.12);
+}
+
+.status-icon {
+  font-size: 22px;
+  margin-top: 2px;
+}
+
+.action-grid {
+  display: grid;
+  gap: 12px;
+}

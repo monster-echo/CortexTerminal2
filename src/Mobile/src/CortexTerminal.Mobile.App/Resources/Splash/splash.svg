@@ -1,0 +1,19 @@
+<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="markA" x1="132" y1="126" x2="360" y2="342" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2DD4BF" />
+      <stop offset="1" stop-color="#38BDF8" />
+    </linearGradient>
+    <linearGradient id="markB" x1="178" y1="98" x2="388" y2="326" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F97316" />
+      <stop offset="1" stop-color="#FB7185" />
+    </linearGradient>
+  </defs>
+  <path d="M143 305C143 211 211 143 305 143H362C379 143 392 156 392 173C392 190 379 203 362 203H305C244 203 203 244 203 305V340C203 357 190 370 173 370C156 370 143 357 143 340V305Z" fill="url(#markA)" />
+  <path d="M369 179C369 273 301 341 207 341H150C133 341 120 328 120 311C120 294 133 281 150 281H207C268 281 309 240 309 179V144C309 127 322 114 339 114C356 114 369 127 369 144V179Z" fill="url(#markB)" />
+  <circle cx="173" cy="311" r="28" fill="#F8FAFC" />
+  <circle cx="339" cy="173" r="28" fill="#F8FAFC" />
+  <text x="256" y="432" font-family="Arial, Helvetica, sans-serif" font-weight="800" font-size="46" fill="#F8FAFC" text-anchor="middle">
+    MAUI Template
+  </text>
+</svg>

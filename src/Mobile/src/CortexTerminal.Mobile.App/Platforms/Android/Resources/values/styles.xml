@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Template.MainTheme" parent="Maui.MainTheme">
+        <item name="colorPrimary">@color/colorPrimary</item>
+        <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
+        <item name="colorAccent">@color/colorAccent</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+    </style>
+
+    <style name="Template.MainTheme.NoActionBar" parent="Maui.MainTheme.NoActionBar">
+        <item name="colorPrimary">@color/colorPrimary</item>
+        <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
+        <item name="colorAccent">@color/colorAccent</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:statusBarColor">#f4f4f5</item>
+        <item name="android:navigationBarColor">#ffffff</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+    </style>
+
+    <!-- Override Maui.SplashTheme so the Activity picks up our custom splash styling -->
+    <style name="Maui.SplashTheme" parent="Template.MainTheme.NoActionBar">
+        <item name="maui_splash">true</item>
+        <item name="android:windowBackground">@drawable/maui_splash</item>
+        <item name="android:windowSplashScreenBackground">@color/maui_splash_color</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/maui_splash</item>
+        <!-- Status bar / nav bar colors matching the splash screen background (#121212) -->
+        <item name="android:statusBarColor">@color/maui_splash_color</item>
+        <item name="android:navigationBarColor">@color/maui_splash_color</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
+</resources>

@@ -108,16 +108,6 @@
       "dynamic": false,
       "maskedByOverrideDependencyMap": false
     },
-    "@rwecho/auth@file:feature/auth": {
-      "storePath": "feature/auth",
-      "dependencies": {
-        "@rwecho/core": "common/core"
-      },
-      "dynamicDependencies": {},
-      "dev": false,
-      "dynamic": false,
-      "maskedByOverrideDependencyMap": false
-    },
     "@rwecho/terminal@file:feature/terminal": {
       "storePath": "feature/terminal",
       "dependencies": {
@@ -130,6 +120,16 @@
     },
     "@rwecho/worker@file:feature/worker": {
       "storePath": "feature/worker",
+      "dependencies": {
+        "@rwecho/core": "common/core"
+      },
+      "dynamicDependencies": {},
+      "dev": false,
+      "dynamic": false,
+      "maskedByOverrideDependencyMap": false
+    },
+    "@rwecho/auth@file:feature/auth": {
+      "storePath": "feature/auth",
       "dependencies": {
         "@rwecho/core": "common/core"
       },

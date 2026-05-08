@@ -1,0 +1,11 @@
+bin/
+obj/
+node_modules/
+dist/
+.artifacts/
+.vscode/
+.DS_Store
+*.user
+*.suo
+*.keystore
+*.lscache

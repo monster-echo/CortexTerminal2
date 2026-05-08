@@ -1,0 +1,49 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+             x:Class="CortexTerminal.Mobile.App.MainPage"
+             SafeAreaEdges="None"
+             Shell.TabBarIsVisible="False">
+
+    <ContentPage.Behaviors>
+        <toolkit:StatusBarBehavior StatusBarColor="{Binding NativeStatusBarColor}"
+                                   StatusBarStyle="{Binding NativeStatusBarStyle}"/>
+    </ContentPage.Behaviors>
+
+    <Grid RowDefinitions="*,Auto">
+        <HybridWebView x:Name="hybridWebView"
+                       Grid.Row="0"
+                       HybridRoot="wwwroot"
+                       DefaultFile="index.html"
+                       Loaded="OnHybridWebViewLoaded"
+                       WebResourceRequested="OnHybridWebViewWebResourceRequested"
+                       RawMessageReceived="OnHybridWebViewRawMessageReceived"/>
+
+        <Grid x:Name="splashScreen"
+              Grid.RowSpan="2"
+              BackgroundColor="{AppThemeBinding Light=#ffffff, Dark=#121212}"
+              ZIndex="999">
+            <VerticalStackLayout HorizontalOptions="Center"
+                                 VerticalOptions="Center"
+                                 Spacing="16"
+                                 Padding="24">
+                <Image Source="splash.svg"
+                       WidthRequest="96"
+                       HeightRequest="96"
+                       HorizontalOptions="Center"/>
+                <Label Text="Hybrid Starter"
+                       HorizontalTextAlignment="Center"
+                       FontSize="22"
+                       FontAttributes="Bold"/>
+                <Label Text="MAUI + Ionic + Stable Bridge"
+                       HorizontalTextAlignment="Center"
+                       TextColor="{AppThemeBinding Light=#52525b, Dark=#d4d4d8}"/>
+                <ActivityIndicator IsRunning="{Binding IsLoading}"
+                                   Color="{AppThemeBinding Light=#52525b, Dark=#f4f4f5}"
+                                   HorizontalOptions="Center"/>
+            </VerticalStackLayout>
+        </Grid>
+    </Grid>
+
+</ContentPage>

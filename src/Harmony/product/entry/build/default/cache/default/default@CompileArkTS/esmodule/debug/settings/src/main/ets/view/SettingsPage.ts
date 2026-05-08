@@ -345,7 +345,7 @@ export class SettingsPage extends ViewPU {
             Row.margin({ top: 4 });
         }, Row);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Text.create('CortexTerminal');
+            Text.create({ "id": 50331648, "type": 10003, params: [], "bundleName": "top.rwecho.cortexterminal", "moduleName": "entry" });
             Text.fontSize(12);
             Text.fontColor({ "id": 50331709, "type": 10001, params: [], "bundleName": "top.rwecho.cortexterminal", "moduleName": "entry" });
             Text.layoutWeight(1);

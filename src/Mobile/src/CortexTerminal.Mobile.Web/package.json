@@ -1,0 +1,37 @@
+{
+  "name": "maui-template-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build && shx rm -rf ../CortexTerminal.Mobile.App/Resources/Raw/wwwroot/* && shx cp -r dist/* ../CortexTerminal.Mobile.App/Resources/Raw/wwwroot/",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@ionic/react": "^8.7.0",
+    "@ionic/react-router": "^8.7.0",
+    "history": "^4.10.1",
+    "i18next": "^26.0.9",
+    "ionicons": "^7.4.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-i18next": "^17.0.6",
+    "react-router": "^5.3.4",
+    "react-router-dom": "^5.3.4",
+    "zod": "^4.1.5",
+    "zustand": "^5.0.8"
+  },
+  "devDependencies": {
+    "@types/history": "^4.7.11",
+    "@types/node": "^24.5.2",
+    "@types/react": "^19.1.2",
+    "@types/react-dom": "^19.1.2",
+    "@types/react-router": "^5.1.20",
+    "@types/react-router-dom": "^5.3.3",
+    "@vitejs/plugin-react": "^5.0.4",
+    "shx": "^0.3.4",
+    "typescript": "^5.8.3",
+    "vite": "^7.0.0"
+  }
+}

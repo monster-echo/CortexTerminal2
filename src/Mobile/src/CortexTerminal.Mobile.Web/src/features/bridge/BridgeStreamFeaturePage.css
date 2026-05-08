@@ -1,0 +1,9 @@
+.bridge-stream-page__summary {
+  margin-top: 12px;
+}
+
+.bridge-stream-page__actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}

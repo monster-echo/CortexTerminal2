@@ -37,13 +37,13 @@ export class LoginPage extends ViewPU {
         this.authService = new AuthService();
         this.countdownTimer = -1;
         this.huaweiButtonController = new loginComponentManager.LoginWithHuaweiIDButtonController()
-            .setAgreementStatus(loginComponentManager.AgreementStatus.NOT_ACCEPTED)
+            .setAgreementStatus(loginComponentManager.AgreementStatus.ACCEPTED)
             .onClickLoginWithHuaweiIDButton((error: BusinessError | undefined, response: loginComponentManager.HuaweiIDCredential) => {
+            console.info(`Huawei login callback: error=${JSON.stringify(error)}, response=${JSON.stringify(response)}`);
             if (error) {
                 console.error(`Huawei login failed: code=${error.code}, message=${error.message}`);
-                // User cancelled or not logged in to Huawei — fall back to phone login
                 if (error.code !== 1001502012 && error.code !== 1001502001) {
-                    this.errorMessage = 'Huawei login failed, please use phone login';
+                    this.errorMessage = `Huawei login failed (${error.code})`;
                 }
                 return;
             }
@@ -51,8 +51,15 @@ export class LoginPage extends ViewPU {
                 const authCode = response.authorizationCode ?? '';
                 const openID = response.openID ?? '';
                 const unionID = response.unionID ?? '';
-                console.info(`Huawei login: authCode obtained, openID=${openID}`);
+                console.info(`Huawei login: authCode=${authCode.substring(0, 10)}..., openID=${openID}, unionID=${unionID}`);
+                if (authCode.length === 0) {
+                    this.errorMessage = 'Failed to get authorization code';
+                    return;
+                }
                 this.handleHuaweiLogin(authCode, unionID, openID);
+            }
+            else {
+                console.warn('Huawei login: response is null, no action taken');
             }
         });
         this.setInitiallyProvidedValue(params);
@@ -203,7 +210,7 @@ export class LoginPage extends ViewPU {
             Column.margin({ top: 60 });
         }, Column);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Text.create('CortexTerminal');
+            Text.create({ "id": 50331648, "type": 10003, params: [], "bundleName": "top.rwecho.cortexterminal", "moduleName": "entry" });
             Text.fontSize(28);
             Text.fontWeight(FontWeight.Bold);
             Text.fontColor({ "id": 50331712, "type": 10001, params: [], "bundleName": "top.rwecho.cortexterminal", "moduleName": "entry" });
@@ -221,7 +228,7 @@ export class LoginPage extends ViewPU {
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             If.create();
             // Huawei one-click login section
-            if (this.huaweiLoginAvailable && this.quickLoginAnonymousPhone.length > 0) {
+            if (true) {
                 this.ifElseBranchUpdateFunction(0, () => {
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
                         Column.create();
@@ -237,6 +244,12 @@ export class LoginPage extends ViewPU {
                         Text.margin({ bottom: 16 });
                     }, Text);
                     Text.pop();
+                    this.observeComponentCreation2((elmtId, isInitialRender) => {
+                        __Common__.create();
+                        __Common__.width('100%');
+                        __Common__.height(48);
+                        __Common__.constraintSize({ maxWidth: 400 });
+                    }, __Common__);
                     {
                         this.observeComponentCreation2((elmtId, isInitialRender) => {
                             if (isInitialRender) {
@@ -248,7 +261,7 @@ export class LoginPage extends ViewPU {
                                         supportDarkMode: true
                                     },
                                     controller: this.huaweiButtonController
-                                }, undefined, elmtId, () => { }, { page: "feature/auth/src/main/ets/view/LoginPage.ets", line: 87, col: 11 });
+                                }, undefined, elmtId, () => { }, { page: "feature/auth/src/main/ets/view/LoginPage.ets", line: 93, col: 11 });
                                 ViewPU.create(componentCall);
                                 let paramsLambda = () => {
                                     return {
@@ -268,6 +281,7 @@ export class LoginPage extends ViewPU {
                             }
                         }, { name: "LoginWithHuaweiIDButton" });
                     }
+                    __Common__.pop();
                     Column.pop();
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
                         // Divider
@@ -468,12 +482,45 @@ export class LoginPage extends ViewPU {
                     Text.pop();
                 });
             }
+            // Guest login
             else {
                 this.ifElseBranchUpdateFunction(2, () => {
                 });
             }
         }, If);
         If.pop();
+        this.observeComponentCreation2((elmtId, isInitialRender) => {
+            // Guest login
+            Button.createWithLabel('Try as Guest');
+            // Guest login
+            Button.width('calc(100% - 48vp)');
+            // Guest login
+            Button.height(48);
+            // Guest login
+            Button.margin({ top: 24 });
+            // Guest login
+            Button.borderRadius(12);
+            // Guest login
+            Button.backgroundColor(Color.Transparent);
+            // Guest login
+            Button.fontColor({ "id": 50331713, "type": 10001, params: [], "bundleName": "top.rwecho.cortexterminal", "moduleName": "entry" });
+            // Guest login
+            Button.fontSize(16);
+            // Guest login
+            Button.fontWeight(FontWeight.Medium);
+            // Guest login
+            Button.borderWidth(1);
+            // Guest login
+            Button.borderColor({ "id": 50331711, "type": 10001, params: [], "bundleName": "top.rwecho.cortexterminal", "moduleName": "entry" });
+            // Guest login
+            Button.enabled(!this.isLoading);
+            // Guest login
+            Button.onClick(() => {
+                this.guestLogin();
+            });
+        }, Button);
+        // Guest login
+        Button.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Blank.create();
         }, Blank);
@@ -496,9 +543,10 @@ export class LoginPage extends ViewPU {
             const anonymousPhone = response.data?.extraInfo?.quickLoginAnonymousPhone as string;
             if (anonymousPhone && anonymousPhone.length > 0) {
                 this.quickLoginAnonymousPhone = anonymousPhone;
-                this.huaweiLoginAvailable = true;
                 console.info(`Huawei quick login available: ${anonymousPhone}`);
             }
+            // Huawei account exists — show the button regardless of anonymous phone
+            this.huaweiLoginAvailable = true;
         }
         catch (error) {
             const err = error as BusinessError;
@@ -522,6 +570,20 @@ export class LoginPage extends ViewPU {
             this.errorMessage = (err as Error).message || 'Huawei login failed';
             this.isLoading = false;
         }
+    }
+    private guestLogin() {
+        if (this.isLoading) {
+            return;
+        }
+        this.isLoading = true;
+        this.errorMessage = '';
+        this.authService.loginAsGuest().then(() => {
+            this.isLoading = false;
+            this.authService.completeAuth();
+        }).catch((err: Error) => {
+            this.errorMessage = err.message || 'Guest login failed';
+            this.isLoading = false;
+        });
     }
     private handlePrimaryAction() {
         if (!this.codeSent) {
