@@ -123,7 +123,7 @@ jobs:
           status: "draft"
 
   build-ios:
-    runs-on: macos-latest
+    runs-on: macos-26
     needs: build-web
 
     steps:
