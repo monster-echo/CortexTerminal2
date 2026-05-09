@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="CortexTerminal (CORTERM) Privacy Policy">
+<title>Privacy Policy &mdash; CORTERM</title>
+<style>
+  :root {
+    --bg: #0a0a0b;
+    --surface: #121214;
+    --surface2: #1a1a1d;
+    --surface3: #242429;
+    --border: #2e2e36;
+    --text: #e4e4e7;
+    --text2: #a1a1aa;
+    --text3: #71717a;
+    --accent: #10b981;
+    --accent-glow: rgba(16, 185, 129, 0.15);
+    --accent2: #06b6d4;
+    --radius: 6px;
+    --radius-lg: 12px;
+    --font-mono: "JetBrains Mono", "Fira Code", "Cascadia Code", "SF Mono", Menlo, Consolas, monospace;
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse 80% 60% at 50% -20%, rgba(16, 185, 129, 0.04), transparent 70%),
+                radial-gradient(ellipse 50% 40% at 80% 80%, rgba(6, 182, 212, 0.03), transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+  .container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 0 24px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Nav */
+  nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .nav-logo {
+    font-family: var(--font-mono);
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.5px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-decoration: none;
+  }
+  .nav-logo .dot {
+    width: 8px; height: 8px;
+    background: var(--accent);
+    border-radius: 50%;
+    box-shadow: 0 0 8px var(--accent);
+  }
+  .nav-links { display: flex; gap: 24px; align-items: center; }
+  .nav-links a {
+    color: var(--text2);
+    text-decoration: none;
+    font-size: 14px;
+    transition: color 0.15s;
+  }
+  .nav-links a:hover { color: var(--text); }
+  .lang-btn {
+    background: var(--surface3); color: var(--text2); border: 1px solid var(--border);
+    padding: 5px 12px; border-radius: var(--radius); font-size: 13px; font-weight: 600;
+    font-family: var(--font-sans); cursor: pointer; transition: all 0.15s;
+    line-height: 1; min-width: 40px; text-align: center;
+  }
+  .lang-btn:hover { background: var(--surface2); color: var(--text); border-color: var(--accent); }
+
+  /* Content */
+  .content {
+    padding: 48px 0 80px;
+  }
+  .content h1 {
+    font-size: 32px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    margin-bottom: 8px;
+  }
+  .content .date {
+    color: var(--text3);
+    font-size: 14px;
+    margin-bottom: 32px;
+    font-family: var(--font-mono);
+  }
+  .content h2 {
+    font-size: 20px;
+    font-weight: 700;
+    margin: 32px 0 12px;
+    color: var(--accent);
+  }
+  .content h3 {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 24px 0 8px;
+  }
+  .content p {
+    color: var(--text2);
+    font-size: 15px;
+    margin-bottom: 12px;
+  }
+  .content ul {
+    padding-left: 20px;
+    margin-bottom: 16px;
+  }
+  .content li {
+    color: var(--text2);
+    font-size: 15px;
+    margin-bottom: 6px;
+  }
+  .content strong { color: var(--text); }
+  .content code {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    background: var(--surface3);
+    padding: 1px 6px;
+    border-radius: 3px;
+  }
+  .content a { color: var(--accent); }
+  .content .section-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+  .lang-section { display: none; }
+  .lang-section.active { display: block; }
+
+  /* Footer */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 40px 0;
+    text-align: center;
+  }
+  footer .copy { font-size: 13px; color: var(--text3); }
+  footer .links { display: flex; gap: 20px; justify-content: center; margin-top: 12px; }
+  footer .links a { font-size: 13px; color: var(--text2); text-decoration: none; transition: color 0.15s; }
+  footer .links a:hover { color: var(--text); }
+
+  @media (max-width: 640px) {
+    .content h1 { font-size: 24px; }
+    .content { padding: 32px 0 48px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <!-- Nav -->
+  <nav>
+    <a href="/" class="nav-logo">
+      <span class="dot"></span>
+      CORTERM
+    </a>
+    <div class="nav-links">
+      <button class="lang-btn" onclick="toggleLang()" id="langBtn" title="Switch Language">中</button>
+    </div>
+  </nav>
+
+  <!-- English -->
+  <div class="content lang-section active" id="en-section">
+    <h1>Privacy Policy</h1>
+    <p class="date">Last updated: May 9, 2026</p>
+
+    <div class="section-card">
+      <p>This Privacy Policy describes how CortexTerminal ("CORTERM", "we", "us", or "our") collects, uses, and discloses your information when you use our mobile application and associated services (collectively, the "Service").</p>
+      <p>CORTERM is an open-source remote terminal application. The Service consists of a self-hosted Gateway server and Worker agent, with companion mobile and web apps. Because the Gateway is self-hosted, you have full control over your data when running your own infrastructure. This policy covers data handled by the official managed Gateway service at <code>gateway.ct.rwecho.top</code> and the mobile apps distributed through app stores.</p>
+    </div>
+
+    <h2>1. Information We Collect</h2>
+
+    <h3>Account Information</h3>
+    <ul>
+      <li><strong>Phone Number:</strong> If you choose SMS authentication, we collect your phone number for verification purposes.</li>
+      <li><strong>OAuth Identity:</strong> If you sign in via Apple, Google, or GitHub, we collect the email address and unique identifier provided by the OAuth provider.</li>
+      <li><strong>Guest Access:</strong> Guest users are assigned a temporary identifier; no personal information is collected.</li>
+    </ul>
+
+    <h3>Service Data</h3>
+    <ul>
+      <li><strong>Session Metadata:</strong> We store session start/end times, session titles, and working directory paths to enable session persistence and reattachment.</li>
+      <li><strong>Terminal Sessions:</strong> Terminal session output is streamed in real-time and is not persistently logged on the Gateway. We do not record keystrokes or terminal content.</li>
+      <li><strong>Device Information:</strong> Device model, operating system version, and app version are collected to optimize the mobile experience.</li>
+    </ul>
+
+    <h3>Communication Data</h3>
+    <ul>
+      <li><strong>SignalR Connection:</strong> Real-time terminal sessions use SignalR over WebSockets. Connection metadata (IP address, connection duration) is temporarily held in memory.</li>
+    </ul>
+
+    <h2>2. How We Use Your Information</h2>
+    <ul>
+      <li>To authenticate your identity and authorize access to the Service</li>
+      <li>To establish and maintain real-time terminal sessions between your browser and remote Workers</li>
+      <li>To enable session persistence (detach/re-attach)</li>
+      <li>To improve the Service, fix bugs, and enhance security</li>
+      <li>To communicate with you about service updates (only if you have opted in)</li>
+    </ul>
+
+    <h2>3. Data Storage and Retention</h2>
+    <ul>
+      <li><strong>Authentication tokens (JWT):</strong> Stored in your browser/device local storage. Tokens expire and are refreshed automatically.</li>
+      <li><strong>User accounts and sessions:</strong> Stored in the Gateway's PostgreSQL database. When self-hosting, you manage this database entirely.</li>
+      <li><strong>Retention:</strong> Session metadata is retained until you delete the session. Account data is retained until account deletion is requested.</li>
+      <li><strong>Data Deletion:</strong> You can request deletion of your account and associated data by opening an issue on our GitHub repository or contacting us through the project page.</li>
+    </ul>
+
+    <h2>4. Third-Party Services</h2>
+    <ul>
+      <li><strong>Apple, Google, GitHub:</strong> Used for OAuth authentication. We receive only the information you authorize (email, name, identifier).</li>
+      <li><strong>SMS Provider:</strong> Used for phone number verification (if SMS login is enabled). Phone numbers are shared only for the purpose of sending verification codes.</li>
+      <li><strong>Google Play Services:</strong> The Android app is distributed through Google Play and uses Google Play Services for core device functionality.</li>
+      <li><strong>Apple App Store / TestFlight:</strong> The iOS app is distributed through Apple's App Store and TestFlight.</li>
+    </ul>
+
+    <h2>5. Open Source and Self-Hosting</h2>
+    <p>CORTERM is open source under the MIT License. You are encouraged to self-host the Gateway and Workers on your own infrastructure. When self-hosting:</p>
+    <ul>
+      <li>No data is sent to CORTERM-operated servers</li>
+      <li>All data remains within your own network and database</li>
+      <li>You are responsible for the security and privacy of your self-hosted deployment</li>
+      <li>The source code is available at <a href="https://github.com/monster-echo/CortexTerminal2" target="_blank" rel="noopener">github.com/monster-echo/CortexTerminal2</a></li>
+    </ul>
+
+    <h2>6. Data Security</h2>
+    <p>We implement appropriate technical and organizational measures to protect your information:</p>
+    <ul>
+      <li>All communications are encrypted via TLS/HTTPS</li>
+      <li>JWT tokens are signed and have configurable expiration</li>
+      <li>Password-equivalent secrets are never stored in plaintext</li>
+      <li>Real-time terminal traffic uses WebSocket with MessagePack binary encoding over TLS</li>
+    </ul>
+
+    <h2>7. Your Rights</h2>
+    <p>Depending on your jurisdiction, you may have the right to:</p>
+    <ul>
+      <li>Access the personal data we hold about you</li>
+      <li>Request correction or deletion of your personal data</li>
+      <li>Restrict or object to processing of your personal data</li>
+      <li>Data portability</li>
+      <li>Withdraw consent at any time (where processing is based on consent)</li>
+    </ul>
+    <p>To exercise these rights, please contact us through the channels listed below.</p>
+
+    <h2>8. Changes to This Policy</h2>
+    <p>We may update this Privacy Policy from time to time. Changes will be posted on this page with an updated "Last updated" date. For significant changes, we may provide additional notice through the app or our GitHub repository.</p>
+
+    <h2>9. Contact</h2>
+    <p>If you have questions about this Privacy Policy or wish to exercise your data rights, please contact us:</p>
+    <ul>
+      <li><strong>GitHub:</strong> <a href="https://github.com/monster-echo/CortexTerminal2" target="_blank" rel="noopener">github.com/monster-echo/CortexTerminal2</a></li>
+      <li><strong>Issues:</strong> <a href="https://github.com/monster-echo/CortexTerminal2/issues" target="_blank" rel="noopener">Open a GitHub Issue</a></li>
+    </ul>
+  </div>
+
+  <!-- Chinese -->
+  <div class="content lang-section" id="zh-section">
+    <h1>隐私政策</h1>
+    <p class="date">最后更新：2026 年 5 月 9 日</p>
+
+    <div class="section-card">
+      <p>本隐私政策说明了云枢终端（"CORTERM"、"我们"或"我们的"）在您使用我们的移动应用及相关服务（统称"服务"）时如何收集、使用和披露您的信息。</p>
+      <p>云枢终端是一个开源的远程终端应用。服务由自托管的 Gateway 服务器和 Worker 代理组成，配合移动端和 Web 端应用。由于 Gateway 是自托管的，您在运行自己的基础设施时完全掌控您的数据。本政策适用于官方托管的 Gateway 服务（<code>gateway.ct.rwecho.top</code>）以及通过应用商店分发的移动端应用。</p>
+    </div>
+
+    <h2>1. 我们收集的信息</h2>
+
+    <h3>账户信息</h3>
+    <ul>
+      <li><strong>手机号码：</strong>如果您选择短信验证码登录，我们会收集您的手机号码用于验证。</li>
+      <li><strong>OAuth 身份：</strong>如果您通过 Apple、Google 或 GitHub 登录，我们会收集 OAuth 提供商提供的电子邮件地址和唯一标识符。</li>
+      <li><strong>访客登录：</strong>访客用户会被分配一个临时标识符，不会收集个人信息。</li>
+    </ul>
+
+    <h3>服务数据</h3>
+    <ul>
+      <li><strong>会话元数据：</strong>我们存储会话的开始/结束时间、会话标题和工作目录路径，以实现会话持久化和重连功能。</li>
+      <li><strong>终端会话：</strong>终端会话输出实时流式传输，不会在 Gateway 上持久记录。我们不会记录按键或终端内容。</li>
+      <li><strong>设备信息：</strong>收集设备型号、操作系统版本和应用版本，以优化移动端体验。</li>
+    </ul>
+
+    <h3>通信数据</h3>
+    <ul>
+      <li><strong>SignalR 连接：</strong>实时终端会话使用基于 WebSocket 的 SignalR 进行通信。连接元数据（IP 地址、连接时长）临时保存在内存中。</li>
+    </ul>
+
+    <h2>2. 我们如何使用您的信息</h2>
+    <ul>
+      <li>验证您的身份并授权访问服务</li>
+      <li>建立和维护浏览器与远程 Worker 之间的实时终端会话</li>
+      <li>实现会话持久化（分离/重连）</li>
+      <li>改进服务、修复错误和增强安全性</li>
+      <li>向您发送服务更新通知（仅限您已选择接收的情况下）</li>
+    </ul>
+
+    <h2>3. 数据存储与保留</h2>
+    <ul>
+      <li><strong>认证令牌（JWT）：</strong>存储在您的浏览器/设备本地存储中。令牌会自动过期和刷新。</li>
+      <li><strong>用户账户和会话：</strong>存储在 Gateway 的 PostgreSQL 数据库中。自托管时，您完全管理该数据库。</li>
+      <li><strong>保留期限：</strong>会话元数据保留至您删除该会话。账户数据保留至请求删除账户。</li>
+      <li><strong>数据删除：</strong>您可以通过在我们的 GitHub 仓库提交 Issue 或通过项目页面联系我们，请求删除您的账户及相关数据。</li>
+    </ul>
+
+    <h2>4. 第三方服务</h2>
+    <ul>
+      <li><strong>Apple、Google、GitHub：</strong>用于 OAuth 认证。我们仅接收您授权提供的信息（电子邮件、名称、标识符）。</li>
+      <li><strong>短信服务提供商：</strong>用于手机号码验证（如果启用了短信登录）。手机号码仅用于发送验证码。</li>
+      <li><strong>Google Play 服务：</strong>Android 应用通过 Google Play 分发，并使用 Google Play 服务实现核心设备功能。</li>
+      <li><strong>Apple App Store / TestFlight：</strong>iOS 应用通过 Apple 的 App Store 和 TestFlight 分发。</li>
+    </ul>
+
+    <h2>5. 开源与自托管</h2>
+    <p>云枢终端基于 MIT 许可证开源。我们鼓励您在自有基础设施上自托管 Gateway 和 Worker。自托管时：</p>
+    <ul>
+      <li>不会有任何数据发送到云枢终端运营的服务器</li>
+      <li>所有数据保留在您自己的网络和数据库中</li>
+      <li>您对自托管部署的安全性和隐私负责</li>
+      <li>源代码可在 <a href="https://github.com/monster-echo/CortexTerminal2" target="_blank" rel="noopener">github.com/monster-echo/CortexTerminal2</a> 获取</li>
+    </ul>
+
+    <h2>6. 数据安全</h2>
+    <p>我们采取适当的技术和组织措施来保护您的信息：</p>
+    <ul>
+      <li>所有通信均通过 TLS/HTTPS 加密</li>
+      <li>JWT 令牌经过签名，具有可配置的过期时间</li>
+      <li>密码等效的秘密信息不会以明文形式存储</li>
+      <li>实时终端流量使用基于 TLS 的 WebSocket + MessagePack 二进制编码</li>
+    </ul>
+
+    <h2>7. 您的权利</h2>
+    <p>根据您所在的司法管辖区，您可能拥有以下权利：</p>
+    <ul>
+      <li>访问我们持有的您的个人数据</li>
+      <li>要求更正或删除您的个人数据</li>
+      <li>限制或反对处理您的个人数据</li>
+      <li>数据可移植性</li>
+      <li>随时撤回同意（当处理基于同意时）</li>
+    </ul>
+    <p>如要行使这些权利，请通过下方联系方式与我们联系。</p>
+
+    <h2>8. 本政策的变更</h2>
+    <p>我们可能会不时更新本隐私政策。变更将发布在此页面上，并附上更新的"最后更新"日期。对于重大变更，我们可能通过应用内或 GitHub 仓库提供额外通知。</p>
+
+    <h2>9. 联系方式</h2>
+    <p>如果您对本隐私政策有疑问，或希望行使您的数据权利，请联系我们：</p>
+    <ul>
+      <li><strong>GitHub：</strong><a href="https://github.com/monster-echo/CortexTerminal2" target="_blank" rel="noopener">github.com/monster-echo/CortexTerminal2</a></li>
+      <li><strong>Issues：</strong><a href="https://github.com/monster-echo/CortexTerminal2/issues" target="_blank" rel="noopener">提交 GitHub Issue</a></li>
+    </ul>
+  </div>
+
+  <!-- Footer -->
+  <footer>
+    <div class="copy">&copy; 2026 CORTERM &middot; Open Source (MIT)</div>
+    <div class="links">
+      <a href="https://github.com/monster-echo/CortexTerminal2">GitHub</a>
+      <a href="/">Home</a>
+    </div>
+  </footer>
+</div>
+
+<script>
+function toggleLang() {
+  const btn = document.getElementById('langBtn');
+  const isZh = btn.textContent === '中';
+  document.getElementById('en-section').classList.toggle('active', !isZh);
+  document.getElementById('zh-section').classList.toggle('active', isZh);
+  btn.textContent = isZh ? 'EN' : '中';
+}
+</script>
+
+</body>
+</html>
