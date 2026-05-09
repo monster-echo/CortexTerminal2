@@ -1,19 +1,22 @@
 <svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="markA" x1="132" y1="126" x2="360" y2="342" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#2DD4BF" />
-      <stop offset="1" stop-color="#38BDF8" />
+    <linearGradient id="blueGrad" x1="110" y1="251" x2="225" y2="110" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3BA5F9" />
+      <stop offset="1" stop-color="#38E6FF" />
     </linearGradient>
-    <linearGradient id="markB" x1="178" y1="98" x2="388" y2="326" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#F97316" />
-      <stop offset="1" stop-color="#FB7185" />
+    <linearGradient id="purpleGrad" x1="287" y1="402" x2="402" y2="252" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#9333EA" />
+      <stop offset="1" stop-color="#C084FC" />
     </linearGradient>
   </defs>
-  <path d="M143 305C143 211 211 143 305 143H362C379 143 392 156 392 173C392 190 379 203 362 203H305C244 203 203 244 203 305V340C203 357 190 370 173 370C156 370 143 357 143 340V305Z" fill="url(#markA)" />
-  <path d="M369 179C369 273 301 341 207 341H150C133 341 120 328 120 311C120 294 133 281 150 281H207C268 281 309 240 309 179V144C309 127 322 114 339 114C356 114 369 127 369 144V179Z" fill="url(#markB)" />
-  <circle cx="173" cy="311" r="28" fill="#F8FAFC" />
-  <circle cx="339" cy="173" r="28" fill="#F8FAFC" />
+  <!-- Blue L stroke -->
+  <path d="M 110 251 V 155 C 110 130.2 130.2 110 155 110 H 251" stroke="url(#blueGrad)" stroke-width="30" stroke-linecap="round" />
+  <!-- Purple L stroke -->
+  <path d="M 402 261 V 357 C 402 381.8 381.8 402 357 402 H 261" stroke="url(#purpleGrad)" stroke-width="30" stroke-linecap="round" />
+  <!-- Center chevron > -->
+  <path d="M 220 192 L 292 256 L 220 320" stroke="#F8FAFC" stroke-width="33" stroke-linecap="round" stroke-linejoin="round" />
+  <!-- App name -->
   <text x="256" y="432" font-family="Arial, Helvetica, sans-serif" font-weight="800" font-size="46" fill="#F8FAFC" text-anchor="middle">
-    MAUI Template
+    CortexTerminal
   </text>
 </svg>

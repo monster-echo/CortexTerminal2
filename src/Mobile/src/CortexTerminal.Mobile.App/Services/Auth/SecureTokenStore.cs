@@ -5,10 +5,18 @@ public sealed class SecureTokenStore : ITokenStore
     private const string TokenKey = "auth.access_token";
 
     public Task SaveTokenAsync(string token, CancellationToken cancellationToken)
-        => SecureStorage.Default.SetAsync(TokenKey, token);
+    {
+        AuthDiag.LogDiag($"[TOKEN] SaveTokenAsync START thread={Environment.CurrentManagedThreadId}");
+        return SecureStorage.Default.SetAsync(TokenKey, token);
+    }
 
     public Task<string?> GetTokenAsync(CancellationToken cancellationToken)
-        => SecureStorage.Default.GetAsync(TokenKey);
+    {
+        AuthDiag.LogDiag($"[TOKEN] GetTokenAsync START thread={Environment.CurrentManagedThreadId}");
+        var task = SecureStorage.Default.GetAsync(TokenKey);
+        AuthDiag.LogDiag($"[TOKEN] GetTokenAsync task created, status={task.Status}");
+        return task;
+    }
 
     public Task ClearAsync(CancellationToken cancellationToken)
     {

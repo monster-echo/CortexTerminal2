@@ -107,6 +107,31 @@ public interface IBridgeContract
     [BridgeMethod]
     Task<string> ClearPendingNavigationAsync();
 
+    // Terminal gateway
+    [BridgeMethod]
+    Task<string> ListTerminalSessionsAsync();
+
+    [BridgeMethod]
+    Task<string> ListTerminalWorkersAsync();
+
+    [BridgeMethod]
+    Task<string> CreateTerminalSessionAsync(int columns = 120, int rows = 40, string? workerId = null);
+
+    [BridgeMethod]
+    Task<string> ConnectTerminalSessionAsync(string sessionId);
+
+    [BridgeMethod]
+    Task<string> WriteTerminalInputAsync(string sessionId, string text);
+
+    [BridgeMethod]
+    Task<string> ResizeTerminalSessionAsync(string sessionId, int columns, int rows);
+
+    [BridgeMethod]
+    Task<string> CloseTerminalSessionAsync(string sessionId);
+
+    [BridgeMethod]
+    Task<string> DisconnectTerminalSessionAsync();
+
     // 认证
     [BridgeMethod]
     Task<string> SendPhoneCodeAsync(string phone);

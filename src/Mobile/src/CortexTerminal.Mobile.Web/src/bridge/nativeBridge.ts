@@ -17,6 +17,7 @@ import { infoBridge } from "./modules/infoBridge";
 import { interopBridge } from "./modules/interopBridge";
 import { integrationBridge } from "./modules/integrationBridge";
 import { preferencesBridge } from "./modules/preferencesBridge";
+import { terminalBridge } from "./modules/terminalBridge";
 import { sendRaw } from "./runtime";
 
 export type {
@@ -37,6 +38,7 @@ export const nativeBridge = {
   ...authBridge,
   ...infoBridge,
   ...preferencesBridge,
+  ...terminalBridge,
   ...feedbackBridge,
   ...integrationBridge,
   ...interopBridge,

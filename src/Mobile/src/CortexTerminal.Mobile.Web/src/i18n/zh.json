@@ -1,6 +1,6 @@
 {
   "sidebar": {
-    "title": "CortexTerminal.Mobile",
+    "title": "云枢终端",
     "home": "Home",
     "settings": "Settings",
     "theme": "Theme",
@@ -8,14 +8,14 @@
     "bridge": "Bridge",
     "preferences": "Preferences",
     "bridgeStream": "Bridge Stream",
-    "logout": "Logout",
+    "logout": "退出登录",
     "notSignedIn": "Not signed in",
     "debugEnabled": "Debug mode enabled",
     "debugDisabled": "Debug mode disabled",
     "components": "组件"
   },
   "login": {
-    "title": "CortexTerminal.Mobile",
+    "title": "云枢终端",
     "subtitle": "Sign in to continue",
     "phonePlaceholder": "Phone number",
     "codePlaceholder": "Verification code",
@@ -36,7 +36,7 @@
   },
   "home": {
     "title": "Native Features",
-    "appName": "MAUI Hybrid Starter",
+    "appName": "CortexTerminal",
     "subtitle": "原生能力目录首页",
     "featureList": "功能列表",
     "lastError": "最近错误：",
@@ -380,15 +380,15 @@
     "system": "System"
   },
   "settings": {
-    "title": "Settings",
-    "shareFallback": "MAUI Hybrid Starter",
+    "title": "设置",
+    "shareFallback": "CortexTerminal",
     "shareMessage": "Check out ",
-    "shareMessageEnd": " — a reusable MAUI + Ionic starter.",
-    "emailSubject": "Starter feedback",
-    "emailBody": "Hi team, I want to discuss improving the starter.",
+    "shareMessageEnd": " — a secure terminal client.",
+    "emailSubject": "CortexTerminal feedback",
+    "emailBody": "Hi team, I want to discuss CortexTerminal.",
     "supportSection": "Support & sharing",
     "supportDesc": "设置页现在只放真正的设置项：分享、支持和必要的应用信息。",
-    "share": "Share this starter",
+    "share": "Share CortexTerminal",
     "contact": "Contact support",
     "linksSection": "Store-ready links",
     "linksDesc": "这些入口很适合放在未来所有 App 的 About / Settings 页面里。",
@@ -396,8 +396,23 @@
     "terms": "Terms of service",
     "appInfoSection": "App info",
     "appInfoUnavailable": "App info unavailable.",
-    "languageSection": "Language / 语言",
-    "languageDesc": "切换界面语言 / Switch display language"
+    "languageSection": "语言",
+    "languageDesc": "切换界面语言",
+    "accountSection": "账户",
+    "appearanceSection": "外观",
+    "themeLabel": "主题",
+    "themeLight": "浅色",
+    "themeDark": "深色",
+    "themeSystem": "跟随系统",
+    "languageLabel": "语言",
+    "languageZh": "中文",
+    "languageEn": "English",
+    "cancel": "取消",
+    "appName": "CortexTerminal",
+    "activateWorker": "激活 Worker"
+  },
+  "common": {
+    "loading": "加载中..."
   },
   "components": {
     "actionResultTitle": "最近一次操作结果",

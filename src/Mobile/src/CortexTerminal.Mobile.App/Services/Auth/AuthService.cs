@@ -22,7 +22,9 @@ public sealed class AuthService
 
     public async Task InitializeAsync(CancellationToken ct)
     {
+        AuthDiag.LogDiag($"[AUTH] InitializeAsync calling GetTokenAsync...");
         var token = await _tokenStore.GetTokenAsync(ct);
+        AuthDiag.LogDiag($"[AUTH] InitializeAsync GetTokenAsync done, token={token?.Length ?? 0} chars");
         if (!string.IsNullOrEmpty(token))
         {
             _accessToken = token;
@@ -89,9 +91,12 @@ public sealed class AuthService
 
     public async Task<AuthSession?> GetSessionAsync(CancellationToken ct)
     {
+        AuthDiag.LogDiag($"[AUTH] GetSession START thread={Environment.CurrentManagedThreadId} hasToken={!string.IsNullOrEmpty(_accessToken)}");
         if (string.IsNullOrEmpty(_accessToken))
         {
+            AuthDiag.LogDiag($"[AUTH] GetSession calling InitializeAsync...");
             await InitializeAsync(ct);
+            AuthDiag.LogDiag($"[AUTH] GetSession InitializeAsync done, token={_accessToken?.Length ?? 0} chars");
         }
         if (string.IsNullOrEmpty(_accessToken))
             return null;
@@ -152,3 +157,15 @@ public sealed class AuthService
 
 public sealed record AuthResult(bool Success, string? Error);
 public sealed record AuthSession(string Token, string Username);
+
+internal static class AuthDiag
+{
+    internal static void LogDiag(string message)
+    {
+#if ANDROID
+        Android.Util.Log.Info("CT", message);
+#else
+        System.Diagnostics.Debug.WriteLine(message);
+#endif
+    }
+}

@@ -1,191 +1,174 @@
 import {
-  IonButton,
-  IonCard,
-  IonCardContent,
   IonContent,
+  IonIcon,
   IonItem,
+  IonItemDivider,
   IonLabel,
   IonList,
   IonPage,
-  IonSegment,
-  IonSegmentButton,
-  IonText,
+  useIonActionSheet,
 } from "@ionic/react";
+import {
+  contrastOutline,
+  keyOutline,
+  languageOutline,
+  logOutOutline,
+} from "ionicons/icons";
+import { RouteComponentProps } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { nativeBridge } from "../../bridge/nativeBridge";
 import PageHeader from "../../components/PageHeader";
 import { useAppStore } from "../../store/appStore";
-import "../../pages/pageStyles.css";
-export default function SettingsFeaturePage() {
-  const { t, i18n } = useTranslation();
+import { useAuthStore } from "../../store/authStore";
+import { authBridge } from "../../bridge/modules/authBridge";
+import {
+  applyColorMode,
+  setStoredMode,
+  type ColorMode,
+} from "../../theme/colorMode";
+
+export default function SettingsFeaturePage({ history }: RouteComponentProps) {
+  const { t } = useTranslation();
   const appInfo = useAppStore((state) => state.appInfo);
+  const user = useAuthStore((state) => state.user);
+  const clearSession = useAuthStore((state) => state.clearSession);
+  const colorMode = useAppStore((state) => state.colorMode);
+  const setColorModeState = useAppStore((state) => state.setColorMode);
   const language = useAppStore((state) => state.language);
   const setLanguage = useAppStore((state) => state.setLanguage);
+  const [presentActionSheet] = useIonActionSheet();
 
-  const handleLanguageChange = (lang: "en" | "zh") => {
-    setLanguage(lang);
-    void i18n.changeLanguage(lang);
+  const logout = async () => {
+    try {
+      await authBridge.logout();
+    } catch (e) {
+      console.warn("[settings] Bridge logout failed, clearing local session:", e);
+    }
+    clearSession();
+    history.replace("/sessions");
   };
 
-  const shareApp = async () => {
-    try {
-      const fallbackName = t("settings.shareFallback");
-      const appName = appInfo?.appName ?? fallbackName;
-      await nativeBridge.shareText(
-        appName,
-        `${t("settings.shareMessage")}${appName}${t("settings.shareMessageEnd")}`,
-      );
-    } catch (error) {
-      console.warn("Failed to share app", error);
+  const handleColorModeChange = (mode: ColorMode) => {
+    setStoredMode(mode);
+    applyColorMode(mode);
+    setColorModeState(mode);
+  };
+
+  const handleThemeSelect = () => {
+    presentActionSheet({
+      header: t("settings.themeLabel"),
+      buttons: [
+        {
+          text: t("settings.themeLight"),
+          handler: () => handleColorModeChange("light"),
+        },
+        {
+          text: t("settings.themeDark"),
+          handler: () => handleColorModeChange("dark"),
+        },
+        {
+          text: t("settings.themeSystem"),
+          handler: () => handleColorModeChange("system"),
+        },
+        {
+          text: t("settings.cancel"),
+          role: "cancel",
+        },
+      ],
+    });
+  };
+
+  const handleLanguageSelect = () => {
+    presentActionSheet({
+      header: t("settings.languageLabel"),
+      buttons: [
+        {
+          text: t("settings.languageZh"),
+          handler: () => setLanguage("zh"),
+        },
+        {
+          text: t("settings.languageEn"),
+          handler: () => setLanguage("en"),
+        },
+        {
+          text: t("settings.cancel"),
+          role: "cancel",
+        },
+      ],
+    });
+  };
+
+  const currentThemeLabel = (): string => {
+    switch (colorMode) {
+      case "light":
+        return t("settings.themeLight");
+      case "dark":
+        return t("settings.themeDark");
+      case "system":
+        return t("settings.themeSystem");
     }
   };
 
-  const contactSupport = async () => {
-    try {
-      await nativeBridge.composeSupportEmail(
-        t("settings.emailSubject"),
-        t("settings.emailBody"),
-        appInfo?.supportEmail,
-      );
-    } catch (error) {
-      console.warn("Failed to compose support email", error);
-    }
+  const currentLanguageLabel = (): string => {
+    return language === "zh"
+      ? t("settings.languageZh")
+      : t("settings.languageEn");
   };
 
   return (
     <IonPage>
-      <PageHeader title={t("settings.title")} defaultHref="/home" />
+      <PageHeader title={t("settings.title")} defaultHref="/sessions" />
       <IonContent fullscreen>
-        <div className="page-stack">
-          <IonCard>
-            <IonCardContent>
-              <h2 className="page-title">{t("settings.supportSection")}</h2>
-              <IonText color="medium">
-                {t("settings.supportDesc")}
-              </IonText>
-              <IonButton
-                expand="block"
-                className="button-spacing"
-                onClick={shareApp}
-              >
-                {t("settings.share")}
-              </IonButton>
-              <IonButton
-                expand="block"
-                fill="outline"
-                className="button-spacing"
-                onClick={contactSupport}
-              >
-                {t("settings.contact")}
-              </IonButton>
-            </IonCardContent>
-          </IonCard>
+        <IonList inset>
+          <IonItemDivider>
+            <IonLabel>{t("settings.accountSection")}</IonLabel>
+          </IonItemDivider>
+          <IonItem>
+            <div slot="start" style={{
+              width: 40, height: 40, borderRadius: "50%",
+              background: "var(--ion-color-primary)",
+              color: "#fff", display: "flex", alignItems: "center",
+              justifyContent: "center", fontWeight: 600, fontSize: 18,
+            }}>
+              {(user?.username ?? "?")[0].toUpperCase()}
+            </div>
+            <IonLabel>
+              <p>v{appInfo?.appVersion ?? "..."}</p>
+            </IonLabel>
+          </IonItem>
+          <IonItem button routerLink="/activate" routerDirection="root">
+            <IonIcon slot="start" icon={keyOutline} />
+            <IonLabel>{t("settings.activateWorker")}</IonLabel>
+          </IonItem>
+          <IonItem button color="danger" onClick={() => void logout()}>
+            <IonIcon slot="start" icon={logOutOutline} />
+            <IonLabel>{t("sidebar.logout")}</IonLabel>
+          </IonItem>
+        </IonList>
 
-          <IonCard>
-            <IonCardContent>
-              <h2 className="page-title">{t("settings.languageSection")}</h2>
-              <IonText color="medium">
-                {t("settings.languageDesc")}
-              </IonText>
-              <IonSegment
-                value={language}
-                style={{ marginTop: 16 }}
-                onIonChange={(event) => {
-                  const value = event.detail.value;
-                  if (value === "en" || value === "zh") {
-                    handleLanguageChange(value);
-                  }
-                }}
-              >
-                <IonSegmentButton value="zh">
-                  <IonLabel>中文</IonLabel>
-                </IonSegmentButton>
-                <IonSegmentButton value="en">
-                  <IonLabel>English</IonLabel>
-                </IonSegmentButton>
-              </IonSegment>
-            </IonCardContent>
-          </IonCard>
-
-          <IonCard>
-            <IonCardContent>
-              <h2 className="page-title">{t("settings.linksSection")}</h2>
-              <IonText color="medium">
-                {t("settings.linksDesc")}
-              </IonText>
-              <IonButton
-                expand="block"
-                fill="outline"
-                className="button-spacing"
-                onClick={() =>
-                  nativeBridge.openExternalLink(
-                    appInfo?.privacyPolicyUrl ?? "https://example.com/privacy",
-                  )
-                }
-              >
-                {t("settings.privacy")}
-              </IonButton>
-              <IonButton
-                expand="block"
-                fill="outline"
-                className="button-spacing"
-                onClick={() =>
-                  nativeBridge.openExternalLink(
-                    appInfo?.termsOfServiceUrl ?? "https://example.com/terms",
-                  )
-                }
-              >
-                {t("settings.terms")}
-              </IonButton>
-            </IonCardContent>
-          </IonCard>
-
-          <IonCard>
-            <IonCardContent>
-              <h2 className="page-title">{t("settings.appInfoSection")}</h2>
-              <IonList inset>
-                {appInfo ? (
-                  <>
-                    <IonItem>
-                      <IonLabel>
-                        <strong>appName</strong>
-                        <p>{appInfo.appName}</p>
-                      </IonLabel>
-                    </IonItem>
-                    <IonItem>
-                      <IonLabel>
-                        <strong>version</strong>
-                        <p>{appInfo.appVersion}</p>
-                      </IonLabel>
-                    </IonItem>
-                    <IonItem>
-                      <IonLabel>
-                        <strong>packageIdentifier</strong>
-                        <p>{appInfo.packageIdentifier}</p>
-                      </IonLabel>
-                    </IonItem>
-                    <IonItem>
-                      <IonLabel>
-                        <strong>platform</strong>
-                        <p>{appInfo.platform}</p>
-                      </IonLabel>
-                    </IonItem>
-                    <IonItem>
-                      <IonLabel>
-                        <strong>supportEmail</strong>
-                        <p>{appInfo.supportEmail}</p>
-                      </IonLabel>
-                    </IonItem>
-                  </>
-                ) : (
-                  <IonItem>
-                    <IonLabel>{t("settings.appInfoUnavailable")}</IonLabel>
-                  </IonItem>
-                )}
-              </IonList>
-            </IonCardContent>
-          </IonCard>
-        </div>
+        <IonList inset>
+          <IonItemDivider>
+            <IonLabel>{t("settings.appearanceSection")}</IonLabel>
+          </IonItemDivider>
+          <IonItem button onClick={handleThemeSelect}>
+            <IonIcon slot="start" icon={contrastOutline} />
+            <IonLabel>
+              <h2>{t("settings.themeLabel")}</h2>
+            </IonLabel>
+            <IonLabel slot="end" color="medium">
+              {currentThemeLabel()}
+            </IonLabel>
+          </IonItem>
+          <IonItem button onClick={handleLanguageSelect}>
+            <IonIcon slot="start" icon={languageOutline} />
+            <IonLabel>
+              <h2>{t("settings.languageLabel")}</h2>
+              <p>{t("settings.languageDesc")}</p>
+            </IonLabel>
+            <IonLabel slot="end" color="medium">
+              {currentLanguageLabel()}
+            </IonLabel>
+          </IonItem>
+        </IonList>
       </IonContent>
     </IonPage>
   );

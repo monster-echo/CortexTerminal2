@@ -1,0 +1,210 @@
+import {
+  IonBadge,
+  IonButton,
+  IonButtons,
+  IonContent,
+  IonHeader,
+  IonIcon,
+  IonItem,
+  IonLabel,
+  IonList,
+  IonModal,
+  IonPage,
+  IonRefresher,
+  IonRefresherContent,
+  IonSpinner,
+  IonTitle,
+  IonToolbar,
+} from "@ionic/react";
+import { hardwareChipOutline } from "ionicons/icons";
+import { useCallback, useEffect, useState } from "react";
+import PageHeader from "../../components/PageHeader";
+import { useSessionStore } from "../../store/sessionStore";
+import { terminalBridge } from "../../bridge/modules/terminalBridge";
+import type { WorkerSummary } from "../../schemas/sessionSchema";
+import WorkerInstallPrompt from "./WorkerInstallPrompt";
+
+function formatRelativeTime(isoDate: string): string {
+  const diff = Date.now() - new Date(isoDate).getTime();
+  const seconds = Math.floor(diff / 1000);
+  if (seconds < 60) return "just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  return new Date(isoDate).toLocaleDateString();
+}
+
+export default function WorkersPage() {
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [selectedWorker, setSelectedWorker] = useState<WorkerSummary | null>(null);
+  const workers = useSessionStore((state) => state.workers);
+  const setWorkers = useSessionStore((state) => state.setWorkers);
+
+  const loadWorkers = useCallback(async () => {
+    try {
+      const nextWorkers = await terminalBridge.listWorkers();
+      setWorkers(nextWorkers);
+      setErrorMessage(null);
+    } catch (error) {
+      setWorkers([]);
+      setErrorMessage(error instanceof Error ? error.message : "Failed to load workers");
+    }
+  }, [setWorkers]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setIsLoading(true);
+    loadWorkers().finally(() => {
+      if (!cancelled) setIsLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [loadWorkers]);
+
+  const handleRefresh = async (e: CustomEvent) => {
+    await loadWorkers();
+    (e.detail as any).complete();
+  };
+
+  return (
+    <IonPage>
+      <PageHeader title="Workers" defaultHref="/sessions" />
+      <IonContent fullscreen>
+        <IonRefresher slot="fixed" onIonRefresh={handleRefresh}>
+          <IonRefresherContent />
+        </IonRefresher>
+        {isLoading && (
+          <IonItem lines="none">
+            <IonSpinner slot="start" name="crescent" />
+            <IonLabel>Loading workers</IonLabel>
+          </IonItem>
+        )}
+        {errorMessage && (
+          <IonItem color="danger">
+            <IonLabel>{errorMessage}</IonLabel>
+          </IonItem>
+        )}
+        {!isLoading && workers.length === 0 ? (
+          <WorkerInstallPrompt />
+        ) : (
+          <IonList inset>
+            {workers.map((worker) => (
+              <IonItem
+                key={worker.id}
+                button
+                detail
+                onClick={() => setSelectedWorker(worker)}
+              >
+                <IonIcon slot="start" icon={hardwareChipOutline} />
+                <IonLabel>
+                  <h2>{worker.name}</h2>
+                  <p>
+                    {worker.activeTask}
+                    {worker.lastSeenAtUtc ? ` · ${formatRelativeTime(worker.lastSeenAtUtc)}` : ""}
+                  </p>
+                </IonLabel>
+                <IonBadge color={worker.status === "running" ? "success" : worker.status === "idle" ? "primary" : "medium"}>
+                  {worker.status}
+                </IonBadge>
+              </IonItem>
+            ))}
+          </IonList>
+        )}
+
+        <IonModal
+          isOpen={!!selectedWorker}
+          onDidDismiss={() => setSelectedWorker(null)}
+          breakpoints={[0, 0.5]}
+          initialBreakpoint={0.5}
+        >
+          <IonHeader>
+            <IonToolbar>
+              <IonTitle>{selectedWorker?.name ?? "Worker"}</IonTitle>
+              <IonButtons slot="end">
+                <IonButton onClick={() => setSelectedWorker(null)}>关闭</IonButton>
+              </IonButtons>
+            </IonToolbar>
+          </IonHeader>
+          <IonContent>
+            {selectedWorker && (
+              <IonList inset>
+                <IonItem>
+                  <IonLabel>Status</IonLabel>
+                  <IonBadge
+                    slot="end"
+                    color={
+                      selectedWorker.status === "running"
+                        ? "success"
+                        : selectedWorker.status === "idle"
+                          ? "primary"
+                          : "medium"
+                    }
+                  >
+                    {selectedWorker.status}
+                  </IonBadge>
+                </IonItem>
+                {selectedWorker.hostname && (
+                  <IonItem>
+                    <IonLabel>Hostname</IonLabel>
+                    <IonLabel slot="end" style={{ textAlign: "right" }}>
+                      {selectedWorker.hostname}
+                    </IonLabel>
+                  </IonItem>
+                )}
+                {selectedWorker.address && (
+                  <IonItem>
+                    <IonLabel>Address</IonLabel>
+                    <IonLabel slot="end" style={{ textAlign: "right" }}>
+                      {selectedWorker.address}
+                    </IonLabel>
+                  </IonItem>
+                )}
+                {selectedWorker.operatingSystem && (
+                  <IonItem>
+                    <IonLabel>OS</IonLabel>
+                    <IonLabel slot="end" style={{ textAlign: "right" }}>
+                      {selectedWorker.operatingSystem}
+                    </IonLabel>
+                  </IonItem>
+                )}
+                {selectedWorker.architecture && (
+                  <IonItem>
+                    <IonLabel>Architecture</IonLabel>
+                    <IonLabel slot="end" style={{ textAlign: "right" }}>
+                      {selectedWorker.architecture}
+                    </IonLabel>
+                  </IonItem>
+                )}
+                {selectedWorker.version && (
+                  <IonItem>
+                    <IonLabel>Version</IonLabel>
+                    <IonLabel slot="end" style={{ textAlign: "right" }}>
+                      {selectedWorker.version}
+                    </IonLabel>
+                  </IonItem>
+                )}
+                <IonItem>
+                  <IonLabel>Sessions</IonLabel>
+                  <IonLabel slot="end" style={{ textAlign: "right" }}>
+                    {selectedWorker.sessionCount ?? 0}
+                  </IonLabel>
+                </IonItem>
+                {selectedWorker.lastSeenAtUtc && (
+                  <IonItem>
+                    <IonLabel>Last Seen</IonLabel>
+                    <IonLabel slot="end" style={{ textAlign: "right" }}>
+                      {formatRelativeTime(selectedWorker.lastSeenAtUtc)}
+                    </IonLabel>
+                  </IonItem>
+                )}
+              </IonList>
+            )}
+          </IonContent>
+        </IonModal>
+      </IonContent>
+    </IonPage>
+  );
+}

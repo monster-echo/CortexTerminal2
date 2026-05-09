@@ -26,9 +26,7 @@ const sendAppInit = () => {
 
 const renderApp = (initialData?: unknown) => {
   root.render(
-    <React.StrictMode>
-      <App initialData={initialData as { platform?: string } | undefined} />
-    </React.StrictMode>,
+    <App initialData={initialData as { platform?: string } | undefined} />,
   );
 };
 

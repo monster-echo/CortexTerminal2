@@ -10,7 +10,7 @@ public sealed class OAuthService
     private Func<object, string, Task>? _pushEventAsync;
 
     private const string CustomScheme = "cortexterminal.mobile";
-    private const string CallbackPath = "/auth/callback";
+    private const string CallbackHost = "auth";
 
     public OAuthService(Uri authServerBaseUri, AuthService authService)
     {
@@ -25,7 +25,7 @@ public sealed class OAuthService
 
     public async Task StartOAuthAsync(string provider, CancellationToken ct)
     {
-        var callbackUrl = $"{CustomScheme}://{CallbackPath}";
+        var callbackUrl = $"{CustomScheme}://{CallbackHost}";
         var authUrl = new Uri(_authServerBaseUri, $"/api/auth/{provider}?redirect={Uri.EscapeDataString(callbackUrl)}");
 
         var result = await WebAuthenticator.Default.AuthenticateAsync(authUrl, new Uri(callbackUrl));

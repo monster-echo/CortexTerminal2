@@ -1,23 +1,48 @@
 <svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <linearGradient id="bg" x1="76" y1="52" x2="436" y2="460" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#13233A" />
-      <stop offset="1" stop-color="#07111F" />
+      <stop offset="0" stop-color="#0C0C10" />
+      <stop offset="1" stop-color="#08080A" />
     </linearGradient>
-    <linearGradient id="markA" x1="132" y1="140" x2="360" y2="356" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#2DD4BF" />
-      <stop offset="1" stop-color="#38BDF8" />
+    <linearGradient id="blueGrad" x1="110" y1="251" x2="225" y2="110" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3BA5F9" />
+      <stop offset="1" stop-color="#38E6FF" />
     </linearGradient>
-    <linearGradient id="markB" x1="178" y1="112" x2="388" y2="340" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#F97316" />
-      <stop offset="1" stop-color="#FB7185" />
+    <linearGradient id="purpleGrad" x1="287" y1="402" x2="402" y2="252" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#9333EA" />
+      <stop offset="1" stop-color="#C084FC" />
     </linearGradient>
+    <filter id="neonGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feFlood flood-opacity="0.6" result="flood" />
+      <feComposite in="flood" in2="blur" operator="in" result="coloredBlur" />
+      <feMerge>
+        <feMergeNode in="coloredBlur" />
+        <feMergeNode in="coloredBlur" />
+      </feMerge>
+    </filter>
+    <filter id="ambientGlow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="20" result="blur" />
+    </filter>
   </defs>
+  <!-- Background -->
   <rect width="512" height="512" rx="112" fill="url(#bg)" />
-  <circle cx="128" cy="130" r="70" fill="#1D2D44" />
-  <circle cx="392" cy="382" r="76" fill="#10243C" />
-  <path d="M143 319C143 225 211 157 305 157H362C379 157 392 170 392 187C392 204 379 217 362 217H305C244 217 203 258 203 319V354C203 371 190 384 173 384C156 384 143 371 143 354V319Z" fill="url(#markA)" />
-  <path d="M369 193C369 287 301 355 207 355H150C133 355 120 342 120 325C120 308 133 295 150 295H207C268 295 309 254 309 193V158C309 141 322 128 339 128C356 128 369 141 369 158V193Z" fill="url(#markB)" />
-  <circle cx="173" cy="325" r="28" fill="#F8FAFC" />
-  <circle cx="339" cy="187" r="28" fill="#F8FAFC" />
+  <!-- Ambient glow layer -->
+  <g opacity="0.4" filter="url(#ambientGlow)">
+    <path d="M 110 251 V 155 C 110 130.2 130.2 110 155 110 H 251" stroke="url(#blueGrad)" stroke-width="40" stroke-linecap="round" />
+    <path d="M 402 261 V 357 C 402 381.8 381.8 402 357 402 H 261" stroke="url(#purpleGrad)" stroke-width="40" stroke-linecap="round" />
+    <path d="M 220 192 L 292 256 L 220 320" stroke="#E0F2FE" stroke-width="43" stroke-linecap="round" stroke-linejoin="round" />
+  </g>
+  <!-- Neon glow layer -->
+  <g filter="url(#neonGlow)">
+    <path d="M 110 251 V 155 C 110 130.2 130.2 110 155 110 H 251" stroke="url(#blueGrad)" stroke-width="33" stroke-linecap="round" />
+    <path d="M 402 261 V 357 C 402 381.8 381.8 402 357 402 H 261" stroke="url(#purpleGrad)" stroke-width="33" stroke-linecap="round" />
+    <path d="M 220 192 L 292 256 L 220 320" stroke="#E0F2FE" stroke-width="35" stroke-linecap="round" stroke-linejoin="round" />
+  </g>
+  <!-- Core lines -->
+  <g>
+    <path d="M 110 251 V 155 C 110 130.2 130.2 110 155 110 H 251" stroke="url(#blueGrad)" stroke-width="30" stroke-linecap="round" />
+    <path d="M 402 261 V 357 C 402 381.8 381.8 402 357 402 H 261" stroke="url(#purpleGrad)" stroke-width="30" stroke-linecap="round" />
+    <path d="M 220 192 L 292 256 L 220 320" stroke="#FFFFFF" stroke-width="33" stroke-linecap="round" stroke-linejoin="round" />
+  </g>
 </svg>

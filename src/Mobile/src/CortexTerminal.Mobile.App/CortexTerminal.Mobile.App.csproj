@@ -29,10 +29,10 @@
 		<MauiXamlInflator>SourceGen</MauiXamlInflator>
 
 		<!-- Display name -->
-		<ApplicationTitle>CortexTerminal.Mobile.App</ApplicationTitle>
+		<ApplicationTitle>CortexTerminal</ApplicationTitle>
 
 		<!-- App Identifier -->
-		<ApplicationId>com.companyname.cortexterminal.mobile.app</ApplicationId>
+		<ApplicationId>top.rwecho.cortexterminal</ApplicationId>
 
 		<!-- Versions -->
 		<ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
@@ -52,12 +52,29 @@
 		<EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
 	</PropertyGroup>
 
+	<!-- Android Release: AAB format -->
+	<PropertyGroup Condition="'$(Configuration)|$(TargetFramework)' == 'Release|net10.0-android'">
+		<AndroidPackageFormat>aab</AndroidPackageFormat>
+		<AndroidUseAapt2>true</AndroidUseAapt2>
+	</PropertyGroup>
+
+	<!-- iOS Release: linker + entitlements -->
+	<PropertyGroup Condition="'$(Configuration)|$(TargetFramework)' == 'Release|net10.0-ios'">
+		<MtouchLink>SdkOnly</MtouchLink>
+		<CodesignEntitlements>Platforms\iOS\Entitlements.plist</CodesignEntitlements>
+	</PropertyGroup>
+
+	<!-- iOS linker preservation for HybridWebView reflection -->
+	<ItemGroup Condition="'$(TargetFramework)' == 'net10.0-ios'">
+		<TrimmerRootDescriptor Include="linker.xml" />
+	</ItemGroup>
+
 	<ItemGroup>
 		<!-- App Icon -->
-                <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#0B1220" BaseSize="512,512" />
+                <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#08080A" BaseSize="512,512" />
 
                 <!-- Splash Screen -->
-                <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#0B1220" BaseSize="512,512" />
+                <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#08080A" BaseSize="512,512" />
                 <MauiImage Include="Resources\Splash\splash.svg" Resize="True" BaseSize="512,512" />
 		<!-- Images -->
 		<MauiImage Include="Resources\Images\*" />
@@ -71,13 +88,23 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<None Include="appsettings.json">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
+	</ItemGroup>
+
+	<ItemGroup>
 		<PackageReference Include="CommunityToolkit.Maui" Version="12.3.0" />
+		<PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.6" />
+		<PackageReference Include="Microsoft.AspNetCore.SignalR.Protocols.MessagePack" Version="10.0.6" />
+		<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.0" />
 		<PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.0" />
 	</ItemGroup>
 
 	<ItemGroup>
 		<ProjectReference Include="..\CortexTerminal.Mobile.Core\CortexTerminal.Mobile.Core.csproj" />
+		<ProjectReference Include="..\..\..\Shared\CortexTerminal.Contracts\CortexTerminal.Contracts.csproj" />
 	</ItemGroup>
 
 </Project>

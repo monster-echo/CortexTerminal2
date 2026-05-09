@@ -33,8 +33,11 @@ export function getStoredMode(): ColorMode | null {
 export function setStoredMode(mode: ColorMode) {
   try {
     window.localStorage.setItem(STORAGE_KEY, mode);
-  } catch {
-    // noop
+    nativeBridge.setStringValue("app.colorMode", mode).catch((e) => {
+      console.warn("[colorMode] Failed to save theme to native preferences:", e);
+    });
+  } catch (e) {
+    console.warn("[colorMode] Failed to persist color mode to localStorage:", e);
   }
 }
 

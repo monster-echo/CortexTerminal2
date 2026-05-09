@@ -1,0 +1,14 @@
+<linker>
+  <!--
+    iOS Release/TestFlight builds use the linker/trimmer.
+    HybridWebView invokes these .NET methods by name (reflection), so they must be preserved.
+  -->
+  <assembly fullname="CortexTerminal.Mobile.App">
+  </assembly>
+
+  <assembly fullname="CortexTerminal.Mobile.Core">
+  </assembly>
+
+  <assembly fullname="CortexTerminal.Contracts">
+  </assembly>
+</linker>

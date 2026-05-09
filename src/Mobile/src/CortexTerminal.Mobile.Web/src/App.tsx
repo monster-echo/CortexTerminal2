@@ -1,5 +1,5 @@
 import { Redirect, Route } from "react-router-dom";
-import { IonApp, setupIonicReact } from "@ionic/react";
+import { IonApp, IonSpinner, setupIonicReact } from "@ionic/react";
 import { IonReactRouter } from "@ionic/react-router";
 import { createHashHistory } from "history";
 import { useEffect } from "react";
@@ -19,6 +19,10 @@ import SettingsFeaturePage from "./features/settings/SettingsFeaturePage";
 import PreferencesFeaturePage from "./features/preferences/PreferencesFeaturePage";
 import ThemeFeaturePage from "./features/theme/ThemeFeaturePage";
 import LoginPage from "./features/auth/LoginPage";
+import SessionsPage from "./features/sessions/SessionsPage";
+import TerminalSessionPage from "./features/sessions/TerminalSessionPage";
+import WorkersPage from "./features/workers/WorkersPage";
+import ActivatePage from "./features/activate/ActivatePage";
 import ComponentsCatalogPage from "./features/components/ComponentsCatalogPage";
 import ModalDemoPage from "./features/components/ModalDemoPage";
 import PopoverDemoPage from "./features/components/PopoverDemoPage";
@@ -92,6 +96,7 @@ export default function App({
   const setOffline = useAppStore((state) => state.setOffline);
   const setLastBridgeError = useAppStore((state) => state.setLastBridgeError);
   const setInitializing = useAppStore((state) => state.setInitializing);
+  const setLanguage = useAppStore((state) => state.setLanguage);
   const { isLoggedIn, isLoading: authLoading, setSession, clearSession, setLoading: setAuthLoading } = useAuthStore();
 
   useEffect(() => {
@@ -136,6 +141,26 @@ export default function App({
         setAppInfo(appInfo);
         setBridgeReady(true);
         setLastBridgeError(null);
+
+        // Sync theme & language from native preferences (authoritative source)
+        try {
+          const [savedColorMode, savedLanguage] = await Promise.all([
+            nativeBridge.getStringValue("app.colorMode"),
+            nativeBridge.getStringValue("app.language"),
+          ]);
+
+          if (savedColorMode && ["light", "dark", "system"].includes(savedColorMode)) {
+            setStoredMode(savedColorMode as ColorMode);
+            applyColorMode(savedColorMode as ColorMode);
+            setColorModeState(savedColorMode as ColorMode);
+          }
+
+          if (savedLanguage && ["en", "zh"].includes(savedLanguage)) {
+            setLanguage(savedLanguage as "en" | "zh");
+          }
+        } catch (e) {
+          console.warn("[bootstrap] Failed to sync preferences from native:", e);
+        }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         console.warn("Failed to bootstrap bridge state", error);
@@ -212,6 +237,7 @@ export default function App({
     setColorModeState,
     setFeatureDefinitions,
     setInitializing,
+    setLanguage,
     setLastBridgeError,
     setOffline,
     setPendingNavigation,
@@ -223,7 +249,7 @@ export default function App({
     (window as any).canGoBack = () => {
       const currentPath = window.location.hash.replace(/^#/, "") || "/";
       return (
-        currentPath !== "/home" && currentPath !== "/" && history.length > 1
+        currentPath !== "/sessions" && currentPath !== "/" && history.length > 1
       );
     };
 
@@ -238,14 +264,30 @@ export default function App({
     setColorModeState(mode);
   };
 
-  const requireAuth = (Component: React.ComponentType<any>, props?: any) =>
-    isLoggedIn ? <Component {...(props ?? {})} /> : <LoginPage />;
+  const requireAuth = (Component: React.ComponentType<any>, props?: any) => {
+    if (authLoading) {
+      return (
+        <div style={{
+          display: "flex", justifyContent: "center", alignItems: "center",
+          height: "100%", width: "100%",
+          background: "var(--ion-background-color)",
+        }}>
+          <IonSpinner name="crescent" />
+        </div>
+      );
+    }
+    return isLoggedIn ? <Component {...(props ?? {})} /> : <LoginPage />;
+  };
 
   return (
     <IonApp>
       <IonReactRouter history={history}>
         <AppLayout>
-          <Redirect exact from="/" to="/home" />
+          <Redirect exact from="/" to="/sessions" />
+          <Route exact path="/sessions" render={(props) => requireAuth(SessionsPage, props)} />
+          <Route exact path="/sessions/:sessionId" render={(props) => requireAuth(TerminalSessionPage, props)} />
+          <Route exact path="/workers" render={() => requireAuth(WorkersPage)} />
+          <Route exact path="/activate" render={() => requireAuth(ActivatePage)} />
           <Route exact path="/home" render={(props) => requireAuth(HomeFeaturePage, props)} />
           <Route exact path="/messages" render={() => requireAuth(MessagesFeaturePage)} />
           <Route exact path="/notifications" render={() => requireAuth(NotificationsFeaturePage)} />
@@ -288,7 +330,7 @@ export default function App({
           <Route exact path="/components/progress" render={() => requireAuth(ProgressDemoPage)} />
           <Route exact path="/components/avatar-thumbnail" render={() => requireAuth(AvatarThumbnailDemoPage)} />
           <Route exact path="/components/spinner" render={() => requireAuth(SpinnerDemoPage)} />
-          <Route render={() => <Redirect to="/home" />} />
+          <Route render={() => <Redirect to="/sessions" />} />
         </AppLayout>
       </IonReactRouter>
     </IonApp>

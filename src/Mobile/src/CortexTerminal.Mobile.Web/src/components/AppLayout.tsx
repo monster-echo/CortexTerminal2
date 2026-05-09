@@ -8,7 +8,7 @@ interface AppLayoutProps {
 
 export default function AppLayout({ children }: AppLayoutProps) {
   return (
-    <IonSplitPane contentId="main-content" when="md">
+    <IonSplitPane contentId="main-content" when={false}>
       <AppSidebar />
       <IonRouterOutlet id="main-content">
         {children}

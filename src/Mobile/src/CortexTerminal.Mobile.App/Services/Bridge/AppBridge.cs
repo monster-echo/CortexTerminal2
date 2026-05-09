@@ -19,6 +19,7 @@ public sealed partial class AppBridge(ILogger<AppBridge> logger) : IBridgeContra
     private const int MaxRecentOperations = 20;
 
     private readonly AppSettings _appSettings = new(
+        GatewayBaseUri: "https://gateway.ct.rwecho.top",
         SupportEmail: "support@example.com",
         PrivacyPolicyUrl: "https://example.com/privacy",
         TermsOfServiceUrl: "https://example.com/terms",
@@ -138,14 +139,15 @@ public sealed partial class AppBridge(ILogger<AppBridge> logger) : IBridgeContra
         var stopwatch = Stopwatch.StartNew();
         try
         {
-            logger.LogInformation("Bridge start: {Operation}", operationName);
+            LogDiag($"[BRIDGE] {operationName} ENTER thread={Environment.CurrentManagedThreadId}");
             var result = await operation();
             RecordOperation(operationName, stopwatch.ElapsedMilliseconds, true);
+            LogDiag($"[BRIDGE] {operationName} DONE in {stopwatch.ElapsedMilliseconds}ms");
             return JsonSerializer.Serialize(result, _jsonOptions);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Bridge failed: {Operation}", operationName);
+            LogDiag($"[BRIDGE] {operationName} FAIL in {stopwatch.ElapsedMilliseconds}ms: {ex.Message}");
             RecordOperation(operationName, stopwatch.ElapsedMilliseconds, false, ex.Message);
             return JsonSerializer.Serialize(new { error = ex.Message }, _jsonOptions);
         }
@@ -156,14 +158,15 @@ public sealed partial class AppBridge(ILogger<AppBridge> logger) : IBridgeContra
         var stopwatch = Stopwatch.StartNew();
         try
         {
-            logger.LogInformation("Bridge start: {Operation}", operationName);
+            LogDiag($"[BRIDGE] {operationName} ENTER thread={Environment.CurrentManagedThreadId}");
             await operation();
             RecordOperation(operationName, stopwatch.ElapsedMilliseconds, true);
+            LogDiag($"[BRIDGE] {operationName} DONE in {stopwatch.ElapsedMilliseconds}ms");
             return JsonSerializer.Serialize(new { success = true }, _jsonOptions);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Bridge failed: {Operation}", operationName);
+            LogDiag($"[BRIDGE] {operationName} FAIL in {stopwatch.ElapsedMilliseconds}ms: {ex.Message}");
             RecordOperation(operationName, stopwatch.ElapsedMilliseconds, false, ex.Message);
             return JsonSerializer.Serialize(new { error = ex.Message }, _jsonOptions);
         }
@@ -194,4 +197,13 @@ public sealed partial class AppBridge(ILogger<AppBridge> logger) : IBridgeContra
         string ContentType,
         string FileName,
         DateTimeOffset RegisteredAt);
+
+    private static void LogDiag(string message)
+    {
+#if ANDROID
+        Android.Util.Log.Info("CT", message);
+#else
+        System.Diagnostics.Debug.WriteLine(message);
+#endif
+    }
 }

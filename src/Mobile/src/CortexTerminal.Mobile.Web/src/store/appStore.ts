@@ -1,4 +1,6 @@
 import { create } from "zustand";
+import i18n from "../i18n";
+import { nativeBridge } from "../bridge/nativeBridge";
 import type {
   AppInfoSummary,
   BridgeCapabilities,
@@ -54,6 +56,10 @@ export const useAppStore = create<AppStoreState>((set) => ({
   language: (typeof localStorage !== "undefined" && (localStorage.getItem("lang") as "en" | "zh")) || "zh",
   setLanguage: (language) => {
     localStorage.setItem("lang", language);
+    nativeBridge.setStringValue("app.language", language).catch((e) => {
+      console.warn("[settings] Failed to save language to native preferences:", e);
+    });
+    i18n.changeLanguage(language);
     set({ language });
   },
   setPlatformLabel: (platformLabel) => set({ platformLabel }),

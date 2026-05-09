@@ -1,6 +1,6 @@
 {
   "sidebar": {
-    "title": "CortexTerminal.Mobile",
+    "title": "CortexTerminal",
     "home": "Home",
     "settings": "Settings",
     "theme": "Theme",
@@ -15,7 +15,7 @@
     "components": "Components"
   },
   "login": {
-    "title": "CortexTerminal.Mobile",
+    "title": "CortexTerminal",
     "subtitle": "Sign in to continue",
     "phonePlaceholder": "Phone number",
     "codePlaceholder": "Verification code",
@@ -36,7 +36,7 @@
   },
   "home": {
     "title": "Native Features",
-    "appName": "MAUI Hybrid Starter",
+    "appName": "CortexTerminal",
     "subtitle": "Native Capabilities Catalog",
     "featureList": "Feature List",
     "lastError": "Last error: ",
@@ -381,14 +381,14 @@
   },
   "settings": {
     "title": "Settings",
-    "shareFallback": "MAUI Hybrid Starter",
+    "shareFallback": "CortexTerminal",
     "shareMessage": "Check out ",
-    "shareMessageEnd": " — a reusable MAUI + Ionic starter.",
-    "emailSubject": "Starter feedback",
-    "emailBody": "Hi team, I want to discuss improving the starter.",
+    "shareMessageEnd": " — a secure terminal client.",
+    "emailSubject": "CortexTerminal feedback",
+    "emailBody": "Hi team, I want to discuss CortexTerminal.",
     "supportSection": "Support & sharing",
     "supportDesc": "The settings page now only contains real settings: sharing, support, and essential app info.",
-    "share": "Share this starter",
+    "share": "Share CortexTerminal",
     "contact": "Contact support",
     "linksSection": "Store-ready links",
     "linksDesc": "These entries are well-suited for the About / Settings pages of all future apps.",
@@ -397,7 +397,22 @@
     "appInfoSection": "App info",
     "appInfoUnavailable": "App info unavailable.",
     "languageSection": "Language",
-    "languageDesc": "Switch display language"
+    "languageDesc": "Switch display language",
+    "accountSection": "Account",
+    "appearanceSection": "Appearance",
+    "themeLabel": "Theme",
+    "themeLight": "Light",
+    "themeDark": "Dark",
+    "themeSystem": "System",
+    "languageLabel": "Language",
+    "languageZh": "Chinese",
+    "languageEn": "English",
+    "cancel": "Cancel",
+    "appName": "CortexTerminal",
+    "activateWorker": "Activate Worker"
+  },
+  "common": {
+    "loading": "Loading..."
   },
   "components": {
     "actionResultTitle": "Last action result",
