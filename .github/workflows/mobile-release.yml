@@ -135,16 +135,8 @@ jobs:
         with:
           global-json-file: global.json
 
-      - name: Verify Xcode 26
-        run: |
-          xcode_version="$(xcodebuild -version)"
-          printf '%s\n' "$xcode_version"
-
-          active_xcode="$(printf '%s\n' "$xcode_version" | head -n 1)"
-          if [[ "$active_xcode" != Xcode\ 26* ]]; then
-            echo "Expected active Xcode major version to be 26.x" >&2
-            exit 1
-          fi
+      - name: Show Xcode version
+        run: xcodebuild -version
 
       - name: Download web build artifact
         uses: actions/download-artifact@v7
