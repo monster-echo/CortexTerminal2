@@ -1,5 +1,5 @@
 import { IonButton, IonIcon } from "@ionic/react";
-import { copyOutline, keyOutline, refreshOutline } from "ionicons/icons";
+import { checkmarkOutline, copyOutline, keyOutline } from "ionicons/icons";
 import { useState } from "react";
 
 const bashInstallCommand = "curl -fsSL https://gateway.ct.rwecho.top/install.sh | sh";
@@ -81,7 +81,7 @@ function CopyBtn({ text }: { text: string }) {
         });
       }}
     >
-      <IonIcon slot="icon-only" icon={copied ? refreshOutline : copyOutline} />
+      <IonIcon slot="icon-only" icon={copied ? checkmarkOutline : copyOutline} />
     </IonButton>
   );
 }
@@ -178,13 +178,6 @@ export default function SessionInstallPrompt() {
         >
           <IonIcon slot="start" icon={keyOutline} />
           输入激活码
-        </IonButton>
-        <IonButton
-          fill="clear"
-          onClick={() => window.location.reload()}
-        >
-          <IonIcon slot="start" icon={refreshOutline} />
-          刷新检测
         </IonButton>
       </div>
     </div>

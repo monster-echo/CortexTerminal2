@@ -12,6 +12,7 @@ import {
 } from "@ionic/react";
 import { checkmarkCircleOutline, closeCircleOutline, keyOutline } from "ionicons/icons";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import PageHeader from "../../components/PageHeader";
 import { useAuthStore } from "../../store/authStore";
 
@@ -20,6 +21,7 @@ const gatewayBaseUri = "https://gateway.ct.rwecho.top";
 type ActivateState = "input" | "submitting" | "success" | "error";
 
 export default function ActivatePage() {
+  const { t } = useTranslation();
   const [code, setCode] = useState("");
   const [state, setState] = useState<ActivateState>("input");
   const [errorMsg, setErrorMsg] = useState("");
@@ -28,7 +30,7 @@ export default function ActivatePage() {
   const handleSubmit = async () => {
     const trimmed = code.trim().toUpperCase();
     if (trimmed.length !== 9 || trimmed[4] !== "-") {
-      setErrorMsg("激活码格式应为 XXXX-YYYY");
+      setErrorMsg(t("activate.codeFormatError"));
       setState("error");
       return;
     }
@@ -51,16 +53,16 @@ export default function ActivatePage() {
       } else {
         const data = await res.json().catch(() => ({}));
         if (res.status === 400 || data.error === "invalid_code") {
-          setErrorMsg("激活码无效或已过期，请检查终端上显示的码后重试");
+          setErrorMsg(t("activate.codeInvalid"));
         } else if (res.status === 401) {
-          setErrorMsg("登录已过期，请重新登录后再试");
+          setErrorMsg(t("activate.tokenExpired"));
         } else {
-          setErrorMsg(`激活失败 (${res.status})，请稍后重试`);
+          setErrorMsg(t("activate.activateFailed", { status: res.status }));
         }
         setState("error");
       }
     } catch {
-      setErrorMsg("网络错误，请检查网络连接后重试");
+      setErrorMsg(t("activate.networkError"));
       setState("error");
     }
   };
@@ -80,7 +82,7 @@ export default function ActivatePage() {
 
   return (
     <IonPage>
-      <PageHeader title="激活 Worker" defaultHref="/sessions" />
+      <PageHeader title={t("activate.title")} defaultHref="/sessions" />
       <IonContent fullscreen>
         <IonGrid style={{ padding: "16px 0" }}>
           <IonRow className="ion-justify-content-center">
@@ -93,7 +95,7 @@ export default function ActivatePage() {
                     style={{ fontSize: 64, color: "var(--ion-color-success, #2dd36f)" }}
                   />
                   <h2 style={{ margin: "16px 0 8px", fontSize: 20, fontWeight: 700 }}>
-                    Worker 已激活
+                    {t("activate.successTitle")}
                   </h2>
                   <p
                     style={{
@@ -103,14 +105,14 @@ export default function ActivatePage() {
                       margin: "0 0 24px",
                     }}
                   >
-                    Worker 已成功连接到 Gateway，现在可以返回创建 Session 了。
+                    {t("activate.successDesc")}
                   </p>
                   <IonButton
                     expand="block"
                     routerLink="/sessions"
                     routerDirection="back"
                   >
-                    返回首页
+                    {t("activate.backToHome")}
                   </IonButton>
                 </div>
               ) : (
@@ -135,7 +137,7 @@ export default function ActivatePage() {
                   </div>
                   <IonText>
                     <h2 style={{ margin: "0 0 8px", fontSize: 20, fontWeight: 700 }}>
-                      输入激活码
+                      {t("activate.inputTitle")}
                     </h2>
                     <p
                       style={{
@@ -145,8 +147,7 @@ export default function ActivatePage() {
                         margin: 0,
                       }}
                     >
-                      在终端运行 <code style={{ fontFamily: "monospace" }}>cortex login</code> 后，
-                      屏幕会显示一个 XXXX-YYYY 格式的激活码。
+                      <span dangerouslySetInnerHTML={{ __html: t("activate.inputDesc") }} />
                     </p>
                   </IonText>
                 </div>
@@ -201,7 +202,7 @@ export default function ActivatePage() {
                       {state === "submitting" ? (
                         <IonSpinner name="crescent" />
                       ) : (
-                        "确认激活"
+                        t("activate.confirmActivate")
                       )}
                     </IonButton>
                   </div>

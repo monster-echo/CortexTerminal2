@@ -9,6 +9,11 @@
     "preferences": "Preferences",
     "bridgeStream": "Bridge Stream",
     "logout": "Logout",
+    "sessions": "Sessions",
+    "noSessions": "No sessions",
+    "noSessionsHint": "Tap to set up your first session",
+    "more": "More",
+    "workers": "Workers",
     "notSignedIn": "Not signed in",
     "debugEnabled": "Debug mode enabled",
     "debugDisabled": "Debug mode disabled",
@@ -411,8 +416,51 @@
     "appName": "CortexTerminal",
     "activateWorker": "Activate Worker"
   },
+  "sessions": {
+    "title": "Sessions",
+    "sessionNotExist": "This session no longer exists",
+    "noWorkers": "No workers available. Please install and start a Worker first.",
+    "createSession": "Create Session",
+    "cancel": "Cancel",
+    "creating": "Creating...",
+    "create": "Create",
+    "selectWorker": "Select Worker",
+    "justNow": "just now",
+    "minutesAgo": "{{count}}m ago",
+    "hoursAgo": "{{count}}h ago",
+    "daysAgo": "{{count}}d ago"
+  },
+  "workers": {
+    "title": "Workers",
+    "loading": "Loading workers",
+    "loadFailed": "Failed to load workers",
+    "close": "Close",
+    "status": "Status",
+    "hostname": "Hostname",
+    "address": "Address",
+    "os": "OS",
+    "architecture": "Architecture",
+    "version": "Version",
+    "sessions": "Sessions",
+    "lastSeen": "Last Seen"
+  },
+  "activate": {
+    "title": "Activate Worker",
+    "codeFormatError": "Activation code format should be XXXX-YYYY",
+    "codeInvalid": "Activation code is invalid or expired. Please check the code displayed in the terminal and try again.",
+    "tokenExpired": "Login expired. Please log in again and retry.",
+    "activateFailed": "Activation failed ({{status}}). Please try again later.",
+    "networkError": "Network error. Please check your connection and try again.",
+    "successTitle": "Worker Activated",
+    "successDesc": "Worker has successfully connected to Gateway. You can now go back and create a Session.",
+    "backToHome": "Back to Home",
+    "inputTitle": "Enter Activation Code",
+    "inputDesc": "Run <code>cortex login</code> in the terminal, then enter the XXXX-YYYY code displayed on screen.",
+    "confirmActivate": "Activate"
+  },
   "common": {
-    "loading": "Loading..."
+    "loading": "Loading...",
+    "back": "Back"
   },
   "components": {
     "actionResultTitle": "Last action result",

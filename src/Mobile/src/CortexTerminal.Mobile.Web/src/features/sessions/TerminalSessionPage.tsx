@@ -20,6 +20,7 @@ import {
 } from "ionicons/icons";
 import { RouteComponentProps } from "react-router-dom";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
@@ -130,6 +131,7 @@ export default function TerminalSessionPage({
   history,
 }: RouteComponentProps<RouteParams>) {
   const sessionId = match.params.sessionId;
+  const { t } = useTranslation();
   const [statusMessage, setStatusMessage] = useState("Connecting...");
 
   const session = useSessionStore((state) =>
@@ -402,7 +404,7 @@ export default function TerminalSessionPage({
         ) {
           removeSession(sessionId);
           presentToast({
-            message: "\u8BE5 Session \u5DF2\u4E0D\u5B58\u5728",
+            message: t("sessions.sessionNotExist"),
             duration: 3000,
             position: "bottom",
             color: "warning",

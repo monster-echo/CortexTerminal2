@@ -52,14 +52,14 @@ export default function AppSidebar() {
       <IonContent>
         <IonList>
           <IonItemDivider>
-            <IonLabel>Sessions</IonLabel>
+            <IonLabel>{t("sidebar.sessions")}</IonLabel>
           </IonItemDivider>
           {recentSessions.length === 0 && (
             <IonItem routerLink="/sessions" routerDirection="root" onClick={closeMenu}>
               <IonIcon slot="start" icon={terminalOutline} />
               <IonLabel>
-                <h2>No sessions</h2>
-                <p>Tap to set up your first session</p>
+                <h2>{t("sidebar.noSessions")}</h2>
+                <p>{t("sidebar.noSessionsHint")}</p>
               </IonLabel>
             </IonItem>
           )}
@@ -85,7 +85,7 @@ export default function AppSidebar() {
           {recentSessions.length > 5 && (
             <IonItem button routerLink="/sessions" routerDirection="root" onClick={closeMenu}>
               <IonIcon slot="start" icon={ellipsisHorizontalOutline} />
-              <IonLabel>More</IonLabel>
+              <IonLabel>{t("sidebar.more")}</IonLabel>
             </IonItem>
           )}
 
@@ -93,7 +93,7 @@ export default function AppSidebar() {
 
           <IonItem button routerLink="/workers" routerDirection="root" onClick={closeMenu}>
             <IonIcon slot="start" icon={hardwareChipOutline} />
-            <IonLabel>Workers</IonLabel>
+            <IonLabel>{t("sidebar.workers")}</IonLabel>
           </IonItem>
           <IonItem button routerLink="/settings" routerDirection="root" onClick={closeMenu}>
             <IonIcon slot="start" icon={settingsOutline} />

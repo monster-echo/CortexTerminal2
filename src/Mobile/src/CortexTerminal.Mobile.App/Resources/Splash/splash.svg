@@ -15,8 +15,4 @@
   <path d="M 402 261 V 357 C 402 381.8 381.8 402 357 402 H 261" stroke="url(#purpleGrad)" stroke-width="30" stroke-linecap="round" />
   <!-- Center chevron > -->
   <path d="M 220 192 L 292 256 L 220 320" stroke="#F8FAFC" stroke-width="33" stroke-linecap="round" stroke-linejoin="round" />
-  <!-- App name -->
-  <text x="256" y="432" font-family="Arial, Helvetica, sans-serif" font-weight="800" font-size="46" fill="#F8FAFC" text-anchor="middle">
-    CortexTerminal
-  </text>
 </svg>

@@ -25,16 +25,16 @@ import { RouteComponentProps } from "react-router-dom";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-function formatRelativeTime(isoDate: string): string {
+function formatRelativeTime(isoDate: string, t: (key: string, opts?: Record<string, unknown>) => string): string {
   const diff = Date.now() - new Date(isoDate).getTime();
   const seconds = Math.floor(diff / 1000);
-  if (seconds < 60) return "just now";
+  if (seconds < 60) return t("sessions.justNow");
   const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 60) return t("sessions.minutesAgo", { count: minutes });
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
+  if (hours < 24) return t("sessions.hoursAgo", { count: hours });
   const days = Math.floor(hours / 24);
-  if (days < 30) return `${days}d ago`;
+  if (days < 30) return t("sessions.daysAgo", { count: days });
   return new Date(isoDate).toLocaleDateString();
 }
 import { useSessionStore } from "../../store/sessionStore";
@@ -114,7 +114,7 @@ export default function SessionsPage({ history }: RouteComponentProps) {
   const createSession = async () => {
     if (workers.length === 0) {
       presentToast({
-        message: "没有可用的 Worker，请先安装并启动 Worker",
+        message: t("sessions.noWorkers"),
         duration: 3000,
         position: "bottom",
         color: "warning",
@@ -165,7 +165,7 @@ export default function SessionsPage({ history }: RouteComponentProps) {
           <IonButtons slot="start">
             <IonMenuButton />
           </IonButtons>
-          <IonTitle>CortexTerminal</IonTitle>
+          <IonTitle>{t("sessions.title")}</IonTitle>
           {!isLoading && workers.length > 0 && (
             <IonButtons slot="end">
               <IonButton onClick={openCreateModal}>
@@ -205,7 +205,7 @@ export default function SessionsPage({ history }: RouteComponentProps) {
                 onClick={openCreateModal}
               >
                 <IonIcon slot="start" icon={addOutline} />
-                创建 Session
+                {t("sessions.createSession")}
               </IonButton>
             </div>
             <IonList inset>
@@ -221,7 +221,7 @@ export default function SessionsPage({ history }: RouteComponentProps) {
                   <IonIcon slot="start" icon={terminalOutline} />
                   <IonLabel>
                     <h2>{session.title}</h2>
-                    <p>{session.cwd ?? session.subtitle}{session.updatedAt ? ` · ${formatRelativeTime(session.updatedAt)}` : ""}</p>
+                    <p>{session.cwd ?? session.subtitle}{session.updatedAt ? ` · ${formatRelativeTime(session.updatedAt, t)}` : ""}</p>
                   </IonLabel>
                   <IonBadge
                     color={session.status === "running" ? "success" : "medium"}
@@ -247,17 +247,17 @@ export default function SessionsPage({ history }: RouteComponentProps) {
             <IonToolbar>
               <IonButtons slot="start">
                 <IonButton onClick={() => setShowCreateModal(false)}>
-                  取消
+                  {t("sessions.cancel")}
                 </IonButton>
               </IonButtons>
-              <IonTitle>创建 Session</IonTitle>
+              <IonTitle>{t("sessions.createSession")}</IonTitle>
               <IonButtons slot="end">
                 <IonButton
                   strong
                   disabled={isCreating}
                   onClick={() => void createSession()}
                 >
-                  {isCreating ? "创建中..." : "创建"}
+                  {isCreating ? t("sessions.creating") : t("sessions.create")}
                 </IonButton>
               </IonButtons>
             </IonToolbar>
@@ -266,7 +266,7 @@ export default function SessionsPage({ history }: RouteComponentProps) {
             <IonList>
               <IonItem lines="none" style={{ paddingTop: 12, paddingBottom: 4 }}>
                 <IonLabel>
-                  <p>选择 Worker</p>
+                  <p>{t("sessions.selectWorker")}</p>
                 </IonLabel>
               </IonItem>
               <IonRadioGroup

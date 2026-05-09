@@ -9,6 +9,11 @@
     "preferences": "Preferences",
     "bridgeStream": "Bridge Stream",
     "logout": "退出登录",
+    "sessions": "会话",
+    "noSessions": "暂无会话",
+    "noSessionsHint": "点击设置你的第一个会话",
+    "more": "更多",
+    "workers": "工作节点",
     "notSignedIn": "Not signed in",
     "debugEnabled": "Debug mode enabled",
     "debugDisabled": "Debug mode disabled",
@@ -411,8 +416,51 @@
     "appName": "CortexTerminal",
     "activateWorker": "激活 Worker"
   },
+  "sessions": {
+    "title": "会话",
+    "sessionNotExist": "该会话已不存在",
+    "noWorkers": "没有可用的 Worker，请先安装并启动 Worker",
+    "createSession": "创建会话",
+    "cancel": "取消",
+    "creating": "创建中...",
+    "create": "创建",
+    "selectWorker": "选择 Worker",
+    "justNow": "刚刚",
+    "minutesAgo": "{{count}}分钟前",
+    "hoursAgo": "{{count}}小时前",
+    "daysAgo": "{{count}}天前"
+  },
+  "workers": {
+    "title": "工作节点",
+    "loading": "加载中...",
+    "loadFailed": "加载 Worker 失败",
+    "close": "关闭",
+    "status": "状态",
+    "hostname": "主机名",
+    "address": "地址",
+    "os": "系统",
+    "architecture": "架构",
+    "version": "版本",
+    "sessions": "会话数",
+    "lastSeen": "最近活跃"
+  },
+  "activate": {
+    "title": "激活 Worker",
+    "codeFormatError": "激活码格式应为 XXXX-YYYY",
+    "codeInvalid": "激活码无效或已过期，请检查终端上显示的码后重试",
+    "tokenExpired": "登录已过期，请重新登录后再试",
+    "activateFailed": "激活失败 ({{status}})，请稍后重试",
+    "networkError": "网络错误，请检查网络连接后重试",
+    "successTitle": "Worker 已激活",
+    "successDesc": "Worker 已成功连接到 Gateway，现在可以返回创建会话了。",
+    "backToHome": "返回首页",
+    "inputTitle": "输入激活码",
+    "inputDesc": "在终端运行 <code>cortex login</code> 后，屏幕会显示一个 XXXX-YYYY 格式的激活码。",
+    "confirmActivate": "确认激活"
+  },
   "common": {
-    "loading": "加载中..."
+    "loading": "加载中...",
+    "back": "返回"
   },
   "components": {
     "actionResultTitle": "最近一次操作结果",

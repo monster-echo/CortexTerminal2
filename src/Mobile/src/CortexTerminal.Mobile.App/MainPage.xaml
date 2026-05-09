@@ -26,8 +26,10 @@
               ZIndex="999">
             <Image Source="splash.svg"
                    Aspect="AspectFit"
-                   HorizontalOptions="Fill"
-                   VerticalOptions="Fill"/>
+                   WidthRequest="200"
+                   HeightRequest="200"
+                   HorizontalOptions="Center"
+                   VerticalOptions="Center"/>
         </Grid>
     </Grid>
 
