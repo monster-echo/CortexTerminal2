@@ -138,6 +138,9 @@ jobs:
       - name: Show Xcode version
         run: xcodebuild -version
 
+      - name: Install MAUI iOS workload
+        run: dotnet workload install maui ios
+
       - name: Download web build artifact
         uses: actions/download-artifact@v7
         with:
@@ -145,7 +148,7 @@ jobs:
           path: src/Mobile/src/CortexTerminal.Mobile.App/Resources/Raw/wwwroot
 
       - name: Restore dependencies
-        run: dotnet restore src/Mobile/src/CortexTerminal.Mobile.App/CortexTerminal.Mobile.App.csproj
+        run: dotnet restore src/Mobile/src/CortexTerminal.Mobile.App/CortexTerminal.Mobile.App.csproj -p:TargetFramework=net10.0-ios
 
       - name: Setup provisioning profile
         env:
