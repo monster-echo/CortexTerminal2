@@ -10,7 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
-import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
+import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedAuditLogRouteImport } from './routes/_authenticated/audit-log'
 import { Route as errors503RouteImport } from './routes/(errors)/503'
@@ -36,10 +36,10 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
   id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
+const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => AuthenticatedRouteRoute,
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
@@ -153,7 +153,7 @@ const AuthenticatedSessionsSessionIdRoute =
   } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof AuthenticatedIndexRoute
+  '/': typeof IndexRoute
   '/sessions': typeof AuthenticatedSessionsRouteRouteWithChildren
   '/settings': typeof AuthenticatedSettingsRouteRouteWithChildren
   '/workers': typeof AuthenticatedWorkersRouteRouteWithChildren
@@ -176,6 +176,7 @@ export interface FileRoutesByFullPath {
   '/workers/': typeof AuthenticatedWorkersIndexRoute
 }
 export interface FileRoutesByTo {
+  '/': typeof IndexRoute
   '/activate': typeof authActivateRoute
   '/sign-in': typeof authSignInRoute
   '/401': typeof errors401Route
@@ -185,7 +186,6 @@ export interface FileRoutesByTo {
   '/503': typeof errors503Route
   '/audit-log': typeof AuthenticatedAuditLogRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
-  '/': typeof AuthenticatedIndexRoute
   '/sessions/$sessionId': typeof AuthenticatedSessionsSessionIdRoute
   '/sessions/new': typeof AuthenticatedSessionsNewRoute
   '/settings/general': typeof AuthenticatedSettingsGeneralRoute
@@ -197,6 +197,7 @@ export interface FileRoutesByTo {
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
+  '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/_authenticated/sessions': typeof AuthenticatedSessionsRouteRouteWithChildren
   '/_authenticated/settings': typeof AuthenticatedSettingsRouteRouteWithChildren
@@ -210,7 +211,6 @@ export interface FileRoutesById {
   '/(errors)/503': typeof errors503Route
   '/_authenticated/audit-log': typeof AuthenticatedAuditLogRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
-  '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/sessions/$sessionId': typeof AuthenticatedSessionsSessionIdRoute
   '/_authenticated/sessions/new': typeof AuthenticatedSessionsNewRoute
   '/_authenticated/settings/general': typeof AuthenticatedSettingsGeneralRoute
@@ -246,6 +246,7 @@ export interface FileRouteTypes {
     | '/workers/'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/'
     | '/activate'
     | '/sign-in'
     | '/401'
@@ -255,7 +256,6 @@ export interface FileRouteTypes {
     | '/503'
     | '/audit-log'
     | '/dashboard'
-    | '/'
     | '/sessions/$sessionId'
     | '/sessions/new'
     | '/settings/general'
@@ -266,6 +266,7 @@ export interface FileRouteTypes {
     | '/workers'
   id:
     | '__root__'
+    | '/'
     | '/_authenticated'
     | '/_authenticated/sessions'
     | '/_authenticated/settings'
@@ -279,7 +280,6 @@ export interface FileRouteTypes {
     | '/(errors)/503'
     | '/_authenticated/audit-log'
     | '/_authenticated/dashboard'
-    | '/_authenticated/'
     | '/_authenticated/sessions/$sessionId'
     | '/_authenticated/sessions/new'
     | '/_authenticated/settings/general'
@@ -291,6 +291,7 @@ export interface FileRouteTypes {
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
+  IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   authActivateRoute: typeof authActivateRoute
   authSignInRoute: typeof authSignInRoute
@@ -310,12 +311,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/': {
-      id: '/_authenticated/'
+    '/': {
+      id: '/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof AuthenticatedIndexRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
+      preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_authenticated/dashboard': {
       id: '/_authenticated/dashboard'
@@ -516,7 +517,6 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedWorkersRouteRoute: typeof AuthenticatedWorkersRouteRouteWithChildren
   AuthenticatedAuditLogRoute: typeof AuthenticatedAuditLogRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
-  AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedUsersIndexRoute: typeof AuthenticatedUsersIndexRoute
 }
 
@@ -526,7 +526,6 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedWorkersRouteRoute: AuthenticatedWorkersRouteRouteWithChildren,
   AuthenticatedAuditLogRoute: AuthenticatedAuditLogRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
-  AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedUsersIndexRoute: AuthenticatedUsersIndexRoute,
 }
 
@@ -534,6 +533,7 @@ const AuthenticatedRouteRouteWithChildren =
   AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
+  IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   authActivateRoute: authActivateRoute,
   authSignInRoute: authSignInRoute,

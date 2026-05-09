@@ -1,1 +1,0 @@
-import{n as e}from"./console-api-DarunkKt.js";import{t}from"./auth-store-BPUfMDyl.js";var n=null;function r(){return n||=e({getToken:()=>t.getState().auth.accessToken,onUnauthorized:()=>t.getState().auth.reset(),onTokenRefreshed:e=>t.getState().auth.setAccessToken(e)}),n}export{r as t};

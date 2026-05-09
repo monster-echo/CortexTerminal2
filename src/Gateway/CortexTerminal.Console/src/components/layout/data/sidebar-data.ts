@@ -33,7 +33,7 @@ export function getSidebarData(t: TFunction): SidebarData {
           {
             title: t('nav.homepage'),
             icon: Globe,
-            url: 'https://monster-echo.github.io/CortexTerminal/',
+            url: '/',
           },
         ],
       },
