@@ -184,8 +184,6 @@ jobs:
         env:
           BUILD_VERSION: ${{ needs.build-web.outputs.build_version }}
           DISPLAY_VERSION: ${{ needs.build-web.outputs.display_version }}
-          http_proxy: http://127.0.0.1:1081
-          https_proxy: http://127.0.0.1:1081
         run: |
           dotnet publish src/Mobile/src/CortexTerminal.Mobile.App/CortexTerminal.Mobile.App.csproj \
             -f net10.0-ios -c Release \
