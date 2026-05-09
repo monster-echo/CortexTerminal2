@@ -120,10 +120,10 @@ jobs:
           packageName: "top.rwecho.cortexterminal"
           releaseFiles: "src/Mobile/src/CortexTerminal.Mobile.App/bin/Release/net10.0-android/top.rwecho.cortexterminal-Signed.aab"
           track: "internal"
-          changesNotSentForReview: false
+          status: "draft"
 
   build-ios:
-    runs-on: self-hosted
+    runs-on: macos-latest
     needs: build-web
 
     steps:
