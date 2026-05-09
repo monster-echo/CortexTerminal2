@@ -1,0 +1,217 @@
+name: Mobile App Release
+
+on:
+  push:
+    tags: ['mobile-v*']
+  workflow_dispatch:
+
+jobs:
+  build-web:
+    runs-on: ubuntu-latest
+    outputs:
+      build_version: ${{ steps.setup_version.outputs.BUILD_VERSION }}
+      display_version: ${{ steps.setup_version.outputs.DISPLAY_VERSION }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup version
+        id: setup_version
+        run: |
+          if [[ "${GITHUB_REF_NAME}" == mobile-v* ]]; then
+            VERSION="${GITHUB_REF_NAME#mobile-v}"
+          else
+            VERSION="0.0.0"
+          fi
+
+          DISPLAY_VERSION="$VERSION"
+
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+          MAJOR=${MAJOR:-0}
+          MINOR=${MINOR:-0}
+          PATCH=${PATCH:-0}
+          BASE_BUILD=$(printf "%d%03d%03d" "$MAJOR" "$MINOR" "$PATCH")
+          BUILD_VERSION="${BASE_BUILD}${GITHUB_RUN_NUMBER}"
+
+          echo "DISPLAY_VERSION=$DISPLAY_VERSION" >> "$GITHUB_ENV"
+          echo "BUILD_VERSION=$BUILD_VERSION" >> "$GITHUB_ENV"
+
+          echo "DISPLAY_VERSION=$DISPLAY_VERSION" >> "$GITHUB_OUTPUT"
+          echo "BUILD_VERSION=$BUILD_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: npm install
+        working-directory: src/Mobile/src/CortexTerminal.Mobile.Web
+
+      - name: Build web app
+        run: npx tsc --noEmit && npx vite build
+        working-directory: src/Mobile/src/CortexTerminal.Mobile.Web
+
+      - name: Upload web build artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: web-build
+          path: src/Mobile/src/CortexTerminal.Mobile.Web/dist
+
+  build-android:
+    runs-on: macos-latest
+    needs: build-web
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Install MAUI Android workload
+        run: dotnet workload install maui android
+
+      - name: Download web build artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: web-build
+          path: src/Mobile/src/CortexTerminal.Mobile.App/Resources/Raw/wwwroot
+
+      - name: Decode keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.CORTEX_ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 --decode > src/Mobile/src/CortexTerminal.Mobile.App/keystore.jks
+
+      - name: Restore dependencies
+        run: dotnet restore src/Mobile/src/CortexTerminal.Mobile.App/CortexTerminal.Mobile.App.csproj
+
+      - name: Build and publish Android
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.CORTEX_ANDROID_KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.CORTEX_ANDROID_KEY_PASSWORD }}
+          BUILD_VERSION: ${{ needs.build-web.outputs.build_version }}
+          DISPLAY_VERSION: ${{ needs.build-web.outputs.display_version }}
+        run: |
+          dotnet publish src/Mobile/src/CortexTerminal.Mobile.App/CortexTerminal.Mobile.App.csproj \
+            -f net10.0-android -c Release \
+            -p:AndroidKeyStore=true \
+            -p:AndroidSigningKeyStore=keystore.jks \
+            -p:AndroidSigningKeyAlias="${{ secrets.CORTEX_ANDROID_KEY_ALIAS }}" \
+            -p:AndroidSigningStorePass=$KEYSTORE_PASSWORD \
+            -p:AndroidSigningKeyPass=$KEY_PASSWORD \
+            -p:ApplicationVersion=$BUILD_VERSION \
+            -p:ApplicationDisplayVersion=$DISPLAY_VERSION
+
+      - name: Upload Android build artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: android-build
+          path: "src/Mobile/src/CortexTerminal.Mobile.App/bin/Release/net10.0-android/*.aab"
+
+      - name: Publish to Google Play
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.CORTEX_GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: "top.rwecho.cortexterminal"
+          releaseFiles: "src/Mobile/src/CortexTerminal.Mobile.App/bin/Release/net10.0-android/top.rwecho.cortexterminal-Signed.aab"
+          track: "internal"
+          changesNotSentForReview: false
+
+  build-ios:
+    runs-on: self-hosted
+    needs: build-web
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Verify Xcode 26
+        run: |
+          xcode_version="$(xcodebuild -version)"
+          printf '%s\n' "$xcode_version"
+
+          active_xcode="$(printf '%s\n' "$xcode_version" | head -n 1)"
+          if [[ "$active_xcode" != Xcode\ 26* ]]; then
+            echo "Expected active Xcode major version to be 26.x" >&2
+            exit 1
+          fi
+
+      - name: Download web build artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: web-build
+          path: src/Mobile/src/CortexTerminal.Mobile.App/Resources/Raw/wwwroot
+
+      - name: Restore dependencies
+        run: dotnet restore src/Mobile/src/CortexTerminal.Mobile.App/CortexTerminal.Mobile.App.csproj
+
+      - name: Setup provisioning profile
+        env:
+          PROVISIONING_PROFILE_BASE64: ${{ secrets.CORTEX_IOS_PROVISIONING_PROFILE_BASE64 }}
+          PROVISIONING_PROFILE_PATH: ${{ runner.temp }}/cortexterminal.mobileprovision
+        run: |
+          rm -f ~/Library/MobileDevice/Provisioning\ Profiles/cortexterminal.mobileprovision || true
+          echo "$PROVISIONING_PROFILE_BASE64" | base64 -d > $PROVISIONING_PROFILE_PATH
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp $PROVISIONING_PROFILE_PATH ~/Library/MobileDevice/Provisioning\ Profiles/
+
+      - name: Clean stale signing keychain
+        run: |
+          if security list-keychains | grep -q "signing_temp.keychain"; then
+            security delete-keychain signing_temp.keychain || true
+          fi
+
+      - name: Install Apple Certificate
+        uses: apple-actions/import-codesign-certs@v1
+        with:
+          p12-file-base64: ${{ secrets.CORTEX_CERTIFICATES_P12_BASE64 }}
+          p12-password: ${{ secrets.CORTEX_CERTIFICATES_P12_PASSWORD }}
+
+      - name: Install Provisioning Profile
+        uses: apple-actions/download-provisioning-profiles@v1
+        with:
+          bundle-id: "top.rwecho.cortexterminal"
+          issuer-id: ${{ secrets.CORTEX_APPSTORE_ISSUER_ID }}
+          api-key-id: ${{ secrets.CORTEX_APPSTORE_API_KEY_ID }}
+          api-private-key: ${{ secrets.CORTEX_APPSTORE_API_PRIVATE_KEY }}
+
+      - name: Build iOS
+        env:
+          BUILD_VERSION: ${{ needs.build-web.outputs.build_version }}
+          DISPLAY_VERSION: ${{ needs.build-web.outputs.display_version }}
+          http_proxy: http://127.0.0.1:1081
+          https_proxy: http://127.0.0.1:1081
+        run: |
+          dotnet publish src/Mobile/src/CortexTerminal.Mobile.App/CortexTerminal.Mobile.App.csproj \
+            -f net10.0-ios -c Release \
+            -p:ApplicationVersion=$BUILD_VERSION \
+            -p:ApplicationDisplayVersion=$DISPLAY_VERSION \
+            -p:MtouchLink=SdkOnly \
+            -p:ArchiveOnBuild=true \
+            -p:RuntimeIdentifier=ios-arm64 \
+            -p:CodesignKey="${{ secrets.CORTEX_APPLE_SIGNING_IDENTITY }}" \
+            -p:CodesignProvision="${{ secrets.CORTEX_APPLE_PROVISIONING_PROFILE_NAME }}"
+
+      - name: Upload to TestFlight
+        uses: apple-actions/upload-testflight-build@v1
+        with:
+          app-path: "src/Mobile/src/CortexTerminal.Mobile.App/bin/Release/net10.0-ios/ios-arm64/publish/CortexTerminal.Mobile.App.ipa"
+          issuer-id: ${{ secrets.CORTEX_APPSTORE_ISSUER_ID }}
+          api-key-id: ${{ secrets.CORTEX_APPSTORE_API_KEY_ID }}
+          api-private-key: ${{ secrets.CORTEX_APPSTORE_API_PRIVATE_KEY }}
+
+      - name: Upload iOS build artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: ios-build
+          path: "src/Mobile/src/CortexTerminal.Mobile.App/bin/Release/net10.0-ios/ios-arm64/publish/*.ipa"
