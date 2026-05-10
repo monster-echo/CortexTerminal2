@@ -320,10 +320,139 @@ rootCommand.SetAction(async (ParseResult parseResult, CancellationToken cancella
     await builder.Build().RunAsync(cancellationToken);
 });
 
+// ── update command ──
+var updateCommand = new Command("update", "Update Corterm Worker to the latest version");
+updateCommand.SetAction(async (ParseResult parseResult, CancellationToken cancellationToken) =>
+{
+    Console.WriteLine($"  Current version: {version}");
+    Console.WriteLine("  Checking for updates...");
+
+    var githubRepo = "monster-echo/CortexTerminal2";
+    var isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+    var isOsx = RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
+    var arch = RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "arm64" : "x64";
+    var ridOs = isOsx ? "osx" : isWindows ? "win" : "linux";
+    var ext = isWindows ? "zip" : "tar.gz";
+    var assetName = $"corterm-{ridOs}-{arch}.{ext}";
+    var githubProxy = Environment.GetEnvironmentVariable("CORTERM_GITHUB_PROXY") ?? "https://proxy.0x2a.top";
+
+    using var http = new HttpClient(new SocketsHttpHandler { Proxy = HttpClient.DefaultProxy, UseProxy = true });
+    http.DefaultRequestHeaders.UserAgent.Add(new System.Net.Http.Headers.ProductInfoHeaderValue("Corterm", version));
+
+    // Fetch latest release version
+    string? latestVersion;
+    try
+    {
+        using var resp = await http.GetAsync($"https://api.github.com/repos/{githubRepo}/releases", cancellationToken);
+        if (!resp.IsSuccessStatusCode)
+        {
+            Console.Error.WriteLine($"  Failed to fetch releases: {(int)resp.StatusCode} {resp.ReasonPhrase}");
+            Environment.ExitCode = 1;
+            return;
+        }
+        using var doc = await JsonDocument.ParseAsync(await resp.Content.ReadAsStreamAsync(cancellationToken));
+        latestVersion = null;
+        foreach (var release in doc.RootElement.EnumerateArray())
+        {
+            if (!release.TryGetProperty("tag_name", out var tagEl)) continue;
+            var tag = tagEl.GetString() ?? "";
+            if (tag.StartsWith("worker-v"))
+            {
+                latestVersion = tag["worker-v".Length..];
+                break;
+            }
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine($"  Failed to check for updates: {ex.Message}");
+        Environment.ExitCode = 1;
+        return;
+    }
+
+    if (string.IsNullOrEmpty(latestVersion))
+    {
+        Console.Error.WriteLine("  Could not determine latest worker version.");
+        Environment.ExitCode = 1;
+        return;
+    }
+
+    // Normalize for comparison (strip trailing .0)
+    var currentNorm = version.Replace(".0", "").TrimEnd('.');
+    var latestNorm = latestVersion.Replace(".0", "").TrimEnd('.');
+    if (currentNorm == latestNorm)
+    {
+        Console.WriteLine($"  Already up to date ({version}).");
+        return;
+    }
+
+    Console.WriteLine($"  New version available: {latestVersion}");
+
+    // Download
+    var downloadUrl = $"{githubProxy}/https://github.com/{githubRepo}/releases/latest/download/{assetName}";
+    var tmpDir = Path.Combine(Path.GetTempPath(), $"corterm-update-{Guid.NewGuid():N}");
+    Directory.CreateDirectory(tmpDir);
+    var tmpFile = Path.Combine(tmpDir, isWindows ? "corterm.zip" : "corterm.tar.gz");
+
+    try
+    {
+        Console.WriteLine($"  Downloading {assetName}...");
+        var data = await http.GetByteArrayAsync(downloadUrl, cancellationToken);
+        await File.WriteAllBytesAsync(tmpFile, data, cancellationToken);
+        Console.WriteLine($"  Download complete ({data.Length} bytes).");
+
+        // Extract
+        var extractDir = Path.Combine(tmpDir, "extracted");
+        Directory.CreateDirectory(extractDir);
+
+        if (isWindows)
+        {
+            System.IO.Compression.ZipFile.ExtractToDirectory(tmpFile, extractDir, overwriteFiles: true);
+        }
+        else
+        {
+            var tar = Process.Start(new ProcessStartInfo("tar", $"-xzf \"{tmpFile}\" -C \"{extractDir}\"")
+            {
+                UseShellExecute = false
+            });
+            if (tar is not null) await tar.WaitForExitAsync(cancellationToken);
+        }
+
+        var newBinary = Path.Combine(extractDir, isWindows ? "corterm.exe" : "corterm");
+        if (!File.Exists(newBinary))
+        {
+            Console.Error.WriteLine($"  Error: binary not found in archive at {newBinary}");
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        var currentBinary = Process.GetCurrentProcess().MainModule?.FileName
+            ?? throw new InvalidOperationException("Cannot determine current process path.");
+        var backupPath = currentBinary + ".bak";
+
+        if (File.Exists(backupPath)) File.Delete(backupPath);
+        File.Move(currentBinary, backupPath);
+        File.Copy(newBinary, currentBinary, overwrite: true);
+        if (!isWindows)
+        {
+            try { File.SetUnixFileMode(currentBinary, UnixFileMode.UserExecute | UnixFileMode.GroupExecute | UnixFileMode.OtherRead | UnixFileMode.UserRead | UnixFileMode.GroupRead); } catch { }
+        }
+
+        try { File.Delete(backupPath); } catch { }
+
+        Console.WriteLine($"  Updated to {latestVersion}. Restart the worker to apply.");
+    }
+    finally
+    {
+        try { if (Directory.Exists(tmpDir)) Directory.Delete(tmpDir, recursive: true); } catch { }
+    }
+});
+
 rootCommand.Subcommands.Add(loginCommand);
 rootCommand.Subcommands.Add(logoutCommand);
 rootCommand.Subcommands.Add(statusCommand);
 rootCommand.Subcommands.Add(doctorCommand);
+rootCommand.Subcommands.Add(updateCommand);
 
 return await rootCommand.Parse(args).InvokeAsync();
 
