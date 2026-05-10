@@ -15,5 +15,5 @@ artifacts/
 .local/
 **/.hvigor
 .hvigor1
-wwwroot/assets
-**/wwwroot/assets1
+**/wwwroot/assets/
+**/wwwroot/index.html
