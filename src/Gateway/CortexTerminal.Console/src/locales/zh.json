@@ -106,10 +106,70 @@
     "status": { "live": "活跃", "detached": "断开", "exited": "已退出", "expired": "已过期" },
     "delete": { "button": "删除", "confirm": "删除会话", "message": "确定要删除此会话吗？此操作无法撤销。" },
     "created": "{{time}}创建",
-    "dimensions": "{{cols}}x{{rows}}"
+    "dimensions": "{{cols}}x{{rows}}",
+    "backToSessions": "返回会话列表",
+    "detailSubtitle": "终端、延迟与会话诊断信息",
+    "notFoundTitle": "未找到会话",
+    "notFoundDescription": "此会话已不存在（服务器可能已重启）。",
+    "returnToSessions": "前往会话列表",
+    "details": {
+      "button": "详情",
+      "title": "会话详情",
+      "description": "查看传输健康、节点路由和会话生命周期信息。",
+      "sections": {
+        "session": "会话",
+        "transport": "传输",
+        "worker": "节点",
+        "lifecycle": "生命周期"
+      },
+      "labels": {
+        "sessionId": "会话 ID",
+        "status": "状态",
+        "e2eHealth": "端到端健康",
+        "dimensions": "尺寸",
+        "createdAt": "创建时间",
+        "lastActivityAt": "最后活动",
+        "attachmentState": "附着状态",
+        "attachedClient": "附着客户端",
+        "replayPending": "等待回放",
+        "leaseExpiresAt": "租约到期",
+        "workerId": "节点 ID",
+        "workerOnline": "节点在线",
+        "routeBinding": "路由绑定",
+        "workerName": "节点名称",
+        "workerHost": "节点主机",
+        "workerOs": "节点平台",
+        "workerVersion": "节点版本",
+        "workerLastSeenAt": "节点最后在线",
+        "sessionWorkerConnection": "会话绑定节点连接",
+        "currentWorkerConnection": "当前节点连接",
+        "exitCode": "退出码",
+        "exitReason": "退出原因"
+      },
+      "values": {
+        "yes": "是",
+        "no": "否"
+      },
+      "connectionStatus": {
+        "matched": "已匹配",
+        "stale": "陈旧绑定",
+        "offline": "节点离线"
+      },
+      "bindingWarning": "这个会话绑定的仍是旧节点连接，与当前节点上报的连接不一致。"
+    }
   },
   "terminal": {
     "latency": "{{ms}}ms",
+    "measuring": "测量中",
+    "measuringShort": "...",
+    "offline": "离线",
+    "e2eLatency": "端到端延迟",
+    "logs": {
+      "button": "日志",
+      "title": "终端事件日志",
+      "description": "最近的 xterm 生命周期、尺寸和会话传输事件。",
+      "empty": "暂无事件记录。"
+    },
     "fullscreen": "全屏",
     "exitFullscreen": "退出全屏"
   },

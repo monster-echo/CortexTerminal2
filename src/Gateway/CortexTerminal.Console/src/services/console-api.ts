@@ -4,6 +4,7 @@ export interface AuthSession {
 }
 
 export type SessionStatus = 'live' | 'detached' | 'expired' | 'exited'
+export type SessionWorkerConnectionStatus = 'matched' | 'stale' | 'offline'
 
 export interface SessionSummary {
   sessionId: string
@@ -13,7 +14,26 @@ export interface SessionSummary {
   lastActivityAt: string
 }
 
-export type SessionDetail = SessionSummary
+export interface SessionDetail extends SessionSummary {
+  columns: number
+  rows: number
+  attachmentState: 'Attached' | 'DetachedGracePeriod' | 'Expired' | 'Exited'
+  attachedClientConnectionId: string | null
+  leaseExpiresAt: string | null
+  exitCode: number | null
+  exitReason: string | null
+  replayPending: boolean
+  sessionWorkerConnectionId: string
+  currentWorkerConnectionId: string | null
+  workerConnectionStatus: SessionWorkerConnectionStatus
+  workerOnline: boolean
+  workerName: string | null
+  workerHostname: string | null
+  workerOperatingSystem: string | null
+  workerArchitecture: string | null
+  workerVersion: string | null
+  workerLastSeenAt: string | null
+}
 
 export interface CreateSessionResponse {
   sessionId: string
@@ -113,6 +133,27 @@ type FetchFn = (input: string, init?: RequestInit) => Promise<Response>
 
 type SessionSummaryDto = Omit<SessionSummary, 'status'> & {
   status: 'Attached' | 'DetachedGracePeriod' | 'Expired' | 'Exited'
+}
+
+type SessionDetailDto = SessionSummaryDto & {
+  columns: number
+  rows: number
+  attachmentState: 'Attached' | 'DetachedGracePeriod' | 'Expired' | 'Exited'
+  attachedClientConnectionId: string | null
+  leaseExpiresAt: string | null
+  exitCode: number | null
+  exitReason: string | null
+  replayPending: boolean
+  sessionWorkerConnectionId: string
+  currentWorkerConnectionId: string | null
+  workerConnectionStatus: SessionWorkerConnectionStatus
+  workerOnline: boolean
+  workerName: string | null
+  workerHostname: string | null
+  workerOperatingSystem: string | null
+  workerArchitecture: string | null
+  workerVersion: string | null
+  workerLastSeenAt: string | null
 }
 
 type WorkerSummaryDto = Omit<WorkerSummary, 'isOnline' | 'sessionCount' | 'connectedAt'> & {
@@ -272,10 +313,10 @@ export function createConsoleApi(
       return sessions.map(mapSessionSummary)
     },
     async getSession(sessionId) {
-      const session = await request<SessionSummaryDto>(
+      const session = await request<SessionDetailDto>(
         `/api/me/sessions/${encodeURIComponent(sessionId)}`
       )
-      return mapSessionSummary(session)
+      return mapSessionDetail(session)
     },
     createSession(size = { columns: 120, rows: 40 }, clientRequestId, workerId) {
       return request<CreateSessionResponse>('/api/sessions', {
@@ -398,6 +439,30 @@ function mapSessionSummary(session: SessionSummaryDto): SessionSummary {
     status: mapSessionStatus(session.status),
     createdAt: session.createdAt,
     lastActivityAt: session.lastActivityAt,
+  }
+}
+
+function mapSessionDetail(session: SessionDetailDto): SessionDetail {
+  return {
+    ...mapSessionSummary(session),
+    columns: session.columns,
+    rows: session.rows,
+    attachmentState: session.attachmentState,
+    attachedClientConnectionId: session.attachedClientConnectionId,
+    leaseExpiresAt: session.leaseExpiresAt,
+    exitCode: session.exitCode,
+    exitReason: session.exitReason,
+    replayPending: session.replayPending,
+    sessionWorkerConnectionId: session.sessionWorkerConnectionId,
+    currentWorkerConnectionId: session.currentWorkerConnectionId,
+    workerConnectionStatus: session.workerConnectionStatus,
+    workerOnline: session.workerOnline,
+    workerName: session.workerName,
+    workerHostname: session.workerHostname,
+    workerOperatingSystem: session.workerOperatingSystem,
+    workerArchitecture: session.workerArchitecture,
+    workerVersion: session.workerVersion,
+    workerLastSeenAt: session.workerLastSeenAt,
   }
 }
 

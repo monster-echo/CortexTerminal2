@@ -1,19 +1,30 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useNavigate } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import { createTerminalGateway } from '@/services/terminal-gateway'
 import { ConsoleApiError } from '@/services/console-api'
 import { TerminalView } from '@/terminal/terminal-view'
+import { TerminalHeaderActions } from '@/terminal/terminal-header-actions'
+import { getSessionTerminalLogKey } from '@/terminal/terminal-event-log'
+import { useTerminalEventLogStore } from '@/stores/terminal-event-log-store'
 import { Button } from '@/components/ui/button'
-import { Loader2 } from 'lucide-react'
+import { Header } from '@/components/layout/header'
+import { Main } from '@/components/layout/main'
+import { ArrowLeft, Loader2 } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth-store'
 import { getApi } from '@/lib/api'
+import { SessionDetailsSheet } from './session-details-sheet'
 
 export function SessionDetailPage(props: { sessionId: string }) {
   const { sessionId } = props
+  const { t } = useTranslation()
   const navigate = useNavigate()
-
-  const api = getApi()
+  const [latencyMs, setLatencyMs] = useState<number | null>(null)
+  const [latencyState, setLatencyState] = useState<'live' | 'measuring' | 'offline'>('measuring')
+  const eventEntries = useTerminalEventLogStore(
+    (state) => state.logsByScope[getSessionTerminalLogKey(sessionId)] ?? []
+  )
 
   const gateway = useMemo(
     () =>
@@ -25,7 +36,7 @@ export function SessionDetailPage(props: { sessionId: string }) {
 
   const sessionQuery = useQuery({
     queryKey: ['sessions', sessionId],
-    queryFn: () => api.getSession(sessionId),
+    queryFn: () => getApi().getSession(sessionId),
     retry: (failureCount, error) => {
       if (error instanceof ConsoleApiError && error.status === 404) {
         return false
@@ -38,11 +49,20 @@ export function SessionDetailPage(props: { sessionId: string }) {
 
   if (sessionQuery.isLoading) {
     return (
-      <div className='flex h-full flex-1 items-center justify-center'>
-        <div className='flex items-center gap-2 text-sm text-muted-foreground'>
-          <Loader2 className='size-4 animate-spin' /> Loading session...
-        </div>
-      </div>
+      <>
+        <Header>
+          <Button variant='ghost' size='sm' asChild>
+            <Link to='/sessions'>
+              <ArrowLeft /> {t('sessions.backToSessions')}
+            </Link>
+          </Button>
+        </Header>
+        <Main>
+          <div className='flex items-center gap-2 text-sm text-muted-foreground'>
+            <Loader2 className='size-4 animate-spin' /> {t('common.loading')}
+          </div>
+        </Main>
+      </>
     )
   }
 
@@ -52,47 +72,92 @@ export function SessionDetailPage(props: { sessionId: string }) {
 
   if (isNotFound) {
     return (
-      <div className='h-svh'>
-        <div className='m-auto flex h-full w-full flex-col items-center justify-center gap-2'>
-          <h1 className='text-[7rem] leading-tight font-bold'>404</h1>
-          <span className='font-medium'>Session Not Found</span>
-          <p className='text-center text-muted-foreground'>
-            This session no longer exists (the server may have restarted).
-          </p>
-          <div className='mt-6 flex gap-4'>
-            <Button
-              onClick={() =>
-                navigate({ to: '/sessions' })
-              }
-            >
-              Go to Sessions
-            </Button>
+      <>
+        <Header>
+          <Button variant='ghost' size='sm' asChild>
+            <Link to='/sessions'>
+              <ArrowLeft /> {t('sessions.backToSessions')}
+            </Link>
+          </Button>
+        </Header>
+        <Main className='h-svh'>
+          <div className='m-auto flex h-full w-full flex-col items-center justify-center gap-2'>
+            <h1 className='text-[7rem] leading-tight font-bold'>404</h1>
+            <span className='font-medium'>{t('sessions.notFoundTitle')}</span>
+            <p className='text-center text-muted-foreground'>
+              {t('sessions.notFoundDescription')}
+            </p>
+            <div className='mt-6 flex gap-4'>
+              <Button onClick={() => navigate({ to: '/sessions' })}>
+                {t('sessions.returnToSessions')}
+              </Button>
+            </div>
           </div>
-        </div>
-      </div>
+        </Main>
+      </>
     )
   }
 
   if (sessionQuery.isError || !session) {
     return (
-      <div className='flex h-full flex-1 items-center justify-center'>
-        <p className='text-sm text-destructive'>
-          {sessionQuery.error instanceof Error
-            ? sessionQuery.error.message
-            : 'Unknown error'}
-        </p>
-      </div>
+      <>
+        <Header>
+          <Button variant='ghost' size='sm' asChild>
+            <Link to='/sessions'>
+              <ArrowLeft /> {t('sessions.backToSessions')}
+            </Link>
+          </Button>
+        </Header>
+        <Main>
+          <p className='text-sm text-destructive'>
+            {sessionQuery.error instanceof Error
+              ? sessionQuery.error.message
+              : t('common.error')}
+          </p>
+        </Main>
+      </>
     )
   }
 
   return (
-    <div className='flex h-full flex-col'>
-      <TerminalView
-        gateway={gateway}
-        sessionId={session.sessionId}
-        workerId={session.workerId}
-        sessionStatus={session.status}
-      />
-    </div>
+    <>
+      <Header>
+        <div className='flex min-w-0 flex-1 items-center gap-3'>
+          <Button variant='ghost' size='sm' asChild>
+            <Link to='/sessions'>
+              <ArrowLeft /> {t('sessions.backToSessions')}
+            </Link>
+          </Button>
+          <div className='min-w-0'>
+            <h2 className='truncate text-sm font-semibold'>{session.sessionId}</h2>
+            <p className='truncate text-xs text-muted-foreground'>
+              {t('sessions.detailSubtitle')}
+            </p>
+          </div>
+          <TerminalHeaderActions
+            eventEntries={eventEntries}
+            latencyMs={latencyMs}
+            latencyState={latencyState}
+          />
+          <SessionDetailsSheet
+            session={session}
+            latencyMs={latencyMs}
+            latencyState={latencyState}
+          />
+        </div>
+      </Header>
+      <Main fluid className='flex min-h-0 flex-1 flex-col overflow-hidden py-0'>
+        <TerminalView
+          gateway={gateway}
+          sessionId={session.sessionId}
+          workerId={session.workerId}
+          sessionStatus={session.status}
+          onLatencyChange={(nextLatencyMs, nextLatencyState) => {
+            setLatencyMs(nextLatencyMs)
+            setLatencyState(nextLatencyState)
+          }}
+        />
+      </Main>
+    </>
   )
 }

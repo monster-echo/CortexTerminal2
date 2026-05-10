@@ -12,7 +12,7 @@ import {
   type TerminalSize,
 } from './terminal-viewport'
 import { TerminalStatusBar } from './terminal-status-bar'
-import { TerminalVirtualKeys } from './terminal-virtual-keys'
+import { TerminalVirtualKeys, applyCtrlModifier, applyAltModifier } from './terminal-virtual-keys'
 import { createTerminalSessionModel } from './useTerminalSession'
 import type { SessionStatus } from '@/services/console-api'
 
@@ -40,6 +40,8 @@ export function TerminalView(props: {
   const [latencyState, setLatencyState] = useState<
     'live' | 'measuring' | 'offline'
   >('measuring')
+  const [ctrlActive, setCtrlActive] = useState(false)
+  const [altActive, setAltActive] = useState(false)
   const [sessionExpired, setSessionExpired] = useState(false)
   const [sessionExpiredReason, setSessionExpiredReason] = useState<
     string | null
@@ -128,7 +130,27 @@ export function TerminalView(props: {
   )
 
   const handleTerminalData = useCallback((data: string) => {
-    sessionRef.current?.onTerminalData(data)
+    let processed = data
+    if (ctrlActive) {
+      processed = applyCtrlModifier(processed)
+    }
+    if (altActive) {
+      processed = applyAltModifier(processed)
+    }
+    sessionRef.current?.onTerminalData(processed)
+  }, [ctrlActive, altActive])
+
+  const handleCtrlToggle = useCallback(() => {
+    setCtrlActive((v) => !v)
+  }, [])
+
+  const handleAltToggle = useCallback(() => {
+    setAltActive((v) => !v)
+  }, [])
+
+  const handleModifiersClear = useCallback(() => {
+    setCtrlActive(false)
+    setAltActive(false)
   }, [])
 
   const handleViewportEvent = useCallback(
@@ -344,12 +366,20 @@ export function TerminalView(props: {
         onReady={handleTerminalReady}
         onResize={handleTerminalResize}
       />
-      <TerminalVirtualKeys onSendData={handleTerminalData} />
+      <TerminalVirtualKeys
+        onSendData={handleTerminalData}
+        ctrlActive={ctrlActive}
+        altActive={altActive}
+        onCtrlToggle={handleCtrlToggle}
+        onAltToggle={handleAltToggle}
+        onModifiersClear={handleModifiersClear}
+      />
       <TerminalStatusBar
         status={effectiveStatus}
         sessionId={sessionId}
         workerId={workerId}
         latencyMs={latencyMs}
+        latencyState={latencyState}
         cols={terminalSize.columns}
         rows={terminalSize.rows}
         statusMessage={statusMessage}

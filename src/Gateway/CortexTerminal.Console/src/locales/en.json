@@ -106,10 +106,70 @@
     "status": { "live": "Live", "detached": "Detached", "exited": "Exited", "expired": "Expired" },
     "delete": { "button": "Delete", "confirm": "Delete Session", "message": "Are you sure you want to delete this session? This action cannot be undone." },
     "created": "Created {{time}}",
-    "dimensions": "{{cols}}x{{rows}}"
+    "dimensions": "{{cols}}x{{rows}}",
+    "backToSessions": "Back to sessions",
+    "detailSubtitle": "Live terminal, latency, and session diagnostics",
+    "notFoundTitle": "Session Not Found",
+    "notFoundDescription": "This session no longer exists (the server may have restarted).",
+    "returnToSessions": "Go to Sessions",
+    "details": {
+      "button": "Details",
+      "title": "Session details",
+      "description": "Inspect transport health, worker routing, and session lifecycle data.",
+      "sections": {
+        "session": "Session",
+        "transport": "Transport",
+        "worker": "Worker",
+        "lifecycle": "Lifecycle"
+      },
+      "labels": {
+        "sessionId": "Session ID",
+        "status": "Status",
+        "e2eHealth": "E2E health",
+        "dimensions": "Dimensions",
+        "createdAt": "Created at",
+        "lastActivityAt": "Last activity",
+        "attachmentState": "Attachment state",
+        "attachedClient": "Attached client",
+        "replayPending": "Replay pending",
+        "leaseExpiresAt": "Lease expires at",
+        "workerId": "Worker ID",
+        "workerOnline": "Worker online",
+        "routeBinding": "Route binding",
+        "workerName": "Worker name",
+        "workerHost": "Worker host",
+        "workerOs": "Worker platform",
+        "workerVersion": "Worker version",
+        "workerLastSeenAt": "Worker last seen",
+        "sessionWorkerConnection": "Session worker connection",
+        "currentWorkerConnection": "Current worker connection",
+        "exitCode": "Exit code",
+        "exitReason": "Exit reason"
+      },
+      "values": {
+        "yes": "Yes",
+        "no": "No"
+      },
+      "connectionStatus": {
+        "matched": "Matched",
+        "stale": "Stale",
+        "offline": "Worker offline"
+      },
+      "bindingWarning": "This session is bound to an older worker connection than the worker currently advertises."
+    }
   },
   "terminal": {
     "latency": "{{ms}}ms",
+    "measuring": "Measuring",
+    "measuringShort": "...",
+    "offline": "Offline",
+    "e2eLatency": "E2E latency",
+    "logs": {
+      "button": "Logs",
+      "title": "Terminal event log",
+      "description": "Recent xterm lifecycle, sizing, and session transport events.",
+      "empty": "No events recorded yet."
+    },
     "fullscreen": "Fullscreen",
     "exitFullscreen": "Exit Fullscreen"
   },

@@ -127,6 +127,45 @@ static object ToSessionSummaryResponse(SessionRecord session)
         session.ExitReason
     };
 
+static object ToSessionDetailResponse(
+    SessionRecord session,
+    RegisteredWorker? currentWorker,
+    WorkerRecord? workerRecord)
+{
+    var workerConnectionStatus = currentWorker is null
+        ? "offline"
+        : currentWorker.ConnectionId == session.WorkerConnectionId
+            ? "matched"
+            : "stale";
+
+    return new
+    {
+        session.SessionId,
+        session.WorkerId,
+        Status = session.AttachmentState.ToString(),
+        CreatedAt = session.CreatedAtUtc,
+        LastActivityAt = session.LastActivityAtUtc,
+        session.Columns,
+        session.Rows,
+        AttachmentState = session.AttachmentState.ToString(),
+        session.AttachedClientConnectionId,
+        LeaseExpiresAt = session.LeaseExpiresAtUtc,
+        session.ExitCode,
+        session.ExitReason,
+        session.ReplayPending,
+        SessionWorkerConnectionId = session.WorkerConnectionId,
+        CurrentWorkerConnectionId = currentWorker?.ConnectionId,
+        WorkerConnectionStatus = workerConnectionStatus,
+        WorkerOnline = currentWorker is not null,
+        WorkerName = currentWorker?.Metadata?.Name ?? workerRecord?.Name,
+        WorkerHostname = currentWorker?.Metadata?.Hostname ?? workerRecord?.Hostname,
+        WorkerOperatingSystem = currentWorker?.Metadata?.OperatingSystem ?? workerRecord?.OperatingSystem,
+        WorkerArchitecture = currentWorker?.Metadata?.Architecture ?? workerRecord?.Architecture,
+        WorkerVersion = currentWorker?.Metadata?.Version ?? workerRecord?.Version,
+        WorkerLastSeenAt = currentWorker?.LastSeenAtUtc ?? workerRecord?.LastSeenAtUtc
+    };
+}
+
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -136,7 +175,7 @@ builder.Services
             ValidateIssuer = true,
             ValidIssuer = "https://gateway.local/",
             ValidateAudience = true,
-            ValidAudience = "cortex-terminal-gateway",
+            ValidAudiences = gatewayAudiences,
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey)),

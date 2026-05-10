@@ -1,4 +1,5 @@
 import { Gauge, TerminalSquare } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -17,6 +18,7 @@ export function TerminalHeaderActions(props: {
   latencyMs?: number | null
   latencyState?: 'live' | 'measuring' | 'offline'
 }) {
+  const { t } = useTranslation()
   const {
     eventEntries,
     latencyMs = null,
@@ -32,32 +34,34 @@ export function TerminalHeaderActions(props: {
           latencyState === 'measuring' && 'bg-muted/60 text-muted-foreground',
           latencyState === 'offline' && 'border-amber-500/30 bg-amber-500/10'
         )}
-      >
-        <Gauge className='size-4 shrink-0' />
-        <span className='font-medium tracking-wide uppercase'>E2E latency</span>
-        <span className='font-mono text-foreground'>
-          {formatLatency(latencyMs, latencyState)}
-        </span>
-      </div>
+        >
+          <Gauge className='size-4 shrink-0' />
+          <span className='font-medium tracking-wide uppercase'>
+            {t('terminal.e2eLatency')}
+          </span>
+          <span className='font-mono text-foreground'>
+            {formatLatency(t, latencyMs, latencyState)}
+          </span>
+        </div>
 
       <Sheet>
         <SheetTrigger asChild>
           <Button variant='outline' size='sm'>
-            <TerminalSquare className='size-4' /> Logs
+            <TerminalSquare className='size-4' /> {t('terminal.logs.button')}
           </Button>
         </SheetTrigger>
         <SheetContent side='right' className='flex w-full flex-col sm:max-w-lg'>
-          <SheetHeader>
-            <SheetTitle>Terminal event log</SheetTitle>
+            <SheetHeader>
+            <SheetTitle>{t('terminal.logs.title')}</SheetTitle>
             <SheetDescription>
-              Recent xterm lifecycle, sizing, and session transport events.
+              {t('terminal.logs.description')}
             </SheetDescription>
           </SheetHeader>
           <ScrollArea className='min-h-0 flex-1 rounded-md border'>
             <div className='space-y-3 p-4'>
               {eventEntries.length === 0 ? (
                 <p className='text-sm text-muted-foreground'>
-                  No events recorded yet.
+                  {t('terminal.logs.empty')}
                 </p>
               ) : (
                 eventEntries.map((event) => (
@@ -86,18 +90,19 @@ export function TerminalHeaderActions(props: {
 }
 
 function formatLatency(
+  t: ReturnType<typeof useTranslation>['t'],
   latencyMs: number | null,
   latencyState: 'live' | 'measuring' | 'offline'
 ) {
   if (latencyState === 'offline') {
-    return 'offline'
+    return t('terminal.offline')
   }
 
   if (latencyMs === null) {
-    return '…'
+    return t('terminal.measuringShort')
   }
 
-  return `${Math.round(latencyMs)} ms`
+  return t('terminal.latency', { ms: Math.round(latencyMs) })
 }
 
 function formatEventTime(value: string) {

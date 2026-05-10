@@ -8,6 +8,7 @@ interface TerminalStatusBarProps {
   sessionId: string
   workerId?: string
   latencyMs: number | null
+  latencyState: 'live' | 'measuring' | 'offline'
   cols: number
   rows: number
   statusMessage?: string | null
@@ -18,6 +19,7 @@ export function TerminalStatusBar({
   sessionId,
   workerId,
   latencyMs,
+  latencyState,
   cols,
   rows,
   statusMessage,
@@ -25,12 +27,24 @@ export function TerminalStatusBar({
   const { t } = useTranslation()
   const shortId =
     sessionId.length > 12 ? sessionId.slice(0, 12) : sessionId
+  const statusLabel =
+    status === 'live'
+      ? latencyState === 'offline'
+        ? t('terminal.offline')
+        : latencyMs === null
+          ? t('terminal.measuring')
+          : t('terminal.latency', { ms: Math.round(latencyMs) })
+      : status === 'offline'
+        ? t('terminal.offline')
+        : t(`sessions.status.${status}`)
+  const dotStatus =
+    status === 'live' && latencyState === 'offline' ? 'offline' : status
 
   return (
     <div className='flex h-9 shrink-0 items-center justify-between border-t border-border bg-card px-3 text-xs text-muted-foreground'>
       <div className='flex min-w-0 items-center gap-3'>
-        <StatusDot status={status === 'offline' ? 'offline' : status} />
-        <span className='font-medium'>{status}</span>
+        <StatusDot status={dotStatus} />
+        <span className='font-medium'>{statusLabel}</span>
         <span className='text-muted-foreground/60'>{shortId}</span>
         {workerId && (
           <span className='max-w-[120px] truncate text-muted-foreground/60 sm:max-w-[200px]'>{workerId}</span>
@@ -46,9 +60,6 @@ export function TerminalStatusBar({
         )}
       </div>
       <div className='flex items-center gap-3'>
-        {latencyMs !== null && (
-          <span>{t('terminal.latency', { ms: Math.round(latencyMs) })}</span>
-        )}
         <span>
           {cols}x{rows}
         </span>
