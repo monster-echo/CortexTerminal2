@@ -84,4 +84,16 @@ public sealed partial class AppBridge
             return new { success = true, username = "guest" };
         });
     }
+
+    [BridgeMethod]
+    public Task<string> VerifyActivationCodeAsync(string userCode)
+    {
+        return ExecuteSafeAsync(async () =>
+        {
+            if (_authService is null) throw new InvalidOperationException("AuthService not configured");
+            var result = await _authService.VerifyActivationCodeAsync(userCode, default);
+            if (!result.Success) throw new InvalidOperationException(result.Error);
+            return new { confirmed = true };
+        });
+    }
 }

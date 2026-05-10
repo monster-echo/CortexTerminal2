@@ -74,6 +74,25 @@ public sealed class AuthService
         return new AuthResult(true, null);
     }
 
+    public async Task<AuthResult> VerifyActivationCodeAsync(string userCode, CancellationToken ct)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/auth/device-flow/verify")
+        {
+            Content = JsonContent.Create(new { userCode })
+        };
+        if (!string.IsNullOrEmpty(_accessToken))
+            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _accessToken);
+
+        var response = await _httpClient.SendAsync(request, ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            var body = await response.Content.ReadAsStringAsync(ct);
+            return new AuthResult(false, response.StatusCode == System.Net.HttpStatusCode.Unauthorized
+                ? "token_expired" : ExtractError(body));
+        }
+        return new AuthResult(true, null);
+    }
+
     public void SetOAuthToken(string token, string username)
     {
         _accessToken = token;

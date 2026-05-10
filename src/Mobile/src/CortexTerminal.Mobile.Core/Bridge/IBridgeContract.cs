@@ -151,6 +151,9 @@ public interface IBridgeContract
     [BridgeMethod]
     Task<string> GuestLoginAsync();
 
+    [BridgeMethod]
+    Task<string> VerifyActivationCodeAsync(string userCode);
+
     // Demo
     [BridgeMethod]
     Task<string> HelloAsync();

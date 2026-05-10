@@ -77,5 +77,12 @@ public static class MauiProgram
 		return builder.Build();
 	}
 
-	internal static HttpMessageHandler CreateGatewayHandler() => new HttpClientHandler();
+	internal static HttpMessageHandler CreateGatewayHandler()
+	{
+#if IOS || MACCATALYST
+		return new NSUrlSessionHandler();
+#else
+		return new HttpClientHandler();
+#endif
+	}
 }

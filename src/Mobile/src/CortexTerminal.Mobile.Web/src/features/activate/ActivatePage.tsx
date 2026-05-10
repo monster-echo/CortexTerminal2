@@ -14,9 +14,7 @@ import { checkmarkCircleOutline, closeCircleOutline, keyOutline } from "ionicons
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import PageHeader from "../../components/PageHeader";
-import { useAuthStore } from "../../store/authStore";
-
-const gatewayBaseUri = "https://gateway.ct.rwecho.top";
+import { authBridge } from "../../bridge/modules/authBridge";
 
 type ActivateState = "input" | "submitting" | "success" | "error";
 
@@ -25,7 +23,6 @@ export default function ActivatePage() {
   const [code, setCode] = useState("");
   const [state, setState] = useState<ActivateState>("input");
   const [errorMsg, setErrorMsg] = useState("");
-  const token = useAuthStore((s) => s.token);
 
   const handleSubmit = async () => {
     const trimmed = code.trim().toUpperCase();
@@ -39,30 +36,17 @@ export default function ActivatePage() {
     setErrorMsg("");
 
     try {
-      const res = await fetch(`${gatewayBaseUri}/api/auth/device-flow/verify`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ userCode: trimmed }),
-      });
-
-      if (res.ok) {
-        setState("success");
+      await authBridge.verifyActivationCode(trimmed);
+      setState("success");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.includes("token_expired") || message.includes("401")) {
+        setErrorMsg(t("activate.tokenExpired"));
+      } else if (message.includes("invalid_code") || message.includes("400")) {
+        setErrorMsg(t("activate.codeInvalid"));
       } else {
-        const data = await res.json().catch(() => ({}));
-        if (res.status === 400 || data.error === "invalid_code") {
-          setErrorMsg(t("activate.codeInvalid"));
-        } else if (res.status === 401) {
-          setErrorMsg(t("activate.tokenExpired"));
-        } else {
-          setErrorMsg(t("activate.activateFailed", { status: res.status }));
-        }
-        setState("error");
+        setErrorMsg(t("activate.networkError"));
       }
-    } catch {
-      setErrorMsg(t("activate.networkError"));
       setState("error");
     }
   };
