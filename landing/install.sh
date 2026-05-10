@@ -1,14 +1,14 @@
 #!/bin/sh
 set -e
 
-# CortexTerminal Worker Installer
+# Corterm Worker Installer
 # Downloads and installs the latest worker binary for your platform.
 #
 # Usage: curl -fsSL https://gateway.ct.rwecho.top/install.sh | sh
 
 REPO="monster-echo/CortexTerminal2"
-BIN_NAME="cortex"
-INSTALL_DIR="${CORTEX_TERMINAL_HOME:-$HOME/.cortexterminal}"
+BIN_NAME="corterm"
+INSTALL_DIR="${CORTERM_HOME:-${CORTEX_TERMINAL_HOME:-$HOME/.corterm}}"
 DEFAULT_GATEWAY_URL="https://gateway.ct.rwecho.top"
 GITHUB_PROXY="https://proxy.0x2a.top"
 
@@ -53,7 +53,7 @@ download_worker() {
   RID=$1
   ARCHIVE_EXT=$2
 
-  ASSET_NAME="cortex-${RID}.${ARCHIVE_EXT}"
+  ASSET_NAME="corterm-${RID}.${ARCHIVE_EXT}"
   GITHUB_URL="https://github.com/${REPO}/releases/latest/download/${ASSET_NAME}"
   TMP_DIR=$(mktemp -d)
   TMP_FILE="${TMP_DIR}/${ASSET_NAME}"
@@ -109,7 +109,7 @@ add_to_path() {
 
   if ! echo "$PATH" | tr ':' '\n' | grep -qxF "$INSTALL_DIR"; then
     info "Adding ${INSTALL_DIR} to PATH in ${RC_FILE} ..."
-    printf '\n# CortexTerminal Worker\nexport PATH="$PATH:%s"\n' "$INSTALL_DIR" >> "$RC_FILE"
+    printf '\n# Corterm Worker\nexport PATH="$PATH:%s"\n' "$INSTALL_DIR" >> "$RC_FILE"
     ok "Added to PATH. Restart your shell or run: source ${RC_FILE}"
   else
     info "${INSTALL_DIR} is already in PATH."
@@ -121,7 +121,7 @@ install_service() {
   PLATFORM_OS=$(echo "$RID_AND_EXT" | cut -d' ' -f1 | cut -d'-' -f1)
 
   if [ "$PLATFORM_OS" = "linux" ] && command -v systemctl >/dev/null 2>&1; then
-    SERVICE_TEMPLATE="${INSTALL_DIR}/cortexterm-worker.service"
+    SERVICE_TEMPLATE="${INSTALL_DIR}/corterm-worker.service"
     [ ! -f "$SERVICE_TEMPLATE" ] && return 0
 
     info "Installing systemd user service ..."
@@ -131,15 +131,15 @@ install_service() {
 
     USER_UNIT_DIR="$HOME/.config/systemd/user"
     mkdir -p "$USER_UNIT_DIR"
-    cp "$SERVICE_FILE" "$USER_UNIT_DIR/cortexterm-worker.service"
+    cp "$SERVICE_FILE" "$USER_UNIT_DIR/corterm-worker.service"
     systemctl --user daemon-reload
-    systemctl --user enable cortexterm-worker
+    systemctl --user enable corterm-worker
     loginctl enable-linger "$(whoami)" 2>/dev/null || true
     rm -f "$SERVICE_FILE"
-    ok "systemd user service installed. Run: systemctl --user start cortexterm-worker"
+    ok "systemd user service installed. Run: systemctl --user start corterm-worker"
 
   elif [ "$PLATFORM_OS" = "osx" ]; then
-    PLIST_TEMPLATE="${INSTALL_DIR}/com.cortexterm.worker.plist"
+    PLIST_TEMPLATE="${INSTALL_DIR}/com.corterm.worker.plist"
     [ ! -f "$PLIST_TEMPLATE" ] && return 0
 
     info "Installing LaunchAgent ..."
@@ -148,9 +148,9 @@ install_service() {
     PLIST_FILE=$(mktemp)
     sed -e "s|{{INSTALL_DIR}}|${INSTALL_DIR}|g" -e "s|{{HOME}}|${HOME}|g" \
       "$PLIST_TEMPLATE" > "$PLIST_FILE"
-    cp "$PLIST_FILE" "$PLIST_DIR/com.cortexterm.worker.plist"
+    cp "$PLIST_FILE" "$PLIST_DIR/com.corterm.worker.plist"
     rm -f "$PLIST_FILE"
-    launchctl load "$PLIST_DIR/com.cortexterm.worker.plist" 2>/dev/null || true
+    launchctl load "$PLIST_DIR/com.corterm.worker.plist" 2>/dev/null || true
     ok "LaunchAgent installed and loaded (auto-start on login)"
   fi
 }
@@ -162,11 +162,11 @@ start_if_authenticated() {
   PLATFORM_OS=$(echo "$RID_AND_EXT" | cut -d' ' -f1 | cut -d'-' -f1)
 
   if [ "$PLATFORM_OS" = "linux" ] && command -v systemctl >/dev/null 2>&1; then
-    systemctl --user restart cortexterm-worker 2>/dev/null && ok "Worker service restarted" && return 0
+    systemctl --user restart corterm-worker 2>/dev/null && ok "Worker service restarted" && return 0
   elif [ "$PLATFORM_OS" = "osx" ]; then
     PLIST_DIR="$HOME/Library/LaunchAgents"
-    launchctl unload "$PLIST_DIR/com.cortexterm.worker.plist" 2>/dev/null || true
-    launchctl load "$PLIST_DIR/com.cortexterm.worker.plist" 2>/dev/null && ok "Worker service restarted" && return 0
+    launchctl unload "$PLIST_DIR/com.corterm.worker.plist" 2>/dev/null || true
+    launchctl load "$PLIST_DIR/com.corterm.worker.plist" 2>/dev/null && ok "Worker service restarted" && return 0
   fi
 
   return 1
@@ -174,7 +174,7 @@ start_if_authenticated() {
 
 # ---- Main ----
 printf "\n"
-printf "  ${BOLD}CortexTerminal Worker Installer${RESET}\n"
+printf "  ${BOLD}Corterm Worker Installer${RESET}\n"
 printf "  %s\n\n" "──────────────────────────────────────────"
 RID_AND_EXT=$(detect_platform)
 download_worker ${RID_AND_EXT}

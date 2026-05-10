@@ -117,8 +117,8 @@ jobs:
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJsonPlainText: ${{ secrets.CORTEX_GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
-          packageName: "top.rwecho.cortexterminal"
-          releaseFiles: "src/Mobile/src/CortexTerminal.Mobile.App/bin/Release/net10.0-android/top.rwecho.cortexterminal-Signed.aab"
+          packageName: "top.rwecho.corterm"
+          releaseFiles: "src/Mobile/src/CortexTerminal.Mobile.App/bin/Release/net10.0-android/top.rwecho.corterm-Signed.aab"
           track: "internal"
           status: "draft"
 
@@ -175,7 +175,7 @@ jobs:
       - name: Install Provisioning Profile
         uses: apple-actions/download-provisioning-profiles@v1
         with:
-          bundle-id: "top.rwecho.cortexterminal"
+          bundle-id: "top.rwecho.corterm"
           issuer-id: ${{ secrets.CORTEX_APPSTORE_ISSUER_ID }}
           api-key-id: ${{ secrets.CORTEX_APPSTORE_API_KEY_ID }}
           api-private-key: ${{ secrets.CORTEX_APPSTORE_API_PRIVATE_KEY }}

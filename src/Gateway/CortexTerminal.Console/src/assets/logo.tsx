@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils'
 export function Logo({ className, ...props }: SVGProps<SVGSVGElement>) {
   return (
     <svg
-      id='cortexterminal-logo'
+      id='corterm-logo'
       viewBox='0 0 1024 1024'
       xmlns='http://www.w3.org/2000/svg'
       height='24'
@@ -13,7 +13,7 @@ export function Logo({ className, ...props }: SVGProps<SVGSVGElement>) {
       className={cn('size-6', className)}
       {...props}
     >
-      <title>CortexTerminal</title>
+      <title>Corterm</title>
       <defs>
         <linearGradient id='ct-blue' x1='220' y1='520' x2='450' y2='220' gradientUnits='userSpaceOnUse'>
           <stop offset='0' stopColor='#3BA5F9' />

@@ -49,7 +49,7 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         _logger.LogInformation("Worker {WorkerId} is starting.", _workerId);
         await _gatewayClient.StartAsync(cancellationToken);
         await RegisterWorkerAsync(cancellationToken);
-        _logger.LogInformation("Worker {WorkerId} has started.", _workerId);
+        Console.WriteLine("  Connected. Press Ctrl+C to stop.");
     }
 
     public async Task StopAsync(CancellationToken cancellationToken)
@@ -221,9 +221,9 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
             // Download
             using (var http = new HttpClient())
             {
-                var tmpDir = Path.Combine(Path.GetTempPath(), $"cortex-upgrade-{Guid.NewGuid():N}");
+                var tmpDir = Path.Combine(Path.GetTempPath(), $"corterm-upgrade-{Guid.NewGuid():N}");
                 Directory.CreateDirectory(tmpDir);
-                tmpFile = Path.Combine(tmpDir, isWindows ? "cortex.zip" : "cortex.tar.gz");
+                tmpFile = Path.Combine(tmpDir, isWindows ? "corterm.zip" : "corterm.tar.gz");
 
                 _logger.LogInformation("Downloading upgrade from {Url} ...", command.DownloadUrl);
                 var data = await http.GetByteArrayAsync(command.DownloadUrl);
@@ -251,7 +251,7 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
                 }
 
                 // Replace binary
-                var newBinary = Path.Combine(extractDir, isWindows ? "cortex.exe" : "cortex");
+                var newBinary = Path.Combine(extractDir, isWindows ? "corterm.exe" : "corterm");
                 if (!File.Exists(newBinary))
                 {
                     _logger.LogError("Upgrade failed: binary not found in archive at {Path}", newBinary);

@@ -59,10 +59,10 @@ jobs:
         run: |
           find ./publish/worker-${{ matrix.rid }} -name '*.pdb' -delete
           case "${{ matrix.rid }}" in
-            linux-*) cp deploy/cortexterm-worker.service ./publish/worker-${{ matrix.rid }}/ ;;
-            osx-*)   cp deploy/com.cortexterm.worker.plist ./publish/worker-${{ matrix.rid }}/ ;;
+            linux-*) cp deploy/corterm-worker.service ./publish/worker-${{ matrix.rid }}/ ;;
+            osx-*)   cp deploy/com.corterm.worker.plist ./publish/worker-${{ matrix.rid }}/ ;;
           esac
-          tar -czf cortex-${{ matrix.rid }}.tar.gz -C ./publish/worker-${{ matrix.rid }} .
+          tar -czf corterm-${{ matrix.rid }}.tar.gz -C ./publish/worker-${{ matrix.rid }} .
 
       - name: Create archive (zip)
         if: matrix.archive == 'zip'
@@ -71,13 +71,13 @@ jobs:
           Get-ChildItem -Path ./publish/worker-${{ matrix.rid }} -Filter *.pdb | Remove-Item
           Compress-Archive `
             -Path ./publish/worker-${{ matrix.rid }}/* `
-            -DestinationPath cortex-${{ matrix.rid }}.zip
+            -DestinationPath corterm-${{ matrix.rid }}.zip
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            cortex-${{ matrix.rid }}.tar.gz
-            cortex-${{ matrix.rid }}.zip
+            corterm-${{ matrix.rid }}.tar.gz
+            corterm-${{ matrix.rid }}.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -29,10 +29,10 @@
 		<MauiXamlInflator>SourceGen</MauiXamlInflator>
 
 		<!-- Display name -->
-		<ApplicationTitle>CortexTerminal</ApplicationTitle>
+		<ApplicationTitle>Corterm</ApplicationTitle>
 
 		<!-- App Identifier -->
-		<ApplicationId>top.rwecho.cortexterminal</ApplicationId>
+		<ApplicationId>top.rwecho.corterm</ApplicationId>
 
 		<!-- Versions -->
 		<ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
@@ -58,10 +58,12 @@
 		<AndroidUseAapt2>true</AndroidUseAapt2>
 	</PropertyGroup>
 
-	<!-- iOS Release: linker + entitlements -->
+	<!-- iOS: linker + entitlements -->
+	<PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-ios'">
+		<CodesignEntitlements>Platforms\iOS\Entitlements.plist</CodesignEntitlements>
+	</PropertyGroup>
 	<PropertyGroup Condition="'$(Configuration)|$(TargetFramework)' == 'Release|net10.0-ios'">
 		<MtouchLink>SdkOnly</MtouchLink>
-		<CodesignEntitlements>Platforms\iOS\Entitlements.plist</CodesignEntitlements>
 	</PropertyGroup>
 
 	<!-- iOS linker preservation for HybridWebView reflection -->

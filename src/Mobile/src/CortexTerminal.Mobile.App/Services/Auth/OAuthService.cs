@@ -9,7 +9,7 @@ public sealed class OAuthService
     private readonly AuthService _authService;
     private Func<object, string, Task>? _pushEventAsync;
 
-    private const string CustomScheme = "cortexterminal.mobile";
+    private const string CustomScheme = "corterm.mobile";
     private const string CallbackHost = "auth";
 
     public OAuthService(Uri authServerBaseUri, AuthService authService)

@@ -1,4 +1,4 @@
-# CortexTerminal
+# Corterm
 
 **远程终端，触手可及。**
 
@@ -8,10 +8,10 @@
 [![Gateway Docker](https://github.com/monster-echo/CortexTerminal2/actions/workflows/gateway-docker.yml/badge.svg)](https://github.com/monster-echo/CortexTerminal2/actions/workflows/gateway-docker.yml)
 [![Worker Release](https://github.com/monster-echo/CortexTerminal2/actions/workflows/worker-release.yml/badge.svg)](https://github.com/monster-echo/CortexTerminal2/actions/workflows/worker-release.yml)
 [![GitHub Pages](https://github.com/monster-echo/CortexTerminal2/actions/workflows/gh-pages.yml/badge.svg)](https://github.com/monster-echo/CortexTerminal2/actions/workflows/gh-pages.yml)
-[![Gateway Package](https://img.shields.io/badge/ghcr.io-cortexterminal--gateway-blue?logo=docker)](https://github.com/monster-echo/CortexTerminal2/pkgs/container/cortexterminal-gateway)
+[![Gateway Package](https://img.shields.io/badge/ghcr.io-corterm--gateway-blue?logo=docker)](https://github.com/monster-echo/CortexTerminal2/pkgs/container/corterm-gateway)
 [![Worker Release](https://img.shields.io/github/v/release/monster-echo/CortexTerminal2?label=worker&logo=github)](https://github.com/monster-echo/CortexTerminal2/releases)
 
-CortexTerminal 将你的机器连接到浏览器终端。在任何机器上运行 Worker，通过 Gateway 访问——随时随地，任意设备。
+Corterm 将你的机器连接到浏览器终端。在任何机器上运行 Worker，通过 Gateway 访问——随时随地，任意设备。
 
 ## 架构
 
@@ -56,7 +56,7 @@ powershell -Command "irm https://gateway.ct.rwecho.top/install.ps1 | iex"
 ### 2. 部署 Gateway
 
 ```bash
-docker run -p 5045:5045 ghcr.io/monster-echo/cortexterminal-gateway:latest
+docker run -p 5045:5045 ghcr.io/monster-echo/corterm-gateway:latest
 ```
 
 ### 3. 打开浏览器

@@ -51,8 +51,8 @@ type ProfileFormValues = z.infer<typeof profileFormSchema>
 const defaultValues: Partial<ProfileFormValues> = {
   bio: 'I own a computer.',
   urls: [
-    { value: 'https://cortexterminal.com' },
-    { value: 'https://github.com/monster-echo/CortexTerminal' },
+    { value: 'https://gateway.ct.rwecho.top' },
+    { value: 'https://github.com/monster-echo/CortexTerminal2' },
   ],
 }
 

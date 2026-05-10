@@ -151,7 +151,7 @@ public sealed class InteractiveSessionFlowTests : IClassFixture<GatewayApplicati
         var credentials = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);
         var token = new JwtSecurityToken(
             issuer: "https://gateway.local/",
-            audience: "cortex-terminal-gateway",
+            audience: "corterm-gateway",
             claims: claims,
             expires: DateTime.UtcNow.AddMinutes(5),
             signingCredentials: credentials);

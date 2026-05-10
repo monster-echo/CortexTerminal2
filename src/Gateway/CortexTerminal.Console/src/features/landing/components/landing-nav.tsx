@@ -14,7 +14,7 @@ export function LandingNav() {
       <Link to="/" className="flex items-center gap-2 no-underline">
         <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981]" />
         <span className="font-mono text-lg font-bold text-[#e4e4e7] tracking-tight">
-          CortexTerminal
+          Corterm
         </span>
       </Link>
       <div className="flex items-center gap-6">

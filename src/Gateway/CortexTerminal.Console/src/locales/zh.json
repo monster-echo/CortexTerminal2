@@ -1,5 +1,5 @@
 {
-  "brand": { "name": "CortexTerminal" },
+  "brand": { "name": "云枢" },
   "nav": {
     "dashboard": "仪表盘",
     "sessions": "会话",
@@ -269,7 +269,7 @@
     "heroBadge": "开源 \u00B7 自托管",
     "heroTitle": "远程终端，",
     "heroTitleAccent": "触手可及。",
-    "heroDesc": "CortexTerminal 将你的机器连接到浏览器终端。在任何机器上运行 Worker，通过 Gateway 访问——随时随地，任意设备。",
+    "heroDesc": "云枢终端将你的机器连接到浏览器终端。在任何机器上运行 Worker，通过 Gateway 访问——随时随地，任意设备。",
     "btnCopy": "复制",
     "btnCopied": "已复制!",
     "tabBash": "bash",
@@ -309,6 +309,6 @@
     "ctaDesc": "开源项目，MIT 许可证。今天就把终端放进浏览器。",
     "ctaBtn1": "打开控制台 \u2192",
     "ctaBtn2": "在 GitHub 查看",
-    "footerCopy": "\u00A9 2026 CortexTerminal \u00B7 MIT 许可证"
+    "footerCopy": "\u00A9 2026 云枢终端 \u00B7 MIT 许可证"
   }
 }

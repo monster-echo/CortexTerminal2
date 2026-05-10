@@ -109,7 +109,7 @@ export default function SessionInstallPrompt() {
   return (
     <div style={{ paddingBottom: 24 }}>
       {/* Intro */}
-      <TerminalBlock title="CortexTerminal — Quick Start">
+      <TerminalBlock title="Corterm — Quick Start">
         <div style={{ marginBottom: 12 }}>
           <span style={commentStyle}># 还没有可用的 Session</span>
         </div>

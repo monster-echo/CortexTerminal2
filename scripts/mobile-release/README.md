@@ -10,7 +10,7 @@ scripts/mobile-release/create-android-keystore.sh
 
 The script writes local, git-ignored files under `.local/mobile-release/`:
 
-- `cortexterminal-release.jks`
+- `corterm-release.jks`
 - `secrets.env`
 
 Do not commit or paste these values into logs.
@@ -49,9 +49,9 @@ The target repository defaults to `monster-echo/CortexTerminal2`. Override it wi
 
 ## Platform console checklist
 
-- Android package name: `top.rwecho.cortexterminal`
+- Android package name: `top.rwecho.corterm`
 - Google Play release track: `internal`
-- iOS bundle id: `top.rwecho.cortexterminal`
+- iOS bundle id: `top.rwecho.corterm`
 - iOS upload target: TestFlight
 
 The current workflow checks for `Xcode 26.2`. If the self-hosted runner uses another Xcode version, update the runner or workflow before triggering iOS release.

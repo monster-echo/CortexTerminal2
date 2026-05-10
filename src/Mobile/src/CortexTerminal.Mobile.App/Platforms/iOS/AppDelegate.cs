@@ -15,7 +15,7 @@ public class AppDelegate : MauiUIApplicationDelegate
         if (base.OpenUrl(application, url, options))
             return true;
 
-        if (url.Scheme == "cortexterminal.mobile")
+        if (url.Scheme == "corterm.mobile")
         {
             var uri = new Uri(url.AbsoluteString!);
             _ = HandleDeepLinkAsync(uri);

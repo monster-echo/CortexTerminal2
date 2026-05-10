@@ -39,7 +39,7 @@ public partial class App : Application
 	{
 		base.OnAppLinkRequestReceived(uri);
 
-		if (string.Equals(uri.Scheme, "cortexterminal.mobile", StringComparison.OrdinalIgnoreCase))
+		if (string.Equals(uri.Scheme, "corterm.mobile", StringComparison.OrdinalIgnoreCase))
 		{
 			try
 			{

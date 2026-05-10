@@ -33,7 +33,8 @@ export function SignIn2() {
               {t('auth.termsOfService')}
             </a>{' '}{t('auth.and')}{' '}
             <a
-              href='/privacy'
+              href='https://monster-echo.github.io/CortexTerminal2/privacy-policy.html'
+              target='_blank'
               className='underline underline-offset-4 hover:text-primary'
             >
               {t('auth.privacyPolicy')}
@@ -54,14 +55,14 @@ export function SignIn2() {
           className='dark:hidden'
           width={1024}
           height={1151}
-          alt='CortexTerminal'
+          alt='Corterm'
         />
         <img
           src={dashboardDark}
           className='hidden dark:block'
           width={1024}
           height={1138}
-          alt='CortexTerminal'
+          alt='Corterm'
         />
       </div>
     </div>

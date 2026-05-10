@@ -23,6 +23,7 @@ using Microsoft.IdentityModel.Tokens;
 var builder = WebApplication.CreateBuilder(args);
 
 var signingKey = builder.Configuration["Auth:SigningKey"] ?? "gateway-auth-signing-key-minimum-32b";
+var gatewayAudiences = new[] { "corterm-gateway", "cortex-terminal-gateway" };
 
 string CreateAccessToken(string username, string? email = null)
 {
@@ -38,7 +39,7 @@ string CreateAccessToken(string username, string? email = null)
     var credentials = new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey)), SecurityAlgorithms.HmacSha256);
     var token = new JwtSecurityToken(
         issuer: "https://gateway.local/",
-        audience: "cortex-terminal-gateway",
+        audience: gatewayAudiences[0],
         claims: claims,
         expires: DateTime.UtcNow.AddDays(7),
         signingCredentials: credentials);
@@ -74,7 +75,7 @@ string CreateWorkerAccessToken(string username)
     var credentials = new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey)), SecurityAlgorithms.HmacSha256);
     var token = new JwtSecurityToken(
         issuer: "https://gateway.local/",
-        audience: "cortex-terminal-gateway",
+        audience: gatewayAudiences[0],
         claims: claims,
         expires: DateTime.UtcNow.AddDays(30),
         signingCredentials: credentials);
@@ -889,19 +890,27 @@ app.MapGet("/api/me/sessions", (ClaimsPrincipal user, ISessionCoordinator sessio
     return Results.Ok(summaries);
 }).RequireAuthorization();
 
-app.MapGet("/api/me/sessions/{sessionId}", (string sessionId, ClaimsPrincipal user, ISessionCoordinator sessions) =>
+app.MapGet("/api/me/sessions/{sessionId}", async (string sessionId, ClaimsPrincipal user, ISessionCoordinator sessions, IWorkerRegistry workers) =>
 {
     if (!sessions.TryGetSession(sessionId, out var session))
     {
         return Results.NotFound();
     }
 
-    if (session.UserId != GetUserId(user))
+    var userId = GetUserId(user);
+
+    if (session.UserId != userId)
     {
         return Results.Forbid();
     }
 
-    return Results.Ok(ToSessionSummaryResponse(session));
+    RegisteredWorker? currentWorker = workers.TryGetWorker(session.WorkerId, out var registeredWorker)
+        ? registeredWorker
+        : null;
+    var workerRecord = (await workers.GetAllWorkersForUserAsync(userId))
+        .FirstOrDefault(record => record.WorkerId == session.WorkerId);
+
+    return Results.Ok(ToSessionDetailResponse(session, currentWorker, workerRecord));
 }).RequireAuthorization();
 
 // ---- Gateway Info ----

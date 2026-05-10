@@ -71,7 +71,7 @@ public sealed class DeviceFlowLoginService
             {
                 await _tokenStore.SaveAccessTokenAsync(token.AccessToken, cancellationToken);
                 Console.WriteLine("  Worker authenticated successfully!");
-                Console.WriteLine("  Token saved. This worker is now bound to your account.");
+                Console.WriteLine("  Token saved. Run 'corterm' to start the worker.");
                 return;
             }
         }

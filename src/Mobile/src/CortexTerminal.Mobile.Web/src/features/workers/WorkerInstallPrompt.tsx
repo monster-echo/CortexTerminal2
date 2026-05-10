@@ -109,7 +109,7 @@ export default function WorkerInstallPrompt() {
   return (
     <div style={{ paddingBottom: 24 }}>
       {/* Intro terminal */}
-      <TerminalBlock title="CortexTerminal — Worker Setup">
+      <TerminalBlock title="Corterm — Worker Setup">
         <div style={{ marginBottom: 12 }}>
           <span style={commentStyle}># 没有检测到任何 Worker</span>
         </div>
@@ -167,7 +167,7 @@ export default function WorkerInstallPrompt() {
       </TerminalBlock>
 
       {/* Done */}
-      <TerminalBlock title="CortexTerminal — Ready">
+      <TerminalBlock title="Corterm — Ready">
         <div style={{ marginBottom: 12 }}>
           <span style={commentStyle}># 激活成功后 Worker 会自动连接 Gateway</span>
         </div>

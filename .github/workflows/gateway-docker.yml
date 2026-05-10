@@ -7,9 +7,9 @@ on:
 
 env:
   GHCR_REGISTRY: ghcr.io
-  GHCR_IMAGE: ${{ github.repository_owner }}/cortexterminal-gateway
+  GHCR_IMAGE: ${{ github.repository_owner }}/corterm-gateway
   ALIYUN_REGISTRY: registry.cn-shanghai.aliyuncs.com
-  ALIYUN_IMAGE: happytreefriends/cortex-terminal-gateway
+  ALIYUN_IMAGE: happytreefriends/corterm-gateway
 
 jobs:
   build-and-push:

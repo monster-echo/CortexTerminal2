@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="CortexTerminal - Remote terminals, everywhere. Connect to your machines from any browser.">
-<title>CortexTerminal &mdash; Remote Terminals, Everywhere</title>
+<meta name="description" content="Corterm - Remote terminals, everywhere. Connect to your machines from any browser.">
+<title>Corterm &mdash; Remote Terminals, Everywhere</title>
 <style>
   :root {
     --bg: #0a0a0b;
@@ -530,7 +530,7 @@
   <nav>
     <a href="/" class="nav-logo">
       <span class="dot"></span>
-      CortexTerminal
+      Corterm
     </a>
     <div class="nav-links">
       <button class="lang-btn" onclick="toggleLang()" id="langBtn" title="Switch Language">EN</button>
@@ -549,7 +549,7 @@
     </div>
     <h1 data-i18n="hero_title" data-i18n-html="true">Remote Terminals,<br><span>Everywhere.</span></h1>
     <p data-i18n="hero_desc">
-      CortexTerminal connects your machines to a browser-based terminal.
+      Corterm connects your machines to a browser-based terminal.
       Run a Worker on any machine, access it through the Gateway &mdash;
       from anywhere, on any device.
     </p>
@@ -674,7 +674,7 @@
         <div class="step-num">2</div>
         <div class="step-content">
           <h4 data-i18n="step2_title">Deploy the Gateway</h4>
-          <p data-i18n="step2_desc">Pull and run the Gateway container: <code>docker run -p 5045:5045 ghcr.io/monster-echo/cortexterminal-gateway:latest</code></p>
+          <p data-i18n="step2_desc">Pull and run the Gateway container: <code>docker run -p 5045:5045 ghcr.io/monster-echo/corterm-gateway:latest</code></p>
         </div>
       </div>
       <div class="step">
@@ -726,7 +726,7 @@
 <!-- Footer -->
 <div class="container">
   <footer>
-    <span class="copy" data-i18n="footer_copy">&copy; 2026 CortexTerminal &middot; MIT License</span>
+    <span class="copy" data-i18n="footer_copy">&copy; 2026 Corterm &middot; MIT License</span>
     <div class="links">
       <a href="https://github.com/monster-echo/CortexTerminal2" target="_blank" rel="noopener">GitHub</a>
       <a href="https://github.com/monster-echo/CortexTerminal2/issues" target="_blank" rel="noopener">Issues</a>
@@ -742,7 +742,7 @@ const translations = {
     nav_launch: "Launch Console",
     hero_badge: "Open Source \u00B7 Self-Hosted",
     hero_title: 'Remote Terminals,<br><span>Everywhere.</span>',
-    hero_desc: "CortexTerminal connects your machines to a browser-based terminal. Run a Worker on any machine, access it through the Gateway \u2014 from anywhere, on any device.",
+    hero_desc: "Corterm connects your machines to a browser-based terminal. Run a Worker on any machine, access it through the Gateway \u2014 from anywhere, on any device.",
     btn_copy: "Copy",
     btn_copied: "Copied!",
     tab_bash: "bash",
@@ -773,21 +773,21 @@ const translations = {
     step1_title: "Install the Worker",
     step1_desc: 'Run <code>curl -fsSL https://gateway.ct.rwecho.top/install.sh | sh</code> on the machine you want to access.',
     step2_title: "Deploy the Gateway",
-    step2_desc: 'Pull and run the Gateway container: <code>docker run -p 5045:5045 ghcr.io/monster-echo/cortexterminal-gateway:latest</code>',
+    step2_desc: 'Pull and run the Gateway container: <code>docker run -p 5045:5045 ghcr.io/monster-echo/corterm-gateway:latest</code>',
     step3_title: "Open Your Browser",
     step3_desc: 'Navigate to <code>http://localhost:5045</code>, log in, and your terminal is ready.',
     cta_title: "Ready to Go Remote?",
     cta_desc: "Open source. MIT licensed. Get your terminal in the browser today.",
     cta_btn1: "Open Console \u2192",
     cta_btn2: "View on GitHub",
-    footer_copy: "\u00A9 2026 CortexTerminal \u00B7 MIT License",
+    footer_copy: "\u00A9 2026 Corterm \u00B7 MIT License",
     footer_privacy: "Privacy"
   },
   zh: {
     nav_launch: "\u6253\u5F00\u63A7\u5236\u53F0",
     hero_badge: "\u5F00\u6E90 \u00B7 \u81EA\u6258\u7BA1",
     hero_title: '\u8FDC\u7A0B\u7EC8\u7AEF\uFF0C<br><span>\u89E6\u624B\u53EF\u53CA\u3002</span>',
-    hero_desc: "CortexTerminal \u5C06\u4F60\u7684\u673A\u5668\u8FDE\u63A5\u5230\u6D4F\u89C8\u5668\u7EC8\u7AEF\u3002\u5728\u4EFB\u4F55\u673A\u5668\u4E0A\u8FD0\u884C Worker\uFF0C\u901A\u8FC7 Gateway \u8BBF\u95EE\u2014\u2014\u968F\u65F6\u968F\u5730\uFF0C\u4EFB\u610F\u8BBE\u5907\u3002",
+    hero_desc: "Corterm \u5C06\u4F60\u7684\u673A\u5668\u8FDE\u63A5\u5230\u6D4F\u89C8\u5668\u7EC8\u7AEF\u3002\u5728\u4EFB\u4F55\u673A\u5668\u4E0A\u8FD0\u884C Worker\uFF0C\u901A\u8FC7 Gateway \u8BBF\u95EE\u2014\u2014\u968F\u65F6\u968F\u5730\uFF0C\u4EFB\u610F\u8BBE\u5907\u3002",
     btn_copy: "\u590D\u5236",
     btn_copied: "\u5DF2\u590D\u5236!",
     tab_bash: "bash",
@@ -818,14 +818,14 @@ const translations = {
     step1_title: "\u5B89\u88C5 Worker",
     step1_desc: '\u5728\u76EE\u6807\u673A\u5668\u4E0A\u8FD0\u884C <code>curl -fsSL https://gateway.ct.rwecho.top/install.sh | sh</code>',
     step2_title: "\u90E8\u7F72 Gateway",
-    step2_desc: '\u62C9\u53D6\u5E76\u8FD0\u884C Gateway \u5BB9\u5668\uFF1A<code>docker run -p 5045:5045 ghcr.io/monster-echo/cortexterminal-gateway:latest</code>',
+    step2_desc: '\u62C9\u53D6\u5E76\u8FD0\u884C Gateway \u5BB9\u5668\uFF1A<code>docker run -p 5045:5045 ghcr.io/monster-echo/corterm-gateway:latest</code>',
     step3_title: "\u6253\u5F00\u6D4F\u89C8\u5668",
     step3_desc: '\u8BBF\u95EE <code>http://localhost:5045</code>\uFF0C\u767B\u5F55\u540E\u5373\u53EF\u4F7F\u7528\u7EC8\u7AEF\u3002',
     cta_title: "\u51C6\u5907\u597D\u4E86\u5417\uFF1F",
     cta_desc: "\u5F00\u6E90\u9879\u76EE\uFF0CMIT \u8BB8\u53EF\u8BC1\u3002\u4ECA\u5929\u5C31\u628A\u7EC8\u7AEF\u653E\u8FDB\u6D4F\u89C8\u5668\u3002",
     cta_btn1: "\u6253\u5F00\u63A7\u5236\u53F0 \u2192",
     cta_btn2: "\u5728 GitHub \u67E5\u770B",
-    footer_copy: "\u00A9 2026 CortexTerminal \u00B7 MIT \u8BB8\u53EF\u8BC1",
+    footer_copy: "\u00A9 2026 Corterm \u00B7 MIT \u8BB8\u53EF\u8BC1",
     footer_privacy: "\u9690\u79C1\u653F\u7B56"
   }
 };

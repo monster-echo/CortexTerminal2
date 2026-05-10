@@ -33,7 +33,7 @@ export function ProfileDropdown() {
             <div className='flex flex-col gap-1.5'>
               <p className='text-sm leading-none font-medium'>Admin</p>
               <p className='text-xs leading-none text-muted-foreground'>
-                admin@cortexterminal.local
+                admin@corterm.local
               </p>
             </div>
           </DropdownMenuLabel>

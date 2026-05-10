@@ -75,7 +75,7 @@ public sealed class DeviceFlowControllerTests : IClassFixture<GatewayApplication
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         response.Content.Headers.ContentType?.MediaType.Should().Be("text/html");
         var html = await response.Content.ReadAsStringAsync();
-        html.Should().Contain("<title>CortexTerminal</title>");
+        html.Should().Contain("<title>Corterm</title>");
     }
 }
 
@@ -114,7 +114,7 @@ public sealed class GatewayApplicationFactory : WebApplicationFactory<Program>
         var credentials = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);
         var token = new JwtSecurityToken(
             issuer: "https://gateway.local/",
-            audience: "cortex-terminal-gateway",
+            audience: "corterm-gateway",
             claims: claims,
             expires: DateTime.UtcNow.AddMinutes(5),
             signingCredentials: credentials);

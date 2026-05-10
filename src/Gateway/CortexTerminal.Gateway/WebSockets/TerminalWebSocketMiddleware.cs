@@ -49,7 +49,7 @@ public class TerminalWebSocketMiddleware
             ValidateIssuer = true,
             ValidIssuer = "https://gateway.local/",
             ValidateAudience = true,
-            ValidAudience = "cortex-terminal-gateway",
+            ValidAudiences = ["corterm-gateway", "cortex-terminal-gateway"],
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey)),

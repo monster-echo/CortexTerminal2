@@ -27,4 +27,4 @@ ENV ASPNETCORE_ENVIRONMENT=Production
 COPY --from=build /app/publish .
 RUN useradd --system --create-home appuser && chown -R appuser:appuser /app
 USER appuser
-ENTRYPOINT ["dotnet", "CortexTerminal.Gateway.dll"]
+ENTRYPOINT ["dotnet", "corterm-gateway.dll"]

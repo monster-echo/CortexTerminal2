@@ -1,4 +1,4 @@
-# CortexTerminal Worker Installer for Windows
+# Corterm Worker Installer for Windows
 # Downloads and installs the latest worker binary for your platform.
 #
 # Usage: irm https://gateway.ct.rwecho.top/install.ps1 | iex
@@ -6,8 +6,8 @@
 $ErrorActionPreference = "Stop"
 
 $REPO = "monster-echo/CortexTerminal2"
-$BIN_NAME = "cortex"
-$INSTALL_DIR = if ($env:CORTEX_TERMINAL_HOME) { $env:CORTEX_TERMINAL_HOME } else { "$env:USERPROFILE\.cortexterminal" }
+$BIN_NAME = "corterm"
+$INSTALL_DIR = if ($env:CORTERM_HOME) { $env:CORTERM_HOME } elseif ($env:CORTEX_TERMINAL_HOME) { $env:CORTEX_TERMINAL_HOME } else { "$env:USERPROFILE\.corterm" }
 $DEFAULT_GATEWAY_URL = "https://gateway.ct.rwecho.top"
 $GITHUB_PROXY = "https://proxy.0x2a.top"
 
@@ -39,7 +39,7 @@ function Detect-Platform {
 function Download-Worker {
     param([string]$RID)
 
-    $assetName = "cortex-${RID}.zip"
+    $assetName = "corterm-${RID}.zip"
     $githubUrl = "https://github.com/${REPO}/releases/latest/download/${assetName}"
     $downloadUrl = "${GITHUB_PROXY}/${githubUrl}"
 
@@ -90,7 +90,7 @@ function Add-ToPath {
 
 # ---- Install as scheduled task (auto-start) ----
 function Install-Service {
-    $taskName = "CortexTerminal Worker"
+    $taskName = "Corterm Worker"
     $exePath = Join-Path $INSTALL_DIR "$BIN_NAME.exe"
 
     if (-not (Test-Path $exePath)) {
@@ -109,7 +109,7 @@ function Install-Service {
     $trigger = New-ScheduledTaskTrigger -AtLogOn
     $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
 
-    Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Settings $settings -Description "CortexTerminal Worker auto-start" -Force | Out-Null
+    Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Settings $settings -Description "Corterm Worker auto-start" -Force | Out-Null
 
     Write-Ok "Scheduled task installed (auto-start on login)."
     Write-Info "Start manually: schtasks /Run /TN `"$taskName`""
@@ -127,7 +127,7 @@ function Start-IfAuthenticated {
         return $false
     }
 
-    $taskName = "CortexTerminal Worker"
+    $taskName = "Corterm Worker"
     $existingTask = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
     if ($existingTask) {
         Start-ScheduledTask -TaskName $taskName
@@ -143,7 +143,7 @@ function Start-IfAuthenticated {
 
 # ---- Main ----
 Write-Host ""
-Write-Host "  CortexTerminal Worker Installer" -ForegroundColor White
+Write-Host "  Corterm Worker Installer" -ForegroundColor White
 Write-Host "  --------------------------------`n"
 
 $rid = Detect-Platform

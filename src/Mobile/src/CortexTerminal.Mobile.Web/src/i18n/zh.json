@@ -41,7 +41,7 @@
   },
   "home": {
     "title": "Native Features",
-    "appName": "CortexTerminal",
+    "appName": "云枢",
     "subtitle": "原生能力目录首页",
     "featureList": "功能列表",
     "lastError": "最近错误：",
@@ -386,14 +386,14 @@
   },
   "settings": {
     "title": "设置",
-    "shareFallback": "CortexTerminal",
+    "shareFallback": "云枢终端",
     "shareMessage": "Check out ",
     "shareMessageEnd": " — a secure terminal client.",
-    "emailSubject": "CortexTerminal feedback",
-    "emailBody": "Hi team, I want to discuss CortexTerminal.",
+    "emailSubject": "云枢终端 反馈",
+    "emailBody": "你好，我想聊聊云枢终端。",
     "supportSection": "Support & sharing",
     "supportDesc": "设置页现在只放真正的设置项：分享、支持和必要的应用信息。",
-    "share": "Share CortexTerminal",
+    "share": "分享云枢终端",
     "contact": "Contact support",
     "linksSection": "Store-ready links",
     "linksDesc": "这些入口很适合放在未来所有 App 的 About / Settings 页面里。",
@@ -413,7 +413,7 @@
     "languageZh": "中文",
     "languageEn": "English",
     "cancel": "取消",
-    "appName": "CortexTerminal",
+    "appName": "云枢",
     "activateWorker": "激活 Worker"
   },
   "sessions": {

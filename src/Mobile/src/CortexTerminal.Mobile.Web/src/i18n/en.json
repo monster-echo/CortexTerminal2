@@ -1,6 +1,6 @@
 {
   "sidebar": {
-    "title": "CortexTerminal",
+    "title": "Corterm",
     "home": "Home",
     "settings": "Settings",
     "theme": "Theme",
@@ -20,7 +20,7 @@
     "components": "Components"
   },
   "login": {
-    "title": "CortexTerminal",
+    "title": "Corterm",
     "subtitle": "Sign in to continue",
     "phonePlaceholder": "Phone number",
     "codePlaceholder": "Verification code",
@@ -41,7 +41,7 @@
   },
   "home": {
     "title": "Native Features",
-    "appName": "CortexTerminal",
+    "appName": "Corterm",
     "subtitle": "Native Capabilities Catalog",
     "featureList": "Feature List",
     "lastError": "Last error: ",
@@ -386,14 +386,14 @@
   },
   "settings": {
     "title": "Settings",
-    "shareFallback": "CortexTerminal",
+    "shareFallback": "Corterm",
     "shareMessage": "Check out ",
     "shareMessageEnd": " — a secure terminal client.",
-    "emailSubject": "CortexTerminal feedback",
-    "emailBody": "Hi team, I want to discuss CortexTerminal.",
+    "emailSubject": "Corterm feedback",
+    "emailBody": "Hi team, I want to discuss Corterm.",
     "supportSection": "Support & sharing",
     "supportDesc": "The settings page now only contains real settings: sharing, support, and essential app info.",
-    "share": "Share CortexTerminal",
+    "share": "Share Corterm",
     "contact": "Contact support",
     "linksSection": "Store-ready links",
     "linksDesc": "These entries are well-suited for the About / Settings pages of all future apps.",
@@ -413,7 +413,7 @@
     "languageZh": "Chinese",
     "languageEn": "English",
     "cancel": "Cancel",
-    "appName": "CortexTerminal",
+    "appName": "Corterm",
     "activateWorker": "Activate Worker"
   },
   "sessions": {

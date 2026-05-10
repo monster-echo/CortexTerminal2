@@ -3,9 +3,9 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 OUT_DIR="$ROOT_DIR/.local/mobile-release"
-KEYSTORE_PATH="$OUT_DIR/cortexterminal-release.jks"
+KEYSTORE_PATH="$OUT_DIR/corterm-release.jks"
 SECRETS_PATH="$OUT_DIR/secrets.env"
-KEY_ALIAS="${CORTEX_ANDROID_KEY_ALIAS:-cortexterminal}"
+KEY_ALIAS="${CORTEX_ANDROID_KEY_ALIAS:-corterm}"
 
 if [[ -e "$KEYSTORE_PATH" && "${FORCE:-0}" != "1" ]]; then
   echo "Keystore already exists: $KEYSTORE_PATH" >&2
@@ -27,7 +27,7 @@ keytool -genkeypair \
   -keyalg RSA \
   -keysize 4096 \
   -validity 10000 \
-  -dname "CN=CortexTerminal, OU=Mobile, O=CortexTerminal, L=Shanghai, ST=Shanghai, C=CN" \
+  -dname "CN=Corterm, OU=Mobile, O=Corterm, L=Shanghai, ST=Shanghai, C=CN" \
   -storepass "$KEYSTORE_PASSWORD" \
   -keypass "$KEY_PASSWORD" >/dev/null
 

@@ -89,6 +89,7 @@ internal sealed class FakeWorkerGatewayClient : IWorkerGatewayClient
     private readonly List<Func<LatencyProbeFrame, Task>> _latencyProbeHandlers = [];
     private readonly List<Func<ResizePtyRequest, Task>> _resizeHandlers = [];
     private readonly List<Func<CloseSessionRequest, Task>> _closeHandlers = [];
+    private readonly List<Func<UpgradeWorkerCommand, Task>> _upgradeHandlers = [];
     private readonly List<Func<string?, Task>> _reconnectHandlers = [];
     private readonly ConcurrentDictionary<string, TaskCompletionSource<TerminalChunk>> _stdoutWaiters = new();
     private readonly ConcurrentDictionary<string, TaskCompletionSource<TerminalChunk>> _stderrWaiters = new();
@@ -129,6 +130,9 @@ internal sealed class FakeWorkerGatewayClient : IWorkerGatewayClient
 
     public IDisposable OnCloseSession(Func<CloseSessionRequest, Task> handler)
         => Register(_closeHandlers, handler);
+
+    public IDisposable OnUpgradeWorker(Func<UpgradeWorkerCommand, Task> handler)
+        => Register(_upgradeHandlers, handler);
 
     public IDisposable OnReconnected(Func<string?, Task> handler)
         => Register(_reconnectHandlers, handler);

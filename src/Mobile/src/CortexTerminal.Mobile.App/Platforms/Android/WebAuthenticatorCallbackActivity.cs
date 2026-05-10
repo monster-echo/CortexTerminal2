@@ -10,7 +10,7 @@ namespace CortexTerminal.Mobile.App;
 [IntentFilter(
     [Android.Content.Intent.ActionView],
     Categories = [Android.Content.Intent.CategoryDefault, Android.Content.Intent.CategoryBrowsable],
-    DataScheme = "cortexterminal.mobile",
+    DataScheme = "corterm.mobile",
     DataHost = "auth")]
 public sealed class WebAuthenticatorCallbackActivity : Microsoft.Maui.Authentication.WebAuthenticatorCallbackActivity
 {

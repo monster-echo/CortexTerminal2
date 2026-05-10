@@ -1,4 +1,4 @@
-# CortexTerminal
+# Corterm
 
 **Remote Terminals, Everywhere.**
 
@@ -8,10 +8,10 @@
 [![Gateway Docker](https://github.com/monster-echo/CortexTerminal2/actions/workflows/gateway-docker.yml/badge.svg)](https://github.com/monster-echo/CortexTerminal2/actions/workflows/gateway-docker.yml)
 [![Worker Release](https://github.com/monster-echo/CortexTerminal2/actions/workflows/worker-release.yml/badge.svg)](https://github.com/monster-echo/CortexTerminal2/actions/workflows/worker-release.yml)
 [![GitHub Pages](https://github.com/monster-echo/CortexTerminal2/actions/workflows/gh-pages.yml/badge.svg)](https://github.com/monster-echo/CortexTerminal2/actions/workflows/gh-pages.yml)
-[![Gateway Package](https://img.shields.io/badge/ghcr.io-cortexterminal--gateway-blue?logo=docker)](https://github.com/monster-echo/CortexTerminal2/pkgs/container/cortexterminal-gateway)
+[![Gateway Package](https://img.shields.io/badge/ghcr.io-corterm--gateway-blue?logo=docker)](https://github.com/monster-echo/CortexTerminal2/pkgs/container/corterm-gateway)
 [![Worker Release](https://img.shields.io/github/v/release/monster-echo/CortexTerminal2?label=worker&logo=github)](https://github.com/monster-echo/CortexTerminal2/releases)
 
-CortexTerminal connects your machines to a browser-based terminal. Run a Worker on any machine, access it through the Gateway -- from anywhere, on any device.
+Corterm connects your machines to a browser-based terminal. Run a Worker on any machine, access it through the Gateway -- from anywhere, on any device.
 
 ## Architecture
 
@@ -56,7 +56,7 @@ Supported platforms: `linux/amd64`, `linux/arm64`, `macOS (Apple Silicon)`, `Win
 ### 2. Deploy the Gateway
 
 ```bash
-docker run -p 5045:5045 ghcr.io/monster-echo/cortexterminal-gateway:latest
+docker run -p 5045:5045 ghcr.io/monster-echo/corterm-gateway:latest
 ```
 
 ### 3. Open Your Browser

@@ -1,5 +1,5 @@
 {
-  "brand": { "name": "CortexTerminal" },
+  "brand": { "name": "Corterm" },
   "nav": {
     "dashboard": "Dashboard",
     "sessions": "Sessions",
@@ -269,7 +269,7 @@
     "heroBadge": "Open Source \u00B7 Self-Hosted",
     "heroTitle": "Remote Terminals,",
     "heroTitleAccent": "Everywhere.",
-    "heroDesc": "CortexTerminal connects your machines to a browser-based terminal. Run a Worker on any machine, access it through the Gateway \u2014 from anywhere, on any device.",
+    "heroDesc": "Corterm connects your machines to a browser-based terminal. Run a Worker on any machine, access it through the Gateway \u2014 from anywhere, on any device.",
     "btnCopy": "Copy",
     "btnCopied": "Copied!",
     "tabBash": "bash",
@@ -309,6 +309,6 @@
     "ctaDesc": "Open source. MIT licensed. Get your terminal in the browser today.",
     "ctaBtn1": "Open Console \u2192",
     "ctaBtn2": "View on GitHub",
-    "footerCopy": "\u00A9 2026 CortexTerminal \u00B7 MIT License"
+    "footerCopy": "\u00A9 2026 Corterm \u00B7 MIT License"
   }
 }

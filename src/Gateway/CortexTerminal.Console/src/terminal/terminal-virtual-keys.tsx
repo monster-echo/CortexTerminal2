@@ -22,7 +22,7 @@ const DRAG_THRESHOLD = 3
 const SNAP_EDGE_MARGIN = 8
 const SNAP_ANIMATION_MS = 200
 
-function applyCtrlModifier(sequence: string): string {
+export function applyCtrlModifier(sequence: string): string {
   const code = sequence.charCodeAt(0)
   // Ctrl+Esc → Ctrl+C
   if (code === 0x1b) return '\x03'
@@ -33,17 +33,20 @@ function applyCtrlModifier(sequence: string): string {
   return sequence
 }
 
-function applyAltModifier(sequence: string): string {
+export function applyAltModifier(sequence: string): string {
   return '\x1b' + sequence
 }
 
 export function TerminalVirtualKeys(props: {
   onSendData: (data: string) => void
+  ctrlActive: boolean
+  altActive: boolean
+  onCtrlToggle: () => void
+  onAltToggle: () => void
+  onModifiersClear: () => void
 }) {
-  const { onSendData } = props
+  const { onSendData, ctrlActive, altActive, onCtrlToggle, onAltToggle, onModifiersClear } = props
   const [collapsed, setCollapsed] = useState(false)
-  const [ctrlActive, setCtrlActive] = useState(false)
-  const [altActive, setAltActive] = useState(false)
   const [position, setPosition] = useState<{ x: number; y: number } | null>(
     null
   )
@@ -70,22 +73,21 @@ export function TerminalVirtualKeys(props: {
   const handleKeyDown = useCallback(
     (key: VirtualKey) => {
       if (key.isModifier) {
-        if (key.label === 'Ctrl') setCtrlActive((v) => !v)
-        if (key.label === 'Alt') setAltActive((v) => !v)
+        if (key.label === 'Ctrl') onCtrlToggle()
+        if (key.label === 'Alt') onAltToggle()
         return
       }
 
       let sequence = key.sequence
       if (ctrlActive) {
         sequence = applyCtrlModifier(sequence)
-        setCtrlActive(false)
-      } else if (altActive) {
+      }
+      if (altActive) {
         sequence = applyAltModifier(sequence)
-        setAltActive(false)
       }
       onSendData(sequence)
     },
-    [onSendData, ctrlActive, altActive]
+    [onSendData, ctrlActive, altActive, onCtrlToggle, onAltToggle]
   )
 
   const handleDragPointerDown = useCallback((e: React.PointerEvent) => {
@@ -398,8 +400,7 @@ export function TerminalVirtualKeys(props: {
         }}
         onClick={() => {
           setCollapsed(true)
-          setCtrlActive(false)
-          setAltActive(false)
+          onModifiersClear()
         }}
         aria-label="Hide virtual keys"
       >
