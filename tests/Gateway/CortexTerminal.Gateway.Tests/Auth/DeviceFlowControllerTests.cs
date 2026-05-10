@@ -81,9 +81,29 @@ public sealed class DeviceFlowControllerTests : IClassFixture<GatewayApplication
 
 public sealed class GatewayApplicationFactory : WebApplicationFactory<Program>
 {
+    private string? _testWebRoot;
+
     protected override void ConfigureWebHost(Microsoft.AspNetCore.Hosting.IWebHostBuilder builder)
     {
         builder.UseEnvironment("Development");
+
+        // Create a temp wwwroot with a stub index.html so static file serving
+        // tests work even when the real SPA build output is absent (e.g. in CI).
+        _testWebRoot = Path.Combine(Path.GetTempPath(), $"corterm-test-wwwroot-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(_testWebRoot);
+        File.WriteAllText(
+            Path.Combine(_testWebRoot, "index.html"),
+            """<!doctype html><html><head><title>Corterm</title></head><body></body></html>""");
+        builder.UseWebRoot(_testWebRoot);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (_testWebRoot is not null && Directory.Exists(_testWebRoot))
+        {
+            try { Directory.Delete(_testWebRoot, recursive: true); } catch { }
+        }
+        base.Dispose(disposing);
     }
 
     public HttpClient CreateAuthenticatedClient()

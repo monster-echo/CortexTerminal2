@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { createTerminalGateway } from '@/services/terminal-gateway'
@@ -11,7 +11,8 @@ import { useTerminalEventLogStore } from '@/stores/terminal-event-log-store'
 import { Button } from '@/components/ui/button'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
-import { ArrowLeft, Loader2 } from 'lucide-react'
+import { ConfirmDialog } from '@/components/confirm-dialog'
+import { ArrowLeft, Loader2, Square, Trash2 } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth-store'
 import { getApi } from '@/lib/api'
 import { SessionDetailsSheet } from './session-details-sheet'
@@ -20,8 +21,14 @@ export function SessionDetailPage(props: { sessionId: string }) {
   const { sessionId } = props
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [latencyMs, setLatencyMs] = useState<number | null>(null)
   const [latencyState, setLatencyState] = useState<'live' | 'measuring' | 'offline'>('measuring')
+  const [terminateOpen, setTerminateOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [isTerminating, setIsTerminating] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
   const eventEntries = useTerminalEventLogStore(
     (state) => state.logsByScope[getSessionTerminalLogKey(sessionId)] ?? []
   )
@@ -46,6 +53,44 @@ export function SessionDetailPage(props: { sessionId: string }) {
   })
 
   const session = sessionQuery.data
+  const canTerminate = session?.status === 'live' || session?.status === 'detached'
+  const canDelete = session?.status === 'exited' || session?.status === 'expired'
+
+  const refreshSessionState = async () => {
+    await Promise.all([
+      sessionQuery.refetch(),
+      queryClient.invalidateQueries({ queryKey: ['sessions'] }),
+    ])
+  }
+
+  const handleTerminate = async () => {
+    setIsTerminating(true)
+    try {
+      await getApi().terminateSession(sessionId)
+      setActionError(null)
+      setTerminateOpen(false)
+      await refreshSessionState()
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : t('common.error'))
+    } finally {
+      setIsTerminating(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    setIsDeleting(true)
+    try {
+      await getApi().deleteSession(sessionId)
+      setActionError(null)
+      setDeleteOpen(false)
+      await queryClient.invalidateQueries({ queryKey: ['sessions'] })
+      navigate({ to: '/sessions' })
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : t('common.error'))
+    } finally {
+      setIsDeleting(false)
+    }
+  }
 
   if (sessionQuery.isLoading) {
     return (
@@ -139,6 +184,18 @@ export function SessionDetailPage(props: { sessionId: string }) {
             latencyMs={latencyMs}
             latencyState={latencyState}
           />
+          {canTerminate && (
+            <Button variant='destructive' size='sm' onClick={() => setTerminateOpen(true)}>
+              <Square className='size-4' />
+              {t('sessions.terminate.button')}
+            </Button>
+          )}
+          {canDelete && (
+            <Button variant='outline' size='sm' onClick={() => setDeleteOpen(true)}>
+              <Trash2 className='size-4' />
+              {t('sessions.delete.button')}
+            </Button>
+          )}
           <SessionDetailsSheet
             session={session}
             latencyMs={latencyMs}
@@ -147,6 +204,11 @@ export function SessionDetailPage(props: { sessionId: string }) {
         </div>
       </Header>
       <Main fluid className='flex min-h-0 flex-1 flex-col overflow-hidden py-0'>
+        {actionError && (
+          <div className='border-b border-destructive/30 bg-destructive/10 px-4 py-2 text-sm text-destructive'>
+            {actionError}
+          </div>
+        )}
         <TerminalView
           gateway={gateway}
           sessionId={session.sessionId}
@@ -156,8 +218,33 @@ export function SessionDetailPage(props: { sessionId: string }) {
             setLatencyMs(nextLatencyMs)
             setLatencyState(nextLatencyState)
           }}
+          onSessionStatusChange={() => {
+            void refreshSessionState()
+          }}
         />
       </Main>
+      <ConfirmDialog
+        open={terminateOpen}
+        onOpenChange={setTerminateOpen}
+        title={t('sessions.terminate.confirm')}
+        desc={t('sessions.terminate.message')}
+        confirmText={t('sessions.terminate.button')}
+        cancelBtnText={t('common.cancel')}
+        destructive
+        isLoading={isTerminating}
+        handleConfirm={handleTerminate}
+      />
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title={t('sessions.delete.confirm')}
+        desc={t('sessions.delete.message')}
+        confirmText={t('common.delete')}
+        cancelBtnText={t('common.cancel')}
+        destructive
+        isLoading={isDeleting}
+        handleConfirm={handleDelete}
+      />
     </>
   )
 }

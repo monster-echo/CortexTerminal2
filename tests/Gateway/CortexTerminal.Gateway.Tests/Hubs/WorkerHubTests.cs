@@ -192,6 +192,59 @@ public sealed class WorkerHubTests
         replayCache.GetSnapshot(sessionId).Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task RegisterWorker_RebindsActiveSessionsToLatestConnection()
+    {
+        var workers = new InMemoryWorkerRegistry();
+        workers.Register("worker-1", "worker-conn-1");
+        var sessions = new InMemorySessionCoordinator(workers);
+        var replayCache = new ReplayCache(1024);
+        var terminalHub = CreateTerminalHub(sessions, replayCache, TimeProvider.System);
+        terminalHub.Context = new TestHubCallerContext("client-1", "user-1");
+        terminalHub.Clients = new TestHubCallerClients(new RecordingClientProxy());
+
+        var createResult = await terminalHub.CreateSession(new CreateSessionRequest("shell", 120, 40));
+        var sessionId = createResult.Response!.SessionId;
+        var workerHub = CreateWorkerHub(workers, sessions, replayCache, new Dictionary<string, IClientProxy>());
+        workerHub.Context = new TestHubCallerContext("worker-conn-2", "user-1");
+        workerHub.Clients = new TestHubCallerClients(new RecordingClientProxy());
+
+        workerHub.RegisterWorker("worker-1");
+
+        sessions.TryGetSession(sessionId, out var session).Should().BeTrue();
+        session.WorkerConnectionId.Should().Be("worker-conn-2");
+    }
+
+    [Fact]
+    public async Task SessionExited_AfterWorkerReconnect_UsesReboundConnection()
+    {
+        var workers = new InMemoryWorkerRegistry();
+        workers.Register("worker-1", "worker-conn-1");
+        var sessions = new InMemorySessionCoordinator(workers);
+        var replayCache = new ReplayCache(1024);
+        var terminalHub = CreateTerminalHub(sessions, replayCache, TimeProvider.System);
+        terminalHub.Context = new TestHubCallerContext("client-1", "user-1");
+        terminalHub.Clients = new TestHubCallerClients(new RecordingClientProxy());
+
+        var createResult = await terminalHub.CreateSession(new CreateSessionRequest("shell", 120, 40));
+        var sessionId = createResult.Response!.SessionId;
+        var client = new RecordingClientProxy();
+        var workerHub = CreateWorkerHub(workers, sessions, replayCache, new Dictionary<string, IClientProxy>
+        {
+            ["client-1"] = client
+        });
+        workerHub.Context = new TestHubCallerContext("worker-conn-2", "user-1");
+        workerHub.Clients = new TestHubCallerClients(new RecordingClientProxy());
+        workerHub.RegisterWorker("worker-1");
+
+        await workerHub.SessionExited(new SessionExited(sessionId, 137, "terminated-by-user"));
+
+        sessions.TryGetSession(sessionId, out var session).Should().BeTrue();
+        session.AttachmentState.Should().Be(SessionAttachmentState.Exited);
+        session.ExitReason.Should().Be("terminated-by-user");
+        client.Invocations.Should().ContainSingle(invocation => invocation.Method == "SessionExited");
+    }
+
     private static WorkerHub CreateWorkerHub(
         IWorkerRegistry workers,
         ISessionCoordinator sessions,

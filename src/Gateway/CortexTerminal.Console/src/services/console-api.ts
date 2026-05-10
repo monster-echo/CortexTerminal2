@@ -109,6 +109,7 @@ export interface ConsoleApi {
     clientRequestId?: string,
     workerId?: string
   ): Promise<CreateSessionResponse>
+  terminateSession(sessionId: string): Promise<void>
   deleteSession(sessionId: string): Promise<void>
   listWorkers(): Promise<WorkerSummary[]>
   getWorker(workerId: string): Promise<WorkerDetail>
@@ -328,6 +329,11 @@ export function createConsoleApi(
           clientRequestId,
           workerId: workerId || undefined,
         }),
+      })
+    },
+    terminateSession(sessionId) {
+      return requestVoid(`/api/me/sessions/${encodeURIComponent(sessionId)}/terminate`, {
+        method: 'POST',
       })
     },
     deleteSession(sessionId) {

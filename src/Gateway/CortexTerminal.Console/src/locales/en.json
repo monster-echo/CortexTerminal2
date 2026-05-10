@@ -104,7 +104,12 @@
     },
     "filter": { "all": "All", "live": "Live", "detached": "Detached", "exited": "Exited" },
     "status": { "live": "Live", "detached": "Detached", "exited": "Exited", "expired": "Expired" },
-    "delete": { "button": "Delete", "confirm": "Delete Session", "message": "Are you sure you want to delete this session? This action cannot be undone." },
+    "terminate": {
+      "button": "Terminate",
+      "confirm": "Terminate Session",
+      "message": "Stop the running shell for this session? The exited record will remain until you delete it."
+    },
+    "delete": { "button": "Delete", "confirm": "Delete Session", "message": "Delete this exited session record? This action cannot be undone." },
     "created": "Created {{time}}",
     "dimensions": "{{cols}}x{{rows}}",
     "backToSessions": "Back to sessions",

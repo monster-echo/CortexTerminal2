@@ -85,6 +85,25 @@ public sealed class InMemorySessionCoordinator : ISessionCoordinator
         return Task.CompletedTask;
     }
 
+    public Task<DeleteSessionResult> DeleteSessionAsync(string userId, string sessionId, CancellationToken cancellationToken)
+    {
+        lock (_sync)
+        {
+            if (!_sessions.TryGetValue(sessionId, out var session) || session.UserId != userId)
+            {
+                return Task.FromResult(DeleteSessionResult.Failure("session-not-found"));
+            }
+
+            if (session.AttachmentState is SessionAttachmentState.Attached or SessionAttachmentState.DetachedGracePeriod)
+            {
+                return Task.FromResult(DeleteSessionResult.Failure("session-running"));
+            }
+
+            _sessions.TryRemove(sessionId, out _);
+            return Task.FromResult(DeleteSessionResult.Success());
+        }
+    }
+
     public Task<ReattachSessionResult> ReattachSessionAsync(
         string userId,
         ReattachSessionRequest request,
@@ -232,6 +251,30 @@ public sealed class InMemorySessionCoordinator : ISessionCoordinator
                 LastActivityAtUtc = _timeProvider.GetUtcNow()
             };
         }
+    }
+
+    public int RebindActiveSessions(string userId, string workerId, string workerConnectionId)
+    {
+        var reboundCount = 0;
+
+        lock (_sync)
+        {
+            foreach (var (sessionId, session) in _sessions)
+            {
+                if (session.UserId != userId ||
+                    session.WorkerId != workerId ||
+                    session.AttachmentState is not (SessionAttachmentState.Attached or SessionAttachmentState.DetachedGracePeriod) ||
+                    session.WorkerConnectionId == workerConnectionId)
+                {
+                    continue;
+                }
+
+                _sessions[sessionId] = session with { WorkerConnectionId = workerConnectionId };
+                reboundCount++;
+            }
+        }
+
+        return reboundCount;
     }
 
     public IReadOnlyList<string> ExpireDetachedSessions(DateTimeOffset nowUtc)

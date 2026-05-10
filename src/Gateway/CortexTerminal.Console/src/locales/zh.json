@@ -104,7 +104,12 @@
     },
     "filter": { "all": "全部", "live": "活跃", "detached": "断开", "exited": "已退出" },
     "status": { "live": "活跃", "detached": "断开", "exited": "已退出", "expired": "已过期" },
-    "delete": { "button": "删除", "confirm": "删除会话", "message": "确定要删除此会话吗？此操作无法撤销。" },
+    "terminate": {
+      "button": "终止",
+      "confirm": "终止会话",
+      "message": "要停止这个会话对应的 shell 吗？终止后会保留一条已退出记录，之后可再单独删除。"
+    },
+    "delete": { "button": "删除", "confirm": "删除会话", "message": "确定要删除这条已退出的会话记录吗？此操作无法撤销。" },
     "created": "{{time}}创建",
     "dimensions": "{{cols}}x{{rows}}",
     "backToSessions": "返回会话列表",

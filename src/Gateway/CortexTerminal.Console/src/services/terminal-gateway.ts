@@ -12,6 +12,7 @@ export interface TerminalGatewayHandlers {
   onReplayChunk(payload: Uint8Array, stream: 'stdout' | 'stderr'): void
   onReplayCompleted(): void
   onSessionExpired(reason?: string): void
+  onSessionExited(reason?: string): void
 }
 
 export interface TerminalGatewayConnection {
@@ -253,7 +254,7 @@ function registerTerminalHandlers(
   })
   connection.on('SessionExited', (evt: SessionExpiredDto) => {
     if (evt.sessionId === sessionId) {
-      handlers.onSessionExpired(evt.reason)
+      handlers.onSessionExited(evt.reason)
     }
   })
   connection.on('SessionStartFailed', (evt: SessionExpiredDto) => {

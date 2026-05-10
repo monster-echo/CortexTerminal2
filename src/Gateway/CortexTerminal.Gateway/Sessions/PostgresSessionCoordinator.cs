@@ -115,6 +115,38 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
         return Task.CompletedTask;
     }
 
+    public Task<DeleteSessionResult> DeleteSessionAsync(string userId, string sessionId, CancellationToken cancellationToken)
+    {
+        lock (_sync)
+        {
+            if (!_sessions.TryGetValue(sessionId, out var session) || session.UserId != userId)
+            {
+                return Task.FromResult(DeleteSessionResult.Failure("session-not-found"));
+            }
+
+            if (session.AttachmentState is SessionAttachmentState.Attached or SessionAttachmentState.DetachedGracePeriod)
+            {
+                return Task.FromResult(DeleteSessionResult.Failure("session-running"));
+            }
+        }
+
+        lock (_sync)
+        {
+            _sessions.TryRemove(sessionId, out _);
+        }
+
+        _ = PersistAsync(async db =>
+        {
+            var entity = await db.Sessions.FindAsync(sessionId);
+            if (entity is not null && string.Equals(entity.UserId, userId, StringComparison.Ordinal))
+            {
+                db.Sessions.Remove(entity);
+            }
+        });
+
+        return Task.FromResult(DeleteSessionResult.Success());
+    }
+
     public Task<ReattachSessionResult> ReattachSessionAsync(
         string userId,
         ReattachSessionRequest request,
@@ -267,6 +299,30 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
 
             PersistSessionState(sessionId, "Attached", replayPending: false);
         }
+    }
+
+    public int RebindActiveSessions(string userId, string workerId, string workerConnectionId)
+    {
+        var reboundSessionIds = new List<string>();
+
+        lock (_sync)
+        {
+            foreach (var (sessionId, session) in _sessions)
+            {
+                if (session.UserId != userId ||
+                    session.WorkerId != workerId ||
+                    session.AttachmentState is not (SessionAttachmentState.Attached or SessionAttachmentState.DetachedGracePeriod) ||
+                    session.WorkerConnectionId == workerConnectionId)
+                {
+                    continue;
+                }
+
+                _sessions[sessionId] = session with { WorkerConnectionId = workerConnectionId };
+                reboundSessionIds.Add(sessionId);
+            }
+        }
+
+        return reboundSessionIds.Count;
     }
 
     public IReadOnlyList<string> ExpireDetachedSessions(DateTimeOffset nowUtc)

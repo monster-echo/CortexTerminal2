@@ -9,6 +9,7 @@ using CortexTerminal.Gateway.Tests.Auth;
 using CortexTerminal.Gateway.Tests.Hubs;
 using CortexTerminal.Gateway.Workers;
 using FluentAssertions;
+using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.DependencyInjection;
 using System.Reflection;
 using Microsoft.IdentityModel.Tokens;
@@ -133,6 +134,80 @@ public sealed class InteractiveSessionFlowTests : IClassFixture<GatewayApplicati
         var dispatcher = factory.Services.GetRequiredService<IWorkerCommandDispatcher>();
         dispatcher.Should().BeOfType<RecordingWorkerCommandDispatcher>();
         ((RecordingWorkerCommandDispatcher)dispatcher).StartCommands.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task TerminateSession_WhenDetached_ReturnsAcceptedAndDispatchesClose()
+    {
+        using var factory = new GatewayApplicationFactory();
+        var closeTcs = new TaskCompletionSource<CloseSessionRequest>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var worker = factory.CreateAuthenticatedHubConnection("/hubs/worker");
+        HubConnectionExtensions.On<CloseSessionRequest>(worker, "CloseSession", request =>
+        {
+            closeTcs.TrySetResult(request);
+            return Task.CompletedTask;
+        });
+
+        await worker.StartAsync();
+        await HubConnectionExtensions.InvokeAsync(worker, "RegisterWorker", "worker-terminate-1");
+
+        using var client = factory.CreateAuthenticatedClient();
+        using var createResponse = await client.PostAsJsonAsync("/api/sessions", new CreateSessionRequest("shell", 120, 40));
+        createResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var created = await createResponse.Content.ReadFromJsonAsync<CreateSessionResponse>();
+        created.Should().NotBeNull();
+
+        var sessions = factory.Services.GetRequiredService<ISessionCoordinator>();
+        await sessions.DetachSessionAsync("test-user", created!.SessionId, DateTimeOffset.UtcNow, CancellationToken.None);
+
+        using var terminateResponse = await client.PostAsync($"/api/me/sessions/{Uri.EscapeDataString(created.SessionId)}/terminate", null);
+
+        terminateResponse.StatusCode.Should().Be(HttpStatusCode.Accepted);
+        (await closeTcs.Task.WaitAsync(TimeSpan.FromSeconds(5)))
+            .Should()
+            .BeEquivalentTo(new CloseSessionRequest(created.SessionId));
+    }
+
+    [Fact]
+    public async Task DeleteSession_WhenExited_ReturnsNoContentAndRemovesRecord()
+    {
+        using var factory = new GatewayApplicationFactory();
+        var registry = factory.Services.GetRequiredService<IWorkerRegistry>();
+        registry.Register("worker-delete-1", "conn-delete-1");
+
+        using var client = factory.CreateAuthenticatedClient();
+        using var createResponse = await client.PostAsJsonAsync("/api/sessions", new CreateSessionRequest("shell", 120, 40));
+        createResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var created = await createResponse.Content.ReadFromJsonAsync<CreateSessionResponse>();
+        created.Should().NotBeNull();
+
+        var sessions = factory.Services.GetRequiredService<ISessionCoordinator>();
+        sessions.MarkSessionExited(created!.SessionId, 0, "completed");
+
+        using var deleteResponse = await client.DeleteAsync($"/api/me/sessions/{Uri.EscapeDataString(created.SessionId)}");
+        deleteResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        using var getResponse = await client.GetAsync($"/api/me/sessions/{Uri.EscapeDataString(created.SessionId)}");
+        getResponse.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task DeleteSession_WhenStillRunning_ReturnsConflict()
+    {
+        using var factory = new GatewayApplicationFactory();
+        var registry = factory.Services.GetRequiredService<IWorkerRegistry>();
+        registry.Register("worker-delete-2", "conn-delete-2");
+
+        using var client = factory.CreateAuthenticatedClient();
+        using var createResponse = await client.PostAsJsonAsync("/api/sessions", new CreateSessionRequest("shell", 120, 40));
+        createResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var created = await createResponse.Content.ReadFromJsonAsync<CreateSessionResponse>();
+        created.Should().NotBeNull();
+
+        using var deleteResponse = await client.DeleteAsync($"/api/me/sessions/{Uri.EscapeDataString(created!.SessionId)}");
+
+        deleteResponse.StatusCode.Should().Be(HttpStatusCode.Conflict);
     }
 
     private static System.Collections.Concurrent.ConcurrentDictionary<string, SessionRecord> GetSessions(ISessionCoordinator coordinator)

@@ -25,8 +25,19 @@ export function TerminalView(props: {
     latencyMs: number | null,
     state: 'live' | 'measuring' | 'offline'
   ) => void
+  onSessionStatusChange?: (
+    status: Extract<SessionStatus, 'expired' | 'exited'>,
+    reason?: string | null
+  ) => void
 }) {
-  const { gateway, onLatencyChange, sessionId, workerId, sessionStatus } =
+  const {
+    gateway,
+    onLatencyChange,
+    onSessionStatusChange,
+    sessionId,
+    workerId,
+    sessionStatus,
+  } =
     props
   const navigate = useNavigate()
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -42,8 +53,10 @@ export function TerminalView(props: {
   >('measuring')
   const [ctrlActive, setCtrlActive] = useState(false)
   const [altActive, setAltActive] = useState(false)
-  const [sessionExpired, setSessionExpired] = useState(false)
-  const [sessionExpiredReason, setSessionExpiredReason] = useState<
+  const [sessionEndStatus, setSessionEndStatus] = useState<
+    'expired' | 'exited' | null
+  >(null)
+  const [sessionEndReason, setSessionEndReason] = useState<
     string | null
   >(null)
   const connectionRef = useRef<TerminalGatewayConnection | null>(null)
@@ -70,6 +83,11 @@ export function TerminalView(props: {
   useEffect(() => {
     onLatencyChange?.(null, 'measuring')
   }, [onLatencyChange, sessionId])
+
+  useEffect(() => {
+    setSessionEndStatus(null)
+    setSessionEndReason(null)
+  }, [sessionId])
 
   useEffect(() => {
     sessionRef.current = createTerminalSessionModel({
@@ -204,8 +222,8 @@ export function TerminalView(props: {
           sessionRef.current?.onReplayCompleted()
         },
         onSessionExpired: (reason) => {
-          setSessionExpired(true)
-          setSessionExpiredReason(reason ?? null)
+          setSessionEndStatus('expired')
+          setSessionEndReason(reason ?? null)
           setErrorMessage(reason ?? 'Session expired.')
           setStatusMessage('Session is no longer available.')
           handleLatencyChange(null, 'offline')
@@ -214,6 +232,31 @@ export function TerminalView(props: {
             `Session expired: ${reason ?? 'unknown reason'}.`
           )
           sessionRef.current?.onSessionExpired()
+          onSessionStatusChange?.('expired', reason ?? null)
+          const connection = connectionRef.current
+          connectionRef.current = null
+          if (connection) {
+            void connection.dispose()
+          }
+        },
+        onSessionExited: (reason) => {
+          setSessionEndStatus('exited')
+          setSessionEndReason(reason ?? null)
+          setErrorMessage(null)
+          setStatusMessage(
+            reason ? `Session exited: ${reason}.` : 'Session exited.'
+          )
+          handleLatencyChange(null, 'offline')
+          pushEvent(
+            'gateway',
+            `Session exited: ${reason ?? 'unknown reason'}.`
+          )
+          onSessionStatusChange?.('exited', reason ?? null)
+          const connection = connectionRef.current
+          connectionRef.current = null
+          if (connection) {
+            void connection.dispose()
+          }
         },
       })
       .then((connection) => {
@@ -320,14 +363,14 @@ export function TerminalView(props: {
     }
   }, [latencyProbeGeneration, handleLatencyChange, sessionId])
 
-  const effectiveStatus: SessionStatus | 'offline' = sessionExpired
-    ? 'expired'
+  const effectiveStatus: SessionStatus | 'offline' = sessionEndStatus
+    ? sessionEndStatus
     : sessionStatus ?? (latencyState === 'offline' ? 'offline' : 'live')
 
   const isSessionGone =
-    sessionExpired &&
-    (sessionExpiredReason === 'session-not-found' ||
-      sessionExpiredReason === 'session-expired')
+    sessionEndStatus === 'expired' &&
+    (sessionEndReason === 'session-not-found' ||
+      sessionEndReason === 'session-expired')
 
   // Auto-redirect to sessions list when the session no longer exists on the server
   useEffect(() => {

@@ -28,8 +28,14 @@ public sealed class WorkerHub(
     public void RegisterWorker(string workerId)
     {
         var userId = GetUserId();
-        logger.LogInformation("Worker {WorkerId} registered with connection {ConnectionId} by user {UserId}.", workerId, Context.ConnectionId, userId);
         workers.Register(workerId, Context.ConnectionId, ownerUserId: userId);
+        var reboundSessionCount = sessions.RebindActiveSessions(userId, workerId, Context.ConnectionId);
+        logger.LogInformation(
+            "Worker {WorkerId} registered with connection {ConnectionId} by user {UserId}; rebound {SessionCount} active sessions.",
+            workerId,
+            Context.ConnectionId,
+            userId,
+            reboundSessionCount);
         auditLog.Record(new AuditLogEntry(
             Id: Guid.NewGuid().ToString("N"),
             Timestamp: DateTimeOffset.UtcNow,

@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { type SessionStatus, type SessionSummary } from '@/services/console-api'
-import { Loader2, Plus, TerminalSquare, Trash2 } from 'lucide-react'
+import { Loader2, Plus, Square, TerminalSquare, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -28,7 +28,8 @@ import { getApi } from '@/lib/api'
 
 type FilterTab = 'all' | 'live' | 'detached' | 'exited'
 
-const DELETABLE_STATUSES: SessionStatus[] = ['detached', 'exited', 'expired']
+const TERMINABLE_STATUSES: SessionStatus[] = ['live', 'detached']
+const DELETABLE_STATUSES: SessionStatus[] = ['exited', 'expired']
 
 function statusMatchesFilter(status: SessionStatus, filter: FilterTab): boolean {
   if (filter === 'all') return true
@@ -49,7 +50,12 @@ export function SessionListPage() {
   const [deleteTarget, setDeleteTarget] = useState<{
     sessionId: string
   } | null>(null)
+  const [terminateTarget, setTerminateTarget] = useState<{
+    sessionId: string
+  } | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isTerminating, setIsTerminating] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
   const [newSessionDialogOpen, setNewSessionDialogOpen] = useState(false)
   const [isCreatingSession, setIsCreatingSession] = useState(false)
 
@@ -66,12 +72,30 @@ export function SessionListPage() {
     setIsDeleting(true)
     try {
       await api.deleteSession(deleteTarget.sessionId)
+      setActionError(null)
       await queryClient.invalidateQueries({ queryKey: ['sessions'] })
       setDeleteTarget(null)
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : t('common.error'))
     } finally {
       setIsDeleting(false)
     }
-  }, [api, deleteTarget, queryClient])
+  }, [api, deleteTarget, queryClient, t])
+
+  const handleTerminate = useCallback(async () => {
+    if (!terminateTarget) return
+    setIsTerminating(true)
+    try {
+      await api.terminateSession(terminateTarget.sessionId)
+      setActionError(null)
+      await queryClient.invalidateQueries({ queryKey: ['sessions'] })
+      setTerminateTarget(null)
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : t('common.error'))
+    } finally {
+      setIsTerminating(false)
+    }
+  }, [api, queryClient, t, terminateTarget])
 
   const handleCreateSession = useCallback((workerId?: string) => {
     const bootstrapId = crypto.randomUUID()
@@ -143,6 +167,9 @@ export function SessionListPage() {
             </Tabs>
           </CardHeader>
           <CardContent>
+            {actionError && (
+              <p className='mb-4 text-sm text-destructive'>{actionError}</p>
+            )}
             {sessionsQuery.isLoading ? (
               <div className='flex items-center gap-2 text-sm text-muted-foreground'>
                 <Loader2 className='size-4 animate-spin' /> {t('common.loading')}
@@ -169,6 +196,7 @@ export function SessionListPage() {
                 t={t}
                 navigate={navigate}
                 setDeleteTarget={setDeleteTarget}
+                setTerminateTarget={setTerminateTarget}
               />
             ) : (
               <Table>
@@ -215,21 +243,34 @@ export function SessionListPage() {
                           >
                             {t('sessions.openTerminal')}
                           </Button>
-                          <Button
-                            variant='ghost'
-                            size='icon'
-                            className='size-8'
-                            disabled={
-                              !DELETABLE_STATUSES.includes(session.status)
-                            }
-                            onClick={() =>
-                              setDeleteTarget({
-                                sessionId: session.sessionId,
-                              })
-                            }
-                          >
-                            <Trash2 className='size-4' />
-                          </Button>
+                          {TERMINABLE_STATUSES.includes(session.status) ? (
+                            <Button
+                              variant='destructive'
+                              size='sm'
+                              onClick={() =>
+                                setTerminateTarget({
+                                  sessionId: session.sessionId,
+                                })
+                              }
+                            >
+                              <Square className='size-4' />
+                              {t('sessions.terminate.button')}
+                            </Button>
+                          ) : (
+                            <Button
+                              variant='ghost'
+                              size='icon'
+                              className='size-8'
+                              disabled={!DELETABLE_STATUSES.includes(session.status)}
+                              onClick={() =>
+                                setDeleteTarget({
+                                  sessionId: session.sessionId,
+                                })
+                              }
+                            >
+                              <Trash2 className='size-4' />
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -239,6 +280,20 @@ export function SessionListPage() {
             )}
           </CardContent>
         </Card>
+
+        <ConfirmDialog
+          open={terminateTarget !== null}
+          onOpenChange={(open) => {
+            if (!open) setTerminateTarget(null)
+          }}
+          title={t('sessions.terminate.confirm')}
+          desc={t('sessions.terminate.message')}
+          confirmText={t('sessions.terminate.button')}
+          cancelBtnText={t('common.cancel')}
+          destructive
+          isLoading={isTerminating}
+          handleConfirm={handleTerminate}
+        />
 
         <ConfirmDialog
           open={deleteTarget !== null}
@@ -279,11 +334,13 @@ function MobileSessionList({
   t,
   navigate,
   setDeleteTarget,
+  setTerminateTarget,
 }: {
   sessions: SessionSummary[]
   t: ReturnType<typeof useTranslation>['t']
   navigate: ReturnType<typeof useNavigate>
   setDeleteTarget: (target: { sessionId: string } | null) => void
+  setTerminateTarget: (target: { sessionId: string } | null) => void
 }) {
   return (
     <div className='flex flex-col divide-y'>
@@ -316,17 +373,30 @@ function MobileSessionList({
             >
               {t('sessions.openTerminal')}
             </Button>
-            <Button
-              variant='ghost'
-              size='icon'
-              className='size-8'
-              disabled={!DELETABLE_STATUSES.includes(session.status)}
-              onClick={() =>
-                setDeleteTarget({ sessionId: session.sessionId })
-              }
-            >
-              <Trash2 className='size-4' />
-            </Button>
+            {TERMINABLE_STATUSES.includes(session.status) ? (
+              <Button
+                variant='destructive'
+                size='sm'
+                onClick={() =>
+                  setTerminateTarget({ sessionId: session.sessionId })
+                }
+              >
+                <Square className='size-4' />
+                {t('sessions.terminate.button')}
+              </Button>
+            ) : (
+              <Button
+                variant='ghost'
+                size='icon'
+                className='size-8'
+                disabled={!DELETABLE_STATUSES.includes(session.status)}
+                onClick={() =>
+                  setDeleteTarget({ sessionId: session.sessionId })
+                }
+              >
+                <Trash2 className='size-4' />
+              </Button>
+            )}
           </div>
         </div>
       ))}
