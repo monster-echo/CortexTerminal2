@@ -167,6 +167,9 @@ static object ToSessionDetailResponse(
     };
 }
 
+static IResult SessionOperationError(int statusCode, string message)
+    => Results.Json(new { message }, statusCode: statusCode);
+
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -913,10 +916,96 @@ app.MapGet("/api/me/sessions/{sessionId}", async (string sessionId, ClaimsPrinci
     return Results.Ok(ToSessionDetailResponse(session, currentWorker, workerRecord));
 }).RequireAuthorization();
 
+app.MapPost("/api/me/sessions/{sessionId}/terminate", async (
+    string sessionId,
+    ClaimsPrincipal user,
+    ISessionCoordinator sessions,
+    IWorkerRegistry workers,
+    IWorkerCommandDispatcher workerCommands,
+    IAuditLogStore auditLog,
+    CancellationToken cancellationToken) =>
+{
+    if (!sessions.TryGetSession(sessionId, out var session))
+    {
+        return Results.NotFound();
+    }
+
+    var userId = GetUserId(user);
+    if (session.UserId != userId)
+    {
+        return Results.Forbid();
+    }
+
+    if (session.AttachmentState is SessionAttachmentState.Exited or SessionAttachmentState.Expired)
+    {
+        return SessionOperationError(StatusCodes.Status409Conflict, "Session is no longer running.");
+    }
+
+    if (session.AttachmentState is not (SessionAttachmentState.Attached or SessionAttachmentState.DetachedGracePeriod))
+    {
+        return SessionOperationError(StatusCodes.Status409Conflict, "Session is not in a terminable state.");
+    }
+
+    if (!workers.TryGetWorker(session.WorkerId, out var worker))
+    {
+        return SessionOperationError(StatusCodes.Status503ServiceUnavailable, "Worker is offline.");
+    }
+
+    if (!string.Equals(worker.ConnectionId, session.WorkerConnectionId, StringComparison.Ordinal))
+    {
+        return SessionOperationError(StatusCodes.Status409Conflict, "Session is bound to a stale worker connection.");
+    }
+
+    await workerCommands.CloseSessionAsync(worker.ConnectionId, new CloseSessionRequest(sessionId), cancellationToken);
+    auditLog.Record(new AuditLogEntry(
+        Id: Guid.NewGuid().ToString("N"),
+        Timestamp: DateTimeOffset.UtcNow,
+        UserId: userId,
+        UserName: userId,
+        Action: "session.terminate_requested",
+        TargetEntity: "session",
+        TargetId: sessionId
+    ));
+
+    return Results.Accepted($"/api/me/sessions/{Uri.EscapeDataString(sessionId)}", new { message = "Termination requested." });
+}).RequireAuthorization();
+
+app.MapDelete("/api/me/sessions/{sessionId}", async (
+    string sessionId,
+    ClaimsPrincipal user,
+    ISessionCoordinator sessions,
+    IAuditLogStore auditLog,
+    CancellationToken cancellationToken) =>
+{
+    var userId = GetUserId(user);
+    var result = await sessions.DeleteSessionAsync(userId, sessionId, cancellationToken);
+    if (!result.IsSuccess)
+    {
+        return result.ErrorCode switch
+        {
+            "session-not-found" => Results.NotFound(),
+            "session-running" => SessionOperationError(StatusCodes.Status409Conflict, "Session is still running. Terminate it before deleting."),
+            _ => SessionOperationError(StatusCodes.Status409Conflict, "Session could not be deleted.")
+        };
+    }
+
+    auditLog.Record(new AuditLogEntry(
+        Id: Guid.NewGuid().ToString("N"),
+        Timestamp: DateTimeOffset.UtcNow,
+        UserId: userId,
+        UserName: userId,
+        Action: "session.delete",
+        TargetEntity: "session",
+        TargetId: sessionId
+    ));
+
+    return Results.NoContent();
+}).RequireAuthorization();
+
 // ---- Gateway Info ----
 var gatewayVersion = Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "0.0.0";
 var githubRepo = builder.Configuration["GitHub:Repo"] ?? "monster-echo/CortexTerminal2";
-var latestVersionCache = new LatestVersionCache();
+var latestVersionCache = new LatestVersionCache(builder.Configuration);
 
 app.MapGet("/api/gateway/info", async (IConfiguration config) =>
 {
@@ -1014,16 +1103,7 @@ app.MapPost("/api/me/workers/{workerId}/upgrade", async (string workerId, Claims
         return Results.BadRequest(new { error = "Could not determine latest worker version." });
     }
 
-    // Build RID from worker metadata
-    var os = worker.Metadata?.OperatingSystem;
-    var arch = worker.Metadata?.Architecture ?? "X64";
-    var ridOs = os != null && os.Contains("Darwin", StringComparison.OrdinalIgnoreCase) ? "osx"
-              : os != null && os.Contains("Windows", StringComparison.OrdinalIgnoreCase) ? "win"
-              : "linux";
-    var ridArch = arch.Equals("Arm64", StringComparison.OrdinalIgnoreCase) ? "arm64" : "x64";
-    var rid = $"{ridOs}-{ridArch}";
-    var ext = ridOs == "win" ? "zip" : "tar.gz";
-    var assetName = $"cortex-{rid}.{ext}";
+    var assetName = WorkerReleaseAsset.GetAssetName(worker.Metadata?.OperatingSystem, worker.Metadata?.Architecture);
     var githubProxy = builder.Configuration["GitHub:Proxy"] ?? "https://proxy.0x2a.top";
     var downloadUrl = $"{githubProxy}/https://github.com/{githubRepo}/releases/latest/download/{assetName}";
 
@@ -1275,13 +1355,23 @@ record HuaweiQuickLoginRequest(string AuthCode, string UnionID, string OpenID);
 
 internal sealed class LatestVersionCache
 {
-    private readonly HttpClient _http = new()
+    private readonly HttpClient _http;
+
+    public LatestVersionCache(IConfiguration? configuration = null)
     {
-        DefaultRequestHeaders =
+        var proxyUrl = configuration?["GitHub:Proxy"];
+        HttpMessageHandler handler = string.IsNullOrEmpty(proxyUrl)
+            ? new HttpClientHandler()
+            : new HttpClientHandler { Proxy = new System.Net.WebProxy(proxyUrl), UseProxy = true };
+
+        _http = new HttpClient(handler)
         {
-            UserAgent = { new System.Net.Http.Headers.ProductInfoHeaderValue("CortexTerminal", "1.0") }
-        }
-    };
+            DefaultRequestHeaders =
+            {
+                UserAgent = { new System.Net.Http.Headers.ProductInfoHeaderValue("CortexTerminal", "1.0") }
+            }
+        };
+    }
 
     private string? _workerLatest;
     private string? _gatewayLatest;

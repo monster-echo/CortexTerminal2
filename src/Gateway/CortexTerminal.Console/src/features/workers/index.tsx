@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { useTranslation, Trans } from 'react-i18next'
 import { useNavigate } from '@tanstack/react-router'
@@ -20,6 +20,7 @@ import { Main } from '@/components/layout/main'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { useWorkers } from '@/hooks/use-workers'
 import { getApi } from '@/lib/api'
+import { toast } from 'sonner'
 
 export function WorkerListPage() {
   const { t } = useTranslation()
@@ -42,6 +43,19 @@ export function WorkerListPage() {
   })
 
   const workers = workersQuery.data ?? []
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const startPolling = useCallback(() => {
+    if (pollRef.current) clearInterval(pollRef.current)
+    const startedAt = Date.now()
+    pollRef.current = setInterval(() => {
+      queryClient.invalidateQueries({ queryKey: ['workers'] })
+      if (Date.now() - startedAt > 15_000 && pollRef.current) {
+        clearInterval(pollRef.current)
+        pollRef.current = null
+      }
+    }, 3_000)
+  }, [queryClient])
 
   const upgradeMutation = useMutation({
     mutationFn: () => {
@@ -49,8 +63,12 @@ export function WorkerListPage() {
       return api.upgradeWorker(upgradeTarget.workerId)
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['workers'] })
+      toast.success(t('workers.upgrade.sent', 'Upgrade command sent. The worker will restart shortly.'))
       setUpgradeTarget(null)
+      startPolling()
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || t('common.error'))
     },
   })
 
@@ -133,6 +151,7 @@ export function WorkerListPage() {
                       ? t('workers.status.online')
                       : t('workers.status.offline')
                     const hasUpgrade =
+                      worker.isOnline &&
                       gatewayInfoQuery.data?.latestWorkerVersion &&
                       worker.version &&
                       // Normalize trailing .0 (e.g. "0.3.0.0" → "0.3.0") before comparing

@@ -271,22 +271,13 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
                     try { File.SetUnixFileMode(currentBinary, UnixFileMode.UserExecute | UnixFileMode.GroupExecute | UnixFileMode.OtherRead | UnixFileMode.UserRead | UnixFileMode.GroupRead); } catch { }
                 }
 
-                _logger.LogInformation("Binary replaced. Restarting ...");
+                _logger.LogInformation("Binary replaced. Exiting for restart ...");
 
-                // Start new process then exit
-                Process.Start(new ProcessStartInfo(currentBinary)
-                {
-                    WorkingDirectory = installDir,
-                    UseShellExecute = false
-                });
+                // Delete backup before exiting
+                try { File.Delete(backupPath); } catch { }
 
-                // Clean up: delete backup after a short delay (we're exiting anyway)
-                _ = Task.Run(async () =>
-                {
-                    await Task.Delay(2000);
-                    try { File.Delete(backupPath); } catch { }
-                });
-
+                // Exit the current process. The process manager (systemd with Restart=always,
+                // or a wrapper script) will restart the binary automatically.
                 Environment.Exit(0);
             }
         }

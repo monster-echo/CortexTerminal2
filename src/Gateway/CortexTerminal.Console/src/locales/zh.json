@@ -197,7 +197,8 @@
     "upgrade": {
       "title": "升级工作节点",
       "description": "将 <strong>{{workerName}}</strong> 从 <code>{{currentVersion}}</code> 升级到 <code>{{targetVersion}}</code>？升级期间节点将短暂离线。",
-      "button": "升级"
+      "button": "升级",
+      "sent": "升级命令已发送，节点将很快重启。"
     }
   },
   "users": {

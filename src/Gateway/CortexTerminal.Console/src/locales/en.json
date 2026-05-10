@@ -197,7 +197,8 @@
     "upgrade": {
       "title": "Upgrade Worker",
       "description": "Upgrade <strong>{{workerName}}</strong> from <code>{{currentVersion}}</code> to <code>{{targetVersion}}</code>? The worker will briefly go offline during the upgrade.",
-      "button": "Upgrade"
+      "button": "Upgrade",
+      "sent": "Upgrade command sent. The worker will restart shortly."
     }
   },
   "users": {
