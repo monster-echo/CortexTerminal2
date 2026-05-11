@@ -280,10 +280,6 @@ rootCommand.SetAction(async (ParseResult parseResult, CancellationToken cancella
 
     var builder = Host.CreateApplicationBuilder();
 
-    // Prevent ConsoleLifetime from reading stdin — the worker is a daemon
-    // and should not interact with the terminal's input stream.
-    Console.SetIn(TextReader.Null);
-
     // Suppress verbose framework logging — only show warnings and errors
     builder.Logging.SetMinimumLevel(LogLevel.Warning);
 

@@ -283,6 +283,29 @@ if (!string.IsNullOrEmpty(connectionString))
                     "is_online"           boolean     NOT NULL
                 );
                 """);
+
+            await db.Database.ExecuteSqlRawAsync("""
+                CREATE TABLE IF NOT EXISTS "Sessions" (
+                    "session_id"                    text        NOT NULL PRIMARY KEY,
+                    "user_id"                       text        NOT NULL,
+                    "worker_id"                     text        NOT NULL,
+                    "columns"                       int         NOT NULL,
+                    "rows"                          int         NOT NULL,
+                    "created_at_utc"                timestamptz NOT NULL,
+                    "last_activity_at_utc"          timestamptz NOT NULL,
+                    "attachment_state"              text        NOT NULL,
+                    "attached_client_connection_id" text        NULL,
+                    "lease_expires_at_utc"          timestamptz NULL,
+                    "exit_code"                     int         NULL,
+                    "exit_reason"                   text        NULL,
+                    "replay_pending"                boolean     NOT NULL
+                );
+
+                CREATE INDEX IF NOT EXISTS "IX_Sessions_user_id" ON "Sessions" ("user_id");
+                CREATE INDEX IF NOT EXISTS "IX_Sessions_worker_id" ON "Sessions" ("worker_id");
+                CREATE INDEX IF NOT EXISTS "IX_Sessions_attachment_state" ON "Sessions" ("attachment_state");
+                CREATE INDEX IF NOT EXISTS "IX_Sessions_created_at_utc" ON "Sessions" ("created_at_utc");
+                """);
         }
         catch (Exception ex)
         {
