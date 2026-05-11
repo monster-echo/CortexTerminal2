@@ -75,6 +75,10 @@ export function TerminalView(props: {
   )
   const pushEventRef = useRef(pushEvent)
   pushEventRef.current = pushEvent
+  const onLatencyChangeRef = useRef(onLatencyChange)
+  onLatencyChangeRef.current = onLatencyChange
+  const onSessionStatusChangeRef = useRef(onSessionStatusChange)
+  onSessionStatusChangeRef.current = onSessionStatusChange
 
   useEffect(() => {
     pruneLogs()
@@ -82,8 +86,8 @@ export function TerminalView(props: {
   }, [pruneLogs, pushEvent, sessionId])
 
   useEffect(() => {
-    onLatencyChange?.(null, 'measuring')
-  }, [onLatencyChange, sessionId])
+    onLatencyChangeRef.current?.(null, 'measuring')
+  }, [sessionId])
 
   useEffect(() => {
     sessionRef.current = createTerminalSessionModel({
@@ -178,9 +182,9 @@ export function TerminalView(props: {
     (nextLatencyMs: number | null, nextState: 'live' | 'measuring' | 'offline') => {
       setLatencyMs(nextLatencyMs)
       setLatencyState(nextState)
-      onLatencyChange?.(nextLatencyMs, nextState)
+      onLatencyChangeRef.current?.(nextLatencyMs, nextState)
     },
-    [onLatencyChange]
+    []
   )
 
   useEffect(() => {
@@ -233,7 +237,7 @@ export function TerminalView(props: {
             `Session expired: ${reason ?? 'unknown reason'}.`
           )
           sessionRef.current?.onSessionExpired()
-          onSessionStatusChange?.('expired', reason ?? null)
+          onSessionStatusChangeRef.current?.('expired', reason ?? null)
           const connection = connectionRef.current
           connectionRef.current = null
           if (connection) {
@@ -255,7 +259,7 @@ export function TerminalView(props: {
             'gateway',
             `Session exited: ${reason ?? 'unknown reason'}.`
           )
-          onSessionStatusChange?.('exited', reason ?? null)
+          onSessionStatusChangeRef.current?.('exited', reason ?? null)
           const connection = connectionRef.current
           connectionRef.current = null
           if (connection) {
@@ -315,7 +319,7 @@ export function TerminalView(props: {
         void connection.dispose()
         }
       }
-    }, [gateway, handleLatencyChange, onSessionStatusChange, sessionId])
+    }, [gateway, sessionId])
 
   useEffect(() => {
     if (latencyProbeGeneration === 0) {
