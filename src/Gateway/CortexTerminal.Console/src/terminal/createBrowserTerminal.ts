@@ -31,6 +31,9 @@ export function createBrowserTerminal(
     write(data: string) {
       terminal.write(data)
     },
+    clear() {
+      terminal.clear()
+    },
     fit() {
       fitAddon.fit()
       return {
