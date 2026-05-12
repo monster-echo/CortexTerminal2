@@ -74,6 +74,23 @@ public sealed class AuthService
         return new AuthResult(true, null);
     }
 
+    public async Task<AuthResult> LoginWithPasswordAsync(string username, string password, CancellationToken ct)
+    {
+        var response = await _httpClient.PostAsJsonAsync("/api/auth/password/login", new { username, password }, ct);
+        var body = await response.Content.ReadAsStringAsync(ct);
+        if (!response.IsSuccessStatusCode)
+            return new AuthResult(false, ExtractError(body));
+
+        var result = JsonSerializer.Deserialize<JsonElement>(body);
+        var token = result.TryGetProperty("accessToken", out var t) ? t.GetString() : null;
+        var user = result.TryGetProperty("username", out var u) ? u.GetString() : username;
+        if (string.IsNullOrEmpty(token))
+            return new AuthResult(false, "No token received");
+
+        await SetTokenAsync(token, user ?? "user", ct);
+        return new AuthResult(true, null);
+    }
+
     public async Task<AuthResult> VerifyActivationCodeAsync(string userCode, CancellationToken ct)
     {
         var request = new HttpRequestMessage(HttpMethod.Post, "/api/auth/device-flow/verify")

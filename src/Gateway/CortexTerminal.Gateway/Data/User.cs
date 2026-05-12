@@ -36,6 +36,9 @@ public class User
     [Column("auth_provider_id")]
     public string? AuthProviderId { get; set; }
 
+    [Column("password_hash")]
+    public string? PasswordHash { get; set; }
+
     [Required]
     [Column("created_at_utc")]
     public DateTimeOffset CreatedAtUtc { get; set; } = DateTimeOffset.UtcNow;

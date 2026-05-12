@@ -41,6 +41,19 @@ public sealed partial class AppBridge
     }
 
     [BridgeMethod]
+    public Task<string> LoginWithPasswordAsync(string username, string password)
+    {
+        return ExecuteSafeAsync(async () =>
+        {
+            if (_authService is null) throw new InvalidOperationException("AuthService not configured");
+            var result = await _authService.LoginWithPasswordAsync(username, password, default);
+            if (!result.Success) throw new InvalidOperationException(result.Error);
+            var session = await _authService.GetSessionAsync(default);
+            return new { success = true, username = session?.Username };
+        });
+    }
+
+    [BridgeMethod]
     public Task<string> StartOAuthAsync(string provider)
     {
         return ExecuteSafeAsync(async () =>

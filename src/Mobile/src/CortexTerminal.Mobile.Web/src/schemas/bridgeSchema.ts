@@ -123,6 +123,11 @@ export const VerifyActivationCodeResponseSchema = z.object({
   confirmed: z.boolean(),
 });
 
+export const PasswordLoginResponseSchema = z.object({
+  success: z.boolean(),
+  username: z.string().optional(),
+});
+
 export type BridgeCapabilities = z.infer<typeof BridgeCapabilitiesSchema>;
 export type NativeMediaAsset = z.infer<typeof NativeMediaAssetSchema>;
 export type SystemInfo = z.infer<typeof SystemInfoSchema>;
@@ -143,3 +148,4 @@ export type PhoneVerifyResponse = z.infer<typeof PhoneVerifyResponseSchema>;
 export type OAuthStartResponse = z.infer<typeof OAuthStartResponseSchema>;
 export type GuestLoginResponse = z.infer<typeof GuestLoginResponseSchema>;
 export type VerifyActivationCodeResponse = z.infer<typeof VerifyActivationCodeResponseSchema>;
+export type PasswordLoginResponse = z.infer<typeof PasswordLoginResponseSchema>;

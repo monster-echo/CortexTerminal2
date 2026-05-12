@@ -25,6 +25,8 @@ export default function LoginPage() {
   const [code, setCode] = useState("");
   const [codeSent, setCodeSent] = useState(false);
   const [countdown, setCountdown] = useState(0);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [loadingProvider, setLoadingProvider] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
@@ -105,6 +107,25 @@ export default function LoginPage() {
     }
   };
 
+  const handlePasswordLogin = async () => {
+    if (!username.trim() || !password.trim()) {
+      setErrorMessage(t("login.errorPasswordLogin"));
+      return;
+    }
+    setErrorMessage(null);
+    setLoadingProvider("password");
+    try {
+      const result = await authBridge.loginWithPassword(username, password);
+      if (result.username) {
+        setSession({ username: result.username }, "password-token");
+      }
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : t("login.errorPasswordLogin"));
+    } finally {
+      setLoadingProvider(null);
+    }
+  };
+
   return (
     <IonPage>
       <IonContent className="ion-padding">
@@ -124,6 +145,49 @@ export default function LoginPage() {
           <IonNote>{t("login.subtitle")}</IonNote>
 
           <IonList lines="none" className="ion-padding-top" style={{ width: "100%", maxWidth: 400 }}>
+            <IonItem>
+              <IonInput
+                type="text"
+                placeholder={t("login.usernamePlaceholder")}
+                value={username}
+                onIonInput={(e) => setUsername(e.detail.value ?? "")}
+                disabled={loadingProvider !== null}
+              />
+            </IonItem>
+
+            <IonItem>
+              <IonInput
+                type="password"
+                placeholder={t("login.passwordPlaceholder")}
+                value={password}
+                onIonInput={(e) => setPassword(e.detail.value ?? "")}
+                disabled={loadingProvider !== null}
+                onKeyDown={(e) => { if (e.key === "Enter") handlePasswordLogin(); }}
+              />
+            </IonItem>
+          </IonList>
+
+          <IonButton
+            expand="block"
+            className="ion-padding-horizontal"
+            style={{ maxWidth: 400 }}
+            onClick={handlePasswordLogin}
+            disabled={loadingProvider !== null || !username.trim() || !password.trim()}
+          >
+            {loadingProvider === "password" ? (
+              <IonSpinner name="crescent" />
+            ) : (
+              t("login.passwordLogin")
+            )}
+          </IonButton>
+
+          <IonItem lines="none" className="ion-padding-top" style={{ maxWidth: 400 }}>
+            <IonNote className="ion-text-center" style={{ width: "100%" }}>
+              {t("login.orSignInWith")}
+            </IonNote>
+          </IonItem>
+
+          <IonList lines="none" style={{ width: "100%", maxWidth: 400 }}>
             <IonItem>
               <IonNote slot="start">+86</IonNote>
               <IonInput

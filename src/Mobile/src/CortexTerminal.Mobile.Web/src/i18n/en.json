@@ -37,7 +37,11 @@
     "errorCode": "Please enter the verification code",
     "errorVerify": "Verification failed",
     "errorBrowser": "Failed to open browser",
-    "errorGuest": "Guest login failed"
+    "errorGuest": "Guest login failed",
+    "usernamePlaceholder": "Username",
+    "passwordPlaceholder": "Password",
+    "passwordLogin": "Sign in with password",
+    "errorPasswordLogin": "Invalid username or password"
   },
   "home": {
     "title": "Native Features",

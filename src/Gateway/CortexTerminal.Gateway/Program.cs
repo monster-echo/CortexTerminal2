@@ -19,6 +19,7 @@ using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.IdentityModel.Tokens;
+using BCrypt.Net;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -306,6 +307,18 @@ if (!string.IsNullOrEmpty(connectionString))
                 CREATE INDEX IF NOT EXISTS "IX_Sessions_attachment_state" ON "Sessions" ("attachment_state");
                 CREATE INDEX IF NOT EXISTS "IX_Sessions_created_at_utc" ON "Sessions" ("created_at_utc");
                 """);
+
+            // Add password_hash column to Users table if it doesn't exist
+            try
+            {
+                await db.Database.ExecuteSqlRawAsync("""
+                    ALTER TABLE "Users" ADD COLUMN IF NOT EXISTS "password_hash" text NULL;
+                    """);
+            }
+            catch (Exception)
+            {
+                // Column may already exist or ALTER TABLE not supported; ignore
+            }
         }
         catch (Exception ex)
         {
@@ -559,6 +572,68 @@ app.MapGet("/api/auth/callback/google", async (string? code, string? state, OAut
 
     return OAuthRedirect(redirectUrl, token: jwt);
 }).AllowAnonymous();
+
+// --- Password Auth Endpoints ---
+
+app.MapPost("/api/auth/password/login", async (PasswordLoginRequest request, IServiceProvider serviceProvider) =>
+{
+    if (string.IsNullOrEmpty(request.Username) || string.IsNullOrEmpty(request.Password))
+        return Results.BadRequest(new { error = "Username and password are required" });
+
+    try
+    {
+        var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
+        using var scope = scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var user = await db.Users.FirstOrDefaultAsync(u => u.Username == request.Username);
+        if (user is null || string.IsNullOrEmpty(user.PasswordHash) || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
+            return Results.Unauthorized();
+
+        var jwt = CreateAccessToken(user.Username, user.Email);
+        return Results.Ok(new { accessToken = jwt, username = user.Username });
+    }
+    catch (InvalidOperationException)
+    {
+        return Results.Unauthorized();
+    }
+}).AllowAnonymous();
+
+app.MapPost("/api/auth/password/register", async (PasswordRegisterRequest request, IServiceProvider serviceProvider, ClaimsPrincipal userPrincipal) =>
+{
+    var userId = GetUserId(userPrincipal);
+    if (!await IsAdmin(serviceProvider, userId))
+        return Results.Forbid();
+
+    if (string.IsNullOrEmpty(request.Username) || string.IsNullOrEmpty(request.Password))
+        return Results.BadRequest(new { error = "Username and password are required" });
+
+    try
+    {
+        var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
+        using var scope = scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        if (await db.Users.AnyAsync(u => u.Username == request.Username))
+            return Results.Conflict(new { error = "Username already exists" });
+
+        var passwordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
+        var dbUser = await EnsureUser(serviceProvider, request.Username, null, request.DisplayName, null, "password", request.Username);
+        if (dbUser is null)
+            return Results.Problem("Failed to create user");
+
+        // Update password hash
+        dbUser.PasswordHash = passwordHash;
+        dbUser.UpdatedAtUtc = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync();
+
+        return Results.Ok(new { success = true, username = dbUser.Username });
+    }
+    catch (InvalidOperationException)
+    {
+        return Results.Problem("Database not available");
+    }
+}).RequireAuthorization();
 
 // --- Phone Auth Endpoints ---
 
@@ -1375,6 +1450,8 @@ public record UpdateUserRequest(string? Role, string? Status);
 record SendCodeRequest(string Phone);
 record VerifyCodeRequest(string Phone, string Code);
 record HuaweiQuickLoginRequest(string AuthCode, string UnionID, string OpenID);
+record PasswordLoginRequest(string Username, string Password);
+record PasswordRegisterRequest(string Username, string Password, string? DisplayName);
 
 internal sealed class LatestVersionCache
 {

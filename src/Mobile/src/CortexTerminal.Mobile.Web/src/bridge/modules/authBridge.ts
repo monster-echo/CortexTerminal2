@@ -9,6 +9,8 @@ import {
   GuestLoginResponseSchema,
   SuccessResponseSchema,
   VerifyActivationCodeResponseSchema,
+  PasswordLoginResponseSchema,
+  type PasswordLoginResponse,
 } from "../../schemas/bridgeSchema";
 
 export const authBridge = {
@@ -32,4 +34,7 @@ export const authBridge = {
 
   verifyActivationCode: (userCode: string): Promise<{ confirmed: boolean }> =>
     invoke("VerifyActivationCodeAsync", VerifyActivationCodeResponseSchema, [userCode]),
+
+  loginWithPassword: (username: string, password: string): Promise<PasswordLoginResponse> =>
+    invoke("LoginWithPasswordAsync", PasswordLoginResponseSchema, [username, password]),
 };
