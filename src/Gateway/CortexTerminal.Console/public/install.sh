@@ -19,9 +19,9 @@ else
   BOLD=""; GREEN=""; CYAN=""; RED=""; RESET=""
 fi
 
-info()  { printf "  ${CYAN}%s${RESET}\n" "$*"; }
-ok()    { printf "  ${GREEN}✓${RESET} %s\n" "$*"; }
-fail()  { printf "  ${RED}✗${RESET} %s\n" "$*" >&2; exit 1; }
+info()  { printf "  ${CYAN}%b${RESET}\n" "$*"; }
+ok()    { printf "  ${GREEN}✓${RESET} %b\n" "$*"; }
+fail()  { printf "  ${RED}✗${RESET} %b\n" "$*" >&2; exit 1; }
 
 # ---- Detect platform ----
 detect_platform() {
