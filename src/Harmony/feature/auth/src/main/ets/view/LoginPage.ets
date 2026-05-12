@@ -225,23 +225,6 @@ export struct LoginPage {
           })
       }
 
-      // Guest login
-      Button('Try as Guest')
-        .width('calc(100% - 48vp)')
-        .height(48)
-        .margin({ top: 24 })
-        .borderRadius(12)
-        .backgroundColor(Color.Transparent)
-        .fontColor($r('app.color.terminal_secondary'))
-        .fontSize(16)
-        .fontWeight(FontWeight.Medium)
-        .borderWidth(1)
-        .borderColor($r('app.color.terminal_outline_variant'))
-        .enabled(!this.isLoading)
-        .onClick(() => {
-          this.guestLogin()
-        })
-
       // Show phone login link (only when Huawei login is active and phone is hidden)
       if (this.huaweiLoginAvailable && !this.showPhoneLogin) {
         Text('Use phone number instead')
@@ -305,22 +288,6 @@ export struct LoginPage {
       this.errorMessage = (err as Error).message || 'Huawei login failed'
       this.isLoading = false
     }
-  }
-
-  private guestLogin() {
-    if (this.isLoading) {
-      return
-    }
-    this.isLoading = true
-    this.errorMessage = ''
-
-    this.authService.loginAsGuest().then(() => {
-      this.isLoading = false
-      this.authService.completeAuth()
-    }).catch((err: Error) => {
-      this.errorMessage = err.message || 'Guest login failed'
-      this.isLoading = false
-    })
   }
 
   private handlePrimaryAction() {

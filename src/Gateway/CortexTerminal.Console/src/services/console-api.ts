@@ -296,7 +296,7 @@ export function createConsoleApi(
   return {
     async login(username, password) {
       const response = await request<{ accessToken: string }>(
-        '/api/dev/login',
+        '/api/auth/password/login',
         {
           method: 'POST',
           body: JSON.stringify({ username, password }),

@@ -58,22 +58,6 @@ public sealed class AuthService
         return new AuthResult(true, null);
     }
 
-    public async Task<AuthResult> DevLoginAsync(string username, CancellationToken ct)
-    {
-        var response = await _httpClient.PostAsJsonAsync("/api/dev/login", new { username }, ct);
-        var body = await response.Content.ReadAsStringAsync(ct);
-        if (!response.IsSuccessStatusCode)
-            return new AuthResult(false, ExtractError(body));
-
-        var result = JsonSerializer.Deserialize<JsonElement>(body);
-        var token = result.TryGetProperty("accessToken", out var t) ? t.GetString() : null;
-        if (string.IsNullOrEmpty(token))
-            return new AuthResult(false, "No token received");
-
-        await SetTokenAsync(token, username, ct);
-        return new AuthResult(true, null);
-    }
-
     public async Task<AuthResult> LoginWithPasswordAsync(string username, string password, CancellationToken ct)
     {
         var response = await _httpClient.PostAsJsonAsync("/api/auth/password/login", new { username, password }, ct);

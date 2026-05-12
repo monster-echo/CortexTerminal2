@@ -183,24 +183,6 @@ public sealed class ContractSerializationTests
     }
 
     [Fact]
-    public void DevLoginRequest_RoundTrips()
-    {
-        var req = new DevLoginRequest("dev-123", "password");
-        var clone = RoundTrip(req);
-
-        clone.Username.Should().Be("dev-123");
-    }
-
-    [Fact]
-    public void DevLoginResponse_RoundTrips()
-    {
-        var res = new DevLoginResponse("tok-xyz");
-        var clone = RoundTrip(res);
-
-        clone.AccessToken.Should().Be("tok-xyz");
-    }
-
-    [Fact]
     public void SessionSummaryDto_RoundTrips()
     {
         var dto = new SessionSummaryDto("s-1", "w-1");

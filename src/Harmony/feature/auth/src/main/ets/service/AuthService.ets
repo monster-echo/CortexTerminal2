@@ -122,16 +122,6 @@ export class AuthService {
   }
 
   /**
-   * Login as guest. Creates a temporary guest account on the gateway.
-   */
-  async loginAsGuest(): Promise<void> {
-    const emptyBody: Record<string, string> = {}
-    const response = await this.post('/api/auth/guest', emptyBody as Object) as Record<string, Object>
-    this.authToken = (response['accessToken'] as string) ?? ''
-    this.loggedIn = true
-  }
-
-  /**
    * Login with Huawei one-click login authCode.
    * Sends the authCode, unionID, openID to the gateway for server-side
    * token exchange and phone number retrieval.

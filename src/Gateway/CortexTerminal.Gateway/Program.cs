@@ -349,23 +349,6 @@ app.UseMiddleware<TerminalWebSocketMiddleware>();
 app.MapControllers();
 
 
-if (app.Environment.IsDevelopment())
-{
-    app.MapPost("/api/dev/login", (DevLoginRequest request, IAuditLogStore auditLog) =>
-    {
-        auditLog.Record(new AuditLogEntry(
-            Id: Guid.NewGuid().ToString("N"),
-            Timestamp: DateTimeOffset.UtcNow,
-            UserId: request.Username,
-            UserName: request.Username,
-            Action: "user.login",
-            TargetEntity: "user",
-            TargetId: request.Username
-        ));
-        return Results.Ok(new DevLoginResponse(CreateAccessToken(request.Username)));
-    }).AllowAnonymous();
-}
-
 var verificationUri = builder.Configuration["Auth:VerificationUri"] ?? "https://gateway.ct.rwecho.top/activate";
 
 app.MapPost("/api/auth/device-flow", (InMemoryDeviceFlowStore store) =>
@@ -816,30 +799,6 @@ app.MapPost("/api/auth/huawei/quick-login", async (HuaweiQuickLoginRequest reque
         Console.WriteLine($"[HuaweiAuth] Quick login error: {ex.Message}");
         return Results.StatusCode(500);
     }
-}).AllowAnonymous();
-
-// --- Guest Login Endpoint ---
-
-app.MapPost("/api/auth/guest", async (IAuditLogStore auditLog, IServiceProvider serviceProvider) =>
-{
-    var guestId = $"guest_{Guid.NewGuid():N}";
-    var dbUser = await EnsureUser(serviceProvider, guestId, null, $"Guest {guestId.Substring(7, 8)}", null, "guest", guestId);
-    if (dbUser is null)
-        return Results.StatusCode(500);
-
-    var jwt = CreateAccessToken(dbUser.Username, dbUser.Email);
-
-    auditLog.Record(new AuditLogEntry(
-        Id: Guid.NewGuid().ToString("N"),
-        Timestamp: DateTimeOffset.UtcNow,
-        UserId: dbUser.Id,
-        UserName: dbUser.Username,
-        Action: "user.guest_login",
-        TargetEntity: "user",
-        TargetId: dbUser.Id
-    ));
-
-    return Results.Ok(new { accessToken = jwt, username = dbUser.Username });
 }).AllowAnonymous();
 
 // --- Apple OAuth Endpoints ---
