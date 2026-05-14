@@ -28,7 +28,6 @@
     "signOut": "退出登录",
     "signOutConfirm": "确定要退出登录吗？",
     "devModeHint": "开发模式：使用任意用户名即可登录。",
-    "orgAccountHint": "使用您的组织账户登录。",
     "signInDescription": "在下方输入您的邮箱和密码以登录账户。",
     "termsPrefix": "点击登录即表示您同意我们的",
     "and": "和",

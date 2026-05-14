@@ -28,7 +28,6 @@
     "signOut": "Sign Out",
     "signOutConfirm": "Are you sure you want to sign out?",
     "devModeHint": "Dev mode: use any username to sign in.",
-    "orgAccountHint": "Sign in with your organizational account.",
     "signInDescription": "Enter your email and password below to log into your account.",
     "termsPrefix": "By clicking sign in, you agree to our ",
     "and": "and",

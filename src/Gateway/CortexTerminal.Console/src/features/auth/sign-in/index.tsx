@@ -44,18 +44,11 @@ export function SignIn() {
           <CardTitle className='text-lg tracking-tight'>
             {t('brand.name')}
           </CardTitle>
-          <CardDescription>
-            {t('auth.signInToContinue')}
-          </CardDescription>
+          <CardDescription>{t('auth.signInToContinue')}</CardDescription>
         </CardHeader>
         <CardContent>
           <UserAuthForm redirectTo={redirect} />
         </CardContent>
-        <CardFooter>
-          <p className='px-8 text-center text-sm text-muted-foreground'>
-            {t('auth.orgAccountHint')}
-          </p>
-        </CardFooter>
       </Card>
     </AuthLayout>
   )
