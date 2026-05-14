@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { useFieldArray, useForm } from 'react-hook-form'
+import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useTranslation } from 'react-i18next'
 import { showSubmittedData } from '@/lib/show-submitted-data'
@@ -62,11 +62,6 @@ export function ProfileForm() {
     resolver: zodResolver(profileFormSchema),
     defaultValues,
     mode: 'onChange',
-  })
-
-  const { fields, append } = useFieldArray({
-    name: 'urls',
-    control: form.control,
   })
 
   return (
