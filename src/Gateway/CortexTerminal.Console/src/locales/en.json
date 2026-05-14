@@ -104,14 +104,28 @@
       "lastActivity": "Last activity",
       "action": "Action"
     },
-    "filter": { "all": "All", "live": "Live", "detached": "Detached", "exited": "Exited" },
-    "status": { "live": "Live", "detached": "Detached", "exited": "Exited", "expired": "Expired" },
+    "filter": {
+      "all": "All",
+      "live": "Live",
+      "detached": "Detached",
+      "exited": "Exited"
+    },
+    "status": {
+      "live": "Live",
+      "detached": "Detached",
+      "exited": "Exited",
+      "expired": "Expired"
+    },
     "terminate": {
       "button": "Terminate",
       "confirm": "Terminate Session",
       "message": "Stop the running shell for this session? The exited record will remain until you delete it."
     },
-    "delete": { "button": "Delete", "confirm": "Delete Session", "message": "Delete this exited session record? This action cannot be undone." },
+    "delete": {
+      "button": "Delete",
+      "confirm": "Delete Session",
+      "message": "Delete this exited session record? This action cannot be undone."
+    },
     "created": "Created {{time}}",
     "dimensions": "{{cols}}x{{rows}}",
     "backToSessions": "Back to sessions",
@@ -170,7 +184,7 @@
     "measuring": "Measuring",
     "measuringShort": "...",
     "offline": "Offline",
-    "e2eLatency": "E2E latency",
+    "e2eLatency": "latency",
     "logs": {
       "button": "Logs",
       "title": "Terminal event log",
@@ -213,7 +227,12 @@
     "name": "Name",
     "invite": "Invite",
     "role": { "_label": "Role", "admin": "Admin", "user": "User" },
-    "actions": { "editRole": "Edit Role", "disable": "Disable", "enable": "Enable", "delete": "Delete" }
+    "actions": {
+      "editRole": "Edit Role",
+      "disable": "Disable",
+      "enable": "Enable",
+      "delete": "Delete"
+    }
   },
   "settings": {
     "title": "Settings",

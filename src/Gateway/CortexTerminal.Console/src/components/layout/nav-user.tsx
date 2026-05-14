@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router'
-import { useTranslation } from 'react-i18next'
 import { ChevronsUpDown, FileTerminal, LogOut } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { getDisplayNameInitials } from '@/lib/utils'
 import useDialogState from '@/hooks/use-dialog-state'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -78,15 +78,6 @@ export function NavUser({ user }: NavUserProps) {
                   </div>
                 </div>
               </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuGroup>
-                <DropdownMenuItem asChild>
-                  <Link to='/sessions'>
-                    <FileTerminal />
-                    {t('nav.sessions')}
-                  </Link>
-                </DropdownMenuItem>
-              </DropdownMenuGroup>
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 variant='destructive'
