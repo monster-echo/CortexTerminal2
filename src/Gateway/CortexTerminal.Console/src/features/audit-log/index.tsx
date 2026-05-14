@@ -1,23 +1,32 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useTranslation } from 'react-i18next'
 import { createConsoleApi, type AuditLogEntry } from '@/services/console-api'
-import { useAuthStore } from '@/stores/auth-store'
 import { Loader2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import { useAuthStore } from '@/stores/auth-store'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { Header } from '@/components/layout/header'
+import { LanguageSwitcher } from '@/components/layout/language-switcher'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
-import { LanguageSwitcher } from '@/components/layout/language-switcher'
 import { ThemeSwitch } from '@/components/theme-switch'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from '@/components/ui/table'
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 
 function createApi() {
   return createConsoleApi({
@@ -33,7 +42,7 @@ const ACTION_TYPES = [
   'session.create',
   'session.delete',
   'user.login',
-  'user.invite',
+  // 'user.invite',
   'user.update',
   'user.delete',
   'worker.connect',
@@ -96,7 +105,13 @@ export function AuditLogPage() {
             <label className='mb-1 block text-sm font-medium text-muted-foreground'>
               {t('auditLog.action')}
             </label>
-            <Select value={actionType || '_all'} onValueChange={(v) => { setActionType(v === '_all' ? '' : v); setPage(1) }}>
+            <Select
+              value={actionType || '_all'}
+              onValueChange={(v) => {
+                setActionType(v === '_all' ? '' : v)
+                setPage(1)
+              }}
+            >
               <SelectTrigger className='h-9 w-44'>
                 <SelectValue placeholder='All' />
               </SelectTrigger>
@@ -117,7 +132,10 @@ export function AuditLogPage() {
               type='date'
               className='h-9 w-40'
               value={fromDate}
-              onChange={(e) => { setFromDate(e.target.value); setPage(1) }}
+              onChange={(e) => {
+                setFromDate(e.target.value)
+                setPage(1)
+              }}
             />
           </div>
           <div>
@@ -128,7 +146,10 @@ export function AuditLogPage() {
               type='date'
               className='h-9 w-40'
               value={toDate}
-              onChange={(e) => { setToDate(e.target.value); setPage(1) }}
+              onChange={(e) => {
+                setToDate(e.target.value)
+                setPage(1)
+              }}
             />
           </div>
         </div>
@@ -140,14 +161,19 @@ export function AuditLogPage() {
           <CardContent>
             {isLoading ? (
               <div className='flex items-center gap-2 text-sm text-muted-foreground'>
-                <Loader2 className='size-4 animate-spin' /> {t('common.loading')}
+                <Loader2 className='size-4 animate-spin' />{' '}
+                {t('common.loading')}
               </div>
             ) : isError ? (
               <p className='text-sm text-destructive'>
-                {error instanceof Error ? error.message : t('auditLog.loadError')}
+                {error instanceof Error
+                  ? error.message
+                  : t('auditLog.loadError')}
               </p>
             ) : entries.length === 0 ? (
-              <p className='text-sm text-muted-foreground'>{t('auditLog.empty')}</p>
+              <p className='text-sm text-muted-foreground'>
+                {t('auditLog.empty')}
+              </p>
             ) : (
               <Table>
                 <TableHeader>

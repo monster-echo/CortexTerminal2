@@ -3,7 +3,7 @@ import { useFieldArray, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useTranslation } from 'react-i18next'
 import { showSubmittedData } from '@/lib/show-submitted-data'
-import { cn } from '@/lib/utils'
+// import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -15,13 +15,13 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+// import {
+//   Select,
+//   SelectContent,
+//   SelectItem,
+//   SelectTrigger,
+//   SelectValue,
+// } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 
 export function ProfileForm() {
@@ -82,7 +82,10 @@ export function ProfileForm() {
             <FormItem>
               <FormLabel>{t('settings.profileSection.username')}</FormLabel>
               <FormControl>
-                <Input placeholder={t('settings.profileSection.usernamePlaceholder')} {...field} />
+                <Input
+                  placeholder={t('settings.profileSection.usernamePlaceholder')}
+                  {...field}
+                />
               </FormControl>
               <FormDescription>
                 {t('settings.profileSection.usernameDesc')}
@@ -91,7 +94,7 @@ export function ProfileForm() {
             </FormItem>
           )}
         />
-        <FormField
+        {/* <FormField
           control={form.control}
           name='email'
           render={({ field }) => (
@@ -115,7 +118,7 @@ export function ProfileForm() {
               <FormMessage />
             </FormItem>
           )}
-        />
+        /> */}
         <FormField
           control={form.control}
           name='bio'
@@ -136,7 +139,7 @@ export function ProfileForm() {
             </FormItem>
           )}
         />
-        <div>
+        {/* <div>
           {fields.map((field, index) => (
             <FormField
               control={form.control}
@@ -167,8 +170,10 @@ export function ProfileForm() {
           >
             {t('settings.profileSection.addUrl')}
           </Button>
-        </div>
-        <Button type='submit'>{t('settings.profileSection.updateProfile')}</Button>
+        </div> */}
+        <Button type='submit'>
+          {t('settings.profileSection.updateProfile')}
+        </Button>
       </form>
     </Form>
   )
