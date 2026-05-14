@@ -18,6 +18,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.IdentityModel.Tokens;
 using BCrypt.Net;
 
@@ -113,6 +114,9 @@ static string GetUserId(ClaimsPrincipal user)
         ?? user.FindFirstValue(JwtRegisteredClaimNames.Sub)
         ?? user.Identity?.Name
         ?? "unknown";
+
+static string NormalizeVersion(string version)
+    => System.Text.RegularExpressions.Regex.Replace(version, @"(\.0)+$", "");
 
 static object ToSessionSummaryResponse(SessionRecord session)
     => new
@@ -1089,7 +1093,7 @@ app.MapDelete("/api/me/sessions/{sessionId}", async (
 }).RequireAuthorization();
 
 // ---- Gateway Info ----
-var gatewayVersion = Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "0.0.0";
+var gatewayVersion = Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3) ?? "0.0.0";
 var githubRepo = builder.Configuration["GitHub:Repo"] ?? "monster-echo/CortexTerminal2";
 var latestVersionCache = new LatestVersionCache(builder.Configuration);
 
@@ -1189,11 +1193,27 @@ app.MapPost("/api/me/workers/{workerId}/upgrade", async (string workerId, Claims
         return Results.BadRequest(new { error = "Could not determine latest worker version." });
     }
 
+    // Skip if already on the target version (normalize trailing .0 segments, e.g. "0.4.0.0" → "0.4")
+    var currentVersion = worker.Metadata?.Version;
+    if (currentVersion is not null
+        && NormalizeVersion(currentVersion) == NormalizeVersion(latestVersion))
+    {
+        return Results.Ok(new { message = "Already up to date.", TargetVersion = latestVersion });
+    }
+
     var assetName = WorkerReleaseAsset.GetAssetName(worker.Metadata?.OperatingSystem, worker.Metadata?.Architecture);
     var githubProxy = builder.Configuration["GitHub:Proxy"] ?? "https://proxy.0x2a.top";
     var downloadUrl = $"{githubProxy}/https://github.com/{githubRepo}/releases/latest/download/{assetName}";
 
-    await dispatcher.UpgradeWorkerAsync(worker.ConnectionId, new UpgradeWorkerCommand(latestVersion, downloadUrl), CancellationToken.None);
+    try
+    {
+        await dispatcher.UpgradeWorkerAsync(worker.ConnectionId, new UpgradeWorkerCommand(latestVersion, downloadUrl), CancellationToken.None);
+    }
+    catch (HubException)
+    {
+        return Results.BadRequest(new { error = "Worker connection is no longer active." });
+    }
+
     return Results.Ok(new { message = "Upgrade command sent.", TargetVersion = latestVersion });
 }).RequireAuthorization();
 

@@ -92,7 +92,7 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
             RuntimeInformation.OSDescription,
             RuntimeInformation.OSArchitecture.ToString(),
             Environment.MachineName,
-            Assembly.GetEntryAssembly()?.GetName().Version?.ToString());
+            Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3));
 
         try
         {
@@ -208,13 +208,20 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         return Task.CompletedTask;
     }
 
+    private static readonly SemaphoreSlim _upgradeLock = new(1, 1);
+
     private async Task HandleUpgradeWorkerAsync(UpgradeWorkerCommand command)
     {
+        if (!_upgradeLock.Wait(0))
+        {
+            _logger.LogWarning("Upgrade already in progress, ignoring duplicate command.");
+            return;
+        }
+
         _logger.LogInformation("Received upgrade command: target={TargetVersion}, url={DownloadUrl}", command.TargetVersion, command.DownloadUrl);
 
         try
         {
-            var installDir = AppContext.BaseDirectory;
             var isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
             string tmpFile;
 
@@ -260,21 +267,18 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
 
                 var currentBinary = Process.GetCurrentProcess().MainModule?.FileName
                     ?? throw new InvalidOperationException("Cannot determine current process path.");
-                var backupPath = currentBinary + ".bak";
 
-                // Rename current binary, move new one into place
-                if (File.Exists(backupPath)) File.Delete(backupPath);
-                File.Move(currentBinary, backupPath);
-                File.Copy(newBinary, currentBinary, overwrite: true);
+                // Write new binary to .new file first, then atomic replace.
+                // This ensures the current binary remains intact if the copy fails.
+                var stagingPath = currentBinary + ".new";
+                File.Copy(newBinary, stagingPath, overwrite: true);
                 if (!isWindows)
                 {
-                    try { File.SetUnixFileMode(currentBinary, UnixFileMode.UserExecute | UnixFileMode.GroupExecute | UnixFileMode.OtherRead | UnixFileMode.UserRead | UnixFileMode.GroupRead); } catch { }
+                    try { File.SetUnixFileMode(stagingPath, UnixFileMode.UserExecute | UnixFileMode.GroupExecute | UnixFileMode.OtherRead | UnixFileMode.UserRead | UnixFileMode.GroupRead); } catch { }
                 }
+                File.Move(stagingPath, currentBinary, overwrite: true);
 
                 _logger.LogInformation("Binary replaced. Exiting for restart ...");
-
-                // Delete backup before exiting
-                try { File.Delete(backupPath); } catch { }
 
                 // Exit the current process. The process manager (systemd with Restart=always,
                 // or a wrapper script) will restart the binary automatically.
