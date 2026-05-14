@@ -1,22 +1,22 @@
 import { useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { useTranslation } from 'react-i18next'
-import { createTerminalGateway } from '@/services/terminal-gateway'
 import { ConsoleApiError } from '@/services/console-api'
-import { TerminalView } from '@/terminal/terminal-view'
-import { TerminalHeaderActions } from '@/terminal/terminal-header-actions'
+import { createTerminalGateway } from '@/services/terminal-gateway'
 import { getSessionTerminalLogKey } from '@/terminal/terminal-event-log'
+import { TerminalHeaderActions } from '@/terminal/terminal-header-actions'
+import { TerminalView } from '@/terminal/terminal-view'
+import { ArrowLeft, Loader2, Square, Trash2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import { useAuthStore } from '@/stores/auth-store'
 import { useTerminalEventLogStore } from '@/stores/terminal-event-log-store'
+import { getApi } from '@/lib/api'
+import { useIsMobile } from '@/hooks/use-mobile'
 import { Button } from '@/components/ui/button'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
-import { ConfirmDialog } from '@/components/confirm-dialog'
-import { ArrowLeft, Loader2, Square, Trash2 } from 'lucide-react'
-import { useAuthStore } from '@/stores/auth-store'
-import { getApi } from '@/lib/api'
 import { SessionDetailsSheet } from './session-details-sheet'
-import { useIsMobile } from '@/hooks/use-mobile'
 
 export function SessionDetailPage(props: { sessionId: string }) {
   const { sessionId } = props
@@ -25,7 +25,9 @@ export function SessionDetailPage(props: { sessionId: string }) {
   const queryClient = useQueryClient()
   const isMobile = useIsMobile()
   const [latencyMs, setLatencyMs] = useState<number | null>(null)
-  const [latencyState, setLatencyState] = useState<'live' | 'measuring' | 'offline'>('measuring')
+  const [latencyState, setLatencyState] = useState<
+    'live' | 'measuring' | 'offline'
+  >('measuring')
   const [terminateOpen, setTerminateOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [isTerminating, setIsTerminating] = useState(false)
@@ -55,8 +57,10 @@ export function SessionDetailPage(props: { sessionId: string }) {
   })
 
   const session = sessionQuery.data
-  const canTerminate = session?.status === 'live' || session?.status === 'detached'
-  const canDelete = session?.status === 'exited' || session?.status === 'expired'
+  const canTerminate =
+    session?.status === 'live' || session?.status === 'detached'
+  const canDelete =
+    session?.status === 'exited' || session?.status === 'expired'
 
   const refreshSessionState = async () => {
     await Promise.all([
@@ -176,7 +180,9 @@ export function SessionDetailPage(props: { sessionId: string }) {
             </Link>
           </Button>
           <div className='min-w-0'>
-            <h2 className='truncate text-sm font-semibold'>{session.sessionId}</h2>
+            <h2 className='truncate text-sm font-semibold'>
+              {session.sessionId}
+            </h2>
             <p className='truncate text-xs text-muted-foreground'>
               {t('sessions.detailSubtitle')}
             </p>
@@ -187,22 +193,33 @@ export function SessionDetailPage(props: { sessionId: string }) {
             latencyState={latencyState}
           />
           {!isMobile && canTerminate && (
-            <Button variant='destructive' size='sm' onClick={() => setTerminateOpen(true)}>
+            <Button
+              variant='destructive'
+              size='sm'
+              onClick={() => setTerminateOpen(true)}
+            >
               <Square className='size-4' />
               {t('sessions.terminate.button')}
             </Button>
           )}
           {!isMobile && canDelete && (
-            <Button variant='outline' size='sm' onClick={() => setDeleteOpen(true)}>
+            <Button
+              variant='outline'
+              size='sm'
+              onClick={() => setDeleteOpen(true)}
+            >
               <Trash2 className='size-4' />
               {t('sessions.delete.button')}
             </Button>
           )}
-          <SessionDetailsSheet
-            session={session}
-            latencyMs={latencyMs}
-            latencyState={latencyState}
-          />
+
+          {!isMobile && (
+            <SessionDetailsSheet
+              session={session}
+              latencyMs={latencyMs}
+              latencyState={latencyState}
+            />
+          )}
         </div>
       </Header>
       <Main fluid className='flex min-h-0 flex-1 flex-col overflow-hidden py-0'>

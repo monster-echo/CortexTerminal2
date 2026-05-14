@@ -185,6 +185,7 @@
     "measuring": "测量中",
     "measuringShort": "...",
     "offline": "离线",
+    "sessionGoneNotice": "会话已不存在（服务器可能已重启），正在跳转到会话列表…",
     "e2eLatency": "延迟",
     "logs": {
       "button": "日志",

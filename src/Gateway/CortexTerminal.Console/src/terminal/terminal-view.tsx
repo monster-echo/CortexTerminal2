@@ -1,20 +1,25 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
+import type { SessionStatus } from '@/services/console-api'
 import type {
   TerminalGateway,
   TerminalGatewayConnection,
 } from '@/services/terminal-gateway'
+import { useTranslation } from 'react-i18next'
 import { useTerminalEventLogStore } from '@/stores/terminal-event-log-store'
 import { getSessionTerminalLogKey } from './terminal-event-log'
+import { TerminalStatusBar } from './terminal-status-bar'
 import {
   TerminalViewport,
   type BrowserTerminal,
   type TerminalSize,
 } from './terminal-viewport'
-import { TerminalStatusBar } from './terminal-status-bar'
-import { TerminalVirtualKeys, applyCtrlModifier, applyAltModifier } from './terminal-virtual-keys'
+import {
+  TerminalVirtualKeys,
+  applyCtrlModifier,
+  applyAltModifier,
+} from './terminal-virtual-keys'
 import { createTerminalSessionModel } from './useTerminalSession'
-import type { SessionStatus } from '@/services/console-api'
 
 export function TerminalView(props: {
   gateway: TerminalGateway
@@ -37,9 +42,9 @@ export function TerminalView(props: {
     sessionId,
     workerId,
     sessionStatus,
-  } =
-    props
+  } = props
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [statusMessage, setStatusMessage] = useState('Connecting to terminal…')
   const [latencyProbeGeneration, setLatencyProbeGeneration] = useState(0)
@@ -74,11 +79,14 @@ export function TerminalView(props: {
     [appendEvent, scopeKey]
   )
   const pushEventRef = useRef(pushEvent)
-  pushEventRef.current = pushEvent
   const onLatencyChangeRef = useRef(onLatencyChange)
-  onLatencyChangeRef.current = onLatencyChange
   const onSessionStatusChangeRef = useRef(onSessionStatusChange)
-  onSessionStatusChangeRef.current = onSessionStatusChange
+
+  useEffect(() => {
+    pushEventRef.current = pushEvent
+    onLatencyChangeRef.current = onLatencyChange
+    onSessionStatusChangeRef.current = onSessionStatusChange
+  }, [onLatencyChange, onSessionStatusChange, pushEvent])
 
   useEffect(() => {
     pruneLogs()
@@ -147,16 +155,19 @@ export function TerminalView(props: {
     [pushEvent]
   )
 
-  const handleTerminalData = useCallback((data: string) => {
-    let processed = data
-    if (ctrlActive) {
-      processed = applyCtrlModifier(processed)
-    }
-    if (altActive) {
-      processed = applyAltModifier(processed)
-    }
-    sessionRef.current?.onTerminalData(processed)
-  }, [ctrlActive, altActive])
+  const handleTerminalData = useCallback(
+    (data: string) => {
+      let processed = data
+      if (ctrlActive) {
+        processed = applyCtrlModifier(processed)
+      }
+      if (altActive) {
+        processed = applyAltModifier(processed)
+      }
+      sessionRef.current?.onTerminalData(processed)
+    },
+    [ctrlActive, altActive]
+  )
 
   const handleCtrlToggle = useCallback(() => {
     setCtrlActive((v) => !v)
@@ -179,7 +190,10 @@ export function TerminalView(props: {
   )
 
   const handleLatencyChange = useCallback(
-    (nextLatencyMs: number | null, nextState: 'live' | 'measuring' | 'offline') => {
+    (
+      nextLatencyMs: number | null,
+      nextState: 'live' | 'measuring' | 'offline'
+    ) => {
       setLatencyMs(nextLatencyMs)
       setLatencyState(nextState)
       onLatencyChangeRef.current?.(nextLatencyMs, nextState)
@@ -198,10 +212,7 @@ export function TerminalView(props: {
           sessionRef.current?.onStdout(payload)
         },
         onStderr: (payload) => {
-          pe(
-            'session',
-            `Received stderr chunk (${payload.length} bytes).`
-          )
+          pe('session', `Received stderr chunk (${payload.length} bytes).`)
           sessionRef.current?.onStderr(payload)
         },
         onSessionReattached: (nextSessionId) => {
@@ -232,10 +243,7 @@ export function TerminalView(props: {
           setErrorMessage(reason ?? 'Session expired.')
           setStatusMessage('Session is no longer available.')
           handleLatencyChange(null, 'offline')
-          pe(
-            'gateway',
-            `Session expired: ${reason ?? 'unknown reason'}.`
-          )
+          pe('gateway', `Session expired: ${reason ?? 'unknown reason'}.`)
           sessionRef.current?.onSessionExpired()
           onSessionStatusChangeRef.current?.('expired', reason ?? null)
           const connection = connectionRef.current
@@ -255,10 +263,7 @@ export function TerminalView(props: {
             reason ? `Session exited: ${reason}.` : 'Session exited.'
           )
           handleLatencyChange(null, 'offline')
-          pe(
-            'gateway',
-            `Session exited: ${reason ?? 'unknown reason'}.`
-          )
+          pe('gateway', `Session exited: ${reason ?? 'unknown reason'}.`)
           onSessionStatusChangeRef.current?.('exited', reason ?? null)
           const connection = connectionRef.current
           connectionRef.current = null
@@ -317,9 +322,9 @@ export function TerminalView(props: {
       if (connection) {
         pe('gateway', 'Disconnecting terminal transport.')
         void connection.dispose()
-        }
       }
-    }, [gateway, sessionId])
+    }
+  }, [gateway, handleLatencyChange, sessionId])
 
   useEffect(() => {
     if (latencyProbeGeneration === 0) {
@@ -376,7 +381,7 @@ export function TerminalView(props: {
 
   const effectiveStatus: SessionStatus | 'offline' = currentSessionEnd
     ? currentSessionEnd.status
-    : sessionStatus ?? (latencyState === 'offline' ? 'offline' : 'live')
+    : (sessionStatus ?? (latencyState === 'offline' ? 'offline' : 'live'))
 
   const isSessionGone =
     currentSessionEnd?.status === 'expired' &&
@@ -399,17 +404,14 @@ export function TerminalView(props: {
   return (
     <div className='flex h-full min-h-0 flex-col'>
       {isSessionGone && (
-        <div className='flex items-center gap-2 rounded-lg bg-destructive/90 px-4 py-2 text-sm text-white'>
-          <span>
-            Session no longer exists (server may have restarted).
-            Redirecting to sessions list…
-          </span>
+        <div className='flex items-center gap-2 rounded-lg bg-destructive/90 px-0 py-2 text-sm text-white md:px-4'>
+          <span>{t('terminal.sessionGoneNotice')}</span>
           <button
             type='button'
             className='ml-auto shrink-0 rounded bg-white/20 px-3 py-1 text-xs font-medium text-white hover:bg-white/30'
             onClick={() => navigate({ to: '/sessions' })}
           >
-            Go to Sessions
+            {t('sessions.returnToSessions')}
           </button>
         </div>
       )}

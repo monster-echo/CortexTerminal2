@@ -185,6 +185,7 @@
     "measuring": "Measuring",
     "measuringShort": "...",
     "offline": "Offline",
+    "sessionGoneNotice": "Session no longer exists (server may have restarted). Redirecting to sessions list…",
     "e2eLatency": "latency",
     "logs": {
       "button": "Logs",
