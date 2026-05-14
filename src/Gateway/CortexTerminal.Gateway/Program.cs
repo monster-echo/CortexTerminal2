@@ -1488,6 +1488,10 @@ internal sealed class LatestVersionCache
                 if (!resp.IsSuccessStatusCode) return;
 
                 using var doc = await JsonDocument.ParseAsync(await resp.Content.ReadAsStreamAsync());
+
+                string? newWorkerLatest = null;
+                string? newGatewayLatest = null;
+
                 foreach (var release in doc.RootElement.EnumerateArray())
                 {
                     if (!release.TryGetProperty("tag_name", out var tagEl)) continue;
@@ -1497,14 +1501,16 @@ internal sealed class LatestVersionCache
                         : null;
                     if (version is null) continue;
 
-                    if (tag.StartsWith("worker-v") && _workerLatest is null)
-                        _workerLatest = version;
-                    else if (tag.StartsWith("gateway-v") && _gatewayLatest is null)
-                        _gatewayLatest = version;
+                    if (tag.StartsWith("worker-v") && newWorkerLatest is null)
+                        newWorkerLatest = version;
+                    else if (tag.StartsWith("gateway-v") && newGatewayLatest is null)
+                        newGatewayLatest = version;
 
-                    if (_workerLatest is not null && _gatewayLatest is not null) break;
+                    if (newWorkerLatest is not null && newGatewayLatest is not null) break;
                 }
 
+                if (newWorkerLatest is not null) _workerLatest = newWorkerLatest;
+                if (newGatewayLatest is not null) _gatewayLatest = newGatewayLatest;
                 _lastRefresh = DateTimeOffset.UtcNow;
             }
             catch
