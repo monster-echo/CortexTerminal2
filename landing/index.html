@@ -537,7 +537,7 @@
       <a href="https://github.com/monster-echo/CortexTerminal2" target="_blank" rel="noopener">GitHub</a>
       <a href="https://github.com/monster-echo/CortexTerminal2#readme" target="_blank" rel="noopener">Docs</a>
       <a href="#quick-start" class="nav-btn" data-i18n="nav_launch">Launch Console</a>
-      <a href="https://github.com/monster-echo/CortexTerminal2/releases" target="_blank" rel="noopener" class="nav-btn">v0.2.0</a>
+      <a id="versionBtn" href="https://github.com/monster-echo/CortexTerminal2/releases" target="_blank" rel="noopener" class="nav-btn">v0.2.0</a>
     </div>
   </nav>
 
@@ -891,6 +891,17 @@ function switchInstallTab(type, tab) {
 (function() {
   const saved = localStorage.getItem('lang') || 'en';
   applyLang(saved);
+
+  // Fetch latest release version from GitHub
+  fetch('https://api.github.com/repos/monster-echo/CortexTerminal2/releases/latest')
+    .then(r => r.ok ? r.json() : null)
+    .then(data => {
+      if (data?.tag_name) {
+        const version = data.tag_name.replace(/^[a-z]+-/, '');
+        document.getElementById('versionBtn').textContent = 'v' + version;
+      }
+    })
+    .catch(() => {});
 })();
 </script>
 
