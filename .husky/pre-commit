@@ -1,0 +1,36 @@
+#!/bin/sh
+
+# --- Frontend TypeScript check ---
+CONSOLE_DIR="src/Gateway/CortexTerminal.Console"
+STAGED_TS=$(git diff --cached --name-only --diff-filter=ACMR -- "$CONSOLE_DIR/src/" | grep -E '\.tsx?$' || true)
+if [ -n "$STAGED_TS" ]; then
+  echo "TS/TSX changed, running type check..."
+  (cd "$CONSOLE_DIR" && npx tsc -b --noEmit) || {
+    echo "ERROR: TypeScript check failed. To skip: git commit --no-verify"
+    exit 1
+  }
+fi
+
+# --- Backend .NET build check ---
+STAGED_CS=$(git diff --cached --name-only --diff-filter=ACMR -- "*.cs" "*.csproj" || true)
+if [ -n "$STAGED_CS" ]; then
+  HAS_GW=$(echo "$STAGED_CS" | grep -c "^src/Gateway/" || true)
+  HAS_WK=$(echo "$STAGED_CS" | grep -c "^src/Worker/" || true)
+
+  if [ "$HAS_GW" -gt 0 ] 2>/dev/null; then
+    echo "Gateway .cs changed, building..."
+    dotnet build src/Gateway/CortexTerminal.Gateway/CortexTerminal.Gateway.csproj --no-restore -v q || {
+      echo "ERROR: Gateway build failed. To skip: git commit --no-verify"
+      exit 1
+    }
+  fi
+
+  if [ "$HAS_WK" -gt 0 ] 2>/dev/null; then
+    echo "Worker .cs changed, building..."
+    dotnet build src/Worker/CortexTerminal.Worker/CortexTerminal.Worker.csproj --no-restore -v q || {
+      echo "ERROR: Worker build failed. To skip: git commit --no-verify"
+      exit 1
+    }
+  fi
+fi
+exit 0
