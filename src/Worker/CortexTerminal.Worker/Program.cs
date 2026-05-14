@@ -15,7 +15,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 var installDir = AppContext.BaseDirectory;
-var version = Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "0.0.0";
+var version = Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3) ?? "0.0.0";
 
 // Prefer IPv4: many environments advertise IPv6 via DNS but lack actual connectivity,
 // causing SocketsHttpHandler to hang on the first IPv6 attempt before falling back.
@@ -378,10 +378,7 @@ updateCommand.SetAction(async (ParseResult parseResult, CancellationToken cancel
         return;
     }
 
-    // Normalize for comparison (strip trailing .0)
-    var currentNorm = version.Replace(".0", "").TrimEnd('.');
-    var latestNorm = latestVersion.Replace(".0", "").TrimEnd('.');
-    if (currentNorm == latestNorm)
+    if (version == latestVersion)
     {
         Console.WriteLine($"  Already up to date ({version}).");
         return;

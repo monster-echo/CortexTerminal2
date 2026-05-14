@@ -66,17 +66,52 @@ public sealed class WorkerHub(
             worker.WorkerId, info.Hostname, info.OperatingSystem, info.Architecture, info.Version);
     }
 
-    public override Task OnDisconnectedAsync(Exception? exception)
+    public override async Task OnDisconnectedAsync(Exception? exception)
     {
         // Find and unregister the worker that belonged to this connection
         var worker = workers.FindByConnectionId(Context.ConnectionId);
         if (worker is not null)
         {
-            workers.Unregister(worker.WorkerId);
-            logger.LogInformation("Worker {WorkerId} disconnected (connection {ConnectionId}).", worker.WorkerId, Context.ConnectionId);
+            var workerId = worker.WorkerId;
+            var connectionId = Context.ConnectionId;
+
+            workers.Unregister(workerId);
+            logger.LogInformation("Worker {WorkerId} disconnected (connection {ConnectionId}).", workerId, connectionId);
+
+            // Expire all sessions tied to this specific worker connection
+            var expiredSessions = sessions.ExpireSessionsForWorkerConnection(workerId, connectionId);
+            if (expiredSessions.Count > 0)
+            {
+                logger.LogInformation(
+                    "Expired {SessionCount} sessions for disconnected worker {WorkerId} (connection {ConnectionId}).",
+                    expiredSessions.Count, workerId, connectionId);
+
+                foreach (var session in expiredSessions)
+                {
+                    replayCache.Clear(session.SessionId);
+
+                    if (session.AttachedClientConnectionId is not null)
+                    {
+                        try
+                        {
+                            await DeliverToClientAsync(
+                                session,
+                                "SessionExpired",
+                                new SessionExpiredEvent(session.SessionId, "worker-offline"),
+                                new WsExpiredFrame { SessionId = session.SessionId, Reason = "worker-offline" });
+                        }
+                        catch (Exception ex)
+                        {
+                            logger.LogWarning(ex,
+                                "Failed to notify client {ClientId} about expired session {SessionId}.",
+                                session.AttachedClientConnectionId, session.SessionId);
+                        }
+                    }
+                }
+            }
         }
 
-        return base.OnDisconnectedAsync(exception);
+        await base.OnDisconnectedAsync(exception);
     }
 
     public async Task ForwardStdout(TerminalChunk chunk)

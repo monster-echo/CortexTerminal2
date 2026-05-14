@@ -285,6 +285,39 @@ public sealed class InMemorySessionCoordinator : ISessionCoordinator
         return reboundCount;
     }
 
+    public IReadOnlyList<SessionRecord> ExpireSessionsForWorkerConnection(string workerId, string workerConnectionId)
+    {
+        var expiredSessions = new List<SessionRecord>();
+
+        lock (_sync)
+        {
+            foreach (var session in _sessions.Values)
+            {
+                if (session.WorkerId != workerId ||
+                    session.WorkerConnectionId != workerConnectionId ||
+                    session.AttachmentState is not (SessionAttachmentState.Attached or SessionAttachmentState.DetachedGracePeriod))
+                {
+                    continue;
+                }
+
+                expiredSessions.Add(session);
+
+                _sessions[session.SessionId] = session with
+                {
+                    AttachmentState = SessionAttachmentState.Expired,
+                    AttachedClientConnectionId = null,
+                    LeaseExpiresAtUtc = null,
+                    ExitCode = null,
+                    ExitReason = "worker-offline",
+                    ReplayPending = false,
+                    LastActivityAtUtc = _timeProvider.GetUtcNow()
+                };
+            }
+        }
+
+        return expiredSessions;
+    }
+
     public IReadOnlyList<string> ExpireDetachedSessions(DateTimeOffset nowUtc)
     {
         var expiredSessionIds = new List<string>();

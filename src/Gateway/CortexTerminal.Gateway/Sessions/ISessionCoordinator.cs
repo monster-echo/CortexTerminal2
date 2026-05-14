@@ -14,6 +14,7 @@ public interface ISessionCoordinator
     void RemoveSession(string sessionId);
     void MarkReplayCompleted(string sessionId, string clientConnectionId);
     int RebindActiveSessions(string userId, string workerId, string workerConnectionId);
+    IReadOnlyList<SessionRecord> ExpireSessionsForWorkerConnection(string workerId, string workerConnectionId);
     IReadOnlyList<string> ExpireDetachedSessions(DateTimeOffset nowUtc);
     bool TryGetSession(string sessionId, out SessionRecord session);
 }

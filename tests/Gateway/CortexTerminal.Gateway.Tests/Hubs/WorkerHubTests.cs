@@ -262,4 +262,138 @@ public sealed class WorkerHubTests
             timeProvider,
             new NoOpWorkerCommandDispatcher(),
             new SessionLaunchCoordinator(sessions, new NoOpWorkerCommandDispatcher()))!;
+
+    [Fact]
+    public async Task OnDisconnectedAsync_ExpiresAttachedSessionsAndNotifiesClients()
+    {
+        var workers = new InMemoryWorkerRegistry();
+        workers.Register("worker-1", "worker-conn-1");
+        var sessions = new InMemorySessionCoordinator(workers);
+        var replayCache = new ReplayCache(1024);
+        var terminalHub = CreateTerminalHub(sessions, replayCache, TimeProvider.System);
+        terminalHub.Context = new TestHubCallerContext("client-1", "user-1");
+        terminalHub.Clients = new TestHubCallerClients(new RecordingClientProxy());
+
+        var createResult = await terminalHub.CreateSession(new CreateSessionRequest("shell", 120, 40));
+        var sessionId = createResult.Response!.SessionId;
+
+        // Add some replay data to verify it gets cleared
+        await replayCache.AppendAsync(new ReplayChunk(sessionId, "stdout", [0x01]), CancellationToken.None);
+        replayCache.GetSnapshot(sessionId).Should().NotBeEmpty();
+
+        var client = new RecordingClientProxy();
+        var workerHub = CreateWorkerHub(workers, sessions, replayCache, new Dictionary<string, IClientProxy>
+        {
+            ["client-1"] = client
+        });
+        workerHub.Context = new TestHubCallerContext("worker-conn-1");
+        workerHub.Clients = new TestHubCallerClients(new RecordingClientProxy());
+
+        // Worker disconnects
+        await workerHub.OnDisconnectedAsync(null);
+
+        // Session should be expired
+        sessions.TryGetSession(sessionId, out var session).Should().BeTrue();
+        session.AttachmentState.Should().Be(SessionAttachmentState.Expired);
+        session.ExitReason.Should().Be("worker-offline");
+        session.AttachedClientConnectionId.Should().BeNull();
+
+        // Client should have been notified
+        client.Invocations.Should().ContainSingle(i => i.Method == "SessionExpired");
+        var expiredEvent = client.Invocations[0].Arguments[0].Should().BeOfType<SessionExpiredEvent>().Subject;
+        expiredEvent.SessionId.Should().Be(sessionId);
+        expiredEvent.Reason.Should().Be("worker-offline");
+
+        // Replay cache should be cleared
+        replayCache.GetSnapshot(sessionId).Should().BeEmpty();
+
+        // Worker should be unregistered
+        workers.TryGetWorker("worker-1", out _).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task OnDisconnectedAsync_DoesNotExpireSessionsForOtherWorkers()
+    {
+        var workers = new InMemoryWorkerRegistry();
+        workers.Register("worker-1", "worker-conn-1");
+        workers.Register("worker-2", "worker-conn-2");
+        var sessions = new InMemorySessionCoordinator(workers);
+        var replayCache = new ReplayCache(1024);
+        var terminalHub = CreateTerminalHub(sessions, replayCache, TimeProvider.System);
+        terminalHub.Context = new TestHubCallerContext("client-1", "user-1");
+        terminalHub.Clients = new TestHubCallerClients(new RecordingClientProxy());
+
+        var createResult = await terminalHub.CreateSession(new CreateSessionRequest("shell", 120, 40));
+        var sessionId = createResult.Response!.SessionId;
+
+        var client = new RecordingClientProxy();
+        var workerHub = CreateWorkerHub(workers, sessions, replayCache, new Dictionary<string, IClientProxy>
+        {
+            ["client-1"] = client
+        });
+        workerHub.Context = new TestHubCallerContext("worker-conn-2"); // Different worker disconnects
+        workerHub.Clients = new TestHubCallerClients(new RecordingClientProxy());
+
+        await workerHub.OnDisconnectedAsync(null);
+
+        // Session owned by worker-1 should NOT be expired
+        sessions.TryGetSession(sessionId, out var session).Should().BeTrue();
+        session.AttachmentState.Should().Be(SessionAttachmentState.Attached);
+        client.Invocations.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task OnDisconnectedAsync_DoesNotExpireReboundSessions()
+    {
+        var workers = new InMemoryWorkerRegistry();
+        workers.Register("worker-1", "worker-conn-1");
+        var sessions = new InMemorySessionCoordinator(workers);
+        var replayCache = new ReplayCache(1024);
+        var terminalHub = CreateTerminalHub(sessions, replayCache, TimeProvider.System);
+        terminalHub.Context = new TestHubCallerContext("client-1", "user-1");
+        terminalHub.Clients = new TestHubCallerClients(new RecordingClientProxy());
+
+        var createResult = await terminalHub.CreateSession(new CreateSessionRequest("shell", 120, 40));
+        var sessionId = createResult.Response!.SessionId;
+
+        // Worker reconnects with new connection, sessions get rebound
+        var workerHub2 = CreateWorkerHub(workers, sessions, replayCache, new Dictionary<string, IClientProxy>());
+        workerHub2.Context = new TestHubCallerContext("worker-conn-2", "user-1");
+        workerHub2.Clients = new TestHubCallerClients(new RecordingClientProxy());
+        workerHub2.RegisterWorker("worker-1");
+
+        // Old connection disconnects - should NOT expire rebound sessions
+        var workerHub1 = CreateWorkerHub(workers, sessions, replayCache, new Dictionary<string, IClientProxy>());
+        workerHub1.Context = new TestHubCallerContext("worker-conn-1");
+        workerHub1.Clients = new TestHubCallerClients(new RecordingClientProxy());
+
+        await workerHub1.OnDisconnectedAsync(null);
+
+        sessions.TryGetSession(sessionId, out var session).Should().BeTrue();
+        session.AttachmentState.Should().Be(SessionAttachmentState.Attached);
+        session.WorkerConnectionId.Should().Be("worker-conn-2");
+    }
+
+    [Fact]
+    public async Task OnDisconnectedAsync_HandlesSessionsWithoutAttachedClient()
+    {
+        var workers = new InMemoryWorkerRegistry();
+        workers.Register("worker-1", "worker-conn-1");
+        var sessions = new InMemorySessionCoordinator(workers);
+        var replayCache = new ReplayCache(1024);
+        // Create session without client connection
+        var createResult = await sessions.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), clientConnectionId: null, CancellationToken.None);
+        var sessionId = createResult.Response!.SessionId;
+
+        var workerHub = CreateWorkerHub(workers, sessions, replayCache, new Dictionary<string, IClientProxy>());
+        workerHub.Context = new TestHubCallerContext("worker-conn-1");
+        workerHub.Clients = new TestHubCallerClients(new RecordingClientProxy());
+
+        // Should not throw even without attached client
+        await workerHub.Invoking(hub => hub.OnDisconnectedAsync(null)).Should().NotThrowAsync();
+
+        sessions.TryGetSession(sessionId, out var session).Should().BeTrue();
+        session.AttachmentState.Should().Be(SessionAttachmentState.Expired);
+        session.ExitReason.Should().Be("worker-offline");
+    }
 }

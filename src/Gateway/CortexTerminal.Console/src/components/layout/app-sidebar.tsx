@@ -13,7 +13,9 @@ import {
   SidebarRail,
   SidebarGroup,
   SidebarGroupLabel,
-  SidebarGroupContent,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
 } from '@/components/ui/sidebar'
 import { StatusDot } from '@/components/shared/status-dot'
 import { getSidebarData } from './data/sidebar-data'
@@ -78,29 +80,30 @@ function RecentSessionsGroup() {
   return (
     <SidebarGroup>
       <SidebarGroupLabel>{t('nav.recentSessions')}</SidebarGroupLabel>
-      <SidebarGroupContent>
-        <div className='flex flex-col gap-0.5'>
-          {recentSessions.map((session: SessionSummary) => (
-            <Link
-              key={session.sessionId}
-              to='/sessions/$sessionId'
-              params={{ sessionId: session.sessionId }}
-              className='flex items-center gap-2 rounded-md px-2 py-1 text-sm hover:bg-accent transition-colors'
-            >
-              <StatusDot status={session.status} />
-              <span className='truncate font-mono text-xs'>
-                {session.sessionId.slice(0, 8)}
-              </span>
+      <SidebarMenu>
+        {recentSessions.map((session: SessionSummary) => (
+          <SidebarMenuItem key={session.sessionId}>
+            <SidebarMenuButton asChild tooltip={session.sessionId.slice(0, 8)}>
+              <Link
+                to='/sessions/$sessionId'
+                params={{ sessionId: session.sessionId }}
+              >
+                <StatusDot status={session.status} />
+                <span className='truncate font-mono text-xs'>
+                  {session.sessionId.slice(0, 8)}
+                </span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        ))}
+        <SidebarMenuItem>
+          <SidebarMenuButton asChild>
+            <Link to='/sessions'>
+              <span>{t('nav.more')}</span>
             </Link>
-          ))}
-          <Link
-            to='/sessions'
-            className='mt-1 px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors'
-          >
-            {t('nav.more')}
-          </Link>
-        </div>
-      </SidebarGroupContent>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      </SidebarMenu>
     </SidebarGroup>
   )
 }

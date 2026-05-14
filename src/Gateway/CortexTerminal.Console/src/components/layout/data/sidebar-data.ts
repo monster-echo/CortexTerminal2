@@ -1,7 +1,6 @@
 import { type TFunction } from 'i18next'
 import {
   LayoutDashboard,
-  Terminal,
   Server,
   Users,
   Settings,
@@ -35,12 +34,6 @@ export function getSidebarData(t: TFunction): SidebarData {
             icon: Globe,
             url: '/',
           },
-        ],
-      },
-      {
-        title: t('nav.groups.terminal'),
-        items: [
-          { title: t('nav.sessions'), icon: Terminal, url: '/sessions' },
         ],
       },
       {
