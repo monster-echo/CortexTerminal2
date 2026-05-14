@@ -7,6 +7,7 @@ const REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000 // 24 hours
 interface AuthUser {
   username: string
   email?: string
+  role?: string
 }
 
 interface AuthState {
@@ -73,12 +74,13 @@ export const useAuthStore = create<AuthState>()((set) => {
         set((state) => {
           setCookie(ACCESS_TOKEN, JSON.stringify(accessToken))
           startRefreshTimer()
+          const tokenUser = getUserFromToken(accessToken)
           return {
             ...state,
             auth: {
               ...state.auth,
               accessToken,
-              user: state.auth.user ?? getUserFromToken(accessToken),
+              user: tokenUser ?? state.auth.user,
             },
           }
         }),
@@ -120,10 +122,11 @@ export const useAuthStore = create<AuthState>()((set) => {
         unique_name?: string
         name?: string
         email?: string
+        role?: string
       }
 
       const username = decoded.sub ?? decoded.unique_name ?? decoded.name
-      return username ? { username, email: decoded.email } : null
+      return username ? { username, email: decoded.email, role: decoded.role } : null
     } catch {
       return null
     }

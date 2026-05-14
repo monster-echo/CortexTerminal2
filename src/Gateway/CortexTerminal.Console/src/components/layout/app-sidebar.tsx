@@ -1,10 +1,10 @@
 import { useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
+import { createConsoleApi, type SessionSummary } from '@/services/console-api'
+import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { useLayout } from '@/context/layout-provider'
-import { createConsoleApi, type SessionSummary } from '@/services/console-api'
 import {
   Sidebar,
   SidebarContent,
@@ -27,7 +27,7 @@ export function AppSidebar() {
   const { collapsible, variant } = useLayout()
   const { t } = useTranslation()
   const user = useAuthStore((state) => state.auth.user)
-  const sidebarData = getSidebarData(t)
+  const sidebarData = getSidebarData(t, user?.role)
 
   return (
     <Sidebar collapsible={collapsible} variant={variant}>
@@ -44,9 +44,11 @@ export function AppSidebar() {
         <NavUser
           user={{
             name: user?.username ?? sidebarData.user.name,
-            email: user?.email ?? (user?.username
-              ? `${user.username}@gateway.local`
-              : sidebarData.user.email),
+            email:
+              user?.email ??
+              (user?.username
+                ? `${user.username}@gateway.local`
+                : sidebarData.user.email),
             avatar: sidebarData.user.avatar,
           }}
         />
@@ -58,12 +60,16 @@ export function AppSidebar() {
 
 function RecentSessionsGroup() {
   const { t } = useTranslation()
-  const api = useMemo(() => createConsoleApi({
-    getToken: () => useAuthStore.getState().auth.accessToken,
-    onUnauthorized: () => useAuthStore.getState().auth.reset(),
-    onTokenRefreshed: (newToken: string) =>
-      useAuthStore.getState().auth.setAccessToken(newToken),
-  }), [])
+  const api = useMemo(
+    () =>
+      createConsoleApi({
+        getToken: () => useAuthStore.getState().auth.accessToken,
+        onUnauthorized: () => useAuthStore.getState().auth.reset(),
+        onTokenRefreshed: (newToken: string) =>
+          useAuthStore.getState().auth.setAccessToken(newToken),
+      }),
+    []
+  )
 
   const { data: sessions } = useQuery({
     queryKey: ['sidebar-recent-sessions'],
@@ -71,11 +77,7 @@ function RecentSessionsGroup() {
     staleTime: 30_000,
   })
 
-  const recentSessions = sessions?.slice(0, 5)
-
-  if (!recentSessions || recentSessions.length === 0) {
-    return null
-  }
+  const recentSessions = sessions?.slice(0, 5) ?? []
 
   return (
     <SidebarGroup>

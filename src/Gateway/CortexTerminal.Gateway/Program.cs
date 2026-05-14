@@ -27,7 +27,7 @@ var builder = WebApplication.CreateBuilder(args);
 var signingKey = builder.Configuration["Auth:SigningKey"] ?? "gateway-auth-signing-key-minimum-32b";
 var gatewayAudiences = new[] { "corterm-gateway", "cortex-terminal-gateway" };
 
-string CreateAccessToken(string username, string? email = null)
+string CreateAccessToken(string username, string? email = null, string? role = null)
 {
     var claims = new List<Claim>
     {
@@ -38,6 +38,8 @@ string CreateAccessToken(string username, string? email = null)
     };
     if (!string.IsNullOrEmpty(email))
         claims.Add(new Claim(JwtRegisteredClaimNames.Email, email));
+    if (!string.IsNullOrEmpty(role))
+        claims.Add(new Claim("role", role));
     var credentials = new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey)), SecurityAlgorithms.HmacSha256);
     var token = new JwtSecurityToken(
         issuer: "https://gateway.local/",
@@ -448,12 +450,60 @@ app.MapPost("/api/auth/device-flow/verify", (DeviceFlowVerifyRequest verifyReque
     return Results.Ok(new { confirmed = true });
 }).RequireAuthorization();
 
-app.MapPost("/api/auth/refresh", (ClaimsPrincipal user) =>
+app.MapPost("/api/auth/refresh", async (ClaimsPrincipal user, IServiceProvider serviceProvider) =>
 {
     var userId = GetUserId(user);
     var isWorker = user.HasClaim("role", "worker");
-    var accessToken = isWorker ? CreateWorkerAccessToken(userId) : CreateAccessToken(userId);
+    var existingRole = user.FindFirstValue("role");
+
+    // 旧 token 可能没有 role claim，从数据库补充
+    if (string.IsNullOrEmpty(existingRole) && !isWorker)
+    {
+        try
+        {
+            var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
+            using var scope = scopeFactory.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var dbUser = await db.Users.FindAsync(userId);
+            if (dbUser is null)
+                dbUser = await db.Users.FirstOrDefaultAsync(u => u.Username == userId);
+            if (dbUser is not null)
+                existingRole = dbUser.Role;
+        }
+        catch (InvalidOperationException) { }
+    }
+
+    var accessToken = isWorker ? CreateWorkerAccessToken(userId) : CreateAccessToken(userId, role: existingRole);
     return Results.Ok(new { accessToken });
+}).RequireAuthorization();
+
+app.MapGet("/api/me/profile", async (ClaimsPrincipal userPrincipal, IServiceProvider serviceProvider) =>
+{
+    var userId = GetUserId(userPrincipal);
+    try
+    {
+        var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
+        using var scope = scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var user = await db.Users.FindAsync(userId);
+        if (user is null)
+            user = await db.Users.FirstOrDefaultAsync(u => u.Username == userId);
+        if (user is null)
+            return Results.NotFound(new { error = "User not found" });
+
+        return Results.Ok(new
+        {
+            id = user.Id,
+            username = user.Username,
+            email = user.Email,
+            role = user.Role,
+            displayName = user.DisplayName,
+        });
+    }
+    catch (InvalidOperationException)
+    {
+        return Results.Ok(new { id = userId, username = userId, role = "admin" });
+    }
 }).RequireAuthorization();
 
 // --- OAuth Login Endpoints ---
@@ -514,7 +564,7 @@ app.MapGet("/api/auth/callback/github", async (string? code, string? state, OAut
     if (dbUser is null || dbUser.Status == "disabled")
         return OAuthRedirect(redirectUrl, error: "account_disabled");
 
-    var jwt = CreateAccessToken(dbUser.Username, dbUser.Email);
+    var jwt = CreateAccessToken(dbUser.Username, dbUser.Email, dbUser.Role);
     auditLog.Record(new AuditLogEntry(
         Id: Guid.NewGuid().ToString("N"),
         Timestamp: DateTimeOffset.UtcNow,
@@ -588,7 +638,7 @@ app.MapGet("/api/auth/callback/google", async (string? code, string? state, OAut
     if (dbUser is null || dbUser.Status == "disabled")
         return OAuthRedirect(redirectUrl, error: "account_disabled");
 
-    var jwt = CreateAccessToken(dbUser.Username, dbUser.Email);
+    var jwt = CreateAccessToken(dbUser.Username, dbUser.Email, dbUser.Role);
     auditLog.Record(new AuditLogEntry(
         Id: Guid.NewGuid().ToString("N"),
         Timestamp: DateTimeOffset.UtcNow,
@@ -619,7 +669,7 @@ app.MapPost("/api/auth/password/login", async (PasswordLoginRequest request, ISe
         if (user is null || string.IsNullOrEmpty(user.PasswordHash) || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
             return Results.Unauthorized();
 
-        var jwt = CreateAccessToken(user.Username, user.Email);
+        var jwt = CreateAccessToken(user.Username, user.Email, user.Role);
         return Results.Ok(new { accessToken = jwt, username = user.Username });
     }
     catch (InvalidOperationException)
@@ -753,7 +803,7 @@ app.MapPost("/api/auth/phone/verify", async (VerifyCodeRequest request, PhoneCod
     if (dbUser is null || dbUser.Status == "disabled")
         return Results.BadRequest(new { error = "Account disabled" });
 
-    var jwt = CreateAccessToken(dbUser.Username, dbUser.Email);
+    var jwt = CreateAccessToken(dbUser.Username, dbUser.Email, dbUser.Role);
     auditLog.Record(new AuditLogEntry(
         Id: Guid.NewGuid().ToString("N"),
         Timestamp: DateTimeOffset.UtcNow,
@@ -841,7 +891,7 @@ app.MapPost("/api/auth/huawei/quick-login", async (HuaweiQuickLoginRequest reque
         if (dbUser is null || dbUser.Status == "disabled")
             return Results.BadRequest(new { error = "Account disabled" });
 
-        var jwt = CreateAccessToken(dbUser.Username, dbUser.Email);
+        var jwt = CreateAccessToken(dbUser.Username, dbUser.Email, dbUser.Role);
         auditLog.Record(new AuditLogEntry(
             Id: Guid.NewGuid().ToString("N"),
             Timestamp: DateTimeOffset.UtcNow,
@@ -947,7 +997,7 @@ app.MapPost("/api/auth/callback/apple", async (HttpContext ctx, OAuthStateServic
     if (dbUser is null || dbUser.Status == "disabled")
         return OAuthRedirect(redirectUrl, error: "account_disabled");
 
-    var jwt = CreateAccessToken(dbUser.Username, dbUser.Email);
+    var jwt = CreateAccessToken(dbUser.Username, dbUser.Email, dbUser.Role);
     auditLog.Record(new AuditLogEntry(
         Id: Guid.NewGuid().ToString("N"),
         Timestamp: DateTimeOffset.UtcNow,
