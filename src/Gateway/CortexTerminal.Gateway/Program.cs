@@ -224,6 +224,19 @@ builder.Services.AddHttpClient();
 builder.Services.AddSingleton<OAuthStateService>();
 builder.Services.AddSingleton<PhoneCodeStore>();
 builder.Services.AddSingleton<TerminalWebSocketHandler>();
+builder.Services.AddSingleton<Ixnas.AltchaNet.AltchaService>(sp =>
+{
+    var altchaStore = new AltchaChallengeStore();
+    var key = new byte[64];
+    using (var rng = System.Security.Cryptography.RandomNumberGenerator.Create())
+    {
+        rng.GetBytes(key);
+    }
+    return Ixnas.AltchaNet.Altcha.CreateServiceBuilder()
+        .UseSha256(key)
+        .UseStore(altchaStore)
+        .Build();
+});
 var phoneAuthOptions = new PhoneAuthOptions();
 builder.Configuration.GetSection("PhoneAuth").Bind(phoneAuthOptions);
 var appleOAuthOptions = new AppleOAuthOptions();
@@ -653,11 +666,25 @@ app.MapPost("/api/auth/password/register", async (PasswordRegisterRequest reques
 
 // --- Phone Auth Endpoints ---
 
-app.MapPost("/api/auth/phone/send-code", (SendCodeRequest request, PhoneCodeStore codeStore, IAuditLogStore auditLog, IServiceProvider serviceProvider, IWebHostEnvironment env) =>
+app.MapGet("/api/auth/altcha/challenge", (Ixnas.AltchaNet.AltchaService altchaService) =>
+{
+    var challenge = altchaService.Generate();
+    return Results.Ok(challenge);
+}).AllowAnonymous();
+
+app.MapPost("/api/auth/phone/send-code", async (SendCodeRequest request, PhoneCodeStore codeStore, IAuditLogStore auditLog, IServiceProvider serviceProvider, IWebHostEnvironment env, Ixnas.AltchaNet.AltchaService altchaService) =>
 {
     // Validate phone format: 11 digits
     if (string.IsNullOrEmpty(request.Phone) || request.Phone.Length != 11 || !request.Phone.All(char.IsDigit))
         return Results.BadRequest(new { error = "Invalid phone number" });
+
+    // Verify Altcha PoW challenge
+    if (string.IsNullOrEmpty(request.Altcha))
+        return Results.BadRequest(new { error = "Verification required" });
+
+    var altchaResult = await altchaService.Validate(request.Altcha);
+    if (!altchaResult.IsValid)
+        return Results.BadRequest(new { error = "Verification failed" });
 
     string code;
     try
@@ -1455,7 +1482,7 @@ static async Task<bool> IsAdmin(IServiceProvider serviceProvider, string userId)
 
 public record InviteUserRequest(string Email, string? Role);
 public record UpdateUserRequest(string? Role, string? Status);
-record SendCodeRequest(string Phone);
+record SendCodeRequest(string Phone, string? Altcha);
 record VerifyCodeRequest(string Phone, string Code);
 record HuaweiQuickLoginRequest(string AuthCode, string UnionID, string OpenID);
 record PasswordLoginRequest(string Username, string Password);

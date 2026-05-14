@@ -56,7 +56,9 @@
       "appleIdTokenInvalid": "Apple ID 令牌无效。",
       "appleUserFailed": "获取 Apple 用户信息失败。",
       "codeSendFailed": "发送验证码失败。",
-      "codeRateLimited": "请求过于频繁，请稍后再试。"
+      "codeRateLimited": "请求过于频繁，请稍后再试。",
+      "verificationRequired": "请先完成人机验证。",
+      "verificationFailed": "人机验证失败，请重试。"
     },
     "validation": {
       "usernameRequired": "请输入用户名。",

@@ -16,12 +16,12 @@ public sealed partial class AppBridge
     }
 
     [BridgeMethod]
-    public Task<string> SendPhoneCodeAsync(string phone)
+    public Task<string> SendPhoneCodeAsync(string phone, string altchaPayload)
     {
         return ExecuteSafeAsync(async () =>
         {
             if (_authService is null) throw new InvalidOperationException("AuthService not configured");
-            var result = await _authService.SendPhoneCodeAsync(phone, default);
+            var result = await _authService.SendPhoneCodeAsync(phone, altchaPayload, default);
             if (!result.Success) throw new InvalidOperationException(result.Error);
             return new { success = true };
         });

@@ -134,7 +134,7 @@ public interface IBridgeContract
 
     // 认证
     [BridgeMethod]
-    Task<string> SendPhoneCodeAsync(string phone);
+    Task<string> SendPhoneCodeAsync(string phone, string altchaPayload);
 
     [BridgeMethod]
     Task<string> VerifyPhoneCodeAsync(string phone, string code);

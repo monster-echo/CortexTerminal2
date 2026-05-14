@@ -56,7 +56,9 @@
       "appleIdTokenInvalid": "Apple ID token is invalid.",
       "appleUserFailed": "Failed to retrieve Apple user info.",
       "codeSendFailed": "Failed to send verification code.",
-      "codeRateLimited": "Too many requests. Please try again later."
+      "codeRateLimited": "Too many requests. Please try again later.",
+      "verificationRequired": "Please complete the verification first.",
+      "verificationFailed": "Verification failed. Please try again."
     },
     "validation": {
       "usernameRequired": "Please enter your username.",

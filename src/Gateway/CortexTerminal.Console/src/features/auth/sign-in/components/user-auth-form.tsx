@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -18,6 +18,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { createConsoleApi } from '@/services/console-api'
+import 'altcha'
 
 interface UserAuthFormProps extends React.HTMLAttributes<HTMLDivElement> {
   redirectTo?: string
@@ -29,6 +30,7 @@ export function UserAuthForm({
   const [isLoading, setIsLoading] = useState(false)
   const [codeCountdown, setCodeCountdown] = useState(0)
   const [codeSending, setCodeSending] = useState(false)
+  const altchaRef = useRef<HTMLElement & { getPayload: () => Promise<string>; resume: () => void }>(null)
   const navigate = useNavigate()
   const { auth } = useAuthStore()
   const { t } = useTranslation()
@@ -72,12 +74,19 @@ export function UserAuthForm({
       phoneForm.setError('phone', { message: t('auth.validation.phoneInvalid') })
       return
     }
+
+    const altchaPayload = altchaRef.current ? await altchaRef.current.getPayload() : null
+    if (!altchaPayload) {
+      toast.error(t('auth.error.verificationRequired'))
+      return
+    }
+
     setCodeSending(true)
     try {
       const res = await fetch('/api/auth/phone/send-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone }),
+        body: JSON.stringify({ phone, altcha: altchaPayload }),
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
@@ -94,6 +103,7 @@ export function UserAuthForm({
       toast.error(t('auth.error.codeSendFailed'))
     } finally {
       setCodeSending(false)
+      altchaRef.current?.resume()
     }
   }, [phoneForm, t])
 
@@ -223,6 +233,16 @@ export function UserAuthForm({
                     <FormMessage />
                   </FormItem>
                 )}
+              />
+              {/* Altcha PoW verification widget */}
+              {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+              <altcha-widget
+                ref={altchaRef as any}
+                challengeurl="/api/auth/altcha/challenge"
+                name="altcha"
+                hidelogo
+                hidefooter
+                style={{ width: '100%' }}
               />
               <div className="flex gap-2">
                 <FormField

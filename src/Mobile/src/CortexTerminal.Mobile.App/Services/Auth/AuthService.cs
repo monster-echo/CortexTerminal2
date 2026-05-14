@@ -32,9 +32,9 @@ public sealed class AuthService
         }
     }
 
-    public async Task<AuthResult> SendPhoneCodeAsync(string phone, CancellationToken ct)
+    public async Task<AuthResult> SendPhoneCodeAsync(string phone, string altchaPayload, CancellationToken ct)
     {
-        var response = await _httpClient.PostAsJsonAsync("/api/auth/phone/send-code", new { phone }, ct);
+        var response = await _httpClient.PostAsJsonAsync("/api/auth/phone/send-code", new { phone, altcha = altchaPayload }, ct);
         var body = await response.Content.ReadAsStringAsync(ct);
         if (!response.IsSuccessStatusCode)
             return new AuthResult(false, ExtractError(body));
