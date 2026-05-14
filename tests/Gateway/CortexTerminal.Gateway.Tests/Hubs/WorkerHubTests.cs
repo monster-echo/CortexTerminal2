@@ -184,10 +184,7 @@ public sealed class WorkerHubTests
 
         await workerHub.SessionExited(new SessionExited(sessionId, 0, "completed"));
 
-        sessions.TryGetSession(sessionId, out var session).Should().BeTrue();
-        session.AttachmentState.Should().Be(SessionAttachmentState.Exited);
-        session.ExitCode.Should().Be(0);
-        session.ExitReason.Should().Be("completed");
+        sessions.TryGetSession(sessionId, out _).Should().BeFalse();
         client.Invocations.Should().ContainSingle(invocation => invocation.Method == "SessionExited");
         replayCache.GetSnapshot(sessionId).Should().BeEmpty();
     }
@@ -239,9 +236,7 @@ public sealed class WorkerHubTests
 
         await workerHub.SessionExited(new SessionExited(sessionId, 137, "terminated-by-user"));
 
-        sessions.TryGetSession(sessionId, out var session).Should().BeTrue();
-        session.AttachmentState.Should().Be(SessionAttachmentState.Exited);
-        session.ExitReason.Should().Be("terminated-by-user");
+        sessions.TryGetSession(sessionId, out _).Should().BeFalse();
         client.Invocations.Should().ContainSingle(invocation => invocation.Method == "SessionExited");
     }
 

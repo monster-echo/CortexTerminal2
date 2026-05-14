@@ -81,10 +81,7 @@ public sealed class WorkerRuntimeDispatchFlowTests : IClassFixture<GatewayApplic
         var exited = await exitedTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
         exited.Should().BeEquivalentTo(expectedExit);
 
-        sessions.TryGetSession(sessionId, out var session).Should().BeTrue();
-        session.AttachmentState.Should().Be(SessionAttachmentState.Exited);
-        session.ExitCode.Should().Be(0);
-        session.ExitReason.Should().Be("process-exited");
+        sessions.TryGetSession(sessionId, out _).Should().BeFalse();
     }
 
     [Fact]
