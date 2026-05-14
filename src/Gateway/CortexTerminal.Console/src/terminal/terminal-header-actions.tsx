@@ -1,6 +1,7 @@
 import { Gauge, TerminalSquare } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
+import { useIsMobile } from '@/hooks/use-mobile'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
@@ -19,6 +20,7 @@ export function TerminalHeaderActions(props: {
   latencyState?: 'live' | 'measuring' | 'offline'
 }) {
   const { t } = useTranslation()
+  const isMobile = useIsMobile()
   const {
     eventEntries,
     latencyMs = null,
@@ -36,14 +38,17 @@ export function TerminalHeaderActions(props: {
         )}
         >
           <Gauge className='size-4 shrink-0' />
-          <span className='font-medium tracking-wide uppercase'>
-            {t('terminal.e2eLatency')}
-          </span>
+          {!isMobile && (
+            <span className='font-medium tracking-wide uppercase'>
+              {t('terminal.e2eLatency')}
+            </span>
+          )}
           <span className='font-mono text-foreground'>
             {formatLatency(t, latencyMs, latencyState)}
           </span>
         </div>
 
+      {!isMobile && (
       <Sheet>
         <SheetTrigger asChild>
           <Button variant='outline' size='sm'>
@@ -85,6 +90,7 @@ export function TerminalHeaderActions(props: {
           </ScrollArea>
         </SheetContent>
       </Sheet>
+      )}
     </div>
   )
 }

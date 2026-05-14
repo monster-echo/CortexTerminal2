@@ -256,6 +256,23 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
         }
     }
 
+    public void RemoveSession(string sessionId)
+    {
+        lock (_sync)
+        {
+            _sessions.TryRemove(sessionId, out _);
+        }
+
+        _ = PersistAsync(async db =>
+        {
+            var entity = await db.Sessions.FindAsync(sessionId);
+            if (entity is not null)
+            {
+                db.Sessions.Remove(entity);
+            }
+        });
+    }
+
     public void MarkSessionExited(string sessionId, int exitCode, string reason)
     {
         lock (_sync)

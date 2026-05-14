@@ -15,8 +15,8 @@ vi.mock('react-i18next', () => ({
 }))
 
 const FORM_MESSAGES = {
-  usernameEmpty: 'Please enter your username.',
-  passwordEmpty: 'Please enter your password.',
+  usernameEmpty: 'auth.validation.usernameRequired',
+  passwordEmpty: 'auth.validation.passwordRequired',
 } as const
 
 const navigate = vi.fn()

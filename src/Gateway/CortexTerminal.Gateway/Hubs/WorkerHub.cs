@@ -229,8 +229,8 @@ public sealed class WorkerHub(
         }
 
         var attachedClientConnectionId = session.AttachedClientConnectionId;
-        sessions.MarkSessionExited(evt.SessionId, evt.ExitCode, evt.Reason);
         replayCache.Clear(evt.SessionId);
+        sessions.RemoveSession(evt.SessionId);
 
         if (attachedClientConnectionId is not null)
         {

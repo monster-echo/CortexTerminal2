@@ -21,6 +21,7 @@ type ConfirmDialogProps = {
   confirmText?: React.ReactNode
   destructive?: boolean
   isLoading?: boolean
+  error?: string | null
   className?: string
   children?: React.ReactNode
 } & (
@@ -39,6 +40,7 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
     cancelBtnText,
     destructive,
     isLoading,
+    error,
     disabled = false,
     form,
     handleConfirm,
@@ -54,6 +56,9 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
           </AlertDialogDescription>
         </AlertDialogHeader>
         {children}
+        {error && (
+          <p className='text-sm text-destructive'>{error}</p>
+        )}
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isLoading}>
             {cancelBtnText ?? t('common.cancel')}

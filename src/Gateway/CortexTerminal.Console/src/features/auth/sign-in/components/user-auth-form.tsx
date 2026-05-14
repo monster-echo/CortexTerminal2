@@ -16,6 +16,8 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { createConsoleApi } from '@/services/console-api'
 
 interface UserAuthFormProps extends React.HTMLAttributes<HTMLDivElement> {
   redirectTo?: string
@@ -30,12 +32,26 @@ export function UserAuthForm({
   const navigate = useNavigate()
   const { auth } = useAuthStore()
   const { t } = useTranslation()
+  const consoleApi = createConsoleApi()
 
   useEffect(() => {
     if (codeCountdown <= 0) return
     const timer = setTimeout(() => setCodeCountdown(codeCountdown - 1), 1000)
     return () => clearTimeout(timer)
   }, [codeCountdown])
+
+  const passwordSchema = z.object({
+    username: z.string().min(1, t('auth.validation.usernameRequired')),
+    password: z.string().min(1, t('auth.validation.passwordRequired')),
+  })
+
+  const passwordForm = useForm<z.infer<typeof passwordSchema>>({
+    resolver: zodResolver(passwordSchema),
+    defaultValues: {
+      username: '',
+      password: '',
+    },
+  })
 
   const phoneSchema = z.object({
     phone: z.string().regex(/^1\d{10}$/, t('auth.validation.phoneInvalid')),
@@ -106,6 +122,22 @@ export function UserAuthForm({
     }
   }
 
+  async function onPasswordSubmit(data: z.infer<typeof passwordSchema>) {
+    setIsLoading(true)
+    try {
+      const result = await consoleApi.login(data.username, data.password)
+      auth.setUser({ username: result.username })
+      auth.setAccessToken(result.token)
+      toast.success(t('auth.signedInAs', { username: result.username }))
+      navigate({ to: redirectTo || '/dashboard', replace: true })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : ''
+      toast.error(t('auth.loginFailed', { error: message }))
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   function handleOAuth(provider: string) {
     const redirect = redirectTo || '/sessions'
     window.location.href = `/api/auth/${provider}?redirect=${encodeURIComponent(redirect)}`
@@ -113,65 +145,126 @@ export function UserAuthForm({
 
   return (
     <div className='grid gap-3'>
-      {/* Phone login form — default */}
-      <Form {...phoneForm}>
-        <form onSubmit={phoneForm.handleSubmit(onPhoneSubmit)} className="grid gap-3">
-          <FormField
-            control={phoneForm.control}
-            name="phone"
-            render={({ field }) => (
-              <FormItem>
-                <FormControl>
-                  <Input
-                    placeholder={t('auth.phonePlaceholder')}
-                    autoComplete="tel"
-                    maxLength={11}
-                    {...field}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <div className="flex gap-2">
-            <FormField
-              control={phoneForm.control}
-              name="code"
-              render={({ field }) => (
-                <FormItem className="flex-1">
-                  <FormControl>
-                    <Input
-                      placeholder={t('auth.codePlaceholder')}
-                      autoComplete="one-time-code"
-                      maxLength={6}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleSendCode}
-              disabled={codeCountdown > 0 || codeSending}
-              className="shrink-0"
-            >
-              {codeSending
-                ? <Loader2 className="h-4 w-4 animate-spin" />
-                : codeCountdown > 0
-                  ? t('auth.codeCountdown', { seconds: codeCountdown })
-                  : t('auth.sendCode')
-              }
-            </Button>
-          </div>
-          <Button type="submit" disabled={isLoading}>
-            {isLoading ? <Loader2 className="animate-spin" /> : <LogIn />}
+      <Tabs defaultValue="password">
+        <TabsList className="w-full">
+          <TabsTrigger value="password" className="flex-1">
             {t('auth.signIn')}
-          </Button>
-        </form>
-      </Form>
+          </TabsTrigger>
+          <TabsTrigger value="phone" className="flex-1">
+            {t('auth.signInWithPhone')}
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Password login tab */}
+        <TabsContent value="password">
+          <Form {...passwordForm}>
+            <form
+              onSubmit={passwordForm.handleSubmit(onPasswordSubmit)}
+              className="grid gap-3"
+            >
+              <FormField
+                control={passwordForm.control}
+                name="username"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <Input
+                        placeholder={t('auth.username')}
+                        autoComplete="username"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={passwordForm.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <Input
+                        placeholder={t('auth.password')}
+                        type="password"
+                        autoComplete="current-password"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <Button type="submit" disabled={isLoading}>
+                {isLoading ? <Loader2 className="animate-spin" /> : <LogIn />}
+                {t('auth.signIn')}
+              </Button>
+            </form>
+          </Form>
+        </TabsContent>
+
+        {/* Phone login tab */}
+        <TabsContent value="phone">
+          <Form {...phoneForm}>
+            <form onSubmit={phoneForm.handleSubmit(onPhoneSubmit)} className="grid gap-3">
+              <FormField
+                control={phoneForm.control}
+                name="phone"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <Input
+                        placeholder={t('auth.phonePlaceholder')}
+                        autoComplete="tel"
+                        maxLength={11}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="flex gap-2">
+                <FormField
+                  control={phoneForm.control}
+                  name="code"
+                  render={({ field }) => (
+                    <FormItem className="flex-1">
+                      <FormControl>
+                        <Input
+                          placeholder={t('auth.codePlaceholder')}
+                          autoComplete="one-time-code"
+                          maxLength={6}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleSendCode}
+                  disabled={codeCountdown > 0 || codeSending}
+                  className="shrink-0"
+                >
+                  {codeSending
+                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                    : codeCountdown > 0
+                      ? t('auth.codeCountdown', { seconds: codeCountdown })
+                      : t('auth.sendCode')
+                  }
+                </Button>
+              </div>
+              <Button type="submit" disabled={isLoading}>
+                {isLoading ? <Loader2 className="animate-spin" /> : <LogIn />}
+                {t('auth.signIn')}
+              </Button>
+            </form>
+          </Form>
+        </TabsContent>
+      </Tabs>
 
       {/* Divider */}
       <div className="relative my-2">

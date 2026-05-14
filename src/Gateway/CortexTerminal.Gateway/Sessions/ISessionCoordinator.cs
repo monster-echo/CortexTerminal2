@@ -11,6 +11,7 @@ public interface ISessionCoordinator
     IReadOnlyList<SessionRecord> GetSessionsForUser(string userId);
     void MarkSessionStartFailed(string sessionId, string reason);
     void MarkSessionExited(string sessionId, int exitCode, string reason);
+    void RemoveSession(string sessionId);
     void MarkReplayCompleted(string sessionId, string clientConnectionId);
     int RebindActiveSessions(string userId, string workerId, string workerConnectionId);
     IReadOnlyList<string> ExpireDetachedSessions(DateTimeOffset nowUtc);

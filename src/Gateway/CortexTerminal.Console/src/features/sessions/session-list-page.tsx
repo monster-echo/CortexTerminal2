@@ -167,9 +167,6 @@ export function SessionListPage() {
             </Tabs>
           </CardHeader>
           <CardContent>
-            {actionError && (
-              <p className='mb-4 text-sm text-destructive'>{actionError}</p>
-            )}
             {sessionsQuery.isLoading ? (
               <div className='flex items-center gap-2 text-sm text-muted-foreground'>
                 <Loader2 className='size-4 animate-spin' /> {t('common.loading')}
@@ -195,8 +192,6 @@ export function SessionListPage() {
                 sessions={sessions}
                 t={t}
                 navigate={navigate}
-                setDeleteTarget={setDeleteTarget}
-                setTerminateTarget={setTerminateTarget}
               />
             ) : (
               <Table>
@@ -284,7 +279,10 @@ export function SessionListPage() {
         <ConfirmDialog
           open={terminateTarget !== null}
           onOpenChange={(open) => {
-            if (!open) setTerminateTarget(null)
+            if (!open) {
+              setTerminateTarget(null)
+              setActionError(null)
+            }
           }}
           title={t('sessions.terminate.confirm')}
           desc={t('sessions.terminate.message')}
@@ -292,13 +290,17 @@ export function SessionListPage() {
           cancelBtnText={t('common.cancel')}
           destructive
           isLoading={isTerminating}
+          error={actionError}
           handleConfirm={handleTerminate}
         />
 
         <ConfirmDialog
           open={deleteTarget !== null}
           onOpenChange={(open) => {
-            if (!open) setDeleteTarget(null)
+            if (!open) {
+              setDeleteTarget(null)
+              setActionError(null)
+            }
           }}
           title={t('sessions.delete.confirm')}
           desc={t('sessions.delete.message')}
@@ -306,6 +308,7 @@ export function SessionListPage() {
           cancelBtnText={t('common.cancel')}
           destructive
           isLoading={isDeleting}
+          error={actionError}
           handleConfirm={handleDelete}
         />
 
@@ -333,14 +336,10 @@ function MobileSessionList({
   sessions,
   t,
   navigate,
-  setDeleteTarget,
-  setTerminateTarget,
 }: {
   sessions: SessionSummary[]
   t: ReturnType<typeof useTranslation>['t']
   navigate: ReturnType<typeof useNavigate>
-  setDeleteTarget: (target: { sessionId: string } | null) => void
-  setTerminateTarget: (target: { sessionId: string } | null) => void
 }) {
   return (
     <div className='flex flex-col divide-y'>
@@ -373,30 +372,6 @@ function MobileSessionList({
             >
               {t('sessions.openTerminal')}
             </Button>
-            {TERMINABLE_STATUSES.includes(session.status) ? (
-              <Button
-                variant='destructive'
-                size='sm'
-                onClick={() =>
-                  setTerminateTarget({ sessionId: session.sessionId })
-                }
-              >
-                <Square className='size-4' />
-                {t('sessions.terminate.button')}
-              </Button>
-            ) : (
-              <Button
-                variant='ghost'
-                size='icon'
-                className='size-8'
-                disabled={!DELETABLE_STATUSES.includes(session.status)}
-                onClick={() =>
-                  setDeleteTarget({ sessionId: session.sessionId })
-                }
-              >
-                <Trash2 className='size-4' />
-              </Button>
-            )}
           </div>
         </div>
       ))}

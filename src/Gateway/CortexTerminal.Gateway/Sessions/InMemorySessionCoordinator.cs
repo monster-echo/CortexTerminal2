@@ -212,6 +212,14 @@ public sealed class InMemorySessionCoordinator : ISessionCoordinator
         }
     }
 
+    public void RemoveSession(string sessionId)
+    {
+        lock (_sync)
+        {
+            _sessions.TryRemove(sessionId, out _);
+        }
+    }
+
     public void MarkSessionExited(string sessionId, int exitCode, string reason)
     {
         lock (_sync)

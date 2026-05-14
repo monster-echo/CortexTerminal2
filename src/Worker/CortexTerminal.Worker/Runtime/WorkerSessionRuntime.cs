@@ -53,6 +53,9 @@ public sealed class WorkerSessionRuntime : IAsyncDisposable
     public async Task CloseAsync(CancellationToken cancellationToken)
     {
         await DisposeProcessAsync();
+        await GatewayClient.ForwardExitedAsync(
+            new SessionExited(SessionId, 0, "closed-by-request"),
+            CancellationToken.None);
         await NotifyTerminatedAsync();
     }
 

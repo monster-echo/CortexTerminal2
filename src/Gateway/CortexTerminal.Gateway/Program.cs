@@ -239,6 +239,8 @@ if (!string.IsNullOrEmpty(connectionString))
 }
 else
 {
+    builder.Services.AddDbContext<AppDbContext>(options =>
+        options.UseInMemoryDatabase("CortermDev"));
     builder.Services.AddSingleton<IAuditLogStore, InMemoryAuditLogStore>();
     builder.Services.AddSingleton<IWorkerRegistry, InMemoryWorkerRegistry>();
     builder.Services.AddSingleton<ISessionCoordinator, InMemorySessionCoordinator>();
@@ -257,6 +259,33 @@ var forwardedHeadersOptions = new ForwardedHeadersOptions
 forwardedHeadersOptions.KnownIPNetworks.Clear();
 forwardedHeadersOptions.KnownProxies.Clear();
 app.UseForwardedHeaders(forwardedHeadersOptions);
+
+// Seed test user for in-memory database (dev mode)
+if (string.IsNullOrEmpty(connectionString))
+{
+    using (var scope = app.Services.CreateScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        if (!await db.Users.AnyAsync())
+        {
+            db.Users.Add(new User
+            {
+                Id = Guid.NewGuid().ToString("N"),
+                Username = "test",
+                Role = "admin",
+                Status = "active",
+                AuthProvider = "password",
+                AuthProviderId = "test",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("test123"),
+                CreatedAtUtc = DateTimeOffset.UtcNow,
+                UpdatedAtUtc = DateTimeOffset.UtcNow,
+            });
+            await db.SaveChangesAsync();
+            var seedLogger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+            seedLogger.LogInformation("Seeded dev user: test / test123");
+        }
+    }
+}
 
 // Auto-create database tables
 if (!string.IsNullOrEmpty(connectionString))

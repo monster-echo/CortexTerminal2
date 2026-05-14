@@ -16,12 +16,14 @@ import { ArrowLeft, Loader2, Square, Trash2 } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth-store'
 import { getApi } from '@/lib/api'
 import { SessionDetailsSheet } from './session-details-sheet'
+import { useIsMobile } from '@/hooks/use-mobile'
 
 export function SessionDetailPage(props: { sessionId: string }) {
   const { sessionId } = props
   const { t } = useTranslation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const isMobile = useIsMobile()
   const [latencyMs, setLatencyMs] = useState<number | null>(null)
   const [latencyState, setLatencyState] = useState<'live' | 'measuring' | 'offline'>('measuring')
   const [terminateOpen, setTerminateOpen] = useState(false)
@@ -184,13 +186,13 @@ export function SessionDetailPage(props: { sessionId: string }) {
             latencyMs={latencyMs}
             latencyState={latencyState}
           />
-          {canTerminate && (
+          {!isMobile && canTerminate && (
             <Button variant='destructive' size='sm' onClick={() => setTerminateOpen(true)}>
               <Square className='size-4' />
               {t('sessions.terminate.button')}
             </Button>
           )}
-          {canDelete && (
+          {!isMobile && canDelete && (
             <Button variant='outline' size='sm' onClick={() => setDeleteOpen(true)}>
               <Trash2 className='size-4' />
               {t('sessions.delete.button')}
@@ -204,11 +206,6 @@ export function SessionDetailPage(props: { sessionId: string }) {
         </div>
       </Header>
       <Main fluid className='flex min-h-0 flex-1 flex-col overflow-hidden py-0'>
-        {actionError && (
-          <div className='border-b border-destructive/30 bg-destructive/10 px-4 py-2 text-sm text-destructive'>
-            {actionError}
-          </div>
-        )}
         <TerminalView
           gateway={gateway}
           sessionId={session.sessionId}
@@ -225,24 +222,32 @@ export function SessionDetailPage(props: { sessionId: string }) {
       </Main>
       <ConfirmDialog
         open={terminateOpen}
-        onOpenChange={setTerminateOpen}
+        onOpenChange={(open) => {
+          setTerminateOpen(open)
+          if (!open) setActionError(null)
+        }}
         title={t('sessions.terminate.confirm')}
         desc={t('sessions.terminate.message')}
         confirmText={t('sessions.terminate.button')}
         cancelBtnText={t('common.cancel')}
         destructive
         isLoading={isTerminating}
+        error={actionError}
         handleConfirm={handleTerminate}
       />
       <ConfirmDialog
         open={deleteOpen}
-        onOpenChange={setDeleteOpen}
+        onOpenChange={(open) => {
+          setDeleteOpen(open)
+          if (!open) setActionError(null)
+        }}
         title={t('sessions.delete.confirm')}
         desc={t('sessions.delete.message')}
         confirmText={t('common.delete')}
         cancelBtnText={t('common.cancel')}
         destructive
         isLoading={isDeleting}
+        error={actionError}
         handleConfirm={handleDelete}
       />
     </>
