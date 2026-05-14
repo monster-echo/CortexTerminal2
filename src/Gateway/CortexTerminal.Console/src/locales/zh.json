@@ -14,7 +14,9 @@
       "infrastructure": "基础设施",
       "admin": "管理",
       "system": "系统"
-    }
+    },
+    "recentSessions": "最近会话",
+    "more": "更多..."
   },
   "auth": {
     "signIn": "登录",
@@ -215,20 +217,60 @@
   },
   "settings": {
     "title": "设置",
+    "subtitle": "管理您的个人资料和应用偏好。",
     "profile": "个人资料",
     "general": "通用",
     "language": "语言",
     "theme": "主题",
     "displayName": "显示名称",
     "security": "安全",
-    "dangerZone": "危险区域"
+    "dangerZone": "危险区域",
+    "profileSection": {
+      "title": "个人资料",
+      "desc": "这是其他人在网站上看到的您的信息。",
+      "username": "用户名",
+      "usernamePlaceholder": "admin",
+      "usernameDesc": "这是您的公开显示名称，可以是真实姓名或化名。",
+      "email": "邮箱",
+      "emailPlaceholder": "选择一个已验证的邮箱",
+      "emailDesc": "您可以在邮箱设置中管理已验证的邮箱地址。",
+      "bio": "个人简介",
+      "bioPlaceholder": "简单介绍一下自己",
+      "bioDesc": "您可以使用 @提及其他用户和组织来链接到他们。",
+      "urls": "链接",
+      "urlsDesc": "添加您的网站、博客或社交媒体链接。",
+      "addUrl": "添加链接",
+      "updateProfile": "更新资料"
+    },
+    "appearanceSection": {
+      "desc": "配置语言和主题偏好。",
+      "hint": "使用顶部的主题切换按钮在浅色、深色和跟随系统主题之间切换。"
+    }
   },
   "auditLog": {
     "title": "审计日志",
     "timestamp": "时间",
     "user": "用户",
     "action": "操作",
-    "target": "目标"
+    "target": "目标",
+    "from": "起始",
+    "to": "结束",
+    "empty": "未找到审计日志条目。",
+    "loadError": "无法加载审计日志。",
+    "pagination": "共 {{totalCount}} 条（第 {{page}} 页，共 {{totalPages}} 页）",
+    "previous": "上一页",
+    "next": "下一页",
+    "actions": {
+      "all": "全部",
+      "session.create": "创建会话",
+      "session.delete": "删除会话",
+      "user.login": "用户登录",
+      "user.invite": "用户邀请",
+      "user.update": "用户更新",
+      "user.delete": "用户删除",
+      "worker.connect": "节点连接",
+      "worker.disconnect": "节点断开"
+    }
   },
   "common": {
     "search": "搜索...",

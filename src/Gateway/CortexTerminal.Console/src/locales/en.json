@@ -14,7 +14,9 @@
       "infrastructure": "Infrastructure",
       "admin": "Admin",
       "system": "System"
-    }
+    },
+    "recentSessions": "Recent Sessions",
+    "more": "More..."
   },
   "auth": {
     "signIn": "Sign In",
@@ -215,20 +217,60 @@
   },
   "settings": {
     "title": "Settings",
+    "subtitle": "Manage your profile and application preferences.",
     "profile": "Profile",
     "general": "General",
     "language": "Language",
     "theme": "Theme",
     "displayName": "Display Name",
     "security": "Security",
-    "dangerZone": "Danger Zone"
+    "dangerZone": "Danger Zone",
+    "profileSection": {
+      "title": "Profile",
+      "desc": "This is how others will see you on the site.",
+      "username": "Username",
+      "usernamePlaceholder": "admin",
+      "usernameDesc": "This is your public display name. It can be your real name or a pseudonym.",
+      "email": "Email",
+      "emailPlaceholder": "Select a verified email to display",
+      "emailDesc": "You can manage verified email addresses in your email settings.",
+      "bio": "Bio",
+      "bioPlaceholder": "Tell us a little bit about yourself",
+      "bioDesc": "You can @mention other users and organizations to link to them.",
+      "urls": "URLs",
+      "urlsDesc": "Add links to your website, blog, or social media profiles.",
+      "addUrl": "Add URL",
+      "updateProfile": "Update profile"
+    },
+    "appearanceSection": {
+      "desc": "Configure language and theme preferences.",
+      "hint": "Use the theme switch in the header to toggle between light, dark, and system themes."
+    }
   },
   "auditLog": {
     "title": "Audit Log",
     "timestamp": "Timestamp",
     "user": "User",
     "action": "Action",
-    "target": "Target"
+    "target": "Target",
+    "from": "From",
+    "to": "To",
+    "empty": "No audit log entries found.",
+    "loadError": "Could not load audit log.",
+    "pagination": "{{totalCount}} entries (page {{page}} of {{totalPages}})",
+    "previous": "Previous",
+    "next": "Next",
+    "actions": {
+      "all": "All",
+      "session.create": "Session Create",
+      "session.delete": "Session Delete",
+      "user.login": "User Login",
+      "user.invite": "User Invite",
+      "user.update": "User Update",
+      "user.delete": "User Delete",
+      "worker.connect": "Worker Connect",
+      "worker.disconnect": "Worker Disconnect"
+    }
   },
   "common": {
     "search": "Search...",

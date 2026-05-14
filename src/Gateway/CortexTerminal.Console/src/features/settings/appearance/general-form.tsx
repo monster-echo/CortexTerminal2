@@ -33,7 +33,7 @@ export function GeneralForm() {
       <div className='space-y-2'>
         <Label>{t('settings.theme')}</Label>
         <p className='text-sm text-muted-foreground'>
-          Use the theme switch in the header to toggle between light, dark, and system themes.
+          {t('settings.appearanceSection.hint')}
         </p>
       </div>
     </div>

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { createConsoleApi, type AuditLogEntry } from '@/services/console-api'
@@ -29,16 +29,26 @@ function createApi() {
 }
 
 const ACTION_TYPES = [
-  { value: '', label: 'All' },
-  { value: 'session.create', label: 'Session Create' },
-  { value: 'session.delete', label: 'Session Delete' },
-  { value: 'user.login', label: 'User Login' },
-  { value: 'user.invite', label: 'User Invite' },
-  { value: 'user.update', label: 'User Update' },
-  { value: 'user.delete', label: 'User Delete' },
-  { value: 'worker.connect', label: 'Worker Connect' },
-  { value: 'worker.disconnect', label: 'Worker Disconnect' },
-]
+  'all',
+  'session.create',
+  'session.delete',
+  'user.login',
+  'user.invite',
+  'user.update',
+  'user.delete',
+  'worker.connect',
+  'worker.disconnect',
+] as const
+
+function getDefaultDates() {
+  const today = new Date()
+  const yesterday = new Date(today)
+  yesterday.setDate(yesterday.getDate() - 1)
+  return {
+    from: yesterday.toISOString().slice(0, 10),
+    to: today.toISOString().slice(0, 10),
+  }
+}
 
 const PAGE_SIZE = 20
 
@@ -47,8 +57,9 @@ export function AuditLogPage() {
   const api = useMemo(() => createApi(), [])
   const [page, setPage] = useState(1)
   const [actionType, setActionType] = useState('')
-  const [fromDate, setFromDate] = useState('')
-  const [toDate, setToDate] = useState('')
+  const defaultDates = useMemo(() => getDefaultDates(), [])
+  const [fromDate, setFromDate] = useState(defaultDates.from)
+  const [toDate, setToDate] = useState(defaultDates.to)
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['audit-log', page, actionType, fromDate, toDate],
@@ -90,9 +101,9 @@ export function AuditLogPage() {
                 <SelectValue placeholder='All' />
               </SelectTrigger>
               <SelectContent>
-                {ACTION_TYPES.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value || '_all'}>
-                    {opt.label}
+                {ACTION_TYPES.map((key) => (
+                  <SelectItem key={key} value={key === 'all' ? '_all' : key}>
+                    {t(`auditLog.actions.${key}`)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -100,7 +111,7 @@ export function AuditLogPage() {
           </div>
           <div>
             <label className='mb-1 block text-sm font-medium text-muted-foreground'>
-              From
+              {t('auditLog.from')}
             </label>
             <Input
               type='date'
@@ -111,7 +122,7 @@ export function AuditLogPage() {
           </div>
           <div>
             <label className='mb-1 block text-sm font-medium text-muted-foreground'>
-              To
+              {t('auditLog.to')}
             </label>
             <Input
               type='date'
@@ -133,10 +144,10 @@ export function AuditLogPage() {
               </div>
             ) : isError ? (
               <p className='text-sm text-destructive'>
-                {error instanceof Error ? error.message : 'Could not load audit log.'}
+                {error instanceof Error ? error.message : t('auditLog.loadError')}
               </p>
             ) : entries.length === 0 ? (
-              <p className='text-sm text-muted-foreground'>No audit log entries found.</p>
+              <p className='text-sm text-muted-foreground'>{t('auditLog.empty')}</p>
             ) : (
               <Table>
                 <TableHeader>
@@ -171,7 +182,7 @@ export function AuditLogPage() {
         {totalCount > 0 && (
           <div className='mt-4 flex items-center justify-between'>
             <p className='text-sm text-muted-foreground'>
-              {totalCount} entries (page {page} of {totalPages})
+              {t('auditLog.pagination', { totalCount, page, totalPages })}
             </p>
             <div className='flex gap-2'>
               <Button
@@ -180,7 +191,7 @@ export function AuditLogPage() {
                 disabled={page <= 1}
                 onClick={() => setPage((p) => p - 1)}
               >
-                Previous
+                {t('auditLog.previous')}
               </Button>
               <Button
                 variant='outline'
@@ -188,7 +199,7 @@ export function AuditLogPage() {
                 disabled={page >= totalPages}
                 onClick={() => setPage((p) => p + 1)}
               >
-                Next
+                {t('auditLog.next')}
               </Button>
             </div>
           </div>

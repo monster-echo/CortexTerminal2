@@ -39,7 +39,7 @@ export function Settings() {
             {t('settings.title')}
           </h1>
           <p className='text-muted-foreground'>
-            Manage your profile and application preferences.
+            {t('settings.subtitle')}
           </p>
         </div>
         <Separator className='my-4 lg:my-6' />

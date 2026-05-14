@@ -7,7 +7,7 @@ export function SettingsGeneral() {
   return (
     <ContentSection
       title={t('settings.general')}
-      desc='Configure language and theme preferences.'
+      desc={t('settings.appearanceSection.desc')}
     >
       <GeneralForm />
     </ContentSection>

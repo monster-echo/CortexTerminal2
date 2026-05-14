@@ -46,18 +46,21 @@ export function NewSessionDialog({
   isCreating,
 }: NewSessionDialogProps) {
   const { t } = useTranslation()
-  const [selectedWorker, setSelectedWorker] = useState<string>('__auto__')
+  const [selectedWorker, setSelectedWorker] = useState<string>('')
 
   useEffect(() => {
     if (open) {
-      setSelectedWorker('__auto__')
+      const online = workers.filter((w) => w.isOnline)
+      setSelectedWorker(online[0]?.workerId ?? '')
     }
-  }, [open])
+  }, [open, workers])
 
   const onlineWorkers = workers.filter((w) => w.isOnline)
 
   function handleCreate() {
-    onCreateSession(selectedWorker === '__auto__' ? undefined : selectedWorker)
+    if (selectedWorker) {
+      onCreateSession(selectedWorker)
+    }
   }
 
   return (
@@ -83,24 +86,6 @@ export function NewSessionDialog({
               onValueChange={setSelectedWorker}
               className="gap-2"
             >
-              {/* Auto-select option */}
-              <Label
-                htmlFor="worker-auto"
-                className={cn(
-                  'flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition-colors',
-                  'hover:bg-accent/50',
-                  selectedWorker === '__auto__' && 'border-primary bg-accent/30'
-                )}
-              >
-                <RadioGroupItem value="__auto__" id="worker-auto" />
-                <div className="flex-1">
-                  <div className="font-medium text-sm">{t('newSession.autoSelect')}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {t('newSession.autoSelectDescription')}
-                  </div>
-                </div>
-              </Label>
-
               {onlineWorkers.map((worker) => (
                 <Label
                   key={worker.workerId}

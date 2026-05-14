@@ -144,8 +144,8 @@ export function UserAuthForm({
   }
 
   return (
-    <div className='grid gap-3'>
-      <Tabs defaultValue="password">
+    <div className='w-full grid gap-3'>
+      <Tabs defaultValue="password" className="w-full">
         <TabsList className="w-full">
           <TabsTrigger value="password" className="flex-1">
             {t('auth.signIn')}
@@ -156,11 +156,11 @@ export function UserAuthForm({
         </TabsList>
 
         {/* Password login tab */}
-        <TabsContent value="password">
+        <TabsContent value="password" className="w-full">
           <Form {...passwordForm}>
             <form
               onSubmit={passwordForm.handleSubmit(onPasswordSubmit)}
-              className="grid gap-3"
+              className="w-full grid gap-3"
             >
               <FormField
                 control={passwordForm.control}
@@ -204,9 +204,9 @@ export function UserAuthForm({
         </TabsContent>
 
         {/* Phone login tab */}
-        <TabsContent value="phone">
+        <TabsContent value="phone" className="w-full">
           <Form {...phoneForm}>
-            <form onSubmit={phoneForm.handleSubmit(onPhoneSubmit)} className="grid gap-3">
+            <form onSubmit={phoneForm.handleSubmit(onPhoneSubmit)} className="w-full grid gap-3">
               <FormField
                 control={phoneForm.control}
                 name="phone"
