@@ -23,6 +23,7 @@ const SNAP_EDGE_MARGIN = 8
 const SNAP_ANIMATION_MS = 200
 
 export function applyCtrlModifier(sequence: string): string {
+  if (sequence.length !== 1) return sequence
   const code = sequence.charCodeAt(0)
   // Ctrl+Esc → Ctrl+C
   if (code === 0x1b) return '\x03'
@@ -34,6 +35,7 @@ export function applyCtrlModifier(sequence: string): string {
 }
 
 export function applyAltModifier(sequence: string): string {
+  if (sequence.length !== 1) return sequence
   return '\x1b' + sequence
 }
 
@@ -78,16 +80,9 @@ export function TerminalVirtualKeys(props: {
         return
       }
 
-      let sequence = key.sequence
-      if (ctrlActive) {
-        sequence = applyCtrlModifier(sequence)
-      }
-      if (altActive) {
-        sequence = applyAltModifier(sequence)
-      }
-      onSendData(sequence)
+      onSendData(key.sequence)
     },
-    [onSendData, ctrlActive, altActive, onCtrlToggle, onAltToggle]
+    [onSendData, onCtrlToggle, onAltToggle]
   )
 
   const handleDragPointerDown = useCallback((e: React.PointerEvent) => {
@@ -243,14 +238,6 @@ export function TerminalVirtualKeys(props: {
       snapToEdge(size, size)
     }
   }, [snapToEdge])
-
-  // Only render on touch-capable devices
-  const [isTouchDevice, setIsTouchDevice] = useState(false)
-  useEffect(() => {
-    setIsTouchDevice('ontouchstart' in window || navigator.maxTouchPoints > 0)
-  }, [])
-
-  if (!isTouchDevice) return null
 
   const posX = position?.x ?? 0
   const posY = position?.y ?? 0
