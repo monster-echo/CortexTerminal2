@@ -1,8 +1,23 @@
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from '@tanstack/react-router'
 
 export function LandingNav() {
   const { t, i18n } = useTranslation()
+  const [version, setVersion] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch('https://api.github.com/repos/monster-echo/CortexTerminal2/releases?per_page=20')
+      .then(r => r.ok ? r.json() : null)
+      .then((releases: Array<{ tag_name: string }> | null) => {
+        if (!releases) return
+        const worker = releases.find(r => r.tag_name.startsWith('worker-'))
+        if (worker) {
+          setVersion(worker.tag_name.replace(/^worker-/, 'v'))
+        }
+      })
+      .catch(() => setVersion('error'))
+  }, [])
 
   const toggleLang = () => {
     const next = i18n.language === 'zh' ? 'en' : 'zh'
@@ -53,7 +68,7 @@ export function LandingNav() {
           rel="noopener"
           className="px-4 py-1.5 rounded-md text-sm font-mono bg-[#242429] border border-[#2e2e36] text-[#e4e4e7] hover:bg-[#1a1a1d] hover:border-emerald-500 transition-all no-underline"
         >
-          v0.2.0
+          {version ?? '...'}
         </a>
       </div>
     </nav>
