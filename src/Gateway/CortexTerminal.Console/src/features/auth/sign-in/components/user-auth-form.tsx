@@ -30,7 +30,8 @@ export function UserAuthForm({
   const [isLoading, setIsLoading] = useState(false)
   const [codeCountdown, setCodeCountdown] = useState(0)
   const [codeSending, setCodeSending] = useState(false)
-  const altchaRef = useRef<HTMLElement & { getPayload: () => Promise<string>; resume: () => void }>(null)
+  const [altchaPayload, setAltchaPayload] = useState<string | null>(null)
+  const altchaRef = useRef<HTMLElement & { reset: () => void }>(null)
   const navigate = useNavigate()
   const { auth } = useAuthStore()
   const { t } = useTranslation()
@@ -41,6 +42,20 @@ export function UserAuthForm({
     const timer = setTimeout(() => setCodeCountdown(codeCountdown - 1), 1000)
     return () => clearTimeout(timer)
   }, [codeCountdown])
+
+  // Listen for Altcha v3 verified event
+  useEffect(() => {
+    const widget = altchaRef.current
+    if (!widget) return
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail
+      if (detail?.payload) {
+        setAltchaPayload(detail.payload)
+      }
+    }
+    widget.addEventListener('verified', handler)
+    return () => widget.removeEventListener('verified', handler)
+  }, [])
 
   const passwordSchema = z.object({
     username: z.string().min(1, t('auth.validation.usernameRequired')),
@@ -75,7 +90,6 @@ export function UserAuthForm({
       return
     }
 
-    const altchaPayload = altchaRef.current ? await altchaRef.current.getPayload() : null
     if (!altchaPayload) {
       toast.error(t('auth.error.verificationRequired'))
       return
@@ -103,9 +117,10 @@ export function UserAuthForm({
       toast.error(t('auth.error.codeSendFailed'))
     } finally {
       setCodeSending(false)
-      altchaRef.current?.resume()
+      setAltchaPayload(null)
+      altchaRef.current?.reset()
     }
-  }, [phoneForm, t])
+  }, [phoneForm, altchaPayload, t])
 
   async function onPhoneSubmit(data: z.infer<typeof phoneSchema>) {
     setIsLoading(true)
@@ -238,7 +253,7 @@ export function UserAuthForm({
               {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
               <altcha-widget
                 ref={altchaRef as any}
-                challengeurl="/api/auth/altcha/challenge"
+                challenge="/api/auth/altcha/challenge"
                 name="altcha"
                 hidelogo
                 hidefooter
