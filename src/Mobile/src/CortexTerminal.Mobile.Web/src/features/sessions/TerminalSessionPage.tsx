@@ -43,6 +43,15 @@ function decodeBase64ToBytes(base64: string): Uint8Array {
   return bytes;
 }
 
+// Normalize bare \n to \r\n for xterm.js (convertEol: false).
+// Linux PTY output may contain bare \n that causes staircase garbling.
+function normalizeTerminalOutput(bytes: Uint8Array): Uint8Array {
+  const text = new TextDecoder().decode(bytes);
+  if (!text.includes('\n')) return bytes;
+  const normalized = text.replace(/(?<!\r)\n/g, '\r\n');
+  return new TextEncoder().encode(normalized);
+}
+
 // ── Custom draggable hook using pointer events, with snap-to-edge ──
 function useDraggable(storageKey: string) {
   const loadPos = (): { x: number; y: number } => {
@@ -312,7 +321,7 @@ export default function TerminalSessionPage({
         term
       ) {
         try {
-          term.write(decodeBase64ToBytes(event.base64));
+          term.write(normalizeTerminalOutput(decodeBase64ToBytes(event.base64)));
         } catch {
           /* ignore decode errors */
         }
