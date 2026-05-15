@@ -133,7 +133,7 @@ export default function TerminalSessionPage({
 }: RouteComponentProps<RouteParams>) {
   const sessionId = match.params.sessionId;
   const { t } = useTranslation();
-  const [statusMessage, setStatusMessage] = useState("Connecting...");
+  const [statusMessage, setStatusMessage] = useState(t("terminal.connecting"));
   const [latency, setLatency] = useState<number | null>(null);
   const [presentActionSheet] = useIonActionSheet();
 
@@ -339,63 +339,65 @@ export default function TerminalSessionPage({
           /* ignore decode errors */
         }
         if (event.type === "terminal.replay") {
-          setStatusMessage("Replaying");
+          setStatusMessage(t("terminal.replaying"));
         } else {
-          setStatusMessage("Live");
+          setStatusMessage(t("terminal.live"));
         }
         return;
       }
 
       if (event.type === "terminal.connected") {
         connectedRef.current = true;
-        setStatusMessage("Connected");
+        setStatusMessage(t("terminal.connected"));
         setLatency(null);
         fitAddonRef.current?.fit();
         if (term) void terminalBridge.resizeSession(sessionId, term.cols, term.rows);
       }
       if (event.type === "terminal.reattached") {
         term?.reset();
-        setStatusMessage("Reattached");
+        setStatusMessage(t("terminal.reattached"));
       }
       if (event.type === "terminal.replayCompleted") {
         term?.reset();
-        setStatusMessage("Live");
+        setStatusMessage(t("terminal.live"));
         fitAddonRef.current?.fit();
         if (term) void terminalBridge.resizeSession(sessionId, term.cols, term.rows);
       }
       if (event.type === "terminal.reconnecting") {
         connectedRef.current = false;
-        setStatusMessage("Reconnecting");
+        setStatusMessage(t("terminal.reconnecting"));
       }
       if (event.type === "terminal.reconnected") {
         connectedRef.current = true;
-        setStatusMessage("Reconnected");
+        setStatusMessage(t("terminal.reconnected"));
         fitAddonRef.current?.fit();
         if (term) void terminalBridge.resizeSession(sessionId, term.cols, term.rows);
       }
       if (event.type === "terminal.closed") {
-        setStatusMessage(event.reason ?? "Closed");
+        setStatusMessage(event.reason ?? t("terminal.closed"));
         removeSession(sessionId);
       }
       if (event.type === "terminal.expired") {
-        setStatusMessage(event.reason ?? "Expired");
+        setStatusMessage(event.reason ?? t("terminal.expired"));
         removeSession(sessionId);
       }
       if (event.type === "terminal.exited") {
+        const code = event.exitCode;
+        const reason = event.reason;
         setStatusMessage(
-          event.reason
-            ? `Exited${event.exitCode != null ? ` (${event.exitCode})` : ""}: ${event.reason}`
-            : `Exited${event.exitCode != null ? ` (${event.exitCode})` : ""}`,
+          reason
+            ? t("terminal.exitedWithCodeAndReason", { code: code ?? 0, reason })
+            : t("terminal.exitedWithCode", { code: code ?? 0 }),
         );
       }
       if (event.type === "terminal.startFailed") {
-        setStatusMessage(`Start failed: ${event.reason ?? "unknown"}`);
+        setStatusMessage(t("terminal.startFailedReason", { reason: event.reason ?? t("common.unknown") }));
       }
       if (event.type === "terminal.latency") {
         const rtt = (event as any).rtt;
         if (typeof rtt === "number" && rtt >= 0) {
           setLatency(rtt);
-          setStatusMessage("Live");
+          setStatusMessage(t("terminal.live"));
         }
       }
     });
@@ -404,7 +406,7 @@ export default function TerminalSessionPage({
       try {
         await terminalBridge.connectSession(sessionId);
         if (!cancelled) {
-          setStatusMessage("Connected");
+          setStatusMessage(t("terminal.connected"));
         }
       } catch (error) {
         if (cancelled) return;
@@ -430,7 +432,7 @@ export default function TerminalSessionPage({
       }
     };
 
-    setStatusMessage("Connecting...");
+    setStatusMessage(t("terminal.connecting"));
     void connect();
 
     return () => {

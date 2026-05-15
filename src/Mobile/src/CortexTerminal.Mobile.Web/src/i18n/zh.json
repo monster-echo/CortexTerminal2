@@ -435,7 +435,11 @@
     "justNow": "刚刚",
     "minutesAgo": "{{count}}分钟前",
     "hoursAgo": "{{count}}小时前",
-    "daysAgo": "{{count}}天前"
+    "daysAgo": "{{count}}天前",
+    "statusIdle": "空闲",
+    "statusRunning": "运行中",
+    "statusWaiting": "等待中",
+    "statusFailed": "失败"
   },
   "workers": {
     "title": "工作节点",
@@ -472,11 +476,24 @@
     "cols": "列数",
     "rows": "行数",
     "latency": "延迟",
-    "status": "状态"
+    "status": "状态",
+    "connecting": "连接中...",
+    "connected": "已连接",
+    "live": "实时",
+    "replaying": "回放中",
+    "reattached": "已重新连接",
+    "reconnecting": "重新连接中",
+    "reconnected": "重新连接成功",
+    "closed": "已关闭",
+    "expired": "已过期",
+    "exitedWithCode": "已退出 ({{code}})",
+    "exitedWithCodeAndReason": "已退出 ({{code}}): {{reason}}",
+    "startFailedReason": "启动失败: {{reason}}"
   },
   "common": {
     "loading": "加载中...",
-    "back": "返回"
+    "back": "返回",
+    "unknown": "未知"
   },
   "components": {
     "actionResultTitle": "最近一次操作结果",

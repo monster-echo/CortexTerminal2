@@ -219,7 +219,7 @@ export default function SessionsPage({ history }: RouteComponentProps) {
                     color={session.status === "running" ? "success" : "medium"}
                     slot="end"
                   >
-                    {session.status}
+                    {t(`sessions.status${session.status.charAt(0).toUpperCase()}${session.status.slice(1)}`)}
                   </IonBadge>
                 </IonItem>
               ))}
