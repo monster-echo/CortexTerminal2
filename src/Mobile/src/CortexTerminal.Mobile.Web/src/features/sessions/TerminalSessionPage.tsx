@@ -92,18 +92,26 @@ function useDraggable(storageKey: string) {
     dragState.current.active = false;
     setIsDragging(false);
 
-    // Snap to nearest horizontal edge
+    // Snap to nearest horizontal edge, clamp vertical to viewport
     requestAnimationFrame(() => {
       const el = selfRef.current;
       if (!el) return;
       const vpWidth = window.visualViewport?.width ?? window.innerWidth;
+      const vpHeight = window.visualViewport?.height ?? window.innerHeight;
       const rect = el.getBoundingClientRect();
       const centerX = rect.left + rect.width / 2;
       const margin = 16;
+
+      // Horizontal: snap to nearest edge
       const targetX = centerX < vpWidth / 2
         ? -(rect.left - margin)
         : (vpWidth - rect.right + margin);
-      const snapped = { x: targetX, y: pos.y };
+
+      // Vertical: clamp to viewport [margin, vpHeight - height - margin]
+      const clampedTop = Math.max(margin, Math.min(rect.top, vpHeight - rect.height - margin));
+      const targetY = pos.y + (clampedTop - rect.top);
+
+      const snapped = { x: targetX, y: targetY };
       setPos(snapped);
       try {
         localStorage.setItem(storageKey, JSON.stringify(snapped));
@@ -148,7 +156,6 @@ export default function TerminalSessionPage({
   const fitAddonRef = useRef<FitAddon | null>(null);
   const resizeTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const connectedRef = useRef(false);
-  const floatingLayerRef = useRef<HTMLDivElement>(null);
 
   const [ctrlActive, setCtrlActive] = useState(false);
   const [altActive, setAltActive] = useState(false);
@@ -175,18 +182,6 @@ export default function TerminalSessionPage({
       });
     });
   }, [keysDrag.pos]);
-
-  // Lock body padding to prevent toolbar height change on keyboard open
-  useEffect(() => {
-    const origPT = document.body.style.paddingTop;
-    const origPB = document.body.style.paddingBottom;
-    document.body.style.paddingTop = "0";
-    document.body.style.paddingBottom = "0";
-    return () => {
-      document.body.style.paddingTop = origPT;
-      document.body.style.paddingBottom = origPB;
-    };
-  }, []);
 
   const sendInput = (text: string) => {
     if (!connectedRef.current) return;
@@ -247,23 +242,11 @@ export default function TerminalSessionPage({
       // Falls back to canvas renderer
     }
 
-    // Adjust terminal and floating layer height when virtual keyboard appears/disappears
-    // Defined before fit() so we can call it in the initial RAF to set correct height
-    const onViewportChange = () => {
-      const vp = window.visualViewport;
-      if (!vp || !terminalRef.current) return;
-      const top = terminalRef.current.getBoundingClientRect().top;
-      const availableHeight = vp.height - top + vp.offsetTop;
-      terminalRef.current.style.height = `${availableHeight}px`;
-      if (floatingLayerRef.current) {
-        floatingLayerRef.current.style.height = `${availableHeight}px`;
-      }
-    };
-
-    // First fit: set correct container height, then fit xterm to it
+    // Double RAF: let CSS height:100% layout settle before first fit
     requestAnimationFrame(() => {
-      onViewportChange();
-      fitAddon.fit();
+      requestAnimationFrame(() => {
+        fitAddon.fit();
+      });
     });
 
     const inputDataDisposable = term.onData((data) => {
@@ -294,13 +277,8 @@ export default function TerminalSessionPage({
     });
     observer.observe(terminalRef.current);
 
-    window.visualViewport?.addEventListener("resize", onViewportChange);
-    window.visualViewport?.addEventListener("scroll", onViewportChange);
-
     return () => {
       observer.disconnect();
-      window.visualViewport?.removeEventListener("resize", onViewportChange);
-      window.visualViewport?.removeEventListener("scroll", onViewportChange);
       inputDataDisposable.dispose();
       resizeDisposable.dispose();
       term.dispose();
@@ -481,19 +459,13 @@ export default function TerminalSessionPage({
           <div
             ref={terminalRef}
             style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
+              height: "100%",
               background: "#0b0f0e",
             }}
           />
 
-          {/* Floating layer for draggable buttons */}
-          <div ref={floatingLayerRef} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, pointerEvents: "none" }}>
-
-            {/* Virtual Keys - draggable */}
+          {/* FAB overlay: zero-height container, FAB uses fixed positioning */}
+          <div style={{ position: "relative", height: 0 }}>
             <div
               ref={(el) => { fabRef.current = el; keysDrag.bind.setRef(el); }}
               onPointerDown={keysDrag.bind.onPointerDown}
@@ -501,9 +473,9 @@ export default function TerminalSessionPage({
               onPointerUp={keysDrag.bind.onPointerUp}
               style={{
                 ...keysDrag.bind.style,
-                position: "absolute",
+                position: "fixed",
                 bottom: 16,
-                left: 16,
+                right: 16,
                 zIndex: 100,
                 touchAction: "none",
                 pointerEvents: "auto",
@@ -587,8 +559,7 @@ export default function TerminalSessionPage({
             </>
           )}
             </div>
-
-          </div>
+            </div>
       </IonContent>
     </IonPage>
   );

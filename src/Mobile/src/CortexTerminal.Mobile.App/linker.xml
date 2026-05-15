@@ -2,6 +2,7 @@
   <!--
     iOS Release/TestFlight builds use the linker/trimmer.
     HybridWebView invokes these .NET methods by name (reflection), so they must be preserved.
+    NuGet packages that use reflection at runtime are preserved via TrimmerRootAssembly in .csproj.
   -->
   <assembly fullname="CortexTerminal.Mobile.App">
   </assembly>

@@ -71,6 +71,11 @@
 		<TrimmerRootDescriptor Include="linker.xml" />
 	</ItemGroup>
 
+	<!-- Prevent the trimmer from trimming framework assemblies used via reflection -->
+	<ItemGroup Condition="'$(Configuration)|$(TargetFramework)' == 'Release|net10.0-ios'">
+		<TrimmerRootAssembly Include="Microsoft.AspNetCore.SignalR.Client" />
+	</ItemGroup>
+
 	<ItemGroup>
 		<!-- App Icon -->
                 <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#08080A" BaseSize="512,512" />
@@ -98,7 +103,6 @@
 	<ItemGroup>
 		<PackageReference Include="CommunityToolkit.Maui" Version="12.3.0" />
 		<PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.6" />
-		<PackageReference Include="Microsoft.AspNetCore.SignalR.Protocols.MessagePack" Version="10.0.6" />
 		<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.0" />
 		<PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.0" />
