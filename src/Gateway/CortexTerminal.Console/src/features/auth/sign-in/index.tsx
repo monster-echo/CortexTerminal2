@@ -38,7 +38,7 @@ export function SignIn() {
 
   return (
     <AuthLayout>
-      <Card className='max-w-sm gap-4'>
+      <Card className='w-full max-w-sm gap-4'>
         <CardHeader>
           <CardTitle className='text-lg tracking-tight'>
             {t('brand.name')}
