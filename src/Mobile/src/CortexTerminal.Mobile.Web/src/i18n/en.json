@@ -408,7 +408,9 @@
     "languageSection": "Language",
     "languageDesc": "Switch display language",
     "accountSection": "Account",
+    "userSection": "User",
     "appearanceSection": "Appearance",
+    "featureSection": "Features",
     "themeLabel": "Theme",
     "themeLight": "Light",
     "themeDark": "Dark",
@@ -418,7 +420,10 @@
     "languageEn": "English",
     "cancel": "Cancel",
     "appName": "Corterm",
-    "activateWorker": "Activate Worker"
+    "activateWorker": "Activate Worker",
+    "logoutConfirmTitle": "Sign Out",
+    "logoutConfirmMessage": "Are you sure you want to sign out?",
+    "logoutConfirm": "Sign Out"
   },
   "sessions": {
     "title": "Sessions",
@@ -446,7 +451,9 @@
     "architecture": "Architecture",
     "version": "Version",
     "sessions": "Sessions",
-    "lastSeen": "Last Seen"
+    "lastSeen": "Last Seen",
+    "statusOnline": "Online",
+    "statusOffline": "Offline"
   },
   "activate": {
     "title": "Activate Worker",
@@ -461,6 +468,13 @@
     "inputTitle": "Enter Activation Code",
     "inputDesc": "Run <code>cortex login</code> in the terminal, then enter the XXXX-YYYY code displayed on screen.",
     "confirmActivate": "Activate"
+  },
+  "terminal": {
+    "sessionDetails": "Session Details",
+    "cols": "Cols",
+    "rows": "Rows",
+    "latency": "Latency",
+    "status": "Status"
   },
   "common": {
     "loading": "Loading...",

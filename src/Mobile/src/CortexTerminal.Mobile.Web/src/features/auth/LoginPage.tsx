@@ -10,6 +10,8 @@ import {
   IonItem,
   IonNote,
   IonLabel,
+  IonSegment,
+  IonSegmentButton,
   IonText,
 } from "@ionic/react";
 import { logoApple, logoGithub, logoGoogle, phonePortraitOutline } from "ionicons/icons";
@@ -21,6 +23,7 @@ export default function LoginPage() {
   const { t } = useTranslation();
   const platform = (window as any).initData?.platform ?? "unknown";
   const showAppleLogin = platform === "ios" || platform === "maccatalyst";
+  const [loginMethod, setLoginMethod] = useState<"password" | "phone">("password");
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
   const [codeSent, setCodeSent] = useState(false);
@@ -94,19 +97,6 @@ export default function LoginPage() {
     }
   };
 
-  const handleGuestLogin = async () => {
-    setErrorMessage(null);
-    setLoadingProvider("guest");
-    try {
-      const result = await authBridge.guestLogin();
-      setSession({ username: result.username }, "guest");
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : t("login.errorGuest"));
-    } finally {
-      setLoadingProvider(null);
-    }
-  };
-
   const handlePasswordLogin = async () => {
     if (!username.trim() || !password.trim()) {
       setErrorMessage(t("login.errorPasswordLogin"));
@@ -126,6 +116,8 @@ export default function LoginPage() {
     }
   };
 
+  const btnStyle = { maxWidth: 400, width: "100%" } as React.CSSProperties;
+
   return (
     <IonPage>
       <IonContent className="ion-padding">
@@ -144,108 +136,115 @@ export default function LoginPage() {
           </IonLabel>
           <IonNote>{t("login.subtitle")}</IonNote>
 
-          <IonList lines="none" className="ion-padding-top" style={{ width: "100%", maxWidth: 400 }}>
-            <IonItem>
-              <IonInput
-                type="text"
-                placeholder={t("login.usernamePlaceholder")}
-                value={username}
-                onIonInput={(e) => setUsername(e.detail.value ?? "")}
-                disabled={loadingProvider !== null}
-              />
-            </IonItem>
-
-            <IonItem>
-              <IonInput
-                type="password"
-                placeholder={t("login.passwordPlaceholder")}
-                value={password}
-                onIonInput={(e) => setPassword(e.detail.value ?? "")}
-                disabled={loadingProvider !== null}
-                onKeyDown={(e) => { if (e.key === "Enter") handlePasswordLogin(); }}
-              />
-            </IonItem>
-          </IonList>
-
-          <IonButton
-            expand="block"
-            className="ion-padding-horizontal"
-            style={{ maxWidth: 400 }}
-            onClick={handlePasswordLogin}
-            disabled={loadingProvider !== null || !username.trim() || !password.trim()}
+          <IonSegment
+            value={loginMethod}
+            onIonChange={(e) => setLoginMethod(e.detail.value as "password" | "phone")}
+            style={{ maxWidth: 400, width: "100%", marginTop: 16 }}
           >
-            {loadingProvider === "password" ? (
-              <IonSpinner name="crescent" />
-            ) : (
-              t("login.passwordLogin")
-            )}
-          </IonButton>
+            <IonSegmentButton value="password">
+              <IonLabel>{t("login.passwordLogin")}</IonLabel>
+            </IonSegmentButton>
+            <IonSegmentButton value="phone">
+              <IonLabel>{t("login.phoneLogin")}</IonLabel>
+            </IonSegmentButton>
+          </IonSegment>
 
-          <IonItem lines="none" className="ion-padding-top" style={{ maxWidth: 400 }}>
-            <IonNote className="ion-text-center" style={{ width: "100%" }}>
-              {t("login.orSignInWith")}
-            </IonNote>
-          </IonItem>
+          {loginMethod === "password" && (
+            <>
+              <IonList lines="none" className="ion-padding-top" style={{ width: "100%", maxWidth: 400 }}>
+                <IonItem>
+                  <IonInput
+                    type="text"
+                    placeholder={t("login.usernamePlaceholder")}
+                    value={username}
+                    onIonInput={(e) => setUsername(e.detail.value ?? "")}
+                    disabled={loadingProvider !== null}
+                  />
+                </IonItem>
+                <IonItem>
+                  <IonInput
+                    type="password"
+                    placeholder={t("login.passwordPlaceholder")}
+                    value={password}
+                    onIonInput={(e) => setPassword(e.detail.value ?? "")}
+                    disabled={loadingProvider !== null}
+                    onKeyDown={(e) => { if (e.key === "Enter") handlePasswordLogin(); }}
+                  />
+                </IonItem>
+              </IonList>
 
-          <IonList lines="none" style={{ width: "100%", maxWidth: 400 }}>
-            <IonItem>
-              <IonNote slot="start">+86</IonNote>
-              <IonInput
-                type="tel"
-                maxlength={11}
-                placeholder={t("login.phonePlaceholder")}
-                value={phone}
-                onIonInput={(e) => setPhone((e.detail.value ?? "").replace(/\D/g, ""))}
-                disabled={loadingProvider !== null}
-              />
-            </IonItem>
-
-            <IonItem>
-              <IonInput
-                type="number"
-                maxlength={6}
-                placeholder={t("login.codePlaceholder")}
-                value={code}
-                onIonInput={(e) => setCode((e.detail.value ?? "").replace(/\D/g, ""))}
-                disabled={loadingProvider !== null || !codeSent}
-              />
               <IonButton
-                slot="end"
-                fill="outline"
-                size="small"
-                onClick={handleSendCode}
-                disabled={loadingProvider !== null || countdown > 0 || phone.length !== 11}
+                expand="block"
+                style={btnStyle}
+                onClick={handlePasswordLogin}
+                disabled={loadingProvider !== null || !username.trim() || !password.trim()}
               >
-                {loadingProvider === "phone" ? (
-                  <IonSpinner name="crescent" />
-                ) : countdown > 0 ? (
-                  `${countdown}s`
-                ) : codeSent ? (
-                  t("login.resend")
-                ) : (
-                  t("login.getCode")
-                )}
+                {loadingProvider === "password" ? <IonSpinner name="crescent" /> : t("login.passwordLogin")}
               </IonButton>
-            </IonItem>
-          </IonList>
+            </>
+          )}
 
-          {codeSent && (
-            <IonButton
-              expand="block"
-              className="ion-padding-horizontal"
-              style={{ maxWidth: 400 }}
-              onClick={handlePhoneLogin}
-              disabled={loadingProvider !== null || code.length < 4}
-            >
-              {loadingProvider === "phone-login" ? (
-                <IonSpinner name="crescent" />
-              ) : (
-                <>
-                  <IonIcon slot="start" icon={phonePortraitOutline} />
-                  {t("login.login")}
-                </>
+          {loginMethod === "phone" && (
+            <>
+              <IonList lines="none" className="ion-padding-top" style={{ width: "100%", maxWidth: 400 }}>
+                <IonItem>
+                  <IonNote slot="start">+86</IonNote>
+                  <IonInput
+                    type="tel"
+                    maxlength={11}
+                    placeholder={t("login.phonePlaceholder")}
+                    value={phone}
+                    onIonInput={(e) => setPhone((e.detail.value ?? "").replace(/\D/g, ""))}
+                    disabled={loadingProvider !== null}
+                  />
+                </IonItem>
+                <IonItem>
+                  <IonInput
+                    type="number"
+                    maxlength={6}
+                    placeholder={t("login.codePlaceholder")}
+                    value={code}
+                    onIonInput={(e) => setCode((e.detail.value ?? "").replace(/\D/g, ""))}
+                    disabled={loadingProvider !== null || !codeSent}
+                  />
+                  <IonButton
+                    slot="end"
+                    fill="outline"
+                    size="small"
+                    onClick={handleSendCode}
+                    disabled={loadingProvider !== null || countdown > 0 || phone.length !== 11}
+                  >
+                    {loadingProvider === "phone" ? (
+                      <IonSpinner name="crescent" />
+                    ) : countdown > 0 ? (
+                      `${countdown}s`
+                    ) : codeSent ? (
+                      t("login.resend")
+                    ) : (
+                      t("login.getCode")
+                    )}
+                  </IonButton>
+                </IonItem>
+              </IonList>
+
+              {codeSent && (
+                <IonButton
+                  expand="block"
+                  style={btnStyle}
+                  onClick={handlePhoneLogin}
+                  disabled={loadingProvider !== null || code.length < 4}
+                >
+                  {loadingProvider === "phone-login" ? (
+                    <IonSpinner name="crescent" />
+                  ) : (
+                    <>
+                      <IonIcon slot="start" icon={phonePortraitOutline} />
+                      {t("login.login")}
+                    </>
+                  )}
+                </IonButton>
               )}
-            </IonButton>
+            </>
           )}
 
           <IonItem lines="none" className="ion-padding-top" style={{ maxWidth: 400 }}>
@@ -256,22 +255,22 @@ export default function LoginPage() {
 
           <div className="ion-padding-top" style={{ width: "100%", maxWidth: 400 }}>
             {showAppleLogin && (
-            <IonButton
-              expand="block"
-              fill="outline"
-              className="ion-margin-bottom"
-              onClick={() => handleOAuth("apple")}
-              disabled={loadingProvider !== null}
-            >
-              {loadingProvider === "apple" ? (
-                <IonSpinner name="crescent" />
-              ) : (
-                <>
-                  <IonIcon slot="start" icon={logoApple} />
-                  {t("login.signInApple")}
-                </>
-              )}
-            </IonButton>
+              <IonButton
+                expand="block"
+                fill="outline"
+                className="ion-margin-bottom"
+                onClick={() => handleOAuth("apple")}
+                disabled={loadingProvider !== null}
+              >
+                {loadingProvider === "apple" ? (
+                  <IonSpinner name="crescent" />
+                ) : (
+                  <>
+                    <IonIcon slot="start" icon={logoApple} />
+                    {t("login.signInApple")}
+                  </>
+                )}
+              </IonButton>
             )}
             <IonButton
               expand="block"
@@ -305,17 +304,6 @@ export default function LoginPage() {
               )}
             </IonButton>
           </div>
-
-          <IonButton
-            expand="block"
-            fill="outline"
-            className="ion-padding-top"
-            style={{ maxWidth: 400 }}
-            onClick={handleGuestLogin}
-            disabled={loadingProvider !== null}
-          >
-            {loadingProvider === "guest" ? <IonSpinner name="crescent" /> : t("login.continueGuest")}
-          </IonButton>
 
           {errorMessage && (
             <IonText color="danger" className="ion-padding-top">

@@ -9,6 +9,7 @@ import {
   IonPage,
   IonTitle,
   IonToolbar,
+  useIonActionSheet,
   useIonToast,
 } from "@ionic/react";
 import {
@@ -133,6 +134,8 @@ export default function TerminalSessionPage({
   const sessionId = match.params.sessionId;
   const { t } = useTranslation();
   const [statusMessage, setStatusMessage] = useState("Connecting...");
+  const [latency, setLatency] = useState<number | null>(null);
+  const [presentActionSheet] = useIonActionSheet();
 
   const session = useSessionStore((state) =>
     state.recentSessions.find((item) => item.id === sessionId),
@@ -244,7 +247,22 @@ export default function TerminalSessionPage({
       // Falls back to canvas renderer
     }
 
+    // Adjust terminal and floating layer height when virtual keyboard appears/disappears
+    // Defined before fit() so we can call it in the initial RAF to set correct height
+    const onViewportChange = () => {
+      const vp = window.visualViewport;
+      if (!vp || !terminalRef.current) return;
+      const top = terminalRef.current.getBoundingClientRect().top;
+      const availableHeight = vp.height - top + vp.offsetTop;
+      terminalRef.current.style.height = `${availableHeight}px`;
+      if (floatingLayerRef.current) {
+        floatingLayerRef.current.style.height = `${availableHeight}px`;
+      }
+    };
+
+    // First fit: set correct container height, then fit xterm to it
     requestAnimationFrame(() => {
+      onViewportChange();
       fitAddon.fit();
     });
 
@@ -276,17 +294,6 @@ export default function TerminalSessionPage({
     });
     observer.observe(terminalRef.current);
 
-    // Adjust terminal and floating layer height when virtual keyboard appears/disappears
-    const onViewportChange = () => {
-      const vp = window.visualViewport;
-      if (!vp || !terminalRef.current) return;
-      const top = terminalRef.current.getBoundingClientRect().top;
-      const availableHeight = vp.height - top + vp.offsetTop;
-      terminalRef.current.style.height = `${availableHeight}px`;
-      if (floatingLayerRef.current) {
-        floatingLayerRef.current.style.height = `${availableHeight}px`;
-      }
-    };
     window.visualViewport?.addEventListener("resize", onViewportChange);
     window.visualViewport?.addEventListener("scroll", onViewportChange);
 
@@ -317,6 +324,7 @@ export default function TerminalSessionPage({
         base64?: string;
         reason?: string;
         exitCode?: number;
+        timestamp?: string;
       };
       if (event.sessionId && event.sessionId !== sessionId) return;
 
@@ -341,6 +349,7 @@ export default function TerminalSessionPage({
       if (event.type === "terminal.connected") {
         connectedRef.current = true;
         setStatusMessage("Connected");
+        setLatency(null);
         fitAddonRef.current?.fit();
         if (term) void terminalBridge.resizeSession(sessionId, term.cols, term.rows);
       }
@@ -381,6 +390,13 @@ export default function TerminalSessionPage({
       }
       if (event.type === "terminal.startFailed") {
         setStatusMessage(`Start failed: ${event.reason ?? "unknown"}`);
+      }
+      if (event.type === "terminal.latency") {
+        const rtt = (event as any).rtt;
+        if (typeof rtt === "number" && rtt >= 0) {
+          setLatency(rtt);
+          setStatusMessage("Live");
+        }
       }
     });
 
@@ -437,13 +453,29 @@ export default function TerminalSessionPage({
           <IonBadge
             slot="end"
             color={session?.status === "running" ? "success" : "medium"}
-            style={{ marginRight: 8 }}
+            style={{ marginRight: 8, cursor: "pointer" }}
+            onClick={() => {
+              const term = xtermRef.current;
+              const cols = term?.cols ?? "?";
+              const rows = term?.rows ?? "?";
+              const lat = latency !== null ? `${Math.round(latency)}ms` : "—";
+              void presentActionSheet({
+                header: t("terminal.sessionDetails"),
+                subHeader: `${t("terminal.status")}: ${statusMessage}`,
+                buttons: [
+                  { text: `${t("terminal.cols")}: ${cols}`, role: "destructive" as any },
+                  { text: `${t("terminal.rows")}: ${rows}`, role: "destructive" as any },
+                  { text: `${t("terminal.latency")}: ${lat}`, role: "destructive" as any },
+                  { text: "OK", role: "cancel" },
+                ],
+              });
+            }}
           >
-            {statusMessage}
+            {latency !== null ? `${Math.round(latency)}ms` : statusMessage}
           </IonBadge>
         </IonToolbar>
       </IonHeader>
-      <IonContent scrollY={false}>
+      <IonContent scrollY={false} style={{ '--background': '#0b0f0e' } as React.CSSProperties}>
           <div
             ref={terminalRef}
             style={{
@@ -459,7 +491,7 @@ export default function TerminalSessionPage({
           {/* Floating layer for draggable buttons */}
           <div ref={floatingLayerRef} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, pointerEvents: "none" }}>
 
-            {/* Virtual Keys - draggable, bottom right */}
+            {/* Virtual Keys - draggable */}
             <div
               ref={(el) => { fabRef.current = el; keysDrag.bind.setRef(el); }}
               onPointerDown={keysDrag.bind.onPointerDown}
@@ -469,7 +501,7 @@ export default function TerminalSessionPage({
                 ...keysDrag.bind.style,
                 position: "absolute",
                 bottom: 16,
-                right: 16,
+                left: 16,
                 zIndex: 100,
                 touchAction: "none",
                 pointerEvents: "auto",

@@ -22,7 +22,7 @@ import { useTranslation } from "react-i18next";
 import { useAppStore } from "../store/appStore";
 import { useAuthStore } from "../store/authStore";
 import { useSessionStore } from "../store/sessionStore";
-import logoSvg from "../assets/logo.svg";
+import logoSvg from "../assets/logo-dark.svg";
 
 export default function AppSidebar() {
   const { t } = useTranslation();
@@ -124,7 +124,6 @@ export default function AppSidebar() {
             </div>
             <IonLabel>
               <h3>{user?.username ?? t("sidebar.notSignedIn")}</h3>
-              <p>v{appInfo?.appVersion ?? "..."}</p>
             </IonLabel>
           </IonItem>
         </IonToolbar>

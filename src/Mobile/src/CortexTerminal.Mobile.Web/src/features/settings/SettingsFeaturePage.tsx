@@ -7,6 +7,7 @@ import {
   IonList,
   IonPage,
   useIonActionSheet,
+  useIonAlert,
 } from "@ionic/react";
 import {
   contrastOutline,
@@ -36,6 +37,7 @@ export default function SettingsFeaturePage({ history }: RouteComponentProps) {
   const language = useAppStore((state) => state.language);
   const setLanguage = useAppStore((state) => state.setLanguage);
   const [presentActionSheet] = useIonActionSheet();
+  const [presentAlert] = useIonAlert();
 
   const logout = async () => {
     try {
@@ -45,6 +47,21 @@ export default function SettingsFeaturePage({ history }: RouteComponentProps) {
     }
     clearSession();
     history.replace("/sessions");
+  };
+
+  const handleLogout = () => {
+    presentAlert({
+      header: t("settings.logoutConfirmTitle"),
+      message: t("settings.logoutConfirmMessage"),
+      buttons: [
+        { text: t("settings.cancel"), role: "cancel" },
+        {
+          text: t("settings.logoutConfirm"),
+          role: "destructive",
+          handler: () => void logout(),
+        },
+      ],
+    });
   };
 
   const handleColorModeChange = (mode: ColorMode) => {
@@ -120,7 +137,7 @@ export default function SettingsFeaturePage({ history }: RouteComponentProps) {
       <IonContent fullscreen>
         <IonList inset>
           <IonItemDivider>
-            <IonLabel>{t("settings.accountSection")}</IonLabel>
+            <IonLabel>{t("settings.userSection")}</IonLabel>
           </IonItemDivider>
           <IonItem>
             <div slot="start" style={{
@@ -132,16 +149,8 @@ export default function SettingsFeaturePage({ history }: RouteComponentProps) {
               {(user?.username ?? "?")[0].toUpperCase()}
             </div>
             <IonLabel>
-              <p>v{appInfo?.appVersion ?? "..."}</p>
+              <h2>{user?.username ?? "..."}</h2>
             </IonLabel>
-          </IonItem>
-          <IonItem button routerLink="/activate" routerDirection="root">
-            <IonIcon slot="start" icon={keyOutline} />
-            <IonLabel>{t("settings.activateWorker")}</IonLabel>
-          </IonItem>
-          <IonItem button color="danger" onClick={() => void logout()}>
-            <IonIcon slot="start" icon={logOutOutline} />
-            <IonLabel>{t("sidebar.logout")}</IonLabel>
           </IonItem>
         </IonList>
 
@@ -169,6 +178,29 @@ export default function SettingsFeaturePage({ history }: RouteComponentProps) {
             </IonLabel>
           </IonItem>
         </IonList>
+
+        <IonList inset>
+          <IonItemDivider>
+            <IonLabel>{t("settings.featureSection")}</IonLabel>
+          </IonItemDivider>
+          <IonItem button routerLink="/activate" routerDirection="root">
+            <IonIcon slot="start" icon={keyOutline} />
+            <IonLabel>{t("settings.activateWorker")}</IonLabel>
+          </IonItem>
+          <IonItem button color="danger" onClick={handleLogout}>
+            <IonIcon slot="start" icon={logOutOutline} />
+            <IonLabel>{t("sidebar.logout")}</IonLabel>
+          </IonItem>
+        </IonList>
+
+        <div style={{
+          textAlign: "center",
+          color: "var(--ion-color-medium)",
+          fontSize: 12,
+          padding: "24px 0",
+        }}>
+          v{appInfo?.appVersion ?? "..."}
+        </div>
       </IonContent>
     </IonPage>
   );

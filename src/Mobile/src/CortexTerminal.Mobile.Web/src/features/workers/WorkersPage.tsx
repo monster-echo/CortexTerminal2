@@ -108,8 +108,8 @@ export default function WorkersPage() {
                     {worker.lastSeenAtUtc ? ` · ${formatRelativeTime(worker.lastSeenAtUtc, t)}` : ""}
                   </p>
                 </IonLabel>
-                <IonBadge color={worker.status === "running" ? "success" : worker.status === "idle" ? "primary" : "medium"}>
-                  {worker.status}
+                <IonBadge color={worker.status === "offline" ? "medium" : "success"}>
+                  {worker.status === "offline" ? t("workers.statusOffline") : t("workers.statusOnline")}
                 </IonBadge>
               </IonItem>
             ))}
@@ -145,7 +145,9 @@ export default function WorkersPage() {
                           : "medium"
                     }
                   >
-                    {selectedWorker.status}
+                    {selectedWorker.status === "offline"
+                      ? t("workers.statusOffline")
+                      : t("workers.statusOnline")}
                   </IonBadge>
                 </IonItem>
                 {selectedWorker.hostname && (

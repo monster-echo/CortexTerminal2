@@ -47,11 +47,6 @@ export default function SessionsPage({ history }: RouteComponentProps) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedWorkerId, setSelectedWorkerId] = useState<string | null>(null);
-
-  const openCreateModal = () => {
-    setSelectedWorkerId(workers[0]?.id ?? null);
-    setShowCreateModal(true);
-  };
   const [isCreating, setIsCreating] = useState(false);
 
   const recentSessions = useSessionStore((state) => state.recentSessions);
@@ -60,6 +55,13 @@ export default function SessionsPage({ history }: RouteComponentProps) {
   const setWorkers = useSessionStore((state) => state.setWorkers);
   const touchSession = useSessionStore((state) => state.touchSession);
   const [presentToast] = useIonToast();
+
+  const onlineWorkers = workers.filter(w => w.status !== "offline");
+
+  const openCreateModal = () => {
+    setSelectedWorkerId(onlineWorkers[0]?.id ?? null);
+    setShowCreateModal(true);
+  };
 
   // Load gateway state
   const loadGatewayState = useCallback(async (signal?: AbortSignal) => {
@@ -129,7 +131,7 @@ export default function SessionsPage({ history }: RouteComponentProps) {
     const vpWidth = window.visualViewport?.width ?? window.innerWidth;
     const vpHeight = window.visualViewport?.height ?? window.innerHeight;
     const cols = Math.floor(vpWidth / charWidth);
-    const rows = Math.floor((vpHeight - 56) / charHeight); // subtract toolbar
+    const rows = Math.floor((vpHeight - 44) / charHeight); // subtract toolbar (44px)
 
     setIsCreating(true);
     try {
@@ -198,16 +200,6 @@ export default function SessionsPage({ history }: RouteComponentProps) {
 
         {!isLoading && !showInstallPrompt && recentSessions.length > 0 && (
           <>
-            <div style={{ padding: "8px 16px 0" }}>
-              <IonButton
-                expand="block"
-                size="default"
-                onClick={openCreateModal}
-              >
-                <IonIcon slot="start" icon={addOutline} />
-                {t("sessions.createSession")}
-              </IonButton>
-            </div>
             <IonList inset>
               {recentSessions.map((session) => (
                 <IonItem
@@ -273,7 +265,7 @@ export default function SessionsPage({ history }: RouteComponentProps) {
                 value={selectedWorkerId}
                 onIonChange={(e) => setSelectedWorkerId(e.detail.value)}
               >
-                {workers.map((worker) => (
+                {onlineWorkers.map((worker) => (
                   <IonItem key={worker.id}>
                     <IonRadio value={worker.id} labelPlacement="end">
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

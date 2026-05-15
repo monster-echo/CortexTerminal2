@@ -16,6 +16,10 @@ public sealed class TerminalGatewayService
     private HubConnection? _connection;
     private string? _connectedSessionId;
 
+    // Latency probe state
+    private readonly Dictionary<string, System.Diagnostics.Stopwatch> _pendingProbes = [];
+    private Timer? _latencyProbeTimer;
+
     public TerminalGatewayService(Uri gatewayBaseUri, AuthService authService, HttpClient httpClient, ILogger<TerminalGatewayService> logger)
     {
         _gatewayBaseUri = gatewayBaseUri;
@@ -106,7 +110,6 @@ public sealed class TerminalGatewayService
                 options.Transports = Microsoft.AspNetCore.Http.Connections.HttpTransportType.WebSockets |
                                      Microsoft.AspNetCore.Http.Connections.HttpTransportType.LongPolling;
             })
-            .AddMessagePackProtocol()
             .WithAutomaticReconnect()
             .Build();
 
@@ -128,6 +131,11 @@ public sealed class TerminalGatewayService
 
         _connection = connection;
         _connectedSessionId = sessionId;
+
+        // Start periodic latency probe (15-second interval, aligned with Console)
+        StopLatencyProbeTimer();
+        _latencyProbeTimer = new Timer(_ => FireLatencyProbe(sessionId), null, TimeSpan.Zero, TimeSpan.FromSeconds(15));
+
         await PushEventAsync(new { type = "terminal.connected", sessionId });
     }
 
@@ -166,6 +174,9 @@ public sealed class TerminalGatewayService
         var sessionId = _connectedSessionId;
         _connection = null;
         _connectedSessionId = null;
+
+        StopLatencyProbeTimer();
+        _pendingProbes.Clear();
 
         try
         {
@@ -224,6 +235,16 @@ public sealed class TerminalGatewayService
         connection.Reconnecting += error => PushEventAsync(new { type = "terminal.reconnecting", sessionId, reason = error?.Message });
         connection.Reconnected += _ => PushEventAsync(new { type = "terminal.reconnected", sessionId });
         connection.Closed += error => PushEventAsync(new { type = "terminal.closed", sessionId, reason = error?.Message });
+        connection.On<LatencyProbeFrame>("LatencyProbeAck", frame =>
+        {
+            if (frame.SessionId != sessionId) return Task.CompletedTask;
+            if (_pendingProbes.Remove(frame.ProbeId, out var sw))
+            {
+                sw.Stop();
+                _ = PushEventAsync(new { type = "terminal.latency", sessionId, rtt = sw.ElapsedMilliseconds });
+            }
+            return Task.CompletedTask;
+        });
     }
 
     private Task PushTerminalChunkAsync(string type, string expectedSessionId, string actualSessionId, string stream, byte[] payload)
@@ -259,6 +280,38 @@ public sealed class TerminalGatewayService
         {
             _logger.LogWarning(ex, "Failed to push terminal event to web view.");
         }
+    }
+
+    private void FireLatencyProbe(string sessionId)
+    {
+        var connection = _connection;
+        if (connection is null) return;
+
+        var probeId = Guid.NewGuid().ToString("N");
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        _pendingProbes[probeId] = sw;
+
+        _ = connection.InvokeAsync("ProbeLatency", new LatencyProbeFrame(sessionId, probeId))
+            .ContinueWith(t =>
+            {
+                // Clean up on invoke failure; ack handler cleans up on success
+                if (t.IsFaulted || t.IsCanceled)
+                {
+                    _pendingProbes.Remove(probeId);
+                }
+            });
+
+        // Timeout: remove stale probe after 5 seconds
+        _ = Task.Delay(TimeSpan.FromSeconds(5)).ContinueWith(_ =>
+        {
+            _pendingProbes.Remove(probeId);
+        });
+    }
+
+    private void StopLatencyProbeTimer()
+    {
+        _latencyProbeTimer?.Dispose();
+        _latencyProbeTimer = null;
     }
 
     private HubConnection RequireConnection(string sessionId)

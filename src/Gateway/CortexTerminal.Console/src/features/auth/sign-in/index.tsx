@@ -2,13 +2,7 @@ import { useEffect } from 'react'
 import { useSearch } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { AuthLayout } from '../auth-layout'
 import { UserAuthForm } from './components/user-auth-form'
 
@@ -38,13 +32,7 @@ export function SignIn() {
 
   return (
     <AuthLayout>
-      <Card className='w-full max-w-sm gap-4'>
-        <CardHeader>
-          <CardTitle className='text-lg tracking-tight'>
-            {t('brand.name')}
-          </CardTitle>
-          <CardDescription>{t('auth.signInToContinue')}</CardDescription>
-        </CardHeader>
+      <Card className='max-w-sm min-w-sm gap-4 md:min-w-lg'>
         <CardContent>
           <UserAuthForm redirectTo={redirect} />
         </CardContent>

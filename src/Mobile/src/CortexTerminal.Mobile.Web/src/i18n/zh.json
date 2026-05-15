@@ -2,7 +2,7 @@
   "sidebar": {
     "title": "云枢终端",
     "home": "Home",
-    "settings": "Settings",
+    "settings": "设置",
     "theme": "Theme",
     "debug": "Debug",
     "bridge": "Bridge",
@@ -418,7 +418,10 @@
     "languageEn": "English",
     "cancel": "取消",
     "appName": "云枢",
-    "activateWorker": "激活 Worker"
+    "activateWorker": "激活 Worker",
+    "logoutConfirmTitle": "退出登录",
+    "logoutConfirmMessage": "确定要退出登录吗？",
+    "logoutConfirm": "退出"
   },
   "sessions": {
     "title": "会话",
@@ -446,7 +449,9 @@
     "architecture": "架构",
     "version": "版本",
     "sessions": "会话数",
-    "lastSeen": "最近活跃"
+    "lastSeen": "最近活跃",
+    "statusOnline": "在线",
+    "statusOffline": "离线"
   },
   "activate": {
     "title": "激活 Worker",
@@ -461,6 +466,13 @@
     "inputTitle": "输入激活码",
     "inputDesc": "在终端运行 <code>cortex login</code> 后，屏幕会显示一个 XXXX-YYYY 格式的激活码。",
     "confirmActivate": "确认激活"
+  },
+  "terminal": {
+    "sessionDetails": "会话详情",
+    "cols": "列数",
+    "rows": "行数",
+    "latency": "延迟",
+    "status": "状态"
   },
   "common": {
     "loading": "加载中...",
