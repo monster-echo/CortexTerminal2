@@ -88,34 +88,36 @@ function Add-ToPath {
     }
 }
 
-# ---- Install as scheduled task (auto-start) ----
+# ---- Install startup shortcut (auto-start) ----
 function Install-Service {
-    $taskName = "Corterm Worker"
     $exePath = Join-Path $INSTALL_DIR "$BIN_NAME.exe"
 
     if (-not (Test-Path $exePath)) {
         return
     }
 
-    $existingTask = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
-    if ($existingTask) {
-        Write-Info "Scheduled task '$taskName' already exists. Skipping."
+    $startupFolder = [Environment]::GetFolderPath('Startup')
+    $shortcutPath = Join-Path $startupFolder "Corterm Worker.lnk"
+
+    if (Test-Path $shortcutPath) {
+        Write-Info "Startup shortcut already exists. Skipping."
         return
     }
 
-    Write-Info "Installing scheduled task for auto-start ..."
+    Write-Info "Creating startup shortcut ..."
 
-    $action = New-ScheduledTaskAction -Execute $exePath -WorkingDirectory $INSTALL_DIR
-    $trigger = New-ScheduledTaskTrigger -AtLogOn
-    $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
+    $shell = New-Object -ComObject WScript.Shell
+    $shortcut = $shell.CreateShortcut($shortcutPath)
+    $shortcut.TargetPath = $exePath
+    $shortcut.WorkingDirectory = $INSTALL_DIR
+    $shortcut.WindowStyle = 7  # Minimized
+    $shortcut.Description = "Corterm Worker auto-start"
+    $shortcut.Save()
 
-    Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Settings $settings -Description "Corterm Worker auto-start" -Force | Out-Null
-
-    Write-Ok "Scheduled task installed (auto-start on login)."
-    Write-Info "Start manually: schtasks /Run /TN `"$taskName`""
+    Write-Ok "Startup shortcut created (auto-start on login)."
 }
 
-# ---- Start service if already authenticated ----
+# ---- Start worker if already authenticated ----
 function Start-IfAuthenticated {
     $authFile = Join-Path $INSTALL_DIR ".auth"
     if (-not (Test-Path $authFile)) {
@@ -127,15 +129,12 @@ function Start-IfAuthenticated {
         return $false
     }
 
-    $taskName = "Corterm Worker"
-    $existingTask = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
-    if ($existingTask) {
-        Start-ScheduledTask -TaskName $taskName
-        Write-Ok "Worker service started"
+    $proc = Get-Process -Name $BIN_NAME -ErrorAction SilentlyContinue
+    if ($proc) {
+        Write-Ok "Worker is already running (PID $($proc.Id))"
         return $true
     }
 
-    # No scheduled task, start directly
     Start-Process -FilePath $exePath -WorkingDirectory $INSTALL_DIR -WindowStyle Hidden
     Write-Ok "Worker started"
     return $true
