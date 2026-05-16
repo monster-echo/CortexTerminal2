@@ -17,4 +17,5 @@ public interface ISessionCoordinator
     IReadOnlyList<SessionRecord> ExpireSessionsForWorkerConnection(string workerId, string workerConnectionId);
     IReadOnlyList<string> ExpireDetachedSessions(DateTimeOffset nowUtc);
     bool TryGetSession(string sessionId, out SessionRecord session);
+    bool TouchSessionActivity(string sessionId, DateTimeOffset nowUtc);
 }

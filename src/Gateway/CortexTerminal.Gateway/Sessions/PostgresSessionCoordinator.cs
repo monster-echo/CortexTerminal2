@@ -11,6 +11,7 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
 {
     private readonly IWorkerRegistry _workers;
     private readonly ConcurrentDictionary<string, SessionRecord> _sessions = new();
+    private readonly ConcurrentDictionary<string, DateTimeOffset> _lastTouchBySession = new();
     private readonly object _sync = new();
     private readonly TimeProvider _timeProvider;
     private readonly IServiceScopeFactory _scopeFactory;
@@ -263,6 +264,8 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
             _sessions.TryRemove(sessionId, out _);
         }
 
+        _lastTouchBySession.TryRemove(sessionId, out _);
+
         _ = PersistAsync(async db =>
         {
             var entity = await db.Sessions.FindAsync(sessionId);
@@ -417,6 +420,38 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
         {
             return _sessions.TryGetValue(sessionId, out session!);
         }
+    }
+
+    public bool TouchSessionActivity(string sessionId, DateTimeOffset nowUtc)
+    {
+        if (_lastTouchBySession.TryGetValue(sessionId, out var lastTouch) &&
+            (nowUtc - lastTouch).TotalSeconds < 5.0)
+        {
+            return false;
+        }
+
+        _lastTouchBySession[sessionId] = nowUtc;
+
+        lock (_sync)
+        {
+            if (!_sessions.TryGetValue(sessionId, out var session))
+            {
+                return false;
+            }
+
+            _sessions[sessionId] = session with { LastActivityAtUtc = nowUtc };
+        }
+
+        _ = PersistAsync(async db =>
+        {
+            var entity = await db.Sessions.FindAsync(sessionId);
+            if (entity is not null)
+            {
+                entity.LastActivityAtUtc = nowUtc;
+            }
+        });
+
+        return true;
     }
 
     public IReadOnlyList<SessionRecord> GetSessionsForUser(string userId)

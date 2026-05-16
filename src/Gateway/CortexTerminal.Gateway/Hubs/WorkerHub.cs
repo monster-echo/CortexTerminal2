@@ -130,6 +130,8 @@ public sealed class WorkerHub(
             return;
         }
 
+        sessions.TouchSessionActivity(chunk.SessionId, DateTimeOffset.UtcNow);
+
         await replayCache.AppendAsync(new ReplayChunk(chunk.SessionId, chunk.Stream, chunk.Payload), Context.ConnectionAborted);
 
         if (!sessions.TryGetSession(chunk.SessionId, out session) ||
