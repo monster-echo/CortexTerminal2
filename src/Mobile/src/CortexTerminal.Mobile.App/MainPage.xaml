@@ -11,9 +11,8 @@
                                    StatusBarStyle="{Binding NativeStatusBarStyle}"/>
     </ContentPage.Behaviors>
 
-    <Grid RowDefinitions="*,Auto">
+    <Grid RowDefinitions="*">
         <HybridWebView x:Name="hybridWebView"
-                       Grid.Row="0"
                        HybridRoot="wwwroot"
                        DefaultFile="index.html"
                        Loaded="OnHybridWebViewLoaded"
@@ -21,7 +20,6 @@
                        RawMessageReceived="OnHybridWebViewRawMessageReceived"/>
 
         <Grid x:Name="splashScreen"
-              Grid.RowSpan="2"
               BackgroundColor="#08080A"
               ZIndex="999">
             <Image Source="splash.svg"
