@@ -17,6 +17,7 @@
     "notSignedIn": "Not signed in",
     "debugEnabled": "Debug mode enabled",
     "debugDisabled": "Debug mode disabled",
+    "newSession": "New Session",
     "components": "Components"
   },
   "login": {

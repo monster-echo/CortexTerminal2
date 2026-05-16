@@ -11,8 +11,11 @@ import {
   IonIcon,
   IonFooter,
   IonItemDivider,
+  IonButton,
+  IonButtons,
 } from "@ionic/react";
 import {
+  addOutline,
   settingsOutline,
   terminalOutline,
   ellipsisHorizontalOutline,
@@ -22,6 +25,8 @@ import { useTranslation } from "react-i18next";
 import { useAppStore } from "../store/appStore";
 import { useAuthStore } from "../store/authStore";
 import { useSessionStore } from "../store/sessionStore";
+import { useCreateSession } from "../features/sessions/useCreateSession";
+import CreateSessionModal from "../features/sessions/CreateSessionModal";
 import logoSvg from "../assets/logo-dark.svg";
 
 export default function AppSidebar() {
@@ -31,6 +36,8 @@ export default function AppSidebar() {
   const recentSessions = useSessionStore((s) => s.recentSessions);
   const currentSessionId = useSessionStore((s) => s.currentSessionId);
   const setCurrentSession = useSessionStore((s) => s.setCurrentSession);
+
+  const create = useCreateSession();
 
   const menuRef = useRef<HTMLIonMenuElement>(null);
 
@@ -46,6 +53,15 @@ export default function AppSidebar() {
             <img src={logoSvg} alt="" style={{ width: 32, height: 32 }} />
             <IonTitle style={{ padding: 0 }}>{t("sidebar.title")}</IonTitle>
           </div>
+          <IonButtons slot="end">
+            <IonButton
+              onClick={create.openModal}
+              disabled={!create.hasOnlineWorkers}
+              title={t("sidebar.newSession")}
+            >
+              <IonIcon slot="icon-only" icon={addOutline} />
+            </IonButton>
+          </IonButtons>
         </IonToolbar>
       </IonHeader>
 
@@ -112,7 +128,7 @@ export default function AppSidebar() {
                 height: 32,
                 borderRadius: "50%",
                 background: "var(--ion-color-primary)",
-                color: "#fff",
+                color: "var(--ion-color-primary-contrast)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -128,6 +144,16 @@ export default function AppSidebar() {
           </IonItem>
         </IonToolbar>
       </IonFooter>
+
+      <CreateSessionModal
+        isOpen={create.showModal}
+        onClose={create.closeModal}
+        onlineWorkers={create.onlineWorkers}
+        selectedWorkerId={create.selectedWorkerId}
+        onSelectWorker={create.setSelectedWorkerId}
+        isCreating={create.isCreating}
+        onCreate={create.createSession}
+      />
     </IonMenu>
   );
 }

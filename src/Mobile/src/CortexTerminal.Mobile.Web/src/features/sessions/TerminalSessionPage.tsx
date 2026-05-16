@@ -245,6 +245,19 @@ export default function TerminalSessionPage({
 
     term.open(terminalRef.current);
 
+    // xterm.js creates a hidden textarea (.xterm-helper-textarea) for keyboard input.
+    // Set autocomplete="off" to suppress iOS keyboard autocomplete suggestions.
+    const textareaObserver = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        for (const node of mutation.addedNodes) {
+          if (node instanceof HTMLElement && node.classList.contains("xterm-helper-textarea")) {
+            node.setAttribute("autocomplete", "off");
+          }
+        }
+      }
+    });
+    textareaObserver.observe(terminalRef.current, { childList: true, subtree: true });
+
     try {
       term.loadAddon(new WebglAddon());
     } catch {
@@ -288,6 +301,7 @@ export default function TerminalSessionPage({
 
     return () => {
       observer.disconnect();
+      textareaObserver.disconnect();
       inputDataDisposable.dispose();
       resizeDisposable.dispose();
       term.dispose();

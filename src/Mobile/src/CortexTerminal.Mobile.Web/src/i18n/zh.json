@@ -17,6 +17,7 @@
     "notSignedIn": "Not signed in",
     "debugEnabled": "Debug mode enabled",
     "debugDisabled": "Debug mode disabled",
+    "newSession": "新建会话",
     "components": "组件"
   },
   "login": {

@@ -625,7 +625,7 @@ public partial class MainPage : ContentPage
 			NativeStatusBarColor = Color.FromArgb(isDark ? "#121212" : "#f4f4f5");
 			NativeStatusBarStyle = isDark ? StatusBarStyle.LightContent : StatusBarStyle.DarkContent;
 			BackgroundColor = Color.FromArgb(isDark ? "#121212" : "#ffffff");
-			splashScreen.BackgroundColor = Color.FromArgb(isDark ? "#121212" : "#ffffff");
+			splashScreen.BackgroundColor = Color.FromArgb("#08080A");
 
 #if ANDROID
 			if (Platform.CurrentActivity?.Window is not null)

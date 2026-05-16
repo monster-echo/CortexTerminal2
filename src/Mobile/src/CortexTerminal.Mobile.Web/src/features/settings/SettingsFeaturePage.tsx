@@ -143,7 +143,7 @@ export default function SettingsFeaturePage({ history }: RouteComponentProps) {
             <div slot="start" style={{
               width: 40, height: 40, borderRadius: "50%",
               background: "var(--ion-color-primary)",
-              color: "#fff", display: "flex", alignItems: "center",
+              color: "var(--ion-color-primary-contrast)", display: "flex", alignItems: "center",
               justifyContent: "center", fontWeight: 600, fontSize: 18,
             }}>
               {(user?.username ?? "?")[0].toUpperCase()}

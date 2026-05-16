@@ -9,18 +9,14 @@ import {
   IonLabel,
   IonList,
   IonMenuButton,
-  IonModal,
   IonPage,
-  IonRadio,
-  IonRadioGroup,
   IonRefresher,
   IonRefresherContent,
   IonSpinner,
   IonTitle,
   IonToolbar,
-  useIonToast,
 } from "@ionic/react";
-import { addOutline, desktopOutline, terminalOutline } from "ionicons/icons";
+import { addOutline, terminalOutline } from "ionicons/icons";
 import { RouteComponentProps } from "react-router-dom";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -40,28 +36,20 @@ function formatRelativeTime(isoDate: string, t: (key: string, opts?: Record<stri
 import { useSessionStore } from "../../store/sessionStore";
 import { terminalBridge } from "../../bridge/modules/terminalBridge";
 import SessionInstallPrompt from "./SessionInstallPrompt";
+import { useCreateSession } from "./useCreateSession";
+import CreateSessionModal from "./CreateSessionModal";
 
 export default function SessionsPage({ history }: RouteComponentProps) {
   const { t } = useTranslation();
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [selectedWorkerId, setSelectedWorkerId] = useState<string | null>(null);
-  const [isCreating, setIsCreating] = useState(false);
 
   const recentSessions = useSessionStore((state) => state.recentSessions);
   const workers = useSessionStore((state) => state.workers);
   const setSessions = useSessionStore((state) => state.setSessions);
   const setWorkers = useSessionStore((state) => state.setWorkers);
-  const touchSession = useSessionStore((state) => state.touchSession);
-  const [presentToast] = useIonToast();
 
-  const onlineWorkers = workers.filter(w => w.status !== "offline");
-
-  const openCreateModal = () => {
-    setSelectedWorkerId(onlineWorkers[0]?.id ?? null);
-    setShowCreateModal(true);
-  };
+  const create = useCreateSession();
 
   // Load gateway state
   const loadGatewayState = useCallback(async (signal?: AbortSignal) => {
@@ -112,51 +100,6 @@ export default function SessionsPage({ history }: RouteComponentProps) {
     (e.detail as any).complete();
   };
 
-
-  const createSession = async () => {
-    if (workers.length === 0) {
-      presentToast({
-        message: t("sessions.noWorkers"),
-        duration: 3000,
-        position: "bottom",
-        color: "warning",
-      });
-      return;
-    }
-
-    // Measure the viewport to create the session at the correct PTY size
-    const fontSize = 14;
-    const charWidth = fontSize * 0.602; // typical monospace ratio
-    const charHeight = fontSize * 1.2;  // line height
-    const vpWidth = window.visualViewport?.width ?? window.innerWidth;
-    const vpHeight = window.visualViewport?.height ?? window.innerHeight;
-    const cols = Math.floor(vpWidth / charWidth);
-    const rows = Math.floor((vpHeight - 44) / charHeight); // subtract toolbar (44px)
-
-    setIsCreating(true);
-    try {
-      const session = await terminalBridge.createSession(
-        cols,
-        rows,
-        selectedWorkerId ?? undefined,
-      );
-      touchSession(session);
-      setShowCreateModal(false);
-      setSelectedWorkerId(null);
-      setErrorMessage(null);
-      history.replace(`/sessions/${session.id}`);
-    } catch (error) {
-      presentToast({
-        message: error instanceof Error ? error.message : String(error),
-        duration: 3000,
-        position: "bottom",
-        color: "danger",
-      });
-    } finally {
-      setIsCreating(false);
-    }
-  };
-
   // Show install prompt when no sessions (regardless of workers)
   const showInstallPrompt = !isLoading && recentSessions.length === 0;
 
@@ -170,7 +113,7 @@ export default function SessionsPage({ history }: RouteComponentProps) {
           <IonTitle>{t("sessions.title")}</IonTitle>
           {!isLoading && workers.length > 0 && (
             <IonButtons slot="end">
-              <IonButton onClick={openCreateModal}>
+              <IonButton onClick={create.openModal}>
                 <IonIcon slot="icon-only" icon={addOutline} />
               </IonButton>
             </IonButtons>
@@ -227,75 +170,15 @@ export default function SessionsPage({ history }: RouteComponentProps) {
           </>
         )}
 
-        {/* Create Session Modal */}
-        <IonModal
-          isOpen={showCreateModal}
-          onDidDismiss={() => {
-            setShowCreateModal(false);
-            setSelectedWorkerId(null);
-          }}
-        >
-          <IonHeader>
-            <IonToolbar>
-              <IonButtons slot="start">
-                <IonButton onClick={() => setShowCreateModal(false)}>
-                  {t("sessions.cancel")}
-                </IonButton>
-              </IonButtons>
-              <IonTitle>{t("sessions.createSession")}</IonTitle>
-              <IonButtons slot="end">
-                <IonButton
-                  strong
-                  disabled={isCreating}
-                  onClick={() => void createSession()}
-                >
-                  {isCreating ? t("sessions.creating") : t("sessions.create")}
-                </IonButton>
-              </IonButtons>
-            </IonToolbar>
-          </IonHeader>
-          <IonContent>
-            <IonList>
-              <IonItem lines="none" style={{ paddingTop: 12, paddingBottom: 4 }}>
-                <IonLabel>
-                  <p>{t("sessions.selectWorker")}</p>
-                </IonLabel>
-              </IonItem>
-              <IonRadioGroup
-                value={selectedWorkerId}
-                onIonChange={(e) => setSelectedWorkerId(e.detail.value)}
-              >
-                {onlineWorkers.map((worker) => (
-                  <IonItem key={worker.id}>
-                    <IonRadio value={worker.id} labelPlacement="end">
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <IonIcon
-                          icon={desktopOutline}
-                          style={{
-                            fontSize: 16,
-                            color:
-                              worker.status === "running"
-                                ? "var(--ion-color-success)"
-                                : "var(--ion-color-medium)",
-                          }}
-                        />
-                        <div>
-                          <div style={{ fontWeight: 500 }}>{worker.name}</div>
-                          {worker.hostname && (
-                            <div style={{ fontSize: 12, color: "var(--ion-color-medium)" }}>
-                              {worker.hostname}
-                              {worker.operatingSystem ? ` · ${worker.operatingSystem}` : ""}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </IonRadio>
-                  </IonItem>
-                ))}
-              </IonRadioGroup>
-            </IonList>
-          </IonContent>
-        </IonModal>
+        <CreateSessionModal
+          isOpen={create.showModal}
+          onClose={create.closeModal}
+          onlineWorkers={create.onlineWorkers}
+          selectedWorkerId={create.selectedWorkerId}
+          onSelectWorker={create.setSelectedWorkerId}
+          isCreating={create.isCreating}
+          onCreate={create.createSession}
+        />
       </IonContent>
     </IonPage>
   );
