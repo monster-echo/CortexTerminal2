@@ -49,20 +49,11 @@ public partial class MainPage : ContentPage
 		_bridge = bridge;
 		_logger = logger;
 
-		// Set initial status bar values BEFORE BindingContext so StatusBarBehavior
-		// picks up the correct values immediately (matching v2ex.maui2 pattern).
-		if (Application.Current?.RequestedTheme == AppTheme.Dark)
-		{
-			NativeStatusBarColor = Color.FromArgb("#121212");
-			NativeStatusBarStyle = StatusBarStyle.LightContent;
-			BackgroundColor = Color.FromArgb("#121212");
-		}
-		else
-		{
-			NativeStatusBarColor = Color.FromArgb("#f4f4f5");
-			NativeStatusBarStyle = StatusBarStyle.DarkContent;
-			BackgroundColor = Color.FromArgb("#ffffff");
-		}
+		// Always match splash screen (#08080A) — the overlay covers content,
+		// only status bar is visible. ApplyNativeTheme() will set correct values later.
+		NativeStatusBarColor = Color.FromArgb("#08080A");
+		NativeStatusBarStyle = StatusBarStyle.LightContent;
+		BackgroundColor = Color.FromArgb("#08080A");
 
 		BindingContext = this;
 
@@ -84,9 +75,8 @@ public partial class MainPage : ContentPage
 	protected override void OnAppearing()
 	{
 		base.OnAppearing();
-		// Re-apply theme to ensure native status bar icons are correct
-		// (Platform.CurrentActivity may not be ready during construction)
-		ApplyNativeTheme(Application.Current?.RequestedTheme == AppTheme.Dark ? "dark" : "light");
+		// Do NOT call ApplyNativeTheme here — the constructor already set splash-matching
+		// values. Let the JS bridge send the correct theme via ApplyNativeTheme() later.
 		App.AppResumed -= OnAppResumed;
 		App.AppResumed += OnAppResumed;
 	}
@@ -131,7 +121,7 @@ public partial class MainPage : ContentPage
 	{
 		try
 		{
-			await splashScreen.FadeToAsync(0, 250, Easing.Linear);
+			await splashScreen.FadeToAsync(0, 500, Easing.CubicInOut);
 		}
 		catch (Exception ex)
 		{
@@ -652,6 +642,16 @@ public partial class MainPage : ContentPage
 					controller.AppearanceLightStatusBars = !isDark;
 					controller.AppearanceLightNavigationBars = !isDark;
 				}
+			}
+#endif
+
+#if IOS
+			var mauiWindow = Application.Current?.Windows.FirstOrDefault();
+			if (mauiWindow?.Handler?.PlatformView is UIKit.UIWindow uiWindow)
+			{
+				uiWindow.OverrideUserInterfaceStyle = isDark
+					? UIKit.UIUserInterfaceStyle.Dark
+					: UIKit.UIUserInterfaceStyle.Unspecified;
 			}
 #endif
 		});

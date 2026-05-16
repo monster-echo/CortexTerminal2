@@ -17,7 +17,9 @@ import PageHeader from "../../components/PageHeader";
 import { nativeBridge, type NativeMediaAsset } from "../../bridge/nativeBridge";
 import ActionResultCard from "../../components/ActionResultCard";
 import MediaPreviewCard from "../../components/MediaPreviewCard";
-import { useAppStore } from "../../store/appStore";
+import { useAppStore, type AppStoreState } from "../../store/appStore";
+
+const selectBridgeCapabilities = (s: AppStoreState) => s.bridgeCapabilities;
 
 function formatAsset(asset: NativeMediaAsset) {
   const sizeMb = Math.max(asset.fileSizeBytes / (1024 * 1024), 0).toFixed(2);
@@ -26,7 +28,7 @@ function formatAsset(asset: NativeMediaAsset) {
 
 export default function VideoFeaturePage() {
   const { t } = useTranslation();
-  const bridgeCapabilities = useAppStore((state) => state.bridgeCapabilities);
+  const bridgeCapabilities = useAppStore(selectBridgeCapabilities);
   const [previewAsset, setPreviewAsset] = useState<NativeMediaAsset | null>(
     null,
   );

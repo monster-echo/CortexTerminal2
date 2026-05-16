@@ -15,9 +15,11 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import PageHeader from "../../components/PageHeader";
 import { nativeBridge, type NativeMediaAsset } from "../../bridge/nativeBridge";
-import { useAppStore } from "../../store/appStore";
+import { useAppStore, type AppStoreState } from "../../store/appStore";
 import ActionResultCard from "../../components/ActionResultCard";
 import MediaPreviewCard from "../../components/MediaPreviewCard";
+
+const selectBridgeCapabilities = (s: AppStoreState) => s.bridgeCapabilities;
 
 function formatAsset(asset: NativeMediaAsset) {
   const sizeKb = Math.max(asset.fileSizeBytes / 1024, 0).toFixed(1);
@@ -26,7 +28,7 @@ function formatAsset(asset: NativeMediaAsset) {
 
 export default function CameraFeaturePage() {
   const { t } = useTranslation();
-  const bridgeCapabilities = useAppStore((state) => state.bridgeCapabilities);
+  const bridgeCapabilities = useAppStore(selectBridgeCapabilities);
   const [previewAsset, setPreviewAsset] = useState<NativeMediaAsset | null>(
     null,
   );

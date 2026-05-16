@@ -17,7 +17,9 @@ import {
 import { logoApple, logoGithub, logoGoogle, phonePortraitOutline } from "ionicons/icons";
 import { useTranslation } from "react-i18next";
 import { authBridge } from "../../bridge/modules/authBridge";
-import { useAuthStore } from "../../store/authStore";
+import { useAuthStore, type AuthState } from "../../store/authStore";
+
+const selectSetSession = (s: AuthState) => s.setSession;
 
 export default function LoginPage() {
   const { t } = useTranslation();
@@ -33,7 +35,7 @@ export default function LoginPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [loadingProvider, setLoadingProvider] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
-  const setSession = useAuthStore((s) => s.setSession);
+  const setSession = useAuthStore(selectSetSession);
 
   useEffect(() => {
     return () => {

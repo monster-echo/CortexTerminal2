@@ -22,20 +22,26 @@ import {
   hardwareChipOutline,
 } from "ionicons/icons";
 import { useTranslation } from "react-i18next";
-import { useAppStore } from "../store/appStore";
-import { useAuthStore } from "../store/authStore";
-import { useSessionStore } from "../store/sessionStore";
+import { useAppStore, type AppStoreState } from "../store/appStore";
+import { useAuthStore, type AuthState } from "../store/authStore";
+import { useSessionStore, type SessionState } from "../store/sessionStore";
 import { useCreateSession } from "../features/sessions/useCreateSession";
 import CreateSessionModal from "../features/sessions/CreateSessionModal";
 import logoSvg from "../assets/logo-dark.svg";
 
+const selectAppInfo = (s: AppStoreState) => s.appInfo;
+const selectUser = (s: AuthState) => s.user;
+const selectRecentSessions = (s: SessionState) => s.recentSessions;
+const selectCurrentSessionId = (s: SessionState) => s.currentSessionId;
+const selectSetCurrentSession = (s: SessionState) => s.setCurrentSession;
+
 export default function AppSidebar() {
   const { t } = useTranslation();
-  const appInfo = useAppStore((s) => s.appInfo);
-  const user = useAuthStore((s) => s.user);
-  const recentSessions = useSessionStore((s) => s.recentSessions);
-  const currentSessionId = useSessionStore((s) => s.currentSessionId);
-  const setCurrentSession = useSessionStore((s) => s.setCurrentSession);
+  const appInfo = useAppStore(selectAppInfo);
+  const user = useAuthStore(selectUser);
+  const recentSessions = useSessionStore(selectRecentSessions);
+  const currentSessionId = useSessionStore(selectCurrentSessionId);
+  const setCurrentSession = useSessionStore(selectSetCurrentSession);
 
   const create = useCreateSession();
 

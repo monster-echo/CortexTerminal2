@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type { TerminalSession, WorkerSummary } from "../schemas/sessionSchema";
 
-interface SessionState {
+export interface SessionState {
   currentSessionId: string | null;
   recentSessions: TerminalSession[];
   workers: WorkerSummary[];

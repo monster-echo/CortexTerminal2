@@ -33,21 +33,26 @@ function formatRelativeTime(isoDate: string, t: (key: string, opts?: Record<stri
   if (days < 30) return t("sessions.daysAgo", { count: days });
   return new Date(isoDate).toLocaleDateString();
 }
-import { useSessionStore } from "../../store/sessionStore";
+import { useSessionStore, type SessionState } from "../../store/sessionStore";
 import { terminalBridge } from "../../bridge/modules/terminalBridge";
 import SessionInstallPrompt from "./SessionInstallPrompt";
 import { useCreateSession } from "./useCreateSession";
 import CreateSessionModal from "./CreateSessionModal";
+
+const selectRecentSessions = (s: SessionState) => s.recentSessions;
+const selectWorkers = (s: SessionState) => s.workers;
+const selectSetSessions = (s: SessionState) => s.setSessions;
+const selectSetWorkers = (s: SessionState) => s.setWorkers;
 
 export default function SessionsPage({ history }: RouteComponentProps) {
   const { t } = useTranslation();
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const recentSessions = useSessionStore((state) => state.recentSessions);
-  const workers = useSessionStore((state) => state.workers);
-  const setSessions = useSessionStore((state) => state.setSessions);
-  const setWorkers = useSessionStore((state) => state.setWorkers);
+  const recentSessions = useSessionStore(selectRecentSessions);
+  const workers = useSessionStore(selectWorkers);
+  const setSessions = useSessionStore(selectSetSessions);
+  const setWorkers = useSessionStore(selectSetWorkers);
 
   const create = useCreateSession();
 

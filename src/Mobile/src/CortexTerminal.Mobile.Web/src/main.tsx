@@ -4,6 +4,7 @@ import "./bridge/hybridwebview";
 import "./i18n";
 import App from "./App";
 import { transport } from "./bridge/runtime";
+import { initColorMode } from "./theme/colorMode";
 
 const container = document.getElementById("root");
 const root = createRoot(container!);
@@ -36,8 +37,16 @@ const initDataHandler = (data: unknown) => {
   if (typed.type !== "initData") return;
 
   (window as any).initData = typed.payload;
+
+  // Apply theme before rendering so React's first paint has correct background
+  initColorMode();
+
   renderApp(typed.payload);
-  sendAppReady();
+
+  // Wait for a frame to ensure the WebView has painted before revealing content
+  requestAnimationFrame(() => {
+    sendAppReady();
+  });
 };
 
 const unsubscribe = transport.onMessage(initDataHandler);

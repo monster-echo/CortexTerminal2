@@ -20,10 +20,13 @@ import { hardwareChipOutline } from "ionicons/icons";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import PageHeader from "../../components/PageHeader";
-import { useSessionStore } from "../../store/sessionStore";
+import { useSessionStore, type SessionState } from "../../store/sessionStore";
 import { terminalBridge } from "../../bridge/modules/terminalBridge";
 import type { WorkerSummary } from "../../schemas/sessionSchema";
 import WorkerInstallPrompt from "./WorkerInstallPrompt";
+
+const selectWorkers = (s: SessionState) => s.workers;
+const selectSetWorkers = (s: SessionState) => s.setWorkers;
 
 function formatRelativeTime(isoDate: string, t: (key: string, opts?: Record<string, unknown>) => string): string {
   const diff = Date.now() - new Date(isoDate).getTime();
@@ -43,8 +46,8 @@ export default function WorkersPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [selectedWorker, setSelectedWorker] = useState<WorkerSummary | null>(null);
-  const workers = useSessionStore((state) => state.workers);
-  const setWorkers = useSessionStore((state) => state.setWorkers);
+  const workers = useSessionStore(selectWorkers);
+  const setWorkers = useSessionStore(selectSetWorkers);
 
   const loadWorkers = useCallback(async () => {
     try {

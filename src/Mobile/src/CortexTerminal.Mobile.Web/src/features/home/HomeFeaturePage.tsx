@@ -29,14 +29,17 @@ import {
 import { RouteComponentProps } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import PageHeader from "../../components/PageHeader";
-import { useAppStore } from "../../store/appStore";
+import { useAppStore, type AppStoreState } from "../../store/appStore";
+
+const selectAppInfo = (s: AppStoreState) => s.appInfo;
+const selectLastBridgeError = (s: AppStoreState) => s.lastBridgeError;
 
 export interface HomeFeaturePageProps extends RouteComponentProps<{}> {}
 
 export default function HomeFeaturePage({ history }: HomeFeaturePageProps) {
   const { t } = useTranslation();
-  const appInfo = useAppStore((state) => state.appInfo);
-  const lastBridgeError = useAppStore((state) => state.lastBridgeError);
+  const appInfo = useAppStore(selectAppInfo);
+  const lastBridgeError = useAppStore(selectLastBridgeError);
   const featureItems = [
     {
       key: "messages",

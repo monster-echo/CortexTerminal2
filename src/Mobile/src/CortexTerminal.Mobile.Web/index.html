@@ -7,6 +7,14 @@
       content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
     />
     <title>Corterm</title>
+    <script>
+      try {
+        var mode = localStorage.getItem('template.colorMode');
+        if (mode === 'dark' || (mode !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.classList.add('ion-palette-dark');
+        }
+      } catch(e) {}
+    </script>
   </head>
   <body style="background-color: #08080A;">
     <div id="root"></div>

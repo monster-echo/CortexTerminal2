@@ -2,14 +2,17 @@ import { useState } from "react";
 import { useIonToast } from "@ionic/react";
 import { useTranslation } from "react-i18next";
 import { useHistory } from "react-router-dom";
-import { useSessionStore } from "../../store/sessionStore";
+import { useSessionStore, type SessionState } from "../../store/sessionStore";
 import { terminalBridge } from "../../bridge/modules/terminalBridge";
+
+const selectWorkers = (s: SessionState) => s.workers;
+const selectTouchSession = (s: SessionState) => s.touchSession;
 
 export function useCreateSession() {
   const { t } = useTranslation();
   const history = useHistory();
-  const workers = useSessionStore((s) => s.workers);
-  const touchSession = useSessionStore((s) => s.touchSession);
+  const workers = useSessionStore(selectWorkers);
+  const touchSession = useSessionStore(selectTouchSession);
   const [presentToast] = useIonToast();
 
   const [showModal, setShowModal] = useState(false);

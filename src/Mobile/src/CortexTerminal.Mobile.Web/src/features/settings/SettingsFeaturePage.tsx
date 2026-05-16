@@ -18,8 +18,8 @@ import {
 import { RouteComponentProps } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import PageHeader from "../../components/PageHeader";
-import { useAppStore } from "../../store/appStore";
-import { useAuthStore } from "../../store/authStore";
+import { useAppStore, type AppStoreState } from "../../store/appStore";
+import { useAuthStore, type AuthState } from "../../store/authStore";
 import { authBridge } from "../../bridge/modules/authBridge";
 import {
   applyColorMode,
@@ -27,15 +27,23 @@ import {
   type ColorMode,
 } from "../../theme/colorMode";
 
+const selectAppInfo = (s: AppStoreState) => s.appInfo;
+const selectColorMode = (s: AppStoreState) => s.colorMode;
+const selectSetColorMode = (s: AppStoreState) => s.setColorMode;
+const selectLanguage = (s: AppStoreState) => s.language;
+const selectSetLanguage = (s: AppStoreState) => s.setLanguage;
+const selectUser = (s: AuthState) => s.user;
+const selectClearSession = (s: AuthState) => s.clearSession;
+
 export default function SettingsFeaturePage({ history }: RouteComponentProps) {
   const { t } = useTranslation();
-  const appInfo = useAppStore((state) => state.appInfo);
-  const user = useAuthStore((state) => state.user);
-  const clearSession = useAuthStore((state) => state.clearSession);
-  const colorMode = useAppStore((state) => state.colorMode);
-  const setColorModeState = useAppStore((state) => state.setColorMode);
-  const language = useAppStore((state) => state.language);
-  const setLanguage = useAppStore((state) => state.setLanguage);
+  const appInfo = useAppStore(selectAppInfo);
+  const user = useAuthStore(selectUser);
+  const clearSession = useAuthStore(selectClearSession);
+  const colorMode = useAppStore(selectColorMode);
+  const setColorModeState = useAppStore(selectSetColorMode);
+  const language = useAppStore(selectLanguage);
+  const setLanguage = useAppStore(selectSetLanguage);
   const [presentActionSheet] = useIonActionSheet();
   const [presentAlert] = useIonAlert();
 

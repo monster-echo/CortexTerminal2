@@ -59,10 +59,33 @@ import {
   type ColorMode,
 } from "./theme/colorMode";
 import { createFeatureDefinitions } from "./features/catalog/createFeatureCatalog";
-import { useAppStore } from "./store/appStore";
-import { useAuthStore } from "./store/authStore";
+import { useAppStore, type AppStoreState } from "./store/appStore";
+import { useAuthStore, type AuthState } from "./store/authStore";
 import { authBridge } from "./bridge/modules/authBridge";
 import "./theme/variables.css";
+
+// Stable selector references for Zustand v5 + React 19 useSyncExternalStore.
+// Inline arrow functions cause unstable getSnapshot references leading to
+// "Maximum update depth exceeded" errors.
+const selectColorMode = (s: AppStoreState) => s.colorMode;
+const selectSetColorMode = (s: AppStoreState) => s.setColorMode;
+const selectSetPlatformLabel = (s: AppStoreState) => s.setPlatformLabel;
+const selectSetBridgeReady = (s: AppStoreState) => s.setBridgeReady;
+const selectSetBridgeCapabilities = (s: AppStoreState) => s.setBridgeCapabilities;
+const selectSetSystemInfo = (s: AppStoreState) => s.setSystemInfo;
+const selectSetAppInfo = (s: AppStoreState) => s.setAppInfo;
+const selectSetPendingNavigation = (s: AppStoreState) => s.setPendingNavigation;
+const selectSetFeatureDefinitions = (s: AppStoreState) => s.setFeatureDefinitions;
+const selectSetOffline = (s: AppStoreState) => s.setOffline;
+const selectSetLastBridgeError = (s: AppStoreState) => s.setLastBridgeError;
+const selectSetInitializing = (s: AppStoreState) => s.setInitializing;
+const selectSetLanguage = (s: AppStoreState) => s.setLanguage;
+
+const selectIsLoggedIn = (s: AuthState) => s.isLoggedIn;
+const selectAuthLoading = (s: AuthState) => s.isLoading;
+const selectSetSession = (s: AuthState) => s.setSession;
+const selectClearSession = (s: AuthState) => s.clearSession;
+const selectSetAuthLoading = (s: AuthState) => s.setLoading;
 
 setupIonicReact({
   rippleEffect: true,
@@ -78,26 +101,24 @@ export default function App({
 }: {
   initialData?: { platform?: string };
 }) {
-  const colorMode = useAppStore((state) => state.colorMode);
-  const setColorModeState = useAppStore((state) => state.setColorMode);
-  const setPlatformLabel = useAppStore((state) => state.setPlatformLabel);
-  const setBridgeReady = useAppStore((state) => state.setBridgeReady);
-  const setBridgeCapabilities = useAppStore(
-    (state) => state.setBridgeCapabilities,
-  );
-  const setSystemInfo = useAppStore((state) => state.setSystemInfo);
-  const setAppInfo = useAppStore((state) => state.setAppInfo);
-  const setPendingNavigation = useAppStore(
-    (state) => state.setPendingNavigation,
-  );
-  const setFeatureDefinitions = useAppStore(
-    (state) => state.setFeatureDefinitions,
-  );
-  const setOffline = useAppStore((state) => state.setOffline);
-  const setLastBridgeError = useAppStore((state) => state.setLastBridgeError);
-  const setInitializing = useAppStore((state) => state.setInitializing);
-  const setLanguage = useAppStore((state) => state.setLanguage);
-  const { isLoggedIn, isLoading: authLoading, setSession, clearSession, setLoading: setAuthLoading } = useAuthStore();
+  const colorMode = useAppStore(selectColorMode);
+  const setColorModeState = useAppStore(selectSetColorMode);
+  const setPlatformLabel = useAppStore(selectSetPlatformLabel);
+  const setBridgeReady = useAppStore(selectSetBridgeReady);
+  const setBridgeCapabilities = useAppStore(selectSetBridgeCapabilities);
+  const setSystemInfo = useAppStore(selectSetSystemInfo);
+  const setAppInfo = useAppStore(selectSetAppInfo);
+  const setPendingNavigation = useAppStore(selectSetPendingNavigation);
+  const setFeatureDefinitions = useAppStore(selectSetFeatureDefinitions);
+  const setOffline = useAppStore(selectSetOffline);
+  const setLastBridgeError = useAppStore(selectSetLastBridgeError);
+  const setInitializing = useAppStore(selectSetInitializing);
+  const setLanguage = useAppStore(selectSetLanguage);
+  const isLoggedIn = useAuthStore(selectIsLoggedIn);
+  const authLoading = useAuthStore(selectAuthLoading);
+  const setSession = useAuthStore(selectSetSession);
+  const clearSession = useAuthStore(selectClearSession);
+  const setAuthLoading = useAuthStore(selectSetAuthLoading);
 
   useEffect(() => {
     if (initialData?.platform) {

@@ -5,6 +5,9 @@
         <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
         <item name="colorAccent">@color/colorAccent</item>
         <item name="android:windowBackground">@android:color/transparent</item>
+        <!-- Match splash color to prevent flash when transitioning from splash theme -->
+        <item name="android:statusBarColor">@color/maui_splash_color</item>
+        <item name="android:navigationBarColor">@color/maui_splash_color</item>
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:windowLightNavigationBar">false</item>
     </style>
@@ -14,8 +17,9 @@
         <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
         <item name="colorAccent">@color/colorAccent</item>
         <item name="android:windowBackground">@android:color/transparent</item>
-        <item name="android:statusBarColor">#121212</item>
-        <item name="android:navigationBarColor">#121212</item>
+        <!-- Match splash color to prevent flash when transitioning from splash theme -->
+        <item name="android:statusBarColor">@color/maui_splash_color</item>
+        <item name="android:navigationBarColor">@color/maui_splash_color</item>
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:windowLightNavigationBar">false</item>
     </style>
@@ -26,9 +30,5 @@
         <item name="android:windowBackground">@drawable/maui_splash</item>
         <item name="android:windowSplashScreenBackground">@color/maui_splash_color</item>
         <item name="android:windowSplashScreenAnimatedIcon">@drawable/maui_splash</item>
-        <item name="android:statusBarColor">@color/maui_splash_color</item>
-        <item name="android:navigationBarColor">@color/maui_splash_color</item>
-        <item name="android:windowLightStatusBar">false</item>
-        <item name="android:windowLightNavigationBar">false</item>
     </style>
 </resources>

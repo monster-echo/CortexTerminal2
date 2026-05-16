@@ -5,8 +5,11 @@
         <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
         <item name="colorAccent">@color/colorAccent</item>
         <item name="android:windowBackground">@android:color/transparent</item>
-        <item name="android:windowLightStatusBar">true</item>
-        <item name="android:windowLightNavigationBar">true</item>
+        <!-- Match splash color to prevent flash when transitioning from splash theme -->
+        <item name="android:statusBarColor">@color/maui_splash_color</item>
+        <item name="android:navigationBarColor">@color/maui_splash_color</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
     </style>
 
     <style name="Template.MainTheme.NoActionBar" parent="Maui.MainTheme.NoActionBar">
@@ -14,10 +17,11 @@
         <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
         <item name="colorAccent">@color/colorAccent</item>
         <item name="android:windowBackground">@android:color/transparent</item>
-        <item name="android:statusBarColor">#f4f4f5</item>
-        <item name="android:navigationBarColor">#ffffff</item>
-        <item name="android:windowLightStatusBar">true</item>
-        <item name="android:windowLightNavigationBar">true</item>
+        <!-- Match splash color to prevent flash when transitioning from splash theme -->
+        <item name="android:statusBarColor">@color/maui_splash_color</item>
+        <item name="android:navigationBarColor">@color/maui_splash_color</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
     </style>
 
     <!-- Override Maui.SplashTheme so the Activity picks up our custom splash styling -->
@@ -26,10 +30,5 @@
         <item name="android:windowBackground">@drawable/maui_splash</item>
         <item name="android:windowSplashScreenBackground">@color/maui_splash_color</item>
         <item name="android:windowSplashScreenAnimatedIcon">@drawable/maui_splash</item>
-        <!-- Status bar / nav bar colors matching the splash screen background (#121212) -->
-        <item name="android:statusBarColor">@color/maui_splash_color</item>
-        <item name="android:navigationBarColor">@color/maui_splash_color</item>
-        <item name="android:windowLightStatusBar">false</item>
-        <item name="android:windowLightNavigationBar">false</item>
     </style>
 </resources>

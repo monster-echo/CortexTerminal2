@@ -2,7 +2,6 @@ import {
   IonBadge,
   IonButtons,
   IonContent,
-  IonFabButton,
   IonHeader,
   IonIcon,
   IonMenuButton,
@@ -17,18 +16,22 @@ import {
   arrowDownOutline,
   arrowBackOutline,
   arrowForwardOutline,
-  keypadOutline,
 } from "ionicons/icons";
 import { RouteComponentProps } from "react-router-dom";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
 import "@xterm/xterm/css/xterm.css";
-import { useSessionStore } from "../../store/sessionStore";
+import { useSessionStore, type SessionState } from "../../store/sessionStore";
 import { terminalBridge } from "../../bridge/modules/terminalBridge";
+import { nativeBridge } from "../../bridge/nativeBridge";
 import { transport } from "../../bridge/runtime";
+import { useKeyboardToolbar } from "./useKeyboardToolbar";
+
+const selectRemoveSession = (s: SessionState) => s.removeSession;
+const selectRecentSessions = (s: SessionState) => s.recentSessions;
 
 interface RouteParams {
   sessionId: string;
@@ -52,96 +55,43 @@ function normalizeTerminalOutput(bytes: Uint8Array): Uint8Array {
   return new TextEncoder().encode(normalized);
 }
 
-// ── Custom draggable hook using pointer events, with snap-to-edge ──
-function useDraggable(storageKey: string) {
-  const loadPos = (): { x: number; y: number } => {
-    try {
-      const raw = localStorage.getItem(storageKey);
-      if (raw) return JSON.parse(raw);
-    } catch { /* ignore */ }
-    return { x: 0, y: 0 };
-  };
-
-  const [pos, setPos] = useState(loadPos);
-  const [isDragging, setIsDragging] = useState(false);
-  const selfRef = useRef<HTMLDivElement | null>(null);
-  const dragState = useRef({
-    active: false,
-    startX: 0,
-    startY: 0,
-    origX: 0,
-    origY: 0,
-    moved: false,
-  });
-
-  const onPointerDown = (e: React.PointerEvent) => {
-    const ds = dragState.current;
-    ds.active = true;
-    ds.startX = e.clientX;
-    ds.startY = e.clientY;
-    ds.origX = pos.x;
-    ds.origY = pos.y;
-    ds.moved = false;
-    setIsDragging(true);
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
-  };
-
-  const onPointerMove = (e: React.PointerEvent) => {
-    const ds = dragState.current;
-    if (!ds.active) return;
-    const dx = e.clientX - ds.startX;
-    const dy = e.clientY - ds.startY;
-    if (!ds.moved && Math.abs(dx) < 3 && Math.abs(dy) < 3) return;
-    ds.moved = true;
-    const next = { x: ds.origX + dx, y: ds.origY + dy };
-    setPos(next);
-  };
-
-  const onPointerUp = () => {
-    dragState.current.active = false;
-    setIsDragging(false);
-
-    // Snap to nearest horizontal edge, clamp vertical to viewport
-    requestAnimationFrame(() => {
-      const el = selfRef.current;
-      if (!el) return;
-      const vpWidth = window.visualViewport?.width ?? window.innerWidth;
-      const vpHeight = window.visualViewport?.height ?? window.innerHeight;
-      const rect = el.getBoundingClientRect();
-      const centerX = rect.left + rect.width / 2;
-      const margin = 16;
-
-      // Horizontal: snap to nearest edge
-      const targetX = centerX < vpWidth / 2
-        ? -(rect.left - margin)
-        : (vpWidth - rect.right + margin);
-
-      // Vertical: clamp to viewport [margin, vpHeight - height - margin]
-      const clampedTop = Math.max(margin, Math.min(rect.top, vpHeight - rect.height - margin));
-      const targetY = pos.y + (clampedTop - rect.top);
-
-      const snapped = { x: targetX, y: targetY };
-      setPos(snapped);
-      try {
-        localStorage.setItem(storageKey, JSON.stringify(snapped));
-      } catch { /* ignore */ }
-    });
-  };
-
-  const wasDragged = () => dragState.current.moved;
-
-  const bind = {
-    onPointerDown,
-    onPointerMove,
-    onPointerUp,
-    style: {
-      transform: `translate(${pos.x}px, ${pos.y}px)`,
-      transition: isDragging ? "none" : "transform 0.3s cubic-bezier(0.25, 1, 0.5, 1)",
-    } as React.CSSProperties,
-    setRef: (el: HTMLDivElement | null) => { selfRef.current = el; },
-  };
-
-  return { bind, wasDragged, pos };
+// ── Keyboard toolbar button ──
+function ToolbarButton({ label, icon, active, onClick }: {
+  label?: string;
+  icon?: string;
+  active?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={() => {
+        onClick();
+        void nativeBridge.haptics("click");
+      }}
+      style={{
+        minWidth: 40,
+        height: 34,
+        border: "none",
+        borderRadius: 6,
+        background: active ? "#00ff88" : "rgba(215, 255, 229, 0.12)",
+        color: active ? "#000" : "#d7ffe5",
+        fontSize: 13,
+        fontWeight: 600,
+        fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+        padding: "0 8px",
+        cursor: "pointer",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        flexShrink: 0,
+        touchAction: "manipulation",
+        WebkitTapHighlightColor: "transparent",
+      }}
+    >
+      {label ?? <IonIcon icon={icon!} style={{ fontSize: 18 }} />}
+    </button>
+  );
 }
 
 export default function TerminalSessionPage({
@@ -154,10 +104,12 @@ export default function TerminalSessionPage({
   const [latency, setLatency] = useState<number | null>(null);
   const [presentActionSheet] = useIonActionSheet();
 
-  const session = useSessionStore((state) =>
-    state.recentSessions.find((item) => item.id === sessionId),
+  const recentSessions = useSessionStore(selectRecentSessions);
+  const session = useMemo(
+    () => recentSessions.find((item) => item.id === sessionId),
+    [recentSessions, sessionId],
   );
-  const removeSession = useSessionStore((state) => state.removeSession);
+  const removeSession = useSessionStore(selectRemoveSession);
   const [presentToast] = useIonToast();
 
   const terminalRef = useRef<HTMLDivElement>(null);
@@ -168,29 +120,23 @@ export default function TerminalSessionPage({
 
   const [ctrlActive, setCtrlActive] = useState(false);
   const [altActive, setAltActive] = useState(false);
-  const [keysExpanded, setKeysExpanded] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleKeyRef = useRef<any>(null);
 
-  const keysDrag = useDraggable("fab-pos");
+  const { keyboardVisible, keyboardHeight, toolbarHeight } = useKeyboardToolbar();
 
-  // Track FAB quadrant for dynamic expansion direction
-  const fabRef = useRef<HTMLDivElement | null>(null);
-  const [fabQuadrant, setFabQuadrant] = useState({ isRight: true, isBottom: true });
-
+  // Reset modifiers when keyboard dismisses
   useEffect(() => {
-    requestAnimationFrame(() => {
-      const el = fabRef.current;
-      if (!el) return;
-      const rect = el.getBoundingClientRect();
-      const vpWidth = window.visualViewport?.width ?? window.innerWidth;
-      const vpHeight = window.visualViewport?.height ?? window.innerHeight;
-      setFabQuadrant({
-        isRight: rect.left + rect.width / 2 > vpWidth / 2,
-        isBottom: rect.top + rect.height / 2 > vpHeight / 2,
-      });
-    });
-  }, [keysDrag.pos]);
+    if (!keyboardVisible) {
+      setCtrlActive(false);
+      setAltActive(false);
+    }
+  }, [keyboardVisible]);
+
+  // Clean up legacy FAB position from localStorage
+  useEffect(() => {
+    try { localStorage.removeItem("fab-pos"); } catch { /* ignore */ }
+  }, []);
 
   const sendInput = (text: string) => {
     if (!connectedRef.current) return;
@@ -484,105 +430,51 @@ export default function TerminalSessionPage({
             style={{
               height: "100%",
               background: "#0b0f0e",
+              paddingBottom: keyboardVisible ? toolbarHeight : 0,
+              boxSizing: "border-box",
             }}
           />
 
-          {/* FAB overlay: zero-height container, FAB uses fixed positioning */}
-          <div style={{ position: "relative", height: 0 }}>
+          {/* Keyboard toolbar: appears above the soft keyboard */}
+          {keyboardVisible && (
             <div
-              ref={(el) => { fabRef.current = el; keysDrag.bind.setRef(el); }}
-              onPointerDown={keysDrag.bind.onPointerDown}
-              onPointerMove={keysDrag.bind.onPointerMove}
-              onPointerUp={keysDrag.bind.onPointerUp}
+              className="terminal-toolbar"
               style={{
-                ...keysDrag.bind.style,
                 position: "fixed",
-                bottom: 16,
-                right: 16,
+                bottom: 0,
+                left: 0,
+                right: 0,
+                height: toolbarHeight,
                 zIndex: 100,
-                touchAction: "none",
-                pointerEvents: "auto",
+                display: "flex",
+                alignItems: "center",
+                padding: "0 6px",
+                gap: 4,
+                background: "rgba(11, 15, 14, 0.95)",
+                borderTop: "1px solid rgba(215, 255, 229, 0.15)",
+                transform: `translateY(-${keyboardHeight}px)`,
+                willChange: "transform",
+                transition: "transform 0.25s cubic-bezier(0.25, 1, 0.5, 1)",
+                touchAction: "manipulation",
+                userSelect: "none",
+                WebkitUserSelect: "none",
+                overflowX: "auto",
+                overflowY: "hidden",
+                WebkitOverflowScrolling: "touch",
+                scrollbarWidth: "none",
               }}
             >
-          <div style={{ position: "relative" }}>
-            <IonFabButton onMouseDown={(e) => e.preventDefault()} onClick={() => {
-              if (keysDrag.wasDragged()) return;
-              setKeysExpanded((e) => !e);
-            }}>
-              <IonIcon icon={keypadOutline} />
-            </IonFabButton>
-            {(ctrlActive || altActive) && (
-              <div style={{
-                position: "absolute", top: 2, right: 2,
-                width: 12, height: 12, borderRadius: "50%",
-                background: ctrlActive && altActive ? "#ffaa00" : "#00ff88",
-                border: "2px solid #0b0f0e",
-                zIndex: 1,
-                pointerEvents: "none",
-              }} />
-            )}
-          </div>
-          {keysExpanded && (
-            <>
-              <div style={{
-                position: "absolute",
-                ...(fabQuadrant.isRight
-                  ? { right: 56, top: 0 }
-                  : { left: 56, top: 0 }),
-                display: "flex",
-                flexDirection: fabQuadrant.isRight ? "row-reverse" : "row",
-                gap: 8,
-              }}>
-                <IonFabButton onMouseDown={(e) => e.preventDefault()} onPointerDown={(e) => e.stopPropagation()} onClick={() => handleKey("\x1b")}>
-                  <span style={{ fontSize: 11, fontWeight: 600 }}>Esc</span>
-                </IonFabButton>
-                <IonFabButton onMouseDown={(e) => e.preventDefault()} onPointerDown={(e) => e.stopPropagation()} onClick={() => handleKey("\t")}>
-                  <span style={{ fontSize: 11, fontWeight: 600 }}>Tab</span>
-                </IonFabButton>
-                <IonFabButton
-                  style={ctrlActive ? { "--background": "#00ff88", "--color": "#000" } as React.CSSProperties : undefined}
-                  onMouseDown={(e) => e.preventDefault()}
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onClick={() => setCtrlActive((v) => !v)}
-                >
-                  <span style={{ fontSize: 11, fontWeight: 600 }}>Ctrl</span>
-                </IonFabButton>
-                <IonFabButton
-                  style={altActive ? { "--background": "#00ff88", "--color": "#000" } as React.CSSProperties : undefined}
-                  onMouseDown={(e) => e.preventDefault()}
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onClick={() => setAltActive((v) => !v)}
-                >
-                  <span style={{ fontSize: 11, fontWeight: 600 }}>Alt</span>
-                </IonFabButton>
-              </div>
-              <div style={{
-                position: "absolute",
-                left: 0,
-                ...(fabQuadrant.isBottom
-                  ? { bottom: 56 }
-                  : { top: 56 }),
-                display: "flex",
-                flexDirection: fabQuadrant.isBottom ? "column-reverse" : "column",
-                gap: 8,
-              }}>
-                <IonFabButton onMouseDown={(e) => e.preventDefault()} onPointerDown={(e) => e.stopPropagation()} onClick={() => handleKey("\x1b[D")}>
-                  <IonIcon icon={arrowBackOutline} />
-                </IonFabButton>
-                <IonFabButton onMouseDown={(e) => e.preventDefault()} onPointerDown={(e) => e.stopPropagation()} onClick={() => handleKey("\x1b[A")}>
-                  <IonIcon icon={arrowUpOutline} />
-                </IonFabButton>
-                <IonFabButton onMouseDown={(e) => e.preventDefault()} onPointerDown={(e) => e.stopPropagation()} onClick={() => handleKey("\x1b[B")}>
-                  <IonIcon icon={arrowDownOutline} />
-                </IonFabButton>
-                <IonFabButton onMouseDown={(e) => e.preventDefault()} onPointerDown={(e) => e.stopPropagation()} onClick={() => handleKey("\x1b[C")}>
-                  <IonIcon icon={arrowForwardOutline} />
-                </IonFabButton>
-              </div>
-            </>
+              <ToolbarButton label="Esc" onClick={() => handleKey("\x1b")} />
+              <ToolbarButton label="Tab" onClick={() => handleKey("\t")} />
+              <ToolbarButton label="⇧Tab" onClick={() => handleKey("\x1b[Z")} />
+              <ToolbarButton label="Ctrl" active={ctrlActive} onClick={() => setCtrlActive((v) => !v)} />
+              <ToolbarButton label="Alt" active={altActive} onClick={() => setAltActive((v) => !v)} />
+              <ToolbarButton icon={arrowBackOutline} onClick={() => handleKey("\x1b[D")} />
+              <ToolbarButton icon={arrowUpOutline} onClick={() => handleKey("\x1b[A")} />
+              <ToolbarButton icon={arrowDownOutline} onClick={() => handleKey("\x1b[B")} />
+              <ToolbarButton icon={arrowForwardOutline} onClick={() => handleKey("\x1b[C")} />
+            </div>
           )}
-            </div>
-            </div>
       </IonContent>
     </IonPage>
   );
