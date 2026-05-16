@@ -466,7 +466,7 @@ export default function TerminalSessionPage({
             >
               <ToolbarButton label="Esc" onClick={() => handleKey("\x1b")} />
               <ToolbarButton label="Tab" onClick={() => handleKey("\t")} />
-              <ToolbarButton label="⇧Tab" onClick={() => handleKey("\x1b[Z")} />
+              <ToolbarButton label="S-Tab" onClick={() => handleKey("\x1b[Z")} />
               <ToolbarButton label="Ctrl" active={ctrlActive} onClick={() => setCtrlActive((v) => !v)} />
               <ToolbarButton label="Alt" active={altActive} onClick={() => setAltActive((v) => !v)} />
               <ToolbarButton icon={arrowBackOutline} onClick={() => handleKey("\x1b[D")} />
