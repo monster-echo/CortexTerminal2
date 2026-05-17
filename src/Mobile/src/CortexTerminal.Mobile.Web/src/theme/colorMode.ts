@@ -74,7 +74,7 @@ export function applyColorMode(mode: ColorMode) {
 }
 
 export function initColorMode() {
-  const mode = getStoredMode() ?? "system";
+  const mode = getStoredMode() ?? "dark";
   applyColorMode(mode);
   return mode;
 }

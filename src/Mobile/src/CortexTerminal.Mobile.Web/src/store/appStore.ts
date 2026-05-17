@@ -41,7 +41,7 @@ export interface AppStoreState {
 
 export const useAppStore = create<AppStoreState>((set) => ({
   platformLabel: "web",
-  colorMode: "system",
+  colorMode: "dark",
   bridgeReady: false,
   isOffline: typeof navigator !== "undefined" ? !navigator.onLine : false,
   isInitializing: true,

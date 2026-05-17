@@ -425,15 +425,17 @@ export default function TerminalSessionPage({
         </IonToolbar>
       </IonHeader>
       <IonContent scrollY={false} style={{ '--background': '#0b0f0e' } as React.CSSProperties}>
-          <div
-            ref={terminalRef}
-            style={{
-              height: "100%",
-              background: "#0b0f0e",
-              paddingBottom: keyboardVisible ? toolbarHeight : 0,
-              boxSizing: "border-box",
-            }}
-          />
+          <div style={{ position: "relative", height: keyboardVisible ? `calc(100% - ${toolbarHeight}px)` : "100%" }}>
+            <div
+              ref={terminalRef}
+              style={{
+                height: "100%",
+                background: "#0b0f0e",
+                boxSizing: "border-box",
+                touchAction: "none",
+              }}
+            />
+          </div>
 
           {/* Keyboard toolbar: appears above the soft keyboard */}
           {keyboardVisible && (
