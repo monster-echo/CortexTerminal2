@@ -127,7 +127,7 @@ export default function WorkersPage() {
         >
           <IonHeader>
             <IonToolbar>
-              <IonTitle>{selectedWorker?.name ?? "Worker"}</IonTitle>
+              <IonTitle>{selectedWorker?.name ?? t("workers.title")}</IonTitle>
               <IonButtons slot="end">
                 <IonButton onClick={() => setSelectedWorker(null)}>{t("workers.close")}</IonButton>
               </IonButtons>

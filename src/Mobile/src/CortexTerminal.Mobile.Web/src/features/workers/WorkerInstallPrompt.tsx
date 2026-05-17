@@ -1,6 +1,7 @@
 import { IonButton, IonIcon } from "@ionic/react";
 import { checkmarkOutline, copyOutline, keyOutline } from "ionicons/icons";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 const bashInstallCommand = "curl -fsSL https://gateway.ct.rwecho.top/install.sh | sh";
 const psInstallCommand =
@@ -106,18 +107,20 @@ function TerminalBlock({ title, children }: TerminalBlockProps) {
 }
 
 export default function WorkerInstallPrompt() {
+  const { t } = useTranslation();
+
   return (
     <div style={{ paddingBottom: 24 }}>
       {/* Intro terminal */}
-      <TerminalBlock title="Corterm — Worker Setup">
+      <TerminalBlock title={t("workerInstall.introTitle")}>
         <div style={{ marginBottom: 12 }}>
-          <span style={commentStyle}># 没有检测到任何 Worker</span>
+          <span style={commentStyle}>{t("workerInstall.noWorker")}</span>
         </div>
         <div style={{ marginBottom: 12 }}>
-          <span style={commentStyle}># Worker 是运行在你自己机器上的轻量代理</span>
+          <span style={commentStyle}>{t("workerInstall.whatIsWorker")}</span>
         </div>
         <div style={{ marginBottom: 12 }}>
-          <span style={commentStyle}># 在需要远程访问的电脑/服务器上执行以下命令即可安装</span>
+          <span style={commentStyle}>{t("workerInstall.installHint")}</span>
         </div>
       </TerminalBlock>
 
@@ -129,7 +132,7 @@ export default function WorkerInstallPrompt() {
           <CopyBtn text={bashInstallCommand} />
         </div>
         <div>
-          <span style={commentStyle}># 安装完成后会自动提示登录</span>
+          <span style={commentStyle}>{t("workerInstall.autoLogin")}</span>
         </div>
       </TerminalBlock>
 
@@ -141,14 +144,14 @@ export default function WorkerInstallPrompt() {
           <CopyBtn text={psInstallCommand} />
         </div>
         <div>
-          <span style={commentStyle}># 安装完成后会自动提示登录</span>
+          <span style={commentStyle}>{t("workerInstall.autoLogin")}</span>
         </div>
       </TerminalBlock>
 
       {/* Activate flow */}
-      <TerminalBlock title="cortex login — 激活 Worker">
+      <TerminalBlock title={t("workerInstall.activateTitle")}>
         <div style={{ marginBottom: 12 }}>
-          <span style={commentStyle}># 安装成功后，终端会显示激活引导：</span>
+          <span style={commentStyle}>{t("workerInstall.activateGuide")}</span>
         </div>
         <div style={{ marginBottom: 8 }}>
           <span style={successStyle}>  To authenticate this worker, visit:</span>
@@ -162,20 +165,20 @@ export default function WorkerInstallPrompt() {
           <span style={highlightStyle}>XXXX-YYYY</span>
         </div>
         <div>
-          <span style={commentStyle}># 在浏览器中打开上方链接，输入终端显示的激活码即可</span>
+          <span style={commentStyle}>{t("workerInstall.activateHint")}</span>
         </div>
       </TerminalBlock>
 
       {/* Done */}
-      <TerminalBlock title="Corterm — Ready">
+      <TerminalBlock title={t("workerInstall.readyTitle")}>
         <div style={{ marginBottom: 12 }}>
-          <span style={commentStyle}># 激活成功后 Worker 会自动连接 Gateway</span>
+          <span style={commentStyle}>{t("workerInstall.autoConnect")}</span>
         </div>
         <div style={{ marginBottom: 12 }}>
-          <span style={commentStyle}># 回到本页面刷新，Worker 会出现在列表中</span>
+          <span style={commentStyle}>{t("workerInstall.backRefresh")}</span>
         </div>
         <div>
-          <span style={successStyle}>  Worker connected. Ready to create session.</span>
+          <span style={successStyle}>{t("workerInstall.ready")}</span>
         </div>
       </TerminalBlock>
 
@@ -185,7 +188,7 @@ export default function WorkerInstallPrompt() {
           routerLink="/activate"
         >
           <IonIcon slot="start" icon={keyOutline} />
-          输入激活码
+          {t("workerInstall.enterCode")}
         </IonButton>
       </div>
     </div>

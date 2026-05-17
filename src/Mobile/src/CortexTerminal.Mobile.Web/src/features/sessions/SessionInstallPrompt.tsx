@@ -1,6 +1,7 @@
 import { IonButton, IonIcon } from "@ionic/react";
 import { checkmarkOutline, copyOutline, keyOutline } from "ionicons/icons";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 const bashInstallCommand = "curl -fsSL https://gateway.ct.rwecho.top/install.sh | sh";
 const psInstallCommand =
@@ -106,23 +107,25 @@ function TerminalBlock({ title, children }: TerminalBlockProps) {
 }
 
 export default function SessionInstallPrompt() {
+  const { t } = useTranslation();
+
   return (
     <div style={{ paddingBottom: 24 }}>
       {/* Intro */}
-      <TerminalBlock title="Corterm — Quick Start">
+      <TerminalBlock title={t("sessionInstall.introTitle")}>
         <div style={{ marginBottom: 12 }}>
-          <span style={commentStyle}># 还没有可用的 Session</span>
+          <span style={commentStyle}>{t("sessionInstall.noSession")}</span>
         </div>
         <div style={{ marginBottom: 12 }}>
-          <span style={commentStyle}># Session 运行在 Worker 上，需要先在一台机器上安装 Worker</span>
+          <span style={commentStyle}>{t("sessionInstall.needWorker")}</span>
         </div>
         <div>
-          <span style={successStyle}>  按以下步骤操作，一分钟即可开始使用远程终端</span>
+          <span style={successStyle}>{t("sessionInstall.followSteps")}</span>
         </div>
       </TerminalBlock>
 
       {/* Step 1: Install macOS/Linux */}
-      <TerminalBlock title="Step 1 — 安装 Worker (macOS / Linux)">
+      <TerminalBlock title={t("sessionInstall.step1Mac")}>
         <div style={{ marginBottom: 8, display: "flex", alignItems: "center" }}>
           <span style={promptStyle}>$ </span>
           <code style={cmdStyle}>{bashInstallCommand}</code>
@@ -131,7 +134,7 @@ export default function SessionInstallPrompt() {
       </TerminalBlock>
 
       {/* Step 1 alt: Windows */}
-      <TerminalBlock title="Step 1 — 安装 Worker (Windows)">
+      <TerminalBlock title={t("sessionInstall.step1Win")}>
         <div style={{ marginBottom: 8, display: "flex", alignItems: "center" }}>
           <span style={{ ...promptStyle, color: "#bc3fbc" }}>PS&gt; </span>
           <code style={cmdStyle}>{psInstallCommand}</code>
@@ -140,9 +143,9 @@ export default function SessionInstallPrompt() {
       </TerminalBlock>
 
       {/* Step 2: Activate */}
-      <TerminalBlock title="Step 2 — 激活 Worker">
+      <TerminalBlock title={t("sessionInstall.step2Activate")}>
         <div style={{ marginBottom: 12 }}>
-          <span style={commentStyle}># 安装后终端会自动启动激活流程：</span>
+          <span style={commentStyle}>{t("sessionInstall.autoActivate")}</span>
         </div>
         <div style={{ marginBottom: 8 }}>
           <span style={successStyle}>  Visit: </span>
@@ -154,20 +157,20 @@ export default function SessionInstallPrompt() {
           <span style={highlightStyle}>XXXX-YYYY</span>
         </div>
         <div>
-          <span style={commentStyle}># 打开链接 → 输入终端显示的激活码 → 完成</span>
+          <span style={commentStyle}>{t("sessionInstall.openLink")}</span>
         </div>
       </TerminalBlock>
 
       {/* Step 3: Back here */}
-      <TerminalBlock title="Step 3 — 开始使用">
+      <TerminalBlock title={t("sessionInstall.step3Start")}>
         <div style={{ marginBottom: 12 }}>
-          <span style={commentStyle}># Worker 激活后自动连接，回到这里点击「刷新检测」</span>
+          <span style={commentStyle}>{t("sessionInstall.backRefresh")}</span>
         </div>
         <div style={{ marginBottom: 12 }}>
-          <span style={commentStyle}># 看到 Worker 上线后即可创建 Session，开始远程终端</span>
+          <span style={commentStyle}>{t("sessionInstall.createSession")}</span>
         </div>
         <div>
-          <span style={successStyle}>  Done! Your terminal is ready.</span>
+          <span style={successStyle}>{t("sessionInstall.ready")}</span>
         </div>
       </TerminalBlock>
 
@@ -177,7 +180,7 @@ export default function SessionInstallPrompt() {
           routerLink="/activate"
         >
           <IonIcon slot="start" icon={keyOutline} />
-          输入激活码
+          {t("sessionInstall.enterCode")}
         </IonButton>
       </div>
     </div>

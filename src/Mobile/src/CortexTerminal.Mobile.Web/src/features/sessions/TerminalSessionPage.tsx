@@ -450,7 +450,7 @@ export default function TerminalSessionPage({
           <IonButtons slot="start">
             <IonMenuButton />
           </IonButtons>
-          <IonTitle>{session?.title ?? "Session"}</IonTitle>
+          <IonTitle>{session?.title ?? t("terminal.session")}</IonTitle>
           <IonBadge
             slot="end"
             color={session?.status === "running" ? "success" : "medium"}
@@ -467,7 +467,7 @@ export default function TerminalSessionPage({
                   { text: `${t("terminal.cols")}: ${cols}`, role: "destructive" as any },
                   { text: `${t("terminal.rows")}: ${rows}`, role: "destructive" as any },
                   { text: `${t("terminal.latency")}: ${lat}`, role: "destructive" as any },
-                  { text: "OK", role: "cancel" },
+                  { text: t("common.ok"), role: "cancel" },
                 ],
               });
             }}
@@ -537,7 +537,7 @@ export default function TerminalSessionPage({
                 <ToolbarButton icon={arrowForwardOutline} onClick={() => handleKey("\x1b[C")} />
               </div>
               <ToolbarButton
-                label="Done"
+                label={t("terminal.done")}
                 onClick={() => {
                   const textarea = terminalRef.current?.querySelector(".xterm-helper-textarea") as HTMLElement | null;
                   textarea?.blur();

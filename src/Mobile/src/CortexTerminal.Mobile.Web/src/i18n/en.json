@@ -491,12 +491,46 @@
     "expired": "Expired",
     "exitedWithCode": "Exited ({{code}})",
     "exitedWithCodeAndReason": "Exited ({{code}}): {{reason}}",
-    "startFailedReason": "Start failed: {{reason}}"
+    "startFailedReason": "Start failed: {{reason}}",
+    "session": "Session",
+    "done": "Done"
   },
   "common": {
     "loading": "Loading...",
     "back": "Back",
-    "unknown": "unknown"
+    "unknown": "unknown",
+    "ok": "OK"
+  },
+  "sessionInstall": {
+    "introTitle": "Corterm — Quick Start",
+    "noSession": "# No sessions available yet",
+    "needWorker": "# Sessions run on Workers. Install a Worker on a machine first.",
+    "followSteps": "  Follow these steps to get started with remote terminal in one minute.",
+    "step1Mac": "Step 1 — Install Worker (macOS / Linux)",
+    "step1Win": "Step 1 — Install Worker (Windows)",
+    "step2Activate": "Step 2 — Activate Worker",
+    "autoActivate": "# After installation, the terminal will automatically start the activation flow:",
+    "openLink": "# Open the link → enter the activation code shown in terminal → done",
+    "step3Start": "Step 3 — Get Started",
+    "backRefresh": "# Once the Worker is activated and connected, come back here and tap Refresh.",
+    "createSession": "# When the Worker shows online, you can create a Session and start the remote terminal.",
+    "ready": "  Done! Your terminal is ready.",
+    "enterCode": "Enter Activation Code"
+  },
+  "workerInstall": {
+    "introTitle": "Corterm — Worker Setup",
+    "noWorker": "# No Workers detected",
+    "whatIsWorker": "# A Worker is a lightweight agent running on your own machine.",
+    "installHint": "# Run the following command on the machine you want to access remotely.",
+    "autoLogin": "# After installation, you will be prompted to log in automatically.",
+    "activateTitle": "cortex login — Activate Worker",
+    "activateGuide": "# After installation, the terminal will display the activation guide:",
+    "activateHint": "# Open the link above in a browser and enter the activation code shown in the terminal.",
+    "readyTitle": "Corterm — Ready",
+    "autoConnect": "# Once activated, the Worker will automatically connect to the Gateway.",
+    "backRefresh": "# Refresh this page and the Worker will appear in the list.",
+    "ready": "  Worker connected. Ready to create session.",
+    "enterCode": "Enter Activation Code"
   },
   "components": {
     "actionResultTitle": "Last action result",
