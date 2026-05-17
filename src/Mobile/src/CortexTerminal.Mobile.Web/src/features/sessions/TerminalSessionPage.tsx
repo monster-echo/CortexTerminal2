@@ -141,6 +141,9 @@ export default function TerminalSessionPage({
   const connectedRef = useRef(false);
   const keyboardTransitionRef = useRef(false);
   const keyboardTransitionTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const containerHeightRef = useRef<number>(0);
+  const cellHeightRef = useRef<number>(0);
+  const keyboardActiveRef = useRef(false);
 
   const [ctrlActive, setCtrlActive] = useState(false);
   const [altActive, setAltActive] = useState(false);
@@ -243,6 +246,10 @@ export default function TerminalSessionPage({
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         fitAddon.fit();
+        if (terminalRef.current) {
+          containerHeightRef.current = terminalRef.current.clientHeight;
+          cellHeightRef.current = terminalRef.current.clientHeight / term.rows;
+        }
       });
     });
 
@@ -267,6 +274,17 @@ export default function TerminalSessionPage({
       if (keyboardTransitionRef.current) return;
       resizeTimeoutRef.current = setTimeout(() => {
         try {
+          // Update fixed height for non-keyboard resizes (e.g. rotation)
+          const wrapper = terminalRef.current?.parentElement;
+          if (wrapper && terminalRef.current) {
+            containerHeightRef.current = wrapper.clientHeight;
+            if (!keyboardActiveRef.current) {
+              terminalRef.current.style.height = `${wrapper.clientHeight}px`;
+            }
+            if (term.rows > 0) {
+              cellHeightRef.current = wrapper.clientHeight / term.rows;
+            }
+          }
           smoothFit(term, fitAddon);
         } catch {
           /* component may be unmounted */
@@ -383,19 +401,55 @@ export default function TerminalSessionPage({
       // ── Native keyboard state (iOS) ──
       if (event.type === "nativeKeyboard") {
         const knEvent = event as any;
-        setNativeKeyboardVisible(knEvent.visible === true);
-        setNativeKeyboardHeight(typeof knEvent.height === "number" ? knEvent.height : 0);
+        const visible = knEvent.visible === true;
+        const height = typeof knEvent.height === "number" ? knEvent.height : 0;
 
-        // iOS keyboard transition: suppress ResizeObserver-triggered fit() and
-        // perform a single smoothFit after the native animation + React re-render settle.
+        setNativeKeyboardVisible(visible);
+        setNativeKeyboardHeight(height);
+
+        // Immediately set fixed pixel height and resize xterm — don't wait for native animation.
+        // The wrapper's overflow:hidden clips the terminal during the native padding animation,
+        // preventing the canvas from being visually squished.
+        const el = terminalRef.current;
+        const t = xtermRef.current;
+        if (el && t && cellHeightRef.current > 0) {
+          if (visible) {
+            keyboardActiveRef.current = true;
+            const targetHeight = containerHeightRef.current - height - toolbarHeight;
+            const newRows = Math.max(1, Math.floor(targetHeight / cellHeightRef.current));
+            el.style.height = `${targetHeight}px`;
+            t.resize(t.cols, newRows);
+          } else {
+            keyboardActiveRef.current = false;
+            const targetHeight = containerHeightRef.current;
+            const newRows = Math.max(1, Math.floor(targetHeight / cellHeightRef.current));
+            el.style.height = `${targetHeight}px`;
+            t.resize(t.cols, newRows);
+          }
+        }
+
+        // Suppress ResizeObserver during native animation to avoid redundant fits
         keyboardTransitionRef.current = true;
         if (keyboardTransitionTimerRef.current) clearTimeout(keyboardTransitionTimerRef.current);
         keyboardTransitionTimerRef.current = setTimeout(() => {
           keyboardTransitionRef.current = false;
-          const t = xtermRef.current;
+          // Final correction: update containerHeight for potential rotation during keyboard
           const fa = fitAddonRef.current;
-          if (t && fa) {
-            try { smoothFit(t, fa); } catch {}
+          const tt = xtermRef.current;
+          if (tt && fa) {
+            try {
+              const wrapper = terminalRef.current?.parentElement;
+              if (wrapper && !keyboardActiveRef.current) {
+                containerHeightRef.current = wrapper.clientHeight;
+                if (terminalRef.current) {
+                  terminalRef.current.style.height = `${wrapper.clientHeight}px`;
+                }
+                if (tt.rows > 0) {
+                  cellHeightRef.current = wrapper.clientHeight / tt.rows;
+                }
+              }
+              smoothFit(tt, fa);
+            } catch {}
           }
         }, 400);
       }
@@ -477,14 +531,16 @@ export default function TerminalSessionPage({
         </IonToolbar>
       </IonHeader>
       <IonContent scrollY={false} style={{ '--background': '#0b0f0e' } as React.CSSProperties}>
-          <div style={{ position: "relative", height: "100%" }}>
+          <div style={{ position: "relative", height: "100%", overflow: "hidden" }}>
             <div
               ref={terminalRef}
               style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
                 height: "100%",
                 background: "#0b0f0e",
-                paddingBottom: keyboardVisible ? toolbarHeight : 0,
-                boxSizing: "border-box",
                 touchAction: "none",
               }}
             />
