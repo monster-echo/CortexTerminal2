@@ -233,7 +233,32 @@ public sealed class TerminalGatewayService
             }
         });
         connection.Reconnecting += error => PushEventAsync(new { type = "terminal.reconnecting", sessionId, reason = error?.Message });
-        connection.Reconnected += _ => PushEventAsync(new { type = "terminal.reconnected", sessionId });
+        connection.Reconnected += async _ =>
+        {
+            // SignalR 重连后获得新的 ConnectionId，必须调用 ReattachSession
+            // 将新连接绑定到服务器端的 session，否则所有客户端调用会被 RequireOwnedSession 拒绝
+            try
+            {
+                var result = await connection.InvokeAsync<ReattachSessionResult>(
+                    "ReattachSession",
+                    new ReattachSessionRequest(sessionId),
+                    CancellationToken.None);
+
+                if (!result.IsSuccess)
+                {
+                    _logger.LogWarning("Reattach after reconnect failed: {ErrorCode}", result.ErrorCode);
+                    await PushEventAsync(new { type = "terminal.expired", sessionId, reason = result.ErrorCode });
+                    return;
+                }
+                // ReattachSession 服务端会发送 SessionReattached → ReplayChunk → ReplayCompleted
+                // 已注册的 handlers 会自动处理 replay，无需额外操作
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Reattach after reconnect threw exception");
+                await PushEventAsync(new { type = "terminal.reconnecting", sessionId, reason = ex.Message });
+            }
+        };
         connection.Closed += error => PushEventAsync(new { type = "terminal.closed", sessionId, reason = error?.Message });
         connection.On<LatencyProbeFrame>("LatencyProbeAck", frame =>
         {
