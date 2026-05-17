@@ -219,7 +219,7 @@ builder.Services.AddSignalR().AddMessagePackProtocol();
 builder.Services.AddSingleton<IWorkerCommandDispatcher, SignalRWorkerCommandDispatcher>();
 builder.Services.AddSingleton<ISessionLaunchCoordinator, SessionLaunchCoordinator>();
 builder.Services.AddSingleton<InMemoryDeviceFlowStore>();
-builder.Services.AddSingleton<IReplayCache>(_ => new ReplayCache(64 * 1024));
+builder.Services.AddSingleton<IReplayCache>(_ => new ReplayCache(16 * 1024));
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddHostedService<DetachedSessionExpiryService>();
 builder.Services.AddHttpClient();
