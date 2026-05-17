@@ -25,6 +25,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
 import "@xterm/xterm/css/xterm.css";
 import { useSessionStore, type SessionState } from "../../store/sessionStore";
+import { useAppStore } from "../../store/appStore";
 import { terminalBridge } from "../../bridge/modules/terminalBridge";
 import { nativeBridge } from "../../bridge/nativeBridge";
 import { transport } from "../../bridge/runtime";
@@ -104,6 +105,14 @@ export default function TerminalSessionPage({
   const [latency, setLatency] = useState<number | null>(null);
   const [presentActionSheet] = useIonActionSheet();
 
+  // ── Platform detection ──
+  const platformLabel = useAppStore((s) => s.platformLabel);
+  const isIOS = platformLabel === "ios" || platformLabel === "maccatalyst";
+
+  // ── Native keyboard state (iOS: from native layer, others: from visualViewport) ──
+  const [nativeKeyboardVisible, setNativeKeyboardVisible] = useState(false);
+  const [nativeKeyboardHeight, setNativeKeyboardHeight] = useState(0);
+
   const recentSessions = useSessionStore(selectRecentSessions);
   const session = useMemo(
     () => recentSessions.find((item) => item.id === sessionId),
@@ -123,7 +132,9 @@ export default function TerminalSessionPage({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleKeyRef = useRef<any>(null);
 
-  const { keyboardVisible, keyboardHeight, toolbarHeight } = useKeyboardToolbar();
+  const { keyboardVisible: vvKeyboardVisible, keyboardHeight: vvKeyboardHeight, toolbarHeight } = useKeyboardToolbar();
+  const keyboardVisible = isIOS ? nativeKeyboardVisible : vvKeyboardVisible;
+  const keyboardHeight = isIOS ? nativeKeyboardHeight : vvKeyboardHeight;
 
   // Reset modifiers when keyboard dismisses
   useEffect(() => {
@@ -347,6 +358,13 @@ export default function TerminalSessionPage({
           setStatusMessage(t("terminal.live"));
         }
       }
+
+      // ── Native keyboard state (iOS) ──
+      if (event.type === "nativeKeyboard") {
+        const knEvent = event as any;
+        setNativeKeyboardVisible(knEvent.visible === true);
+        setNativeKeyboardHeight(typeof knEvent.height === "number" ? knEvent.height : 0);
+      }
     });
 
     const connect = async () => {
@@ -425,12 +443,13 @@ export default function TerminalSessionPage({
         </IonToolbar>
       </IonHeader>
       <IonContent scrollY={false} style={{ '--background': '#0b0f0e' } as React.CSSProperties}>
-          <div style={{ position: "relative", height: keyboardVisible ? `calc(100% - ${toolbarHeight}px)` : "100%" }}>
+          <div style={{ position: "relative", height: "100%" }}>
             <div
               ref={terminalRef}
               style={{
                 height: "100%",
                 background: "#0b0f0e",
+                paddingBottom: keyboardVisible ? toolbarHeight : 0,
                 boxSizing: "border-box",
                 touchAction: "none",
               }}
@@ -454,7 +473,7 @@ export default function TerminalSessionPage({
                 gap: 4,
                 background: "rgba(11, 15, 14, 0.95)",
                 borderTop: "1px solid rgba(215, 255, 229, 0.15)",
-                transform: `translateY(-${keyboardHeight}px)`,
+                transform: `translateY(-${isIOS ? 0 : keyboardHeight}px)`,
                 willChange: "transform",
                 transition: "transform 0.25s cubic-bezier(0.25, 1, 0.5, 1)",
                 touchAction: "manipulation",
