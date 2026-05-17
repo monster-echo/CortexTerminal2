@@ -49,9 +49,9 @@ The target repository defaults to `monster-echo/CortexTerminal2`. Override it wi
 
 ## Platform console checklist
 
-- Android package name: `top.rwecho.corterm`
+- Android package name: `top.rwecho.cortexterminal`
 - Google Play release track: `internal`
-- iOS bundle id: `top.rwecho.corterm`
+- iOS bundle id: `top.rwecho.cortexterminal`
 - iOS upload target: TestFlight
 
 The current workflow checks for `Xcode 26.2`. If the self-hosted runner uses another Xcode version, update the runner or workflow before triggering iOS release.

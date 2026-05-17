@@ -33,7 +33,7 @@
 		<ApplicationTitle>Corterm</ApplicationTitle>
 
 		<!-- App Identifier -->
-		<ApplicationId>top.rwecho.corterm</ApplicationId>
+		<ApplicationId>top.rwecho.cortexterminal</ApplicationId>
 
 		<!-- Versions -->
 		<ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>

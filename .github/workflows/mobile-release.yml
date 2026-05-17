@@ -117,9 +117,9 @@ jobs:
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJsonPlainText: ${{ secrets.CORTEX_GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
-          packageName: "top.rwecho.corterm"
-          releaseFiles: "src/Mobile/src/CortexTerminal.Mobile.App/bin/Release/net10.0-android/top.rwecho.corterm-Signed.aab"
-          track: "internal"
+          packageName: "top.rwecho.cortexterminal"
+          releaseFiles: "src/Mobile/src/CortexTerminal.Mobile.App/bin/Release/net10.0-android/top.rwecho.cortexterminal-Signed.aab"
+          tracks: "internal"
           status: "draft"
 
   build-ios:
@@ -162,9 +162,8 @@ jobs:
 
       - name: Clean stale signing keychain
         run: |
-          if security list-keychains | grep -q "signing_temp.keychain"; then
-            security delete-keychain signing_temp.keychain || true
-          fi
+          security delete-keychain ~/Library/Keychains/signing_temp.keychain 2>/dev/null || true
+          rm -f ~/Library/Keychains/signing_temp.keychain-db
 
       - name: Install Apple Certificate
         uses: apple-actions/import-codesign-certs@v1
@@ -175,7 +174,7 @@ jobs:
       - name: Install Provisioning Profile
         uses: apple-actions/download-provisioning-profiles@v1
         with:
-          bundle-id: "top.rwecho.corterm"
+          bundle-id: "top.rwecho.cortexterminal"
           issuer-id: ${{ secrets.CORTEX_APPSTORE_ISSUER_ID }}
           api-key-id: ${{ secrets.CORTEX_APPSTORE_API_KEY_ID }}
           api-private-key: ${{ secrets.CORTEX_APPSTORE_API_PRIVATE_KEY }}
