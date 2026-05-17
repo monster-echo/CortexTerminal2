@@ -65,6 +65,7 @@ export function TerminalView(props: {
   } | null>(null)
   const connectionRef = useRef<TerminalGatewayConnection | null>(null)
   const browserTerminalRef = useRef<BrowserTerminal | null>(null)
+  const lastSyncedSizeRef = useRef<TerminalSize | null>(null)
   const sessionRef = useRef<ReturnType<
     typeof createTerminalSessionModel
   > | null>(null)
@@ -129,6 +130,7 @@ export function TerminalView(props: {
       }
 
       const size = browserTerminal.fit()
+      lastSyncedSizeRef.current = size
       setTerminalSize({ columns: size.columns, rows: size.rows })
       setStatusMessage(
         `Live terminal attached at ${size.columns}x${size.rows}.`
@@ -144,6 +146,15 @@ export function TerminalView(props: {
 
   const handleTerminalResize = useCallback(
     (size: TerminalSize) => {
+      const lastSyncedSize = lastSyncedSizeRef.current
+      if (
+        lastSyncedSize?.columns === size.columns &&
+        lastSyncedSize.rows === size.rows
+      ) {
+        return
+      }
+
+      lastSyncedSizeRef.current = size
       setTerminalSize({ columns: size.columns, rows: size.rows })
       setStatusMessage(`Terminal resized to ${size.columns}x${size.rows}.`)
       pushEvent(
@@ -287,6 +298,7 @@ export function TerminalView(props: {
         const browserTerminal = browserTerminalRef.current
         if (browserTerminal) {
           const size = browserTerminal.fit()
+          lastSyncedSizeRef.current = size
           setTerminalSize({ columns: size.columns, rows: size.rows })
           setStatusMessage(`Terminal ready at ${size.columns}x${size.rows}.`)
           pe(

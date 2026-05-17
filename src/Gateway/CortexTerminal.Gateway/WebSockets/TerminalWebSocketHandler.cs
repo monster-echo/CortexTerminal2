@@ -230,6 +230,12 @@ public sealed class TerminalWebSocketHandler
             return;
         }
 
+        if (!TerminalSizeLimits.IsValid(cols, rows))
+        {
+            await SendErrorAsync(ws, sessionId, "invalid-frame", "resize dimensions are out of range.", cancellationToken);
+            return;
+        }
+
         await _workerCommands.ResizeSessionAsync(session.WorkerConnectionId, new ResizePtyRequest(sessionId, cols, rows), cancellationToken);
     }
 

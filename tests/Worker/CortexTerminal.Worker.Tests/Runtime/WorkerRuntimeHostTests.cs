@@ -80,6 +80,27 @@ public sealed class WorkerRuntimeHostTests
             .Which.Should().BeEquivalentTo(new SessionStartFailedEvent("sess-1", "pty-start-failed"));
         host.ActiveSessionCount.Should().Be(0);
     }
+
+    [Theory]
+    [InlineData(0, 45)]
+    [InlineData(100, 0)]
+    [InlineData(-1, 45)]
+    [InlineData(100, -1)]
+    [InlineData(1001, 45)]
+    [InlineData(100, 1001)]
+    public async Task ResizeSession_WithInvalidDimensions_DoesNotReachPty(int columns, int rows)
+    {
+        var process = new ControlledPtyProcess();
+        var gateway = new FakeWorkerGatewayClient();
+        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(process), NullLoggerFactory.Instance);
+
+        await host.StartAsync(CancellationToken.None);
+        await gateway.RaiseStartSessionAsync(new StartSessionCommand("sess-1", 120, 40));
+        await gateway.RaiseResizeSessionAsync(new ResizePtyRequest("sess-1", columns, rows));
+
+        host.ActiveSessionCount.Should().Be(1);
+        process.ResizeRequests.Should().BeEmpty();
+    }
 }
 
 internal sealed class FakeWorkerGatewayClient : IWorkerGatewayClient

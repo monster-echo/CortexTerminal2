@@ -176,6 +176,12 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
     private Task HandleResizeSessionAsync(ResizePtyRequest request)
     {
         _logger.LogInformation("Received resize for session {SessionId}: {Columns}x{Rows}", request.SessionId, request.Columns, request.Rows);
+        if (!TerminalSizeLimits.IsValid(request.Columns, request.Rows))
+        {
+            _logger.LogWarning("Ignoring invalid resize for session {SessionId}: {Columns}x{Rows}", request.SessionId, request.Columns, request.Rows);
+            return Task.CompletedTask;
+        }
+
         return _sessions.TryGetValue(request.SessionId, out var runtime)
         ? runtime.ResizeAsync(request.Columns, request.Rows, CancellationToken.None)
         : LogMissingSessionAsync(request.SessionId, "resize");

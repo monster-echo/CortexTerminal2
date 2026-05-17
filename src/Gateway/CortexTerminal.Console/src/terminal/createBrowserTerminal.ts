@@ -35,7 +35,14 @@ export function createBrowserTerminal(
       terminal.clear()
     },
     fit() {
-      fitAddon.fit()
+      const dimensions = fitAddon.proposeDimensions()
+      if (
+        dimensions &&
+        (terminal.cols !== dimensions.cols || terminal.rows !== dimensions.rows)
+      ) {
+        terminal.resize(dimensions.cols, dimensions.rows)
+      }
+
       return {
         columns: terminal.cols,
         rows: terminal.rows,

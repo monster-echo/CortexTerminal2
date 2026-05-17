@@ -89,6 +89,11 @@ public sealed class TerminalHub(
 
     public async Task ResizeSession(ResizePtyRequest request)
     {
+        if (!TerminalSizeLimits.IsValid(request.Columns, request.Rows))
+        {
+            throw new HubException("Invalid terminal size.");
+        }
+
         var session = RequireOwnedSession(request.SessionId);
         await workerCommands.ResizeSessionAsync(session.WorkerConnectionId, request, Context.ConnectionAborted);
     }

@@ -106,6 +106,39 @@ public sealed class TerminalHubWorkerDispatchTests
         workerClient.Invocations.Should().ContainSingle(invocation => invocation.Method == "ResizeSession");
     }
 
+    [Theory]
+    [InlineData(0, 50)]
+    [InlineData(100, 0)]
+    [InlineData(-1, 50)]
+    [InlineData(100, -1)]
+    [InlineData(1001, 50)]
+    [InlineData(100, 1001)]
+    public async Task ResizeSession_WithInvalidDimensions_DoesNotDispatchToWorker(int columns, int rows)
+    {
+        var workers = new InMemoryWorkerRegistry();
+        workers.Register("worker-1", "worker-conn-1");
+        var sessions = new InMemorySessionCoordinator(workers);
+        var replayCache = new ReplayCache(1024);
+        var workerClient = new RecordingClientProxy();
+        var dispatcher = new SignalRWorkerCommandDispatcher(new TestHubContext<WorkerHub>(new Dictionary<string, IClientProxy>
+        {
+            ["worker-conn-1"] = workerClient
+        }));
+        var createResult = await sessions.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), "client-1", CancellationToken.None);
+        var sessionId = createResult.Response!.SessionId;
+        var hub = CreateTerminalHub(sessions, replayCache, TimeProvider.System, dispatcher);
+        hub.Context = new TestHubCallerContext("client-1", "user-1");
+        hub.Clients = new TestHubCallerClients(new RecordingClientProxy(), new Dictionary<string, IClientProxy>
+        {
+            ["worker-conn-1"] = workerClient
+        });
+
+        var act = async () => await hub.ResizeSession(new ResizePtyRequest(sessionId, columns, rows));
+
+        await act.Should().ThrowAsync<HubException>().WithMessage("Invalid terminal size.");
+        workerClient.Invocations.Should().NotContain(invocation => invocation.Method == "ResizeSession");
+    }
+
     [Fact]
     public async Task ProbeLatency_DispatchesToOwningWorkerOnly()
     {
