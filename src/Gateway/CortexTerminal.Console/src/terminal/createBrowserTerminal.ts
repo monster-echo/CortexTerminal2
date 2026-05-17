@@ -21,6 +21,7 @@ export function createBrowserTerminal(
   })
 
   const fitAddon = new FitAddon()
+  let scrollToBottomFrameId: number | null = null
   terminal.loadAddon(fitAddon)
   terminal.open(container)
   fitAddon.fit()
@@ -40,7 +41,21 @@ export function createBrowserTerminal(
         dimensions &&
         (terminal.cols !== dimensions.cols || terminal.rows !== dimensions.rows)
       ) {
+        const wasAtBottom =
+          terminal.buffer.active.viewportY + terminal.rows >=
+          terminal.buffer.active.baseY - 1
         terminal.resize(dimensions.cols, dimensions.rows)
+
+        if (wasAtBottom) {
+          terminal.scrollToBottom()
+          if (scrollToBottomFrameId !== null) {
+            window.cancelAnimationFrame(scrollToBottomFrameId)
+          }
+          scrollToBottomFrameId = window.requestAnimationFrame(() => {
+            terminal.scrollToBottom()
+            scrollToBottomFrameId = null
+          })
+        }
       }
 
       return {
@@ -49,6 +64,10 @@ export function createBrowserTerminal(
       }
     },
     dispose() {
+      if (scrollToBottomFrameId !== null) {
+        window.cancelAnimationFrame(scrollToBottomFrameId)
+        scrollToBottomFrameId = null
+      }
       disposable.dispose()
       terminal.dispose()
     },
