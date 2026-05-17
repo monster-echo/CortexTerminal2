@@ -30,6 +30,7 @@ import { terminalBridge } from "../../bridge/modules/terminalBridge";
 import { nativeBridge } from "../../bridge/nativeBridge";
 import { transport } from "../../bridge/runtime";
 import { useKeyboardToolbar } from "./useKeyboardToolbar";
+import { useTouchScroll } from "./useTouchScroll";
 
 const selectRemoveSession = (s: SessionState) => s.removeSession;
 const selectRecentSessions = (s: SessionState) => s.recentSessions;
@@ -135,6 +136,9 @@ export default function TerminalSessionPage({
   const { keyboardVisible: vvKeyboardVisible, keyboardHeight: vvKeyboardHeight, toolbarHeight } = useKeyboardToolbar();
   const keyboardVisible = isIOS ? nativeKeyboardVisible : vvKeyboardVisible;
   const keyboardHeight = isIOS ? nativeKeyboardHeight : vvKeyboardHeight;
+
+  // ── Touch scroll for iOS (xterm.js doesn't handle touch natively) ──
+  useTouchScroll({ terminalRef, xtermRef, enabled: isIOS });
 
   // Reset modifiers when keyboard dismisses
   useEffect(() => {
