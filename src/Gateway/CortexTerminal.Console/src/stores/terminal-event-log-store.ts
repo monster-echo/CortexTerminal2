@@ -10,6 +10,7 @@ const STORAGE_KEY = 'cortex_terminal_event_logs'
 const MAX_EVENTS_PER_SCOPE = 100
 const MAX_SCOPES = 20
 const LOG_TTL_MS = 1000 * 60 * 60 * 24
+export const EMPTY_TERMINAL_EVENT_ENTRIES: TerminalEventEntry[] = []
 
 interface TerminalEventLogState {
   logsByScope: Record<string, TerminalEventEntry[]>

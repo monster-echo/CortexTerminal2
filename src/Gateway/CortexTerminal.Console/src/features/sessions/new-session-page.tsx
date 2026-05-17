@@ -10,7 +10,10 @@ import {
   type TerminalSize,
 } from '@/terminal/terminal-viewport'
 import { ArrowLeft } from 'lucide-react'
-import { useTerminalEventLogStore } from '@/stores/terminal-event-log-store'
+import {
+  EMPTY_TERMINAL_EVENT_ENTRIES,
+  useTerminalEventLogStore,
+} from '@/stores/terminal-event-log-store'
 import { Button } from '@/components/ui/button'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
@@ -31,7 +34,9 @@ export function NewSessionPage(props: { bootstrapId?: string; workerId?: string 
   )
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const eventEntries = useTerminalEventLogStore(
-    (state) => state.logsByScope[bootstrapLogKeyRef.current] ?? []
+    (state) =>
+      state.logsByScope[bootstrapLogKeyRef.current] ??
+      EMPTY_TERMINAL_EVENT_ENTRIES
   )
   const appendEvent = useTerminalEventLogStore((state) => state.appendEvent)
   const moveScope = useTerminalEventLogStore((state) => state.moveScope)

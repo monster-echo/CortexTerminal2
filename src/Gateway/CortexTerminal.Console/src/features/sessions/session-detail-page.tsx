@@ -9,7 +9,10 @@ import { TerminalView } from '@/terminal/terminal-view'
 import { ArrowLeft, Loader2, Square, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
-import { useTerminalEventLogStore } from '@/stores/terminal-event-log-store'
+import {
+  EMPTY_TERMINAL_EVENT_ENTRIES,
+  useTerminalEventLogStore,
+} from '@/stores/terminal-event-log-store'
 import { getApi } from '@/lib/api'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { Button } from '@/components/ui/button'
@@ -34,7 +37,9 @@ export function SessionDetailPage(props: { sessionId: string }) {
   const [isDeleting, setIsDeleting] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const eventEntries = useTerminalEventLogStore(
-    (state) => state.logsByScope[getSessionTerminalLogKey(sessionId)] ?? []
+    (state) =>
+      state.logsByScope[getSessionTerminalLogKey(sessionId)] ??
+      EMPTY_TERMINAL_EVENT_ENTRIES
   )
 
   const gateway = useMemo(
