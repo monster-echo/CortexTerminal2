@@ -57,6 +57,18 @@ function normalizeTerminalOutput(bytes: Uint8Array): Uint8Array {
   return new TextEncoder().encode(normalized);
 }
 
+/**
+ * Smooth resize: skip _renderService.clear(), call terminal.resize() directly.
+ * When only rows/cols change (keyboard show/hide), the render buffer doesn't need
+ * clearing — xterm reflows in-place instead of redrawing top-to-bottom.
+ */
+function smoothFit(term: Terminal, fitAddon: FitAddon): void {
+  const dims = fitAddon.proposeDimensions();
+  if (!dims) return;
+  if (term.cols === dims.cols && term.rows === dims.rows) return;
+  term.resize(dims.cols, dims.rows);
+}
+
 // ── Keyboard toolbar button ──
 function ToolbarButton({ label, icon, active, onClick }: {
   label?: string;
@@ -127,6 +139,8 @@ export default function TerminalSessionPage({
   const fitAddonRef = useRef<FitAddon | null>(null);
   const resizeTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const connectedRef = useRef(false);
+  const keyboardTransitionRef = useRef(false);
+  const keyboardTransitionTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const [ctrlActive, setCtrlActive] = useState(false);
   const [altActive, setAltActive] = useState(false);
@@ -250,9 +264,10 @@ export default function TerminalSessionPage({
 
     const observer = new ResizeObserver(() => {
       if (resizeTimeoutRef.current) clearTimeout(resizeTimeoutRef.current);
+      if (keyboardTransitionRef.current) return;
       resizeTimeoutRef.current = setTimeout(() => {
         try {
-          fitAddon.fit();
+          smoothFit(term, fitAddon);
         } catch {
           /* component may be unmounted */
         }
@@ -265,6 +280,8 @@ export default function TerminalSessionPage({
       textareaObserver.disconnect();
       inputDataDisposable.dispose();
       resizeDisposable.dispose();
+      if (resizeTimeoutRef.current) clearTimeout(resizeTimeoutRef.current);
+      if (keyboardTransitionTimerRef.current) clearTimeout(keyboardTransitionTimerRef.current);
       term.dispose();
       xtermRef.current = null;
       fitAddonRef.current = null;
@@ -368,6 +385,19 @@ export default function TerminalSessionPage({
         const knEvent = event as any;
         setNativeKeyboardVisible(knEvent.visible === true);
         setNativeKeyboardHeight(typeof knEvent.height === "number" ? knEvent.height : 0);
+
+        // iOS keyboard transition: suppress ResizeObserver-triggered fit() and
+        // perform a single smoothFit after the native animation + React re-render settle.
+        keyboardTransitionRef.current = true;
+        if (keyboardTransitionTimerRef.current) clearTimeout(keyboardTransitionTimerRef.current);
+        keyboardTransitionTimerRef.current = setTimeout(() => {
+          keyboardTransitionRef.current = false;
+          const t = xtermRef.current;
+          const fa = fitAddonRef.current;
+          if (t && fa) {
+            try { smoothFit(t, fa); } catch {}
+          }
+        }, 400);
       }
     });
 
@@ -473,8 +503,6 @@ export default function TerminalSessionPage({
                 zIndex: 100,
                 display: "flex",
                 alignItems: "center",
-                padding: "0 6px",
-                gap: 4,
                 background: "rgba(11, 15, 14, 0.95)",
                 borderTop: "1px solid rgba(215, 255, 229, 0.15)",
                 transform: `translateY(-${isIOS ? 0 : keyboardHeight}px)`,
@@ -483,21 +511,38 @@ export default function TerminalSessionPage({
                 touchAction: "manipulation",
                 userSelect: "none",
                 WebkitUserSelect: "none",
-                overflowX: "auto",
-                overflowY: "hidden",
-                WebkitOverflowScrolling: "touch",
-                scrollbarWidth: "none",
               }}
             >
-              <ToolbarButton label="Esc" onClick={() => handleKey("\x1b")} />
-              <ToolbarButton label="Tab" onClick={() => handleKey("\t")} />
-              <ToolbarButton label="S-Tab" onClick={() => handleKey("\x1b[Z")} />
-              <ToolbarButton label="Ctrl" active={ctrlActive} onClick={() => setCtrlActive((v) => !v)} />
-              <ToolbarButton label="Alt" active={altActive} onClick={() => setAltActive((v) => !v)} />
-              <ToolbarButton icon={arrowBackOutline} onClick={() => handleKey("\x1b[D")} />
-              <ToolbarButton icon={arrowUpOutline} onClick={() => handleKey("\x1b[A")} />
-              <ToolbarButton icon={arrowDownOutline} onClick={() => handleKey("\x1b[B")} />
-              <ToolbarButton icon={arrowForwardOutline} onClick={() => handleKey("\x1b[C")} />
+              <div
+                style={{
+                  flex: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  padding: "0 6px",
+                  gap: 4,
+                  overflowX: "auto",
+                  overflowY: "hidden",
+                  WebkitOverflowScrolling: "touch",
+                  scrollbarWidth: "none",
+                }}
+              >
+                <ToolbarButton label="Esc" onClick={() => handleKey("\x1b")} />
+                <ToolbarButton label="Tab" onClick={() => handleKey("\t")} />
+                <ToolbarButton label="S-Tab" onClick={() => handleKey("\x1b[Z")} />
+                <ToolbarButton label="Ctrl" active={ctrlActive} onClick={() => setCtrlActive((v) => !v)} />
+                <ToolbarButton label="Alt" active={altActive} onClick={() => setAltActive((v) => !v)} />
+                <ToolbarButton icon={arrowBackOutline} onClick={() => handleKey("\x1b[D")} />
+                <ToolbarButton icon={arrowUpOutline} onClick={() => handleKey("\x1b[A")} />
+                <ToolbarButton icon={arrowDownOutline} onClick={() => handleKey("\x1b[B")} />
+                <ToolbarButton icon={arrowForwardOutline} onClick={() => handleKey("\x1b[C")} />
+              </div>
+              <ToolbarButton
+                label="Done"
+                onClick={() => {
+                  const textarea = terminalRef.current?.querySelector(".xterm-helper-textarea") as HTMLElement | null;
+                  textarea?.blur();
+                }}
+              />
             </div>
           )}
       </IonContent>
