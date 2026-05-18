@@ -34,6 +34,7 @@ import { useTouchScroll } from "./useTouchScroll";
 
 const selectRemoveSession = (s: SessionState) => s.removeSession;
 const selectRecentSessions = (s: SessionState) => s.recentSessions;
+const RESIZE_DEBOUNCE_MS = 150;
 
 interface RouteParams {
   sessionId: string;
@@ -57,24 +58,11 @@ function normalizeTerminalOutput(bytes: Uint8Array): Uint8Array {
   return new TextEncoder().encode(normalized);
 }
 
-/**
- * Smooth resize with visibility fade: hide the terminal canvas during resize
- * to prevent the visible top-to-bottom redraw (xterm.js issue #4922).
- * The canvas is hidden, resized, then revealed in the next animation frame.
- */
-function smoothFitWithFade(
-  term: Terminal,
-  fitAddon: FitAddon,
-  container: HTMLElement | null,
-): void {
+function fitTerminal(term: Terminal, fitAddon: FitAddon): void {
   const dims = fitAddon.proposeDimensions();
   if (!dims) return;
   if (term.cols === dims.cols && term.rows === dims.rows) return;
-  if (container) container.style.visibility = "hidden";
   term.resize(dims.cols, dims.rows);
-  requestAnimationFrame(() => {
-    if (container) container.style.visibility = "";
-  });
 }
 
 // ── Keyboard toolbar button ──
@@ -146,6 +134,7 @@ export default function TerminalSessionPage({
   const xtermRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const resizeTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const resizeSyncTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const connectedRef = useRef(false);
   const keyboardTransitionRef = useRef(false);
   const keyboardTransitionTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -265,7 +254,13 @@ export default function TerminalSessionPage({
         lastCols = cols;
         lastRows = rows;
         if (connectedRef.current) {
-          void terminalBridge.resizeSession(sessionId, cols, rows);
+          if (resizeSyncTimeoutRef.current) {
+            clearTimeout(resizeSyncTimeoutRef.current);
+          }
+          resizeSyncTimeoutRef.current = setTimeout(() => {
+            resizeSyncTimeoutRef.current = undefined;
+            void terminalBridge.resizeSession(sessionId, cols, rows);
+          }, RESIZE_DEBOUNCE_MS);
         }
       }
     });
@@ -275,11 +270,11 @@ export default function TerminalSessionPage({
       if (keyboardTransitionRef.current) return;
       resizeTimeoutRef.current = setTimeout(() => {
         try {
-          smoothFitWithFade(term, fitAddon, terminalRef.current);
+          fitTerminal(term, fitAddon);
         } catch {
           /* component may be unmounted */
         }
-      }, 100);
+      }, RESIZE_DEBOUNCE_MS);
     });
     observer.observe(terminalRef.current);
 
@@ -289,6 +284,7 @@ export default function TerminalSessionPage({
       inputDataDisposable.dispose();
       resizeDisposable.dispose();
       if (resizeTimeoutRef.current) clearTimeout(resizeTimeoutRef.current);
+      if (resizeSyncTimeoutRef.current) clearTimeout(resizeSyncTimeoutRef.current);
       if (keyboardTransitionTimerRef.current) clearTimeout(keyboardTransitionTimerRef.current);
       term.dispose();
       xtermRef.current = null;
@@ -403,7 +399,7 @@ export default function TerminalSessionPage({
           const t = xtermRef.current;
           const fa = fitAddonRef.current;
           if (t && fa) {
-            try { smoothFitWithFade(t, fa, terminalRef.current); } catch {}
+            try { fitTerminal(t, fa); } catch {}
           }
         }, 400);
       }
