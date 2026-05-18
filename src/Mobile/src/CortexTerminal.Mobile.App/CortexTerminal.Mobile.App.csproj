@@ -96,9 +96,9 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<None Include="appsettings.json">
+		<Content Include="appsettings.json">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-		</None>
+		</Content>
 	</ItemGroup>
 
 	<ItemGroup>

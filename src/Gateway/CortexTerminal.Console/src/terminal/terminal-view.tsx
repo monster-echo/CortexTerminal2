@@ -21,8 +21,6 @@ import {
 } from './terminal-virtual-keys'
 import { createTerminalSessionModel } from './useTerminalSession'
 
-const RESIZE_DEBOUNCE_MS = 150
-
 export function TerminalView(props: {
   gateway: TerminalGateway
   sessionId: string
@@ -68,7 +66,6 @@ export function TerminalView(props: {
   const connectionRef = useRef<TerminalGatewayConnection | null>(null)
   const browserTerminalRef = useRef<BrowserTerminal | null>(null)
   const lastSyncedSizeRef = useRef<TerminalSize | null>(null)
-  const resizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const sessionRef = useRef<ReturnType<
     typeof createTerminalSessionModel
   > | null>(null)
@@ -133,16 +130,10 @@ export function TerminalView(props: {
       }
 
       const size = browserTerminal.fit()
-      lastSyncedSizeRef.current = size
       setTerminalSize({ columns: size.columns, rows: size.rows })
       setStatusMessage(
         `Live terminal attached at ${size.columns}x${size.rows}.`
       )
-      pushEvent(
-        'gateway',
-        `Syncing server PTY size to ${size.columns}x${size.rows}.`
-      )
-      void connection.resize(size.columns, size.rows)
     },
     [pushEvent]
   )
@@ -163,15 +154,7 @@ export function TerminalView(props: {
         'xterm',
         `Viewport resize observed at ${size.columns}x${size.rows}.`
       )
-
-      if (resizeTimerRef.current) {
-        clearTimeout(resizeTimerRef.current)
-      }
-
-      resizeTimerRef.current = setTimeout(() => {
-        resizeTimerRef.current = null
-        void connectionRef.current?.resize(size.columns, size.rows)
-      }, RESIZE_DEBOUNCE_MS)
+      void connectionRef.current?.resize(size.columns, size.rows)
     },
     [pushEvent]
   )
@@ -308,14 +291,8 @@ export function TerminalView(props: {
         const browserTerminal = browserTerminalRef.current
         if (browserTerminal) {
           const size = browserTerminal.fit()
-          lastSyncedSizeRef.current = size
           setTerminalSize({ columns: size.columns, rows: size.rows })
           setStatusMessage(`Terminal ready at ${size.columns}x${size.rows}.`)
-          pe(
-            'gateway',
-            `Sending initial size ${size.columns}x${size.rows} to server.`
-          )
-          void connection.resize(size.columns, size.rows)
         }
       })
       .catch((error: unknown) => {
@@ -340,10 +317,6 @@ export function TerminalView(props: {
       isActive = false
       const connection = connectionRef.current
       connectionRef.current = null
-      if (resizeTimerRef.current) {
-        clearTimeout(resizeTimerRef.current)
-        resizeTimerRef.current = null
-      }
       handleLatencyChange(null, 'offline')
       if (connection) {
         pe('gateway', 'Disconnecting terminal transport.')

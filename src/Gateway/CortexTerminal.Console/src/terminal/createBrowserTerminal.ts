@@ -1,16 +1,22 @@
 import { FitAddon } from '@xterm/addon-fit'
 import { Terminal } from '@xterm/xterm'
 
+export interface TerminalSize {
+  columns: number
+  rows: number
+}
+
 export function createBrowserTerminal(
   container: HTMLElement,
-  onData: (data: string) => void
+  onData: (data: string) => void,
+  onResize?: (size: TerminalSize) => void
 ) {
   const terminal = new Terminal({
     cursorBlink: true,
     fontFamily:
       "ui-monospace, SFMono-Regular, Menlo, Monaco, 'Courier New', monospace",
     fontSize: 13,
-    scrollback: 5000,
+    scrollback: 1000,
     theme: {
       background: '#0f172a',
       foreground: '#e2e8f0',
@@ -25,29 +31,20 @@ export function createBrowserTerminal(
   terminal.open(container)
   fitAddon.fit()
 
-  const disposable = terminal.onData(onData)
-  let disposed = false
+  const dataDisposable = terminal.onData(onData)
+  const resizeDisposable = terminal.onResize(({ cols, rows }) => {
+    onResize?.({ columns: cols, rows })
+  })
 
   return {
     write(data: string) {
-      if (disposed) return
-      terminal.write(data)
+      terminal.write(data, () => {})
     },
     clear() {
-      if (disposed) return
       terminal.clear()
     },
     fit() {
-      if (disposed) {
-        return { columns: terminal.cols, rows: terminal.rows }
-      }
-      const dimensions = fitAddon.proposeDimensions()
-      if (
-        dimensions &&
-        (terminal.cols !== dimensions.cols || terminal.rows !== dimensions.rows)
-      ) {
-        terminal.resize(dimensions.cols, dimensions.rows)
-      }
+      fitAddon.fit()
 
       return {
         columns: terminal.cols,
@@ -55,8 +52,8 @@ export function createBrowserTerminal(
       }
     },
     dispose() {
-      disposed = true
-      disposable.dispose()
+      dataDisposable.dispose()
+      resizeDisposable.dispose()
       terminal.dispose()
     },
   }

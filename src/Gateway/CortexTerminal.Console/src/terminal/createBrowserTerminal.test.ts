@@ -1,31 +1,28 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { Terminal } from '@xterm/xterm'
 import { createBrowserTerminal } from './createBrowserTerminal'
 
 const mocks = vi.hoisted(() => ({
   terminal: {
-    buffer: {
-      active: {
-        viewportY: 0,
-        baseY: 0,
-      },
-    },
     rows: 24,
     cols: 80,
     loadAddon: vi.fn(),
     open: vi.fn(),
     onData: vi.fn(() => ({ dispose: vi.fn() })),
-    write: vi.fn(),
-    clear: vi.fn(),
-    resize: vi.fn((cols: number, rows: number) => {
-      mocks.terminal.cols = cols
-      mocks.terminal.rows = rows
+    onResize: vi.fn(
+      (
+        _handler: (size: { cols: number; rows: number }) => void
+      ): { dispose: () => void } => ({ dispose: vi.fn() })
+    ),
+    write: vi.fn((_data: string, callback?: () => void) => {
+      callback?.()
     }),
-    scrollToBottom: vi.fn(),
+    clear: vi.fn(),
+    resize: vi.fn(),
     dispose: vi.fn(),
   },
   fitAddon: {
     fit: vi.fn(),
-    proposeDimensions: vi.fn<() => { cols: number; rows: number } | undefined>(),
   },
 }))
 
@@ -46,35 +43,58 @@ describe('createBrowserTerminal', () => {
     vi.clearAllMocks()
     mocks.terminal.rows = 24
     mocks.terminal.cols = 80
-    mocks.fitAddon.proposeDimensions.mockReturnValue({ cols: 100, rows: 30 })
   })
 
-  it('resizes the terminal when proposed dimensions change', () => {
-    const terminal = createBrowserTerminal(document.createElement('div'), vi.fn())
+  it('uses a conservative scrollback default for large terminal histories', () => {
+    createBrowserTerminal(document.createElement('div'), vi.fn())
 
-    terminal.fit()
-
-    expect(mocks.terminal.resize).toHaveBeenCalledWith(100, 30)
-    expect(mocks.terminal.scrollToBottom).not.toHaveBeenCalled()
+    expect(Terminal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scrollback: 1000,
+      })
+    )
   })
 
-  it('does not resize or scroll when the proposed dimensions are unchanged', () => {
-    mocks.fitAddon.proposeDimensions.mockReturnValue({ cols: 80, rows: 24 })
-    const terminal = createBrowserTerminal(document.createElement('div'), vi.fn())
+  it('opens the terminal and fits it during initialization', () => {
+    const element = document.createElement('div')
 
-    terminal.fit()
+    createBrowserTerminal(element, vi.fn())
 
-    expect(mocks.terminal.resize).not.toHaveBeenCalled()
-    expect(mocks.terminal.scrollToBottom).not.toHaveBeenCalled()
+    expect(mocks.terminal.loadAddon).toHaveBeenCalledOnce()
+    expect(mocks.terminal.open).toHaveBeenCalledWith(element)
+    expect(mocks.fitAddon.fit).toHaveBeenCalledOnce()
   })
 
-  it('returns the current size when no dimensions are proposed', () => {
-    mocks.fitAddon.proposeDimensions.mockReturnValue(undefined)
+  it('forwards xterm resize events', () => {
+    const onResize = vi.fn()
+    createBrowserTerminal(document.createElement('div'), vi.fn(), onResize)
+
+    const handler = mocks.terminal.onResize.mock.calls[0]![0]
+    handler({ cols: 100, rows: 30 })
+
+    expect(onResize).toHaveBeenCalledWith({ columns: 100, rows: 30 })
+  })
+
+  it('fits through the fit addon without manually resizing the terminal', () => {
     const terminal = createBrowserTerminal(document.createElement('div'), vi.fn())
+    mocks.terminal.cols = 100
+    mocks.terminal.rows = 30
 
     const size = terminal.fit()
 
+    expect(mocks.fitAddon.fit).toHaveBeenCalledTimes(2)
     expect(mocks.terminal.resize).not.toHaveBeenCalled()
-    expect(size).toEqual({ columns: 80, rows: 24 })
+    expect(size).toEqual({ columns: 100, rows: 30 })
+  })
+
+  it('writes data using xterm write callbacks', () => {
+    const terminal = createBrowserTerminal(document.createElement('div'), vi.fn())
+
+    terminal.write('output')
+
+    expect(mocks.terminal.write).toHaveBeenCalledWith(
+      'output',
+      expect.any(Function)
+    )
   })
 })

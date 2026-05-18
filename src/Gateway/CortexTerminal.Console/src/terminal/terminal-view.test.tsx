@@ -103,7 +103,6 @@ vi.mock('./terminal-status-bar', () => ({
 
 describe('TerminalView', () => {
   beforeEach(() => {
-    vi.useFakeTimers()
     vi.clearAllMocks()
     mocks.fit.mockReturnValue({ columns: 100, rows: 40 })
     mocks.resize.mockResolvedValue(undefined)
@@ -113,7 +112,7 @@ describe('TerminalView', () => {
     mocks.dispose.mockResolvedValue(undefined)
   })
 
-  it('does not send duplicate resize commands when the measured terminal size is unchanged', async () => {
+  it('sends resize commands from xterm resize events and skips duplicate sizes', async () => {
     const connection: TerminalGatewayConnection = {
       writeInput: mocks.writeInput,
       resize: mocks.resize,
@@ -131,51 +130,18 @@ describe('TerminalView', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'ready' }))
     await vi.waitFor(() => expect(gateway.connect).toHaveBeenCalledOnce())
-    expect(mocks.resize).toHaveBeenCalledTimes(1)
-    expect(mocks.resize).toHaveBeenLastCalledWith(100, 40)
+    expect(mocks.resize).not.toHaveBeenCalled()
 
     await userEvent.click(screen.getByRole('button', { name: 'same size' }))
     expect(mocks.resize).toHaveBeenCalledTimes(1)
     expect(mocks.resize).toHaveBeenLastCalledWith(100, 40)
 
     await userEvent.click(screen.getByRole('button', { name: 'new size' }))
-    expect(mocks.resize).toHaveBeenCalledTimes(1)
-
-    vi.advanceTimersByTime(149)
-    expect(mocks.resize).toHaveBeenCalledTimes(1)
-
-    vi.advanceTimersByTime(1)
     expect(mocks.resize).toHaveBeenCalledTimes(2)
     expect(mocks.resize).toHaveBeenLastCalledWith(120, 45)
-  })
 
-  it('debounces rapid resize changes and only sends the final size', async () => {
-    const connection: TerminalGatewayConnection = {
-      writeInput: mocks.writeInput,
-      resize: mocks.resize,
-      probeLatency: mocks.probeLatency,
-      close: mocks.close,
-      dispose: mocks.dispose,
-    }
-    const gateway: TerminalGateway = {
-      connect: vi.fn().mockResolvedValue(connection),
-    }
-
-    const screen = await render(
-      <TerminalView gateway={gateway} sessionId='session-1' />
-    )
-
-    await vi.waitFor(() => expect(gateway.connect).toHaveBeenCalledOnce())
-    await userEvent.click(screen.getByRole('button', { name: 'ready' }))
-    expect(mocks.resize).toHaveBeenCalledTimes(1)
-
-    await userEvent.click(screen.getByRole('button', { name: 'new size' }))
     await userEvent.click(screen.getByRole('button', { name: 'same size' }))
-    await userEvent.click(screen.getByRole('button', { name: 'new size' }))
-
-    expect(mocks.resize).toHaveBeenCalledTimes(1)
-    vi.advanceTimersByTime(150)
-    expect(mocks.resize).toHaveBeenCalledTimes(2)
-    expect(mocks.resize).toHaveBeenLastCalledWith(120, 45)
+    expect(mocks.resize).toHaveBeenCalledTimes(3)
+    expect(mocks.resize).toHaveBeenLastCalledWith(100, 40)
   })
 })
