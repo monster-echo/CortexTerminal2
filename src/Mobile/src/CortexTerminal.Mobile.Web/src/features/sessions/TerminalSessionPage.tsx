@@ -59,10 +59,7 @@ function normalizeTerminalOutput(bytes: Uint8Array): Uint8Array {
 }
 
 function fitTerminal(term: Terminal, fitAddon: FitAddon): void {
-  const dims = fitAddon.proposeDimensions();
-  if (!dims) return;
-  if (term.cols === dims.cols && term.rows === dims.rows) return;
-  term.resize(dims.cols, dims.rows);
+  fitAddon.fit();
 }
 
 // ── Keyboard toolbar button ──
@@ -209,7 +206,7 @@ export default function TerminalSessionPage({
         selectionBackground: "rgba(215,255,229,0.25)",
       },
       cursorBlink: true,
-      scrollback: 5000,
+      scrollback: 1000,
       convertEol: false,
     });
 
@@ -334,7 +331,7 @@ export default function TerminalSessionPage({
         term
       ) {
         try {
-          term.write(normalizeTerminalOutput(decodeBase64ToBytes(event.base64)));
+          term.write(normalizeTerminalOutput(decodeBase64ToBytes(event.base64)), () => {});
         } catch {
           /* ignore decode errors */
         }
