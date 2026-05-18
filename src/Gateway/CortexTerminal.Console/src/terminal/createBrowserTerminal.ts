@@ -26,15 +26,21 @@ export function createBrowserTerminal(
   fitAddon.fit()
 
   const disposable = terminal.onData(onData)
+  let disposed = false
 
   return {
     write(data: string) {
+      if (disposed) return
       terminal.write(data)
     },
     clear() {
+      if (disposed) return
       terminal.clear()
     },
     fit() {
+      if (disposed) {
+        return { columns: terminal.cols, rows: terminal.rows }
+      }
       const dimensions = fitAddon.proposeDimensions()
       if (
         dimensions &&
@@ -49,6 +55,7 @@ export function createBrowserTerminal(
       }
     },
     dispose() {
+      disposed = true
       disposable.dispose()
       terminal.dispose()
     },

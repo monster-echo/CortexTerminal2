@@ -2,8 +2,6 @@ import { useCallback, useEffect, useRef } from 'react'
 import { TriangleAlert } from 'lucide-react'
 import { createBrowserTerminal } from './createBrowserTerminal'
 
-const RESIZE_DEBOUNCE_MS = 150
-
 export type BrowserTerminal = ReturnType<typeof createBrowserTerminal>
 
 export interface TerminalSize {
@@ -51,42 +49,38 @@ export function TerminalViewport(props: {
       return
     }
 
-    pushViewportEvent('Initializing browser terminal.')
-    const browserTerminal = createBrowserTerminal(element, (data) => {
-      onDataRef.current(data)
+    let cancelled = false
+    let browserTerminal: BrowserTerminal | undefined
+    let observer: ResizeObserver | undefined
+
+    const rafId = requestAnimationFrame(() => {
+      if (cancelled) return
+
+      pushViewportEvent('Initializing browser terminal.')
+      browserTerminal = createBrowserTerminal(element, (data) => {
+        onDataRef.current(data)
+      })
+
+      pushViewportEvent('Browser terminal ready.')
+      onReadyRef.current?.(browserTerminal)
+      const initialSize = browserTerminal.fit()
+      pushViewportEvent(`Measured terminal at ${initialSize.columns}x${initialSize.rows}.`)
+      onResizeRef.current?.(initialSize)
+
+      observer = new ResizeObserver(() => {
+        const size = browserTerminal!.fit()
+        pushViewportEvent(`Viewport resized at ${size.columns}x${size.rows}.`)
+        onResizeRef.current?.(size)
+      })
+      observer.observe(element)
     })
-    let resizeTimer: ReturnType<typeof setTimeout> | undefined
-
-    const syncSize = (source: 'Measured terminal' | 'Viewport resized') => {
-      const size = browserTerminal.fit()
-      pushViewportEvent(`${source} at ${size.columns}x${size.rows}.`)
-      onResizeRef.current?.(size)
-    }
-
-    pushViewportEvent('Browser terminal ready.')
-    onReadyRef.current?.(browserTerminal)
-    syncSize('Measured terminal')
-
-    const observer = new ResizeObserver(() => {
-      if (resizeTimer) {
-        clearTimeout(resizeTimer)
-      }
-
-      resizeTimer = setTimeout(() => {
-        resizeTimer = undefined
-        syncSize('Viewport resized')
-      }, RESIZE_DEBOUNCE_MS)
-    })
-    observer.observe(element)
 
     return () => {
-      pushViewportEvent('Disposing browser terminal.')
-      observer.disconnect()
-      if (resizeTimer) {
-        clearTimeout(resizeTimer)
-      }
+      cancelled = true
+      cancelAnimationFrame(rafId)
+      observer?.disconnect()
       onReadyRef.current?.(null)
-      browserTerminal.dispose()
+      browserTerminal?.dispose()
     }
   }, [pushViewportEvent])
 

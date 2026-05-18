@@ -356,6 +356,43 @@ if (!string.IsNullOrEmpty(connectionString))
                 CREATE INDEX IF NOT EXISTS "IX_Sessions_created_at_utc" ON "Sessions" ("created_at_utc");
                 """);
 
+            await db.Database.ExecuteSqlRawAsync("""
+                CREATE TABLE IF NOT EXISTS "Users" (
+                    "id"                    text        NOT NULL PRIMARY KEY,
+                    "username"              text        NOT NULL,
+                    "email"                 text        NULL,
+                    "display_name"          text        NULL,
+                    "avatar_url"            text        NULL,
+                    "role"                  text        NOT NULL DEFAULT 'user',
+                    "status"                text        NOT NULL DEFAULT 'active',
+                    "auth_provider"         text        NULL,
+                    "auth_provider_id"      text        NULL,
+                    "password_hash"         text        NULL,
+                    "created_at_utc"        timestamptz NOT NULL,
+                    "updated_at_utc"        timestamptz NOT NULL
+                );
+
+                CREATE UNIQUE INDEX IF NOT EXISTS "IX_Users_Username" ON "Users" ("username");
+                CREATE INDEX IF NOT EXISTS "IX_Users_AuthProvider_AuthProviderId" ON "Users" ("auth_provider", "auth_provider_id");
+                """);
+
+            await db.Database.ExecuteSqlRawAsync("""
+                CREATE TABLE IF NOT EXISTS "AuditLogs" (
+                    "id"                    text        NOT NULL PRIMARY KEY,
+                    "timestamp"             timestamptz NOT NULL,
+                    "user_id"               text        NULL,
+                    "user_name"             text        NULL,
+                    "action"                text        NOT NULL,
+                    "target_entity"         text        NULL,
+                    "target_id"             text        NULL,
+                    "details"               text        NULL
+                );
+
+                CREATE INDEX IF NOT EXISTS "IX_AuditLogs_Timestamp" ON "AuditLogs" ("timestamp");
+                CREATE INDEX IF NOT EXISTS "IX_AuditLogs_UserId" ON "AuditLogs" ("user_id");
+                CREATE INDEX IF NOT EXISTS "IX_AuditLogs_Action" ON "AuditLogs" ("action");
+                """);
+
             // Add password_hash column to Users table if it doesn't exist
             try
             {
@@ -366,6 +403,26 @@ if (!string.IsNullOrEmpty(connectionString))
             catch (Exception)
             {
                 // Column may already exist or ALTER TABLE not supported; ignore
+            }
+
+            // Seed dev user if Users table is empty
+            if (!await db.Users.AnyAsync())
+            {
+                db.Users.Add(new User
+                {
+                    Id = Guid.NewGuid().ToString("N"),
+                    Username = "test",
+                    Role = "admin",
+                    Status = "active",
+                    AuthProvider = "password",
+                    AuthProviderId = "test",
+                    PasswordHash = BCrypt.Net.BCrypt.HashPassword("test123"),
+                    CreatedAtUtc = DateTimeOffset.UtcNow,
+                    UpdatedAtUtc = DateTimeOffset.UtcNow,
+                });
+                await db.SaveChangesAsync();
+                var seedLogger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+                seedLogger.LogInformation("Seeded dev user: test / test123");
             }
         }
         catch (Exception ex)
