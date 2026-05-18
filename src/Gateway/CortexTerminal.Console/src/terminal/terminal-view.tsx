@@ -21,6 +21,8 @@ import {
 } from './terminal-virtual-keys'
 import { createTerminalSessionModel } from './useTerminalSession'
 
+const RESIZE_DEBOUNCE_MS = 150
+
 export function TerminalView(props: {
   gateway: TerminalGateway
   sessionId: string
@@ -66,6 +68,7 @@ export function TerminalView(props: {
   const connectionRef = useRef<TerminalGatewayConnection | null>(null)
   const browserTerminalRef = useRef<BrowserTerminal | null>(null)
   const lastSyncedSizeRef = useRef<TerminalSize | null>(null)
+  const resizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const sessionRef = useRef<ReturnType<
     typeof createTerminalSessionModel
   > | null>(null)
@@ -156,12 +159,19 @@ export function TerminalView(props: {
 
       lastSyncedSizeRef.current = size
       setTerminalSize({ columns: size.columns, rows: size.rows })
-      setStatusMessage(`Terminal resized to ${size.columns}x${size.rows}.`)
       pushEvent(
         'xterm',
         `Viewport resize observed at ${size.columns}x${size.rows}.`
       )
-      void connectionRef.current?.resize(size.columns, size.rows)
+
+      if (resizeTimerRef.current) {
+        clearTimeout(resizeTimerRef.current)
+      }
+
+      resizeTimerRef.current = setTimeout(() => {
+        resizeTimerRef.current = null
+        void connectionRef.current?.resize(size.columns, size.rows)
+      }, RESIZE_DEBOUNCE_MS)
     },
     [pushEvent]
   )
@@ -330,6 +340,10 @@ export function TerminalView(props: {
       isActive = false
       const connection = connectionRef.current
       connectionRef.current = null
+      if (resizeTimerRef.current) {
+        clearTimeout(resizeTimerRef.current)
+        resizeTimerRef.current = null
+      }
       handleLatencyChange(null, 'offline')
       if (connection) {
         pe('gateway', 'Disconnecting terminal transport.')

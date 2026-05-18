@@ -43,34 +43,16 @@ vi.mock('@xterm/addon-fit', () => ({
 
 describe('createBrowserTerminal', () => {
   beforeEach(() => {
-    vi.useFakeTimers()
     vi.clearAllMocks()
-    mocks.terminal.buffer.active.viewportY = 76
-    mocks.terminal.buffer.active.baseY = 100
     mocks.terminal.rows = 24
     mocks.terminal.cols = 80
     mocks.fitAddon.proposeDimensions.mockReturnValue({ cols: 100, rows: 30 })
   })
 
-  it('keeps the terminal anchored to the bottom after resizing from the bottom', () => {
+  it('resizes the terminal when proposed dimensions change', () => {
     const terminal = createBrowserTerminal(document.createElement('div'), vi.fn())
 
     terminal.fit()
-
-    expect(mocks.terminal.resize).toHaveBeenCalledWith(100, 30)
-    expect(mocks.terminal.scrollToBottom).toHaveBeenCalledTimes(1)
-
-    vi.runOnlyPendingTimers()
-
-    expect(mocks.terminal.scrollToBottom).toHaveBeenCalledTimes(2)
-  })
-
-  it('does not force bottom scroll when the user is viewing scrollback history', () => {
-    mocks.terminal.buffer.active.viewportY = 10
-    const terminal = createBrowserTerminal(document.createElement('div'), vi.fn())
-
-    terminal.fit()
-    vi.runOnlyPendingTimers()
 
     expect(mocks.terminal.resize).toHaveBeenCalledWith(100, 30)
     expect(mocks.terminal.scrollToBottom).not.toHaveBeenCalled()
@@ -81,9 +63,18 @@ describe('createBrowserTerminal', () => {
     const terminal = createBrowserTerminal(document.createElement('div'), vi.fn())
 
     terminal.fit()
-    vi.runOnlyPendingTimers()
 
     expect(mocks.terminal.resize).not.toHaveBeenCalled()
     expect(mocks.terminal.scrollToBottom).not.toHaveBeenCalled()
+  })
+
+  it('returns the current size when no dimensions are proposed', () => {
+    mocks.fitAddon.proposeDimensions.mockReturnValue(undefined)
+    const terminal = createBrowserTerminal(document.createElement('div'), vi.fn())
+
+    const size = terminal.fit()
+
+    expect(mocks.terminal.resize).not.toHaveBeenCalled()
+    expect(size).toEqual({ columns: 80, rows: 24 })
   })
 })
