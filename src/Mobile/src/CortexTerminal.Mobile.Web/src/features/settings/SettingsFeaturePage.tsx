@@ -195,11 +195,16 @@ export default function SettingsFeaturePage({ history }: RouteComponentProps) {
             <IonIcon slot="start" icon={keyOutline} />
             <IonLabel>{t("settings.activateWorker")}</IonLabel>
           </IonItem>
-          <IonItem button color="danger" onClick={handleLogout}>
-            <IonIcon slot="start" icon={logOutOutline} />
-            <IonLabel>{t("sidebar.logout")}</IonLabel>
-          </IonItem>
         </IonList>
+
+        <div style={{ marginTop: 24 }}>
+          <IonList inset>
+            <IonItem button onClick={handleLogout} detail={false}>
+              <IonIcon slot="start" icon={logOutOutline} color="danger" />
+              <IonLabel color="danger">{t("sidebar.logout")}</IonLabel>
+            </IonItem>
+          </IonList>
+        </div>
 
         <div style={{
           textAlign: "center",
