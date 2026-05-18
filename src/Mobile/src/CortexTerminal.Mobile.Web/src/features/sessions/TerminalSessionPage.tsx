@@ -276,11 +276,11 @@ export default function TerminalSessionPage({
         try {
           const wrapper = terminalRef.current?.parentElement;
           if (wrapper && terminalRef.current) {
-            containerHeightRef.current = wrapper.clientHeight;
             if (!keyboardActiveRef.current) {
+              containerHeightRef.current = wrapper.clientHeight;
               terminalRef.current.style.height = `${wrapper.clientHeight}px`;
             }
-            if (term.rows > 0) {
+            if (term.rows > 0 && !keyboardActiveRef.current) {
               cellHeightRef.current = wrapper.clientHeight / term.rows;
             }
           }
@@ -417,13 +417,13 @@ export default function TerminalSessionPage({
             keyboardActiveRef.current = true;
             const targetHeight = containerHeightRef.current - height - toolbarHeight;
             const newRows = Math.max(1, Math.floor(targetHeight / cellHeightRef.current));
-            el.style.height = `${targetHeight}px`;
+            el.style.height = `${Math.round(newRows * cellHeightRef.current)}px`;
             t.resize(t.cols, newRows);
           } else {
             keyboardActiveRef.current = false;
             const targetHeight = containerHeightRef.current;
             const newRows = Math.max(1, Math.floor(targetHeight / cellHeightRef.current));
-            el.style.height = `${targetHeight}px`;
+            el.style.height = `${Math.round(newRows * cellHeightRef.current)}px`;
             t.resize(t.cols, newRows);
           }
         }
