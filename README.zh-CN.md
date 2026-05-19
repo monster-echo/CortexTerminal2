@@ -5,39 +5,44 @@
 [English](README.md)
 
 [![CI](https://github.com/monster-echo/CortexTerminal2/actions/workflows/ci.yml/badge.svg)](https://github.com/monster-echo/CortexTerminal2/actions/workflows/ci.yml)
-[![Gateway Docker](https://github.com/monster-echo/CortexTerminal2/actions/workflows/gateway-docker.yml/badge.svg)](https://github.com/monster-echo/CortexTerminal2/actions/workflows/gateway-docker.yml)
-[![Worker Release](https://github.com/monster-echo/CortexTerminal2/actions/workflows/worker-release.yml/badge.svg)](https://github.com/monster-echo/CortexTerminal2/actions/workflows/worker-release.yml)
-[![GitHub Pages](https://github.com/monster-echo/CortexTerminal2/actions/workflows/gh-pages.yml/badge.svg)](https://github.com/monster-echo/CortexTerminal2/actions/workflows/gh-pages.yml)
 [![Gateway Package](https://img.shields.io/badge/ghcr.io-corterm--gateway-blue?logo=docker)](https://github.com/monster-echo/CortexTerminal2/pkgs/container/corterm-gateway)
 [![Worker Release](https://img.shields.io/github/v/release/monster-echo/CortexTerminal2?label=worker&logo=github)](https://github.com/monster-echo/CortexTerminal2/releases)
 
-Corterm 将你的机器连接到浏览器终端。在任何机器上运行 Worker，通过 Gateway 访问——随时随地，任意设备。
+Corterm 是一个自托管的远程终端平台。在任意机器上安装轻量级 Worker，部署 Gateway，即可通过浏览器或手机访问终端——关掉页面，Shell 依然在后台运行。
 
 ## 架构
 
 ```
-浏览器  -->  Gateway  -->  Worker
- (UI)       (认证 ·        (伪终端 ·
-             路由 ·         Shell
-             会话)          执行)
+浏览器  ──►  Gateway  ──►  Worker
+ (UI)         (认证,         (伪终端,
+               路由,          Shell
+               会话)          执行)
 ```
 
-- **Gateway** -- ASP.NET Core 后端，负责 JWT 认证、会话路由，以及基于 SignalR + MessagePack 的实时通信。
-- **Worker** -- .NET CLI 代理，运行在你的机器上，管理 PTY 会话，通过 SignalR 连接到 Gateway。
-- **Console** -- React SPA（Vite + TanStack Router + xterm.js），由 Gateway 提供服务，提供浏览器终端界面。
+- **Gateway** -- 中心服务器，负责认证、会话路由和实时通信。
+- **Worker** -- 轻量级代理，运行在被管理机器上，负责 PTY 会话管理和 I/O 流转发。
+- **Console** -- 浏览器终端界面，同时提供 iOS 和 Android 原生客户端。
 
 ## 功能
 
-- **浏览器原生终端** -- 基于 xterm.js 的完整终端。支持桌面、平板和手机。
-- **JWT 认证** -- 内置令牌认证。支持 Device Flow 安全的机器对机器访问。
-- **SignalR 实时通信** -- 基于 WebSocket 的双向流，使用 MessagePack 压缩实现极低延迟。
-- **自托管部署** -- 运行你自己的 Gateway 和 Worker。无云依赖，数据完全由你掌控。
-- **会话持久化** -- 支持分离和重连会话。关闭浏览器后 Shell 仍然在运行。
-- **Docker 就绪** -- Gateway 以容器镜像发布在 GHCR。几秒内部署到任意 Docker 主机。
+- **浏览器原生终端** -- 基于 xterm.js + WebGL 渲染的完整终端，桌面、平板、手机通用。
+- **会话持久化** -- 随时断开和重连，Shell 持续运行，重连时自动回放历史输出。
+- **多机管理** -- 单个 Gateway 连接和管理任意数量的远程机器。
+- **移动端支持** -- iOS / Android 原生应用，内置终端虚拟键盘、触觉反馈和自适应布局。
+- **多种登录方式** -- 密码、手机短信、GitHub OAuth、Google OAuth、Apple Sign-In。
+- **Worker 管理** -- 监控状态、远程升级、诊断检查（`corterm doctor`）。
+- **管理后台** -- 用户管理、邀请、角色权限、审计日志。
+- **自托管 & Docker 一键部署** -- 无云依赖，数据完全在你的基础设施上。
 
 ## 快速开始
 
-### 1. 安装 Worker
+### 1. 部署 Gateway
+
+```bash
+docker run -p 5045:5045 ghcr.io/monster-echo/corterm-gateway:latest
+```
+
+### 2. 安装 Worker
 
 **Linux / macOS：**
 
@@ -51,45 +56,27 @@ curl -fsSL https://gateway.ct.rwecho.top/install.sh | sh
 powershell -Command "irm https://gateway.ct.rwecho.top/install.ps1 | iex"
 ```
 
-支持平台：`linux/amd64`、`linux/arm64`、`macOS (Apple Silicon)`、`Windows x64`、`Docker`
-
-### 2. 部署 Gateway
-
-```bash
-docker run -p 5045:5045 ghcr.io/monster-echo/corterm-gateway:latest
-```
-
 ### 3. 打开浏览器
 
-访问 `http://localhost:5045`，登录后即可使用终端。
+访问 `http://localhost:5045`，登录后即可开启终端会话。
 
-## 项目结构
+## 平台支持
 
-```
-src/
-  Gateway/
-    CortexTerminal.Gateway/    # ASP.NET Core 后端
-    CortexTerminal.Console/    # React SPA（Vite + TanStack Router）
-  Worker/
-    CortexTerminal.Worker/     # .NET CLI 代理
-  Shared/
-    CortexTerminal.Contracts/  # 共享 SignalR 契约
-  Mobile/
-    CortexTerminal.Mobile/     # 移动端 Web 客户端
-landing/
-  index.html                   # 产品首页（GitHub Pages）
-  install.sh                   # Worker 安装脚本
-```
+**Worker：** Linux (amd64 / arm64) · macOS (Apple Silicon) · Windows x64 · Docker
+
+**客户端：** 任意现代浏览器 · iOS · Android
 
 ## 技术栈
 
-| 组件 | 技术 |
-|------|------|
-| Gateway | .NET 10、ASP.NET Core、EF Core + PostgreSQL |
-| Worker | .NET 10、SignalR 客户端 |
-| Console | React 19、Vite、TanStack Router、xterm.js、i18next |
-| 通信 | SignalR + MessagePack over WebSockets |
-| 认证 | JWT Bearer + Device Flow |
+.NET 10 (Gateway / Worker) · React 19 + xterm.js (Console) · .NET MAUI + Ionic (Mobile) · SignalR + MessagePack
+
+## Roadmap
+
+- [ ] **文件传输** -- 在终端会话中直接上传和下载文件
+- [ ] **端口转发** -- 通过 Gateway 将本地端口隧道转发到远程机器
+- [ ] **结构化输出** -- 将常见命令输出（`top`、`ps`、`docker ps`）渲染为可交互的卡片
+- [ ] **多标签终端** -- 在单个浏览器标签页中打开多个会话
+- [ ] **命令片段** -- 保存并复用常用命令
 
 ## 许可证
 
