@@ -52,8 +52,11 @@ export default function ActivatePage() {
   };
 
   const handleInputChange = (e: CustomEvent) => {
-    const val = (e.detail.value ?? "").toUpperCase();
-    setCode(val);
+    let raw = (e.detail.value ?? "").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+    if (raw.length > 4) {
+      raw = raw.slice(0, 4) + "-" + raw.slice(4);
+    }
+    setCode(raw);
     if (state === "error") setState("input");
   };
 
@@ -107,7 +110,7 @@ export default function ActivatePage() {
                       width: 72,
                       height: 72,
                       borderRadius: 20,
-                      background: "var(--ion-color-primary-tint, rgba(56,128,255,0.15))",
+                      background: "rgba(var(--ion-color-primary-rgb), 0.12)",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
@@ -116,7 +119,7 @@ export default function ActivatePage() {
                   >
                     <IonIcon
                       icon={keyOutline}
-                      style={{ fontSize: 36, color: "var(--ion-color-primary, #3880ff)" }}
+                      style={{ fontSize: 36, color: "var(--ion-color-primary)" }}
                     />
                   </div>
                   <IonText>
@@ -143,7 +146,7 @@ export default function ActivatePage() {
                     value={code}
                     onIonInput={handleInputChange}
                     onKeyDown={handleKeyDown}
-                    placeholder="XXXX-YYYY"
+                    placeholder={t("activate.codePlaceholder")}
                     maxlength={9}
                     debounce={0}
                     style={{
@@ -151,7 +154,7 @@ export default function ActivatePage() {
                       fontSize: 28,
                       letterSpacing: 4,
                       textAlign: "center",
-                      background: "var(--ion-color-light, #f4f5f8)",
+                      background: "var(--ion-card-background, #f4f4f5)",
                       borderRadius: 12,
                       padding: "14px 16px",
                       margin: "0 16px",

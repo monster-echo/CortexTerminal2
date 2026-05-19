@@ -52,8 +52,8 @@
 .tag-chip {
   padding: 4px 10px;
   border-radius: 999px;
-  background: rgba(59, 130, 246, 0.12);
-  color: var(--ion-color-secondary);
+  background: rgba(var(--ion-color-primary-rgb), 0.12);
+  color: var(--ion-color-primary);
   font-size: 12px;
 }
 
@@ -66,15 +66,15 @@
 }
 
 .status-success {
-  background: rgba(34, 197, 94, 0.12);
+  background: rgba(var(--ion-color-success-rgb), 0.12);
 }
 
 .status-warning {
-  background: rgba(245, 158, 11, 0.12);
+  background: rgba(var(--ion-color-warning-rgb), 0.12);
 }
 
 .status-offline {
-  background: rgba(59, 130, 246, 0.12);
+  background: rgba(var(--ion-color-primary-rgb), 0.12);
 }
 
 .status-icon {

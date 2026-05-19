@@ -125,7 +125,7 @@ export default function WorkerInstallPrompt() {
       </TerminalBlock>
 
       {/* macOS / Linux install */}
-      <TerminalBlock title="bash — macOS / Linux">
+      <TerminalBlock title={t("workerInstall.bashTitle")}>
         <div style={{ marginBottom: 8, display: "flex", alignItems: "center" }}>
           <span style={promptStyle}>$ </span>
           <code style={cmdStyle}>{bashInstallCommand}</code>
@@ -137,7 +137,7 @@ export default function WorkerInstallPrompt() {
       </TerminalBlock>
 
       {/* Windows install */}
-      <TerminalBlock title="PowerShell — Windows">
+      <TerminalBlock title={t("workerInstall.powershellTitle")}>
         <div style={{ marginBottom: 8, display: "flex", alignItems: "center" }}>
           <span style={{ ...promptStyle, color: "#bc3fbc" }}>PS&gt; </span>
           <code style={cmdStyle}>{psInstallCommand}</code>
@@ -154,14 +154,14 @@ export default function WorkerInstallPrompt() {
           <span style={commentStyle}>{t("workerInstall.activateGuide")}</span>
         </div>
         <div style={{ marginBottom: 8 }}>
-          <span style={successStyle}>  To authenticate this worker, visit:</span>
+          <span style={successStyle}>{t("workerInstall.authVisit")}</span>
         </div>
         <div style={{ marginBottom: 8, display: "flex", alignItems: "center" }}>
           <span style={successStyle}>    {activateUrl}</span>
           <CopyBtn text={activateUrl} />
         </div>
         <div style={{ marginBottom: 8 }}>
-          <span style={successStyle}>  Enter code: </span>
+          <span style={successStyle}>{t("workerInstall.enterCodeLabel")}</span>
           <span style={highlightStyle}>XXXX-YYYY</span>
         </div>
         <div>

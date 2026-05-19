@@ -42,7 +42,8 @@
     "usernamePlaceholder": "Username",
     "passwordPlaceholder": "Password",
     "passwordLogin": "Sign in with password",
-    "errorPasswordLogin": "Invalid username or password"
+    "errorPasswordLogin": "Invalid username or password",
+    "phoneLogin": "Phone Login"
   },
   "home": {
     "title": "Native Features",
@@ -472,7 +473,8 @@
     "backToHome": "Back to Home",
     "inputTitle": "Enter Activation Code",
     "inputDesc": "Run <code>cortex login</code> in the terminal, then enter the XXXX-YYYY code displayed on screen.",
-    "confirmActivate": "Activate"
+    "confirmActivate": "Activate",
+    "codePlaceholder": "XXXX-YYYY"
   },
   "terminal": {
     "sessionDetails": "Session Details",
@@ -515,7 +517,9 @@
     "backRefresh": "# Once the Worker is activated and connected, come back here and tap Refresh.",
     "createSession": "# When the Worker shows online, you can create a Session and start the remote terminal.",
     "ready": "  Done! Your terminal is ready.",
-    "enterCode": "Enter Activation Code"
+    "enterCode": "Enter Activation Code",
+    "visitLabel": "  Visit: ",
+    "enterCodeLabel": "  Enter code: "
   },
   "workerInstall": {
     "introTitle": "Corterm — Worker Setup",
@@ -530,7 +534,11 @@
     "autoConnect": "# Once activated, the Worker will automatically connect to the Gateway.",
     "backRefresh": "# Refresh this page and the Worker will appear in the list.",
     "ready": "  Worker connected. Ready to create session.",
-    "enterCode": "Enter Activation Code"
+    "enterCode": "Enter Activation Code",
+    "bashTitle": "bash — macOS / Linux",
+    "powershellTitle": "PowerShell — Windows",
+    "authVisit": "  To authenticate this worker, visit:",
+    "enterCodeLabel": "  Enter code: "
   },
   "components": {
     "actionResultTitle": "Last action result",

@@ -148,12 +148,12 @@ export default function SessionInstallPrompt() {
           <span style={commentStyle}>{t("sessionInstall.autoActivate")}</span>
         </div>
         <div style={{ marginBottom: 8 }}>
-          <span style={successStyle}>  Visit: </span>
+          <span style={successStyle}>{t("sessionInstall.visitLabel")}</span>
           <span style={{ color: "#58a6ff" }}>{activateUrl}</span>
           <CopyBtn text={activateUrl} />
         </div>
         <div style={{ marginBottom: 8 }}>
-          <span style={successStyle}>  Enter code: </span>
+          <span style={successStyle}>{t("sessionInstall.enterCodeLabel")}</span>
           <span style={highlightStyle}>XXXX-YYYY</span>
         </div>
         <div>
