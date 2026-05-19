@@ -18,7 +18,7 @@ import {
 } from "@ionic/react";
 import { addOutline, terminalOutline } from "ionicons/icons";
 import { RouteComponentProps } from "react-router-dom";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 function formatRelativeTime(isoDate: string, t: (key: string, opts?: Record<string, unknown>) => string): string {
@@ -41,72 +41,44 @@ import CreateSessionModal from "./CreateSessionModal";
 
 const selectRecentSessions = (s: SessionState) => s.recentSessions;
 const selectWorkers = (s: SessionState) => s.workers;
+const selectIsGatewayLoaded = (s: SessionState) => s.isGatewayLoaded;
 const selectSetSessions = (s: SessionState) => s.setSessions;
 const selectSetWorkers = (s: SessionState) => s.setWorkers;
 
 export default function SessionsPage({ history }: RouteComponentProps) {
   const { t } = useTranslation();
-  const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const recentSessions = useSessionStore(selectRecentSessions);
   const workers = useSessionStore(selectWorkers);
+  const isGatewayLoaded = useSessionStore(selectIsGatewayLoaded);
   const setSessions = useSessionStore(selectSetSessions);
   const setWorkers = useSessionStore(selectSetWorkers);
 
   const create = useCreateSession();
 
-  // Load gateway state
-  const loadGatewayState = useCallback(async (signal?: AbortSignal) => {
-    const t0 = performance.now();
+  // Refresh gateway state (used by pull-to-refresh only; App.tsx preloads on mount)
+  const refreshGatewayState = useCallback(async () => {
     try {
-      console.log(`⏱ [sessions] listWorkers start`);
-      const w = await terminalBridge.listWorkers();
-      if (signal?.aborted) return;
-      console.log(`⏱ [sessions] listWorkers done, ${w.length} workers, ${(performance.now() - t0).toFixed(0)}ms`);
+      const [w, s] = await Promise.all([
+        terminalBridge.listWorkers(),
+        terminalBridge.listSessions(),
+      ]);
       setWorkers(w);
-
-      if (w.length === 0) {
-        setSessions([]);
-        setErrorMessage(null);
-        return;
-      }
-
-      console.log(`⏱ [sessions] listSessions start`);
-      const s = await terminalBridge.listSessions();
-      if (signal?.aborted) return;
-      console.log(`⏱ [sessions] listSessions done, ${s.length} sessions, total=${(performance.now() - t0).toFixed(0)}ms`);
       setSessions(s);
       setErrorMessage(null);
     } catch (error) {
-      if (signal?.aborted) return;
-      console.log(`⏱ [sessions] loadGatewayState FAIL after ${(performance.now() - t0).toFixed(0)}ms`);
-      setWorkers([]);
-      setSessions([]);
       setErrorMessage(error instanceof Error ? error.message : String(error));
     }
   }, [setSessions, setWorkers]);
 
-  useEffect(() => {
-    const ac = new AbortController();
-    setIsLoading(true);
-    // Delay to avoid racing with App-level bridge bootstrap calls
-    // (5 concurrent fetch("/__hwvInvokeDotNet") from App.tsx useEffects)
-    const timer = setTimeout(() => {
-      void loadGatewayState(ac.signal).finally(() => {
-        if (!ac.signal.aborted) setIsLoading(false);
-      });
-    }, 500);
-    return () => { ac.abort(); clearTimeout(timer); };
-  }, [loadGatewayState]);
-
   const handleRefresh = async (e: CustomEvent) => {
-    await loadGatewayState();
+    await refreshGatewayState();
     (e.detail as any).complete();
   };
 
   // Show install prompt when no sessions (regardless of workers)
-  const showInstallPrompt = !isLoading && recentSessions.length === 0;
+  const showInstallPrompt = isGatewayLoaded && recentSessions.length === 0;
 
   return (
     <IonPage>
@@ -116,7 +88,7 @@ export default function SessionsPage({ history }: RouteComponentProps) {
             <IonMenuButton />
           </IonButtons>
           <IonTitle>{t("sessions.title")}</IonTitle>
-          {!isLoading && workers.length > 0 && (
+          {isGatewayLoaded && workers.length > 0 && (
             <IonButtons slot="end">
               <IonButton onClick={create.openModal}>
                 <IonIcon slot="icon-only" icon={addOutline} />
@@ -129,7 +101,7 @@ export default function SessionsPage({ history }: RouteComponentProps) {
         <IonRefresher slot="fixed" onIonRefresh={handleRefresh}>
           <IonRefresherContent />
         </IonRefresher>
-        {isLoading && (
+        {!isGatewayLoaded && (
           <IonItem lines="none">
             <IonSpinner slot="start" name="crescent" />
             <IonLabel>{t("common.loading")}</IonLabel>
@@ -142,11 +114,11 @@ export default function SessionsPage({ history }: RouteComponentProps) {
           </IonItem>
         )}
 
-        {!isLoading && showInstallPrompt && (
+        {isGatewayLoaded && showInstallPrompt && (
           <SessionInstallPrompt />
         )}
 
-        {!isLoading && !showInstallPrompt && recentSessions.length > 0 && (
+        {isGatewayLoaded && !showInstallPrompt && recentSessions.length > 0 && (
           <>
             <IonList inset>
               {recentSessions.map((session) => (

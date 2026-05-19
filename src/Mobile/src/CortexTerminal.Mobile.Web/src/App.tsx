@@ -62,6 +62,8 @@ import { createFeatureDefinitions } from "./features/catalog/createFeatureCatalo
 import { useAppStore, type AppStoreState } from "./store/appStore";
 import { useAuthStore, type AuthState } from "./store/authStore";
 import { authBridge } from "./bridge/modules/authBridge";
+import { terminalBridge } from "./bridge/modules/terminalBridge";
+import { useSessionStore, type SessionState } from "./store/sessionStore";
 import "./theme/variables.css";
 
 // Stable selector references for Zustand v5 + React 19 useSyncExternalStore.
@@ -86,6 +88,11 @@ const selectAuthLoading = (s: AuthState) => s.isLoading;
 const selectSetSession = (s: AuthState) => s.setSession;
 const selectClearSession = (s: AuthState) => s.clearSession;
 const selectSetAuthLoading = (s: AuthState) => s.setLoading;
+
+const selectSetWorkers = (s: SessionState) => s.setWorkers;
+const selectSetSessions = (s: SessionState) => s.setSessions;
+const selectSetGatewayLoaded = (s: SessionState) => s.setGatewayLoaded;
+const selectIsInitializing = (s: AppStoreState) => s.isInitializing;
 
 setupIonicReact({
   rippleEffect: true,
@@ -114,11 +121,16 @@ export default function App({
   const setLastBridgeError = useAppStore(selectSetLastBridgeError);
   const setInitializing = useAppStore(selectSetInitializing);
   const setLanguage = useAppStore(selectSetLanguage);
+  const isInitializing = useAppStore(selectIsInitializing);
   const isLoggedIn = useAuthStore(selectIsLoggedIn);
   const authLoading = useAuthStore(selectAuthLoading);
   const setSession = useAuthStore(selectSetSession);
   const clearSession = useAuthStore(selectClearSession);
   const setAuthLoading = useAuthStore(selectSetAuthLoading);
+
+  const setWorkers = useSessionStore(selectSetWorkers);
+  const setSessions = useSessionStore(selectSetSessions);
+  const setGatewayLoaded = useSessionStore(selectSetGatewayLoaded);
 
   useEffect(() => {
     if (initialData?.platform) {
@@ -278,6 +290,32 @@ export default function App({
       delete (window as any).canGoBack;
     };
   }, []);
+
+  // Preload gateway data (workers + sessions) after bootstrap completes.
+  // Separate from bootstrap() so failures don't affect system initialization.
+  useEffect(() => {
+    if (isInitializing) return;
+    let cancelled = false;
+
+    const preloadGateway = async () => {
+      try {
+        const [workers, sessions] = await Promise.all([
+          terminalBridge.listWorkers(),
+          terminalBridge.listSessions(),
+        ]);
+        if (cancelled) return;
+        setWorkers(workers);
+        setSessions(sessions);
+      } catch (e) {
+        console.warn("[App] Failed to preload gateway state:", e);
+      } finally {
+        if (!cancelled) setGatewayLoaded(true);
+      }
+    };
+
+    preloadGateway();
+    return () => { cancelled = true; };
+  }, [isInitializing, setWorkers, setSessions, setGatewayLoaded]);
 
   const updateColorMode = (mode: ColorMode) => {
     setStoredMode(mode);

@@ -17,7 +17,7 @@ import {
   IonToolbar,
 } from "@ionic/react";
 import { hardwareChipOutline } from "ionicons/icons";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import PageHeader from "../../components/PageHeader";
 import { useSessionStore, type SessionState } from "../../store/sessionStore";
@@ -26,6 +26,7 @@ import type { WorkerSummary } from "../../schemas/sessionSchema";
 import WorkerInstallPrompt from "./WorkerInstallPrompt";
 
 const selectWorkers = (s: SessionState) => s.workers;
+const selectIsGatewayLoaded = (s: SessionState) => s.isGatewayLoaded;
 const selectSetWorkers = (s: SessionState) => s.setWorkers;
 
 function formatRelativeTime(isoDate: string, t: (key: string, opts?: Record<string, unknown>) => string): string {
@@ -43,34 +44,24 @@ function formatRelativeTime(isoDate: string, t: (key: string, opts?: Record<stri
 
 export default function WorkersPage() {
   const { t } = useTranslation();
-  const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [selectedWorker, setSelectedWorker] = useState<WorkerSummary | null>(null);
   const workers = useSessionStore(selectWorkers);
+  const isGatewayLoaded = useSessionStore(selectIsGatewayLoaded);
   const setWorkers = useSessionStore(selectSetWorkers);
 
-  const loadWorkers = useCallback(async () => {
+  const refreshWorkers = useCallback(async () => {
     try {
       const nextWorkers = await terminalBridge.listWorkers();
       setWorkers(nextWorkers);
       setErrorMessage(null);
     } catch (error) {
-      setWorkers([]);
       setErrorMessage(error instanceof Error ? error.message : t("workers.loadFailed"));
     }
-  }, [setWorkers]);
-
-  useEffect(() => {
-    let cancelled = false;
-    setIsLoading(true);
-    loadWorkers().finally(() => {
-      if (!cancelled) setIsLoading(false);
-    });
-    return () => { cancelled = true; };
-  }, [loadWorkers]);
+  }, [setWorkers, t]);
 
   const handleRefresh = async (e: CustomEvent) => {
-    await loadWorkers();
+    await refreshWorkers();
     (e.detail as any).complete();
   };
 
@@ -81,7 +72,7 @@ export default function WorkersPage() {
         <IonRefresher slot="fixed" onIonRefresh={handleRefresh}>
           <IonRefresherContent />
         </IonRefresher>
-        {isLoading && (
+        {!isGatewayLoaded && (
           <IonItem lines="none">
             <IonSpinner slot="start" name="crescent" />
             <IonLabel>{t("workers.loading")}</IonLabel>
@@ -92,7 +83,7 @@ export default function WorkersPage() {
             <IonLabel>{errorMessage}</IonLabel>
           </IonItem>
         )}
-        {!isLoading && workers.length === 0 ? (
+        {isGatewayLoaded && workers.length === 0 ? (
           <WorkerInstallPrompt />
         ) : (
           <IonList inset>
