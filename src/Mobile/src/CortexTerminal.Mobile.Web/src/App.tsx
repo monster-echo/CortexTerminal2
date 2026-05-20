@@ -294,7 +294,7 @@ export default function App({
   // Preload gateway data (workers + sessions) after bootstrap completes.
   // Separate from bootstrap() so failures don't affect system initialization.
   useEffect(() => {
-    if (isInitializing) return;
+    if (isInitializing || authLoading || !isLoggedIn) return;
     let cancelled = false;
 
     const preloadGateway = async () => {
@@ -315,7 +315,7 @@ export default function App({
 
     preloadGateway();
     return () => { cancelled = true; };
-  }, [isInitializing, setWorkers, setSessions, setGatewayLoaded]);
+  }, [isInitializing, authLoading, isLoggedIn, setWorkers, setSessions, setGatewayLoaded]);
 
   const updateColorMode = (mode: ColorMode) => {
     setStoredMode(mode);

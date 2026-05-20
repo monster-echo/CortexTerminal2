@@ -12,7 +12,7 @@ import {
   IonPage,
   IonRefresher,
   IonRefresherContent,
-  IonSpinner,
+  IonSkeletonText,
   IonTitle,
   IonToolbar,
 } from "@ionic/react";
@@ -73,10 +73,18 @@ export default function WorkersPage() {
           <IonRefresherContent />
         </IonRefresher>
         {!isGatewayLoaded && (
-          <IonItem lines="none">
-            <IonSpinner slot="start" name="crescent" />
-            <IonLabel>{t("workers.loading")}</IonLabel>
-          </IonItem>
+          <IonList inset>
+            {[0, 1, 2].map((i) => (
+              <IonItem key={i}>
+                <IonSkeletonText animated style={{ width: "20px", height: "20px", borderRadius: "50%", minWidth: "20px" }} slot="start" />
+                <IonLabel>
+                  <h2><IonSkeletonText animated style={{ width: "60%", height: "14px" }} /></h2>
+                  <p><IonSkeletonText animated style={{ width: "40%", height: "12px" }} /></p>
+                </IonLabel>
+                <IonSkeletonText animated style={{ width: "48px", height: "18px", borderRadius: "8px" }} slot="end" />
+              </IonItem>
+            ))}
+          </IonList>
         )}
         {errorMessage && (
           <IonItem color="danger">

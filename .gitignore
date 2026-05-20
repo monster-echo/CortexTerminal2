@@ -17,3 +17,5 @@ artifacts/
 .hvigor1
 **/wwwroot/assets/
 **/wwwroot/index.html
+.playwright-cli
+docs
