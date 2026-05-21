@@ -27,6 +27,10 @@ public partial class MainPage : ContentPage
 	private NSObject? _keyboardHideToken;
 #endif
 
+#if ANDROID
+	private AndroidKeyboardListener? _androidKeyboardListener;
+#endif
+
 	public static readonly BindableProperty NativeStatusBarColorProperty =
 		BindableProperty.Create(nameof(NativeStatusBarColor), typeof(Color), typeof(MainPage), Color.FromArgb("#121212"));
 
@@ -94,11 +98,17 @@ public partial class MainPage : ContentPage
 #if IOS || MACCATALYST
 		SetupKeyboardHandling();
 #endif
+#if ANDROID
+		SetupKeyboardHandling();
+#endif
 	}
 
 	protected override void OnDisappearing()
 	{
 #if IOS || MACCATALYST
+		TeardownKeyboardHandling();
+#endif
+#if ANDROID
 		TeardownKeyboardHandling();
 #endif
 		App.AppResumed -= OnAppResumed;
@@ -172,6 +182,80 @@ public partial class MainPage : ContentPage
 			visible = false,
 			height = 0,
 		}), "keyboard state");
+	}
+#endif
+
+#if ANDROID
+	private void SetupKeyboardHandling()
+	{
+		var activity = Platform.CurrentActivity;
+		if (activity?.Window?.DecorView?.RootView is not Android.Views.View rootView)
+			return;
+
+		_androidKeyboardListener = new AndroidKeyboardListener(this);
+		rootView.ViewTreeObserver!.AddOnGlobalLayoutListener(_androidKeyboardListener);
+	}
+
+	private void TeardownKeyboardHandling()
+	{
+		if (_androidKeyboardListener is null) return;
+
+		var activity = Platform.CurrentActivity;
+		if (activity?.Window?.DecorView?.RootView is Android.Views.View rootView)
+		{
+			rootView.ViewTreeObserver!.RemoveOnGlobalLayoutListener(_androidKeyboardListener);
+		}
+		_androidKeyboardListener.Dispose();
+		_androidKeyboardListener = null;
+	}
+
+	private void OnAndroidKeyboardChanged(bool visible, int keyboardHeight)
+	{
+		var height = visible ? keyboardHeight : 0;
+		Padding = new Thickness(0, 0, 0, height);
+
+		SendRawMessageToWebView(JsonSerializer.Serialize(new
+		{
+			type = "nativeKeyboard",
+			visible,
+			height,
+		}), "keyboard state");
+	}
+
+	private sealed class AndroidKeyboardListener : Java.Lang.Object, Android.Views.ViewTreeObserver.IOnGlobalLayoutListener
+	{
+		private readonly MainPage _page;
+		private bool _lastVisible;
+		private int _lastHeight;
+
+		public AndroidKeyboardListener(MainPage page)
+		{
+			_page = page;
+		}
+
+		public void OnGlobalLayout()
+		{
+			var activity = Platform.CurrentActivity;
+			if (activity?.Window?.DecorView?.RootView is not Android.Views.View rootView)
+				return;
+
+			var rect = new Android.Graphics.Rect();
+			rootView.GetWindowVisibleDisplayFrame(rect);
+
+			var screenHeight = rootView.Height;
+			var visibleHeight = rect.Bottom;
+			var keypadHeight = screenHeight - visibleHeight;
+
+			var isVisible = keypadHeight > screenHeight * 0.15;
+			var height = isVisible ? keypadHeight : 0;
+
+			if (isVisible != _lastVisible || height != _lastHeight)
+			{
+				_lastVisible = isVisible;
+				_lastHeight = height;
+				_page.OnAndroidKeyboardChanged(isVisible, height);
+			}
+		}
 	}
 #endif
 

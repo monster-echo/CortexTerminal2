@@ -113,9 +113,8 @@ export default function TerminalSessionPage({
 
   // ── Platform detection ──
   const platformLabel = useAppStore((s) => s.platformLabel);
-  const isIOS = platformLabel === "ios" || platformLabel === "maccatalyst";
 
-  // ── Native keyboard state (iOS: from native layer, others: from visualViewport) ──
+  // ── Native keyboard state (from native layer via bridge) ──
   const [nativeKeyboardVisible, setNativeKeyboardVisible] = useState(false);
   const [nativeKeyboardHeight, setNativeKeyboardHeight] = useState(0);
 
@@ -145,11 +144,11 @@ export default function TerminalSessionPage({
   const handleKeyRef = useRef<any>(null);
 
   const { keyboardVisible: vvKeyboardVisible, keyboardHeight: vvKeyboardHeight, toolbarHeight } = useKeyboardToolbar();
-  const keyboardVisible = isIOS ? nativeKeyboardVisible : vvKeyboardVisible;
-  const keyboardHeight = isIOS ? nativeKeyboardHeight : vvKeyboardHeight;
+  const keyboardVisible = nativeKeyboardVisible || vvKeyboardVisible;
+  const keyboardHeight = nativeKeyboardHeight || vvKeyboardHeight;
 
   // ── Touch scroll for iOS (xterm.js doesn't handle touch natively) ──
-  useTouchScroll({ terminalRef, xtermRef, enabled: isIOS });
+  useTouchScroll({ terminalRef, xtermRef, enabled: true });
 
   // Reset modifiers when keyboard dismisses
   useEffect(() => {
@@ -595,7 +594,7 @@ export default function TerminalSessionPage({
                 alignItems: "center",
                 background: "rgba(11, 15, 14, 0.95)",
                 borderTop: "1px solid rgba(215, 255, 229, 0.15)",
-                transform: `translateY(-${isIOS ? 0 : keyboardHeight}px)`,
+                transform: `translateY(0)`,
                 willChange: "transform",
                 transition: "transform 0.25s cubic-bezier(0.25, 1, 0.5, 1)",
                 touchAction: "manipulation",

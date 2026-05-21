@@ -208,6 +208,24 @@ body {
   background: var(--ion-background-color);
 }
 
+/* ── Android divider / item-line thinning ── */
+.md ion-item-divider {
+  --min-height: 30px;
+  --padding-start: 16px;
+  --padding-end: 16px;
+  --inner-padding-top: 6px;
+  --inner-padding-bottom: 6px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.md ion-item {
+  --border-width: 0 0 0.33px 0;
+  --inner-border-width: 0;
+  --padding-start: 16px;
+  --padding-end: 16px;
+}
+
 *::-webkit-scrollbar {
   display: none;
 }
