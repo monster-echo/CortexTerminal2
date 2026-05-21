@@ -495,7 +495,11 @@
     "exitedWithCodeAndReason": "Exited ({{code}}): {{reason}}",
     "startFailedReason": "Start failed: {{reason}}",
     "session": "Session",
-    "done": "Done"
+    "done": "Done",
+    "sessionExpiredToast": "Session expired: {{reason}}",
+    "sessionClosedToast": "Session closed: {{reason}}",
+    "sessionExitedToast": "Session exited ({{code}})",
+    "sessionStartFailedToast": "Session start failed"
   },
   "common": {
     "loading": "Loading...",

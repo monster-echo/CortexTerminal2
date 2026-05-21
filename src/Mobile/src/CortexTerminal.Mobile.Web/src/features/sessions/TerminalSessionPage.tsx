@@ -371,24 +371,59 @@ export default function TerminalSessionPage({
         if (term) void terminalBridge.resizeSession(sessionId, term.cols, term.rows);
       }
       if (event.type === "terminal.closed") {
-        setStatusMessage(event.reason ?? t("terminal.closed"));
+        connectedRef.current = false;
+        const reason = event.reason ?? t("terminal.closed");
+        setStatusMessage(reason);
         removeSession(sessionId);
+        presentToast({
+          message: t("terminal.sessionClosedToast", { reason }),
+          duration: 3000,
+          position: "bottom",
+          color: "warning",
+        });
+        history.replace("/sessions");
       }
       if (event.type === "terminal.expired") {
-        setStatusMessage(event.reason ?? t("terminal.expired"));
+        connectedRef.current = false;
+        const reason = event.reason ?? t("terminal.expired");
+        setStatusMessage(reason);
         removeSession(sessionId);
+        presentToast({
+          message: t("terminal.sessionExpiredToast", { reason }),
+          duration: 3000,
+          position: "bottom",
+          color: "warning",
+        });
+        history.replace("/sessions");
       }
       if (event.type === "terminal.exited") {
+        connectedRef.current = false;
         const code = event.exitCode;
         const reason = event.reason;
-        setStatusMessage(
-          reason
-            ? t("terminal.exitedWithCodeAndReason", { code: code ?? 0, reason })
-            : t("terminal.exitedWithCode", { code: code ?? 0 }),
-        );
+        const statusMsg = reason
+          ? t("terminal.exitedWithCodeAndReason", { code: code ?? 0, reason })
+          : t("terminal.exitedWithCode", { code: code ?? 0 });
+        setStatusMessage(statusMsg);
+        presentToast({
+          message: t("terminal.sessionExitedToast", { code: code ?? 0 }),
+          duration: 3000,
+          position: "bottom",
+          color: "medium",
+        });
+        setTimeout(() => {
+          if (!cancelled) history.replace("/sessions");
+        }, 2000);
       }
       if (event.type === "terminal.startFailed") {
+        connectedRef.current = false;
         setStatusMessage(t("terminal.startFailedReason", { reason: event.reason ?? t("common.unknown") }));
+        presentToast({
+          message: t("terminal.sessionStartFailedToast"),
+          duration: 3000,
+          position: "bottom",
+          color: "danger",
+        });
+        history.replace("/sessions");
       }
       if (event.type === "terminal.latency") {
         const rtt = (event as any).rtt;

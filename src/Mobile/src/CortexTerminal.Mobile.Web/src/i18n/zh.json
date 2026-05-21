@@ -495,7 +495,11 @@
     "exitedWithCodeAndReason": "已退出 ({{code}}): {{reason}}",
     "startFailedReason": "启动失败: {{reason}}",
     "session": "会话",
-    "done": "完成"
+    "done": "完成",
+    "sessionExpiredToast": "会话已过期：{{reason}}",
+    "sessionClosedToast": "会话已关闭：{{reason}}",
+    "sessionExitedToast": "会话已退出 ({{code}})",
+    "sessionStartFailedToast": "会话启动失败"
   },
   "common": {
     "loading": "加载中...",
