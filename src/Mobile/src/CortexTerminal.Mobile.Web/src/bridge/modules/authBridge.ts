@@ -15,7 +15,7 @@ import {
 
 export const authBridge = {
   sendPhoneCode: (phone: string): Promise<{ success: boolean }> =>
-    invoke("SendPhoneCodeAsync", PhoneSendCodeResponseSchema, [phone]),
+    invoke("SendPhoneCodeAsync", PhoneSendCodeResponseSchema, [phone, ""]),
 
   verifyPhoneCode: (phone: string, code: string): Promise<PhoneVerifyResponse> =>
     invoke("VerifyPhoneCodeAsync", PhoneVerifyResponseSchema, [phone, code]),

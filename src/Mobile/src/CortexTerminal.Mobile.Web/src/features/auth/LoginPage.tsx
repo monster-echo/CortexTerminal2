@@ -18,6 +18,7 @@ import { logoApple, logoGithub, logoGoogle, phonePortraitOutline } from "ionicon
 import { useTranslation } from "react-i18next";
 import { authBridge } from "../../bridge/modules/authBridge";
 import { useAuthStore, type AuthState } from "../../store/authStore";
+import logoSvg from "../../assets/logo.svg";
 
 const selectSetSession = (s: AuthState) => s.setSession;
 
@@ -133,6 +134,7 @@ export default function LoginPage() {
             justifyContent: "center",
           }}
         >
+          <img src={logoSvg} alt="" style={{ width: 64, height: 64, marginBottom: 8 }} />
           <IonLabel>
             <h1>{t("login.title")}</h1>
           </IonLabel>
@@ -249,11 +251,9 @@ export default function LoginPage() {
             </>
           )}
 
-          <IonItem lines="none" className="ion-padding-top" style={{ maxWidth: 400 }}>
-            <IonNote className="ion-text-center" style={{ width: "100%" }}>
-              {t("login.orSignInWith")}
-            </IonNote>
-          </IonItem>
+          <div style={{ width: "100%", maxWidth: 400, textAlign: "center", paddingTop: 16, fontSize: 13, color: "var(--ion-color-medium)" }}>
+            {t("login.orSignInWith")}
+          </div>
 
           <div className="ion-padding-top" style={{ width: "100%", maxWidth: 400 }}>
             {showAppleLogin && (
