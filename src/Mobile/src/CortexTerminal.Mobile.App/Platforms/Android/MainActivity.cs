@@ -18,7 +18,7 @@ public class MainActivity : MauiAppCompatActivity
         // Prevent white flash on navigation bar during dark mode startup.
         if (Window is not null)
         {
-            var isDark = (Resources?.Configuration?.UiMode & UiMode.NightMask) == UiMode.NightYes;
+            var isDark = (Resources?.Configuration?.UiMode & Android.Content.Res.UiMode.NightMask) == Android.Content.Res.UiMode.NightYes;
 
 #pragma warning disable CA1422
             if (Build.VERSION.SdkInt >= BuildVersionCodes.VanillaIceCream)
