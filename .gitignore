@@ -20,3 +20,11 @@ artifacts/
 .playwright-cli
 docs
 .git1
+
+# HarmonyOS build artifacts
+src/Harmony/**/build/
+src/Harmony/**/oh_modules/
+src/Harmony/**/oh-package-lock.json5
+src/Harmony/**/BuildProfile.ets
+src/Harmony/**/hvigorfile.ts
+src/Harmony/local.properties
