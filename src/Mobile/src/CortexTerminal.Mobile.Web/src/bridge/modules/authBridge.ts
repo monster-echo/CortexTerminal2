@@ -11,11 +11,15 @@ import {
   VerifyActivationCodeResponseSchema,
   PasswordLoginResponseSchema,
   type PasswordLoginResponse,
+  AltchaChallengeResponseSchema,
 } from "../../schemas/bridgeSchema";
 
 export const authBridge = {
-  sendPhoneCode: (phone: string): Promise<{ success: boolean }> =>
-    invoke("SendPhoneCodeAsync", PhoneSendCodeResponseSchema, [phone, ""]),
+  getAltchaChallenge: (): Promise<{ json: string }> =>
+    invoke("GetAltchaChallengeAsync", AltchaChallengeResponseSchema),
+
+  sendPhoneCode: (phone: string, altchaPayload: string): Promise<{ success: boolean }> =>
+    invoke("SendPhoneCodeAsync", PhoneSendCodeResponseSchema, [phone, altchaPayload]),
 
   verifyPhoneCode: (phone: string, code: string): Promise<PhoneVerifyResponse> =>
     invoke("VerifyPhoneCodeAsync", PhoneVerifyResponseSchema, [phone, code]),

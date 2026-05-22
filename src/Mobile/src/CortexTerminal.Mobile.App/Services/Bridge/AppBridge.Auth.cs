@@ -16,6 +16,17 @@ public sealed partial class AppBridge
     }
 
     [BridgeMethod]
+    public Task<string> GetAltchaChallengeAsync()
+    {
+        return ExecuteSafeAsync(async () =>
+        {
+            if (_authService is null) throw new InvalidOperationException("AuthService not configured");
+            var json = await _authService.GetAltchaChallengeAsync(default);
+            return new { json };
+        });
+    }
+
+    [BridgeMethod]
     public Task<string> SendPhoneCodeAsync(string phone, string altchaPayload)
     {
         return ExecuteSafeAsync(async () =>

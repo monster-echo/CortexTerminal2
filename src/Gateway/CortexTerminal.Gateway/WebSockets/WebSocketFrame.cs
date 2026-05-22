@@ -55,6 +55,18 @@ public record WsPingFrame
     public required long Timestamp { get; init; }
 }
 
+public record WsLatencyProbeFrame
+{
+    [JsonPropertyName("type")]
+    public string Type => "latencyProbe";
+    [JsonPropertyName("sessionId")]
+    public required string SessionId { get; init; }
+    [JsonPropertyName("probeId")]
+    public required string ProbeId { get; init; }
+    [JsonPropertyName("clientTime")]
+    public required long ClientTime { get; init; }
+}
+
 // --- Server → Client frames ---
 
 public record WsReplayingFrame
@@ -139,6 +151,14 @@ public record WsErrorFrame
     public required string Message { get; init; }
 }
 
+public record WsDetachedFrame
+{
+    [JsonPropertyName("type")]
+    public string Type => "detached";
+    [JsonPropertyName("sessionId")]
+    public required string SessionId { get; init; }
+}
+
 public record WsPongFrame
 {
     [JsonPropertyName("type")]
@@ -178,4 +198,6 @@ public record WsClientFrame
     public long? Timestamp { get; init; }
     [JsonPropertyName("probeId")]
     public string? ProbeId { get; init; }
+    [JsonPropertyName("clientTime")]
+    public long? ClientTime { get; init; }
 }

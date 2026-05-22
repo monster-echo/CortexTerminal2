@@ -1,14 +1,11 @@
 using System.Collections.Concurrent;
 using System.Net.WebSockets;
-using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
 using CortexTerminal.Contracts.Sessions;
 using CortexTerminal.Contracts.Streaming;
-using CortexTerminal.Gateway.Hubs;
 using CortexTerminal.Gateway.Sessions;
 using CortexTerminal.Gateway.Workers;
-using Microsoft.AspNetCore.SignalR;
 
 namespace CortexTerminal.Gateway.WebSockets;
 
@@ -21,7 +18,6 @@ public sealed class TerminalWebSocketHandler
     private readonly ISessionCoordinator _sessions;
     private readonly IReplayCache _replayCache;
     private readonly IWorkerCommandDispatcher _workerCommands;
-    private readonly ISessionLaunchCoordinator _sessionLaunchCoordinator;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<TerminalWebSocketHandler> _logger;
 
@@ -42,7 +38,7 @@ public sealed class TerminalWebSocketHandler
         _sessions = sessions;
         _replayCache = replayCache;
         _workerCommands = workerCommands;
-        _sessionLaunchCoordinator = sessionLaunchCoordinator;
+        _ = sessionLaunchCoordinator;
         _timeProvider = timeProvider;
         _logger = logger;
     }
@@ -109,21 +105,23 @@ public sealed class TerminalWebSocketHandler
             // Send "live" signal
             await SendJsonAsync(ws, new WsLiveFrame { SessionId = sessionId }, cancellationToken);
 
-            // Now read frames from the client in a loop
             var buffer = new byte[8192];
             while (!cancellationToken.IsCancellationRequested)
             {
-                var result = await ws.ReceiveAsync(new ArraySegment<byte>(buffer), cancellationToken);
-
-                if (result.MessageType == WebSocketMessageType.Close)
+                var receive = await ReceiveTextMessageAsync(ws, buffer, cancellationToken);
+                if (receive is null)
                 {
                     break;
                 }
 
-                if (result.MessageType == WebSocketMessageType.Text)
+                var shouldContinue = await HandleClientFrameAsync(
+                    ws,
+                    receive,
+                    sessionId,
+                    cancellationToken);
+                if (!shouldContinue)
                 {
-                    var json = Encoding.UTF8.GetString(buffer, 0, result.Count);
-                    await HandleClientFrameAsync(ws, json, userId, sessionId, connectionId, cancellationToken);
+                    break;
                 }
             }
         }
@@ -151,7 +149,31 @@ public sealed class TerminalWebSocketHandler
         }
     }
 
-    private async Task HandleClientFrameAsync(WebSocket ws, string json, string userId, string sessionId, string connectionId, CancellationToken cancellationToken)
+    private static async Task<string?> ReceiveTextMessageAsync(WebSocket ws, byte[] buffer, CancellationToken cancellationToken)
+    {
+        using var message = new MemoryStream();
+        while (true)
+        {
+            var result = await ws.ReceiveAsync(new ArraySegment<byte>(buffer), cancellationToken);
+            if (result.MessageType == WebSocketMessageType.Close)
+            {
+                return null;
+            }
+
+            if (result.MessageType != WebSocketMessageType.Text)
+            {
+                continue;
+            }
+
+            message.Write(buffer, 0, result.Count);
+            if (result.EndOfMessage)
+            {
+                return Encoding.UTF8.GetString(message.ToArray());
+            }
+        }
+    }
+
+    private async Task<bool> HandleClientFrameAsync(WebSocket ws, string json, string sessionId, CancellationToken cancellationToken)
     {
         WsClientFrame? frame;
         try
@@ -161,12 +183,19 @@ public sealed class TerminalWebSocketHandler
         catch (JsonException)
         {
             await SendErrorAsync(ws, sessionId, "invalid-frame", "Could not parse frame.", cancellationToken);
-            return;
+            return true;
         }
 
         if (frame is null)
         {
-            return;
+            return true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(frame.SessionId) &&
+            !string.Equals(frame.SessionId, sessionId, StringComparison.Ordinal))
+        {
+            await SendErrorAsync(ws, sessionId, "session-mismatch", "Frame sessionId does not match this connection.", cancellationToken);
+            return true;
         }
 
         switch (frame.Type)
@@ -180,9 +209,12 @@ public sealed class TerminalWebSocketHandler
                 break;
 
             case "detach":
-                // Client explicitly detaches — close the connection gracefully
-                await SendJsonAsync(ws, new { type = "detached", sessionId }, cancellationToken);
-                break;
+                await SendJsonAsync(ws, new WsDetachedFrame { SessionId = sessionId }, cancellationToken);
+                if (ws.State == WebSocketState.Open)
+                {
+                    await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "detached", cancellationToken);
+                }
+                return false;
 
             case "close":
                 await HandleCloseAsync(ws, frame, sessionId, cancellationToken);
@@ -192,10 +224,16 @@ public sealed class TerminalWebSocketHandler
                 await SendJsonAsync(ws, new WsPongFrame { Timestamp = frame.Timestamp ?? 0 }, cancellationToken);
                 break;
 
+            case "latencyProbe":
+                await HandleLatencyProbeAsync(ws, frame, sessionId, cancellationToken);
+                break;
+
             default:
                 await SendErrorAsync(ws, sessionId, "unknown-frame-type", $"Unknown frame type: {frame.Type}", cancellationToken);
                 break;
         }
+
+        return true;
     }
 
     private async Task HandleInputAsync(WebSocket ws, WsClientFrame frame, string sessionId, CancellationToken cancellationToken)
@@ -212,7 +250,17 @@ public sealed class TerminalWebSocketHandler
             return;
         }
 
-        var payload = frame.Payload is not null ? Convert.FromBase64String(frame.Payload) : [];
+        byte[] payload;
+        try
+        {
+            payload = frame.Payload is not null ? Convert.FromBase64String(frame.Payload) : [];
+        }
+        catch (FormatException)
+        {
+            await SendErrorAsync(ws, sessionId, "invalid-frame", "input payload must be base64.", cancellationToken);
+            return;
+        }
+
         await _workerCommands.WriteInputAsync(session.WorkerConnectionId, new WriteInputFrame(sessionId, payload), cancellationToken);
     }
 
@@ -247,6 +295,22 @@ public sealed class TerminalWebSocketHandler
         }
 
         await _workerCommands.CloseSessionAsync(session.WorkerConnectionId, new CloseSessionRequest(sessionId), cancellationToken);
+    }
+
+    private async Task HandleLatencyProbeAsync(WebSocket ws, WsClientFrame frame, string sessionId, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(frame.ProbeId))
+        {
+            await SendErrorAsync(ws, sessionId, "invalid-frame", "latencyProbe requires probeId.", cancellationToken);
+            return;
+        }
+
+        await SendJsonAsync(ws, new WsLatencyAckFrame
+        {
+            ProbeId = frame.ProbeId,
+            ClientTime = frame.ClientTime ?? frame.Timestamp ?? 0,
+            ServerTime = _timeProvider.GetUtcNow().ToUnixTimeMilliseconds()
+        }, cancellationToken);
     }
 
     private async Task SendErrorAsync(WebSocket ws, string sessionId, string code, string message, CancellationToken cancellationToken)

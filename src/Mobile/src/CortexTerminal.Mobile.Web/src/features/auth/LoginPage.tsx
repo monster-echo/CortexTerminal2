@@ -19,6 +19,7 @@ import { useTranslation } from "react-i18next";
 import { authBridge } from "../../bridge/modules/authBridge";
 import { useAuthStore, type AuthState } from "../../store/authStore";
 import logoSvg from "../../assets/logo.svg";
+import "altcha";
 
 const selectSetSession = (s: AuthState) => s.setSession;
 
@@ -37,6 +38,9 @@ export default function LoginPage() {
   const [loadingProvider, setLoadingProvider] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
   const setSession = useAuthStore(selectSetSession);
+  const [altchaPayload, setAltchaPayload] = useState<string | null>(null);
+  const [altchaJson, setAltchaJson] = useState<string>("");
+  const altchaRef = useRef<HTMLElement & { reset: () => void }>(null);
 
   useEffect(() => {
     return () => {
@@ -51,18 +55,54 @@ export default function LoginPage() {
     }
   }, [countdown]);
 
+  useEffect(() => {
+    const widget = altchaRef.current;
+    if (!widget) return;
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.payload) {
+        setAltchaPayload(detail.payload);
+      }
+    };
+    widget.addEventListener("verified", handler);
+    return () => widget.removeEventListener("verified", handler);
+  }, [altchaJson]);
+
+  const fetchChallenge = async () => {
+    try {
+      const result = await authBridge.getAltchaChallenge();
+      setAltchaJson(result.json);
+      setAltchaPayload(null);
+    } catch {
+      // ignore
+    }
+  };
+
+  useEffect(() => {
+    if (loginMethod === "phone" && !altchaJson) {
+      fetchChallenge();
+    }
+  }, [loginMethod]);
+
   const handleSendCode = async () => {
     if (phone.length !== 11) {
       setErrorMessage(t("login.errorPhone"));
       return;
     }
+    if (!altchaPayload) {
+      setErrorMessage(t("login.verificationRequired"));
+      return;
+    }
     setErrorMessage(null);
     setLoadingProvider("phone");
     try {
-      await authBridge.sendPhoneCode(phone);
+      await authBridge.sendPhoneCode(phone, altchaPayload);
       setCodeSent(true);
       setCountdown(60);
       timerRef.current = setInterval(() => setCountdown((c) => c - 1), 1000);
+      setAltchaPayload(null);
+      altchaRef.current?.reset();
+      fetchChallenge();
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : t("login.errorSendCode"));
     } finally {
@@ -202,6 +242,17 @@ export default function LoginPage() {
                     disabled={loadingProvider !== null}
                   />
                 </IonItem>
+                {altchaJson && (
+                  // @ts-expect-error altcha-widget is a custom element
+                  <altcha-widget
+                    ref={altchaRef}
+                    challengejson={altchaJson}
+                    hidelogo
+                    hidefooter
+                    auto="onfocus"
+                    style={{ width: "100%" }}
+                  />
+                )}
                 <IonItem>
                   <IonInput
                     type="number"

@@ -128,6 +128,10 @@ export const PasswordLoginResponseSchema = z.object({
   username: z.string().optional(),
 });
 
+export const AltchaChallengeResponseSchema = z.object({
+  json: z.string(),
+});
+
 export type BridgeCapabilities = z.infer<typeof BridgeCapabilitiesSchema>;
 export type NativeMediaAsset = z.infer<typeof NativeMediaAssetSchema>;
 export type SystemInfo = z.infer<typeof SystemInfoSchema>;
@@ -149,3 +153,4 @@ export type OAuthStartResponse = z.infer<typeof OAuthStartResponseSchema>;
 export type GuestLoginResponse = z.infer<typeof GuestLoginResponseSchema>;
 export type VerifyActivationCodeResponse = z.infer<typeof VerifyActivationCodeResponseSchema>;
 export type PasswordLoginResponse = z.infer<typeof PasswordLoginResponseSchema>;
+export type AltchaChallengeResponse = z.infer<typeof AltchaChallengeResponseSchema>;

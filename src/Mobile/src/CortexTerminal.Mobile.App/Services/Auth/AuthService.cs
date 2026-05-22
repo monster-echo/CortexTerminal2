@@ -32,6 +32,13 @@ public sealed class AuthService
         }
     }
 
+    public async Task<string> GetAltchaChallengeAsync(CancellationToken ct)
+    {
+        var response = await _httpClient.GetAsync("/api/auth/altcha/challenge", ct);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadAsStringAsync(ct);
+    }
+
     public async Task<AuthResult> SendPhoneCodeAsync(string phone, string altchaPayload, CancellationToken ct)
     {
         var response = await _httpClient.PostAsJsonAsync("/api/auth/phone/send-code", new { phone, altcha = altchaPayload }, ct);

@@ -43,7 +43,8 @@
     "passwordPlaceholder": "Password",
     "passwordLogin": "Sign in with password",
     "errorPasswordLogin": "Invalid username or password",
-    "phoneLogin": "Phone Login"
+    "phoneLogin": "Phone Login",
+    "verificationRequired": "Please complete verification first"
   },
   "home": {
     "title": "Native Features",

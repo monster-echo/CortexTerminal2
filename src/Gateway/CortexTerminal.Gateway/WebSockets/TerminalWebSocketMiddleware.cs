@@ -1,13 +1,12 @@
-using System.IdentityModel.Tokens.Jwt;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using System.Security.Claims;
-using System.Text;
-using Microsoft.IdentityModel.Tokens;
 
 namespace CortexTerminal.Gateway.WebSockets;
 
 /// <summary>
 /// ASP.NET Core middleware that accepts native WebSocket connections at /ws/terminal.
-/// Validates JWT from query string, extracts sessionId, and delegates to TerminalWebSocketHandler.
+/// Validates JWT through the configured bearer pipeline, extracts sessionId, and delegates to TerminalWebSocketHandler.
 /// </summary>
 public class TerminalWebSocketMiddleware
 {
@@ -20,7 +19,7 @@ public class TerminalWebSocketMiddleware
         _logger = logger;
     }
 
-    public async Task InvokeAsync(HttpContext context, TerminalWebSocketHandler handler, IConfiguration configuration)
+    public async Task InvokeAsync(HttpContext context, TerminalWebSocketHandler handler)
     {
         if (!context.Request.Path.StartsWithSegments("/ws/terminal"))
         {
@@ -34,37 +33,10 @@ public class TerminalWebSocketMiddleware
             return;
         }
 
-        // Extract JWT token from query string
-        var token = context.Request.Query["token"].FirstOrDefault();
-        if (string.IsNullOrEmpty(token))
+        var authResult = await context.AuthenticateAsync(JwtBearerDefaults.AuthenticationScheme);
+        if (!authResult.Succeeded || authResult.Principal is null)
         {
-            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-            return;
-        }
-
-        // Validate JWT
-        var signingKey = configuration["Auth:SigningKey"] ?? "gateway-auth-signing-key-minimum-32b";
-        var validationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidIssuer = "https://gateway.local/",
-            ValidateAudience = true,
-            ValidAudiences = ["corterm-gateway", "cortex-terminal-gateway"],
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey)),
-            NameClaimType = ClaimTypes.NameIdentifier
-        };
-
-        ClaimsPrincipal user;
-        try
-        {
-            var handler2 = new JwtSecurityTokenHandler();
-            user = handler2.ValidateToken(token, validationParameters, out _);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Invalid JWT token on WebSocket connection");
+            _logger.LogWarning(authResult.Failure, "Unauthorized WebSocket terminal connection");
             context.Response.StatusCode = StatusCodes.Status401Unauthorized;
             return;
         }
@@ -78,9 +50,10 @@ public class TerminalWebSocketMiddleware
         }
 
         // Extract userId from claims
-        var userId = user.FindFirstValue(ClaimTypes.NameIdentifier)
-            ?? user.FindFirstValue(JwtRegisteredClaimNames.Sub)
-            ?? user.Identity?.Name
+        var userId = authResult.Principal.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? authResult.Principal.FindFirstValue("sub")
+            ?? authResult.Principal.FindFirstValue("nameid")
+            ?? authResult.Principal.Identity?.Name
             ?? "unknown";
 
         _logger.LogInformation("WebSocket terminal connection: userId={UserId}, sessionId={SessionId}", userId, sessionId);
