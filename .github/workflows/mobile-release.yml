@@ -121,6 +121,7 @@ jobs:
           releaseFiles: "src/Mobile/src/CortexTerminal.Mobile.App/bin/Release/net10.0-android/top.rwecho.cortexterminal-Signed.aab"
           tracks: "internal"
           status: "draft"
+          whatsNewDirectory: "distribution/google-play"
 
   build-ios:
     runs-on: self-hosted

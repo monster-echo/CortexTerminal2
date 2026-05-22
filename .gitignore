@@ -18,4 +18,5 @@ artifacts/
 **/wwwroot/assets/
 **/wwwroot/index.html
 .playwright-cli
-docs.git1/
+docs
+.git1

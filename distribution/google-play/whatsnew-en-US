@@ -1,1 +1,1 @@
-Fixed white flash on Android navigation bar during dark mode startup.
+Added Altcha CAPTCHA verification to phone login for improved security. Fixed WebSocket fragmented message handling.
