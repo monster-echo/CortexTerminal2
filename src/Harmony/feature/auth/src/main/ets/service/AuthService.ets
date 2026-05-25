@@ -1,35 +1,26 @@
 /**
  * @file AuthService.ets
- * @brief Authentication state management and token storage
- *
- * Manages auth state using PersistentStorage for persistence and
- * AppStorage for reactive UI updates. Provides login, logout,
- * token refresh, and OAuth flow management.
+ * @brief Authentication state management aligned with MAUI/mobile.
  */
 import { http } from '@kit.NetworkKit'
-import { preferences } from '@kit.ArkData'
-import { common, Want } from '@kit.AbilityKit'
-import {
-  PhoneSendCodeRequest,
-  PhoneVerifyRequest,
-  PhoneVerifyResponse,
-  TokenData,
-  UserInfo,
-  OAuthCallbackRequest,
-  WorkerActivateRequest,
-  TokenRefreshRequest
-} from '../model/AuthModels'
+import { NavPathStack } from '@kit.ArkUI'
+import { UserInfo, TokenRefreshRequest } from '../model/AuthModels'
 
-const AUTH_PREFERENCE = 'auth_prefs'
-const KEY_AUTH_TOKEN = 'auth_token'
-const KEY_REFRESH_TOKEN = 'refresh_token'
-const KEY_USER_INFO = 'user_info'
+class HuaweiQuickLoginRequest {
+  authCode: string = ''
+  unionID: string = ''
+  openID: string = ''
+}
 
-/**
- * Authentication service singleton.
- * Uses PersistentStorage for cross-session persistence and
- * AppStorage for reactive state management.
- */
+class PasswordLoginRequest {
+  username: string = ''
+  password: string = ''
+}
+
+class DeviceFlowVerifyRequest {
+  userCode: string = ''
+}
+
 export class AuthService {
   private get authToken(): string { return AppStorage.get<string>('authToken') || '' }
   private set authToken(value: string) { AppStorage.setOrCreate('authToken', value) }
@@ -40,25 +31,15 @@ export class AuthService {
   private get userInfoStr(): string { return AppStorage.get<string>('userInfo') || '' }
   private set userInfoStr(value: string) { AppStorage.setOrCreate('userInfo', value) }
   private get gatewayUrl(): string { return AppStorage.get<string>('gatewayUrl') || '' }
-  private set gatewayUrl(value: string) { AppStorage.setOrCreate('gatewayUrl', value) }
 
-  /**
-   * Check if the user is currently authenticated.
-   */
   isLoggedIn(): boolean {
     return this.loggedIn && this.authToken.length > 0
   }
 
-  /**
-   * Get the current auth token.
-   */
   getToken(): string {
     return this.authToken
   }
 
-  /**
-   * Get the current user info.
-   */
   getUserInfo(): UserInfo | null {
     if (this.userInfoStr.length === 0) {
       return null
@@ -70,101 +51,73 @@ export class AuthService {
     }
   }
 
-  /**
-   * Send a verification code to the given phone number.
-   */
-  async sendVerificationCode(phone: string): Promise<void> {
-    const request = new PhoneSendCodeRequest()
-    request.phone = phone
-    await this.post('/api/auth/phone/send-code', request)
-  }
-
-  /**
-   * Login with phone number and verification code.
-   * Stores tokens on success.
-   */
-  async login(phone: string, code: string): Promise<void> {
-    const request = new PhoneVerifyRequest()
-    request.phone = phone
-    request.code = code
-    const response = await this.post('/api/auth/phone/verify', request) as Record<string, Object>
-
-    this.authToken = (response['accessToken'] as string) ?? ''
-    this.loggedIn = true
-  }
-
-  /**
-   * Start an OAuth flow for the given provider.
-   * Opens the system browser to the gateway's OAuth authorize endpoint.
-   */
-  async startOAuth(provider: string): Promise<void> {
-    const baseUrl = this.gatewayUrl || 'https://gateway.ct.rwecho.top'
-    const oauthUrl = `${baseUrl}/api/auth/${provider}`
-    try {
-      const context = getContext(this) as common.UIAbilityContext
-      const want = new Want()
-      want.action = 'ohos.want.action.viewData'
-      want.uri = oauthUrl
-      await context.startAbility(want)
-    } catch (e) {
-      console.warn('Failed to open OAuth URL: ' + (e as Error).message)
-    }
-  }
-
-  /**
-   * Handle OAuth callback — the gateway handles this server-side
-   * via 302 redirect back to the app with ?token=<jwt>.
-   * This method stores the token received from the redirect.
-   */
-  async handleOAuthToken(token: string): Promise<void> {
-    this.authToken = token
-    this.loggedIn = true
-  }
-
-  /**
-   * Login with Huawei one-click login authCode.
-   * Sends the authCode, unionID, openID to the gateway for server-side
-   * token exchange and phone number retrieval.
-   */
   async loginWithHuaweiAuthCode(authCode: string, unionID: string, openID: string): Promise<void> {
-    const body: Record<string, string> = {
-      'authCode': authCode,
-      'unionID': unionID,
-      'openID': openID
-    }
-    const response = await this.post('/api/auth/huawei/quick-login', body as Object) as Record<string, Object>
-
-    this.authToken = (response['accessToken'] as string) ?? ''
-    this.loggedIn = true
+    const body = new HuaweiQuickLoginRequest()
+    body.authCode = authCode
+    body.unionID = unionID
+    body.openID = openID
+    const response = await this.post('/api/auth/huawei/quick-login', body, false) as Record<string, Object>
+    this.setSession((response['accessToken'] as string) ?? '', (response['username'] as string) ?? 'huawei')
   }
 
-  /**
-   * Activate a worker with the given activation code.
-   */
+  async loginWithPassword(username: string, password: string): Promise<void> {
+    const body = new PasswordLoginRequest()
+    body.username = username
+    body.password = password
+    const response = await this.post('/api/auth/password/login', body, false) as Record<string, Object>
+    this.setSession((response['accessToken'] as string) ?? '', (response['username'] as string) ?? username)
+  }
+
   async activateWorker(activationCode: string): Promise<void> {
-    const requestBody = new WorkerActivateRequest()
-    requestBody.code = activationCode
-    await this.post('/api/workers/activate', requestBody)
+    const request = new DeviceFlowVerifyRequest()
+    request.userCode = activationCode
+    await this.post('/api/auth/device-flow/verify', request)
   }
 
-  /**
-   * Refresh the authentication token.
-   */
-  async refreshToken(): Promise<void> {
+  async refreshToken(): Promise<boolean> {
     if (this.storedRefreshToken.length === 0) {
-      throw new Error('No refresh token available')
+      return false
     }
-
-    const requestBody = new TokenRefreshRequest()
-    requestBody.refreshToken = this.storedRefreshToken
-    const response = await this.post('/api/auth/refresh', requestBody) as Record<string, Object>
-
-    this.authToken = (response['accessToken'] as string) ?? ''
+    try {
+      const body = new TokenRefreshRequest()
+      body.refreshToken = this.storedRefreshToken
+      const response = await this.post('/api/auth/refresh', body) as Record<string, Object>
+      const newToken = (response['accessToken'] as string) ?? ''
+      if (newToken.length > 0) {
+        this.authToken = newToken
+        console.info('[AuthService] Token refreshed successfully')
+        return true
+      }
+      return false
+    } catch (e) {
+      console.warn('[AuthService] Token refresh failed: ' + (e as Error).message)
+      return false
+    }
   }
 
-  /**
-   * Logout and clear all stored credentials.
-   */
+  async validateToken(): Promise<boolean> {
+    if (this.authToken.length === 0) {
+      return false
+    }
+    try {
+      await this.get('/api/me/workers')
+      return true
+    } catch (e) {
+      return false
+    }
+  }
+
+  async ensureAuthenticated(): Promise<boolean> {
+    if (!this.isLoggedIn()) {
+      return false
+    }
+    const valid = await this.validateToken()
+    if (valid) {
+      return true
+    }
+    return await this.refreshToken()
+  }
+
   logout(): void {
     this.authToken = ''
     this.storedRefreshToken = ''
@@ -172,31 +125,29 @@ export class AuthService {
     this.userInfoStr = ''
   }
 
-  /**
-   * Complete authentication flow, signaling that auth is done.
-   * The navigation shell will pick up the state change via AppStorage.
-   */
-  completeAuth(): void {
-    // The shell Navigation watches 'isLoggedIn' to navigate away from auth
+  static navigateHome(pageStack: NavPathStack): void {
     AppStorage.setOrCreate('authCompleted', true)
+    pageStack.replacePath({ name: 'TerminalHome' })
   }
 
-  /**
-   * Make a POST request to the auth API.
-   */
-  private async post(path: string, body: Object): Promise<Object> {
+  private setSession(token: string, username: string): void {
+    if (token.length === 0) {
+      throw new Error('No token received')
+    }
+    this.authToken = token
+    this.loggedIn = true
+    this.userInfoStr = JSON.stringify({ displayName: username })
+    console.info(`[AuthService] Session saved: token length=${token.length}, username=${username}`)
+  }
+
+  private async post(path: string, body: Object, requiresAuth: boolean = true): Promise<Object> {
     const baseUrl = this.gatewayUrl || 'https://gateway.ct.rwecho.top'
     const url = `${baseUrl}${path}`
 
     return new Promise<Object>((resolve, reject) => {
       const httpRequest = http.createHttp()
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json'
-      }
-
-      if (this.authToken.length > 0) {
-        headers['Authorization'] = `Bearer ${this.authToken}`
-      }
+      const headers = this.buildHeaders(requiresAuth)
+      headers['Content-Type'] = 'application/json'
 
       httpRequest.request(url, {
         method: http.RequestMethod.POST,
@@ -222,4 +173,44 @@ export class AuthService {
       })
     })
   }
+
+  private async get(path: string): Promise<Object> {
+    const baseUrl = this.gatewayUrl || 'https://gateway.ct.rwecho.top'
+    const url = `${baseUrl}${path}`
+
+    return new Promise<Object>((resolve, reject) => {
+      const httpRequest = http.createHttp()
+      const headers = this.buildHeaders(true)
+
+      httpRequest.request(url, {
+        method: http.RequestMethod.GET,
+        header: headers,
+        expectDataType: http.HttpDataType.OBJECT,
+        connectTimeout: 10000,
+        readTimeout: 10000
+      }, (err, data) => {
+        if (err) {
+          reject(new Error(err.message || 'Network request failed'))
+          return
+        }
+        if (data.responseCode === 200) {
+          resolve(data.result as Object)
+        } else {
+          reject(new Error(`GET ${path} failed (${data.responseCode})`))
+        }
+        httpRequest.destroy()
+      })
+    })
+  }
+
+  private buildHeaders(requiresAuth: boolean = true): Record<string, string> {
+    const headers: Record<string, string> = {
+      'Accept': 'application/json'
+    }
+    if (requiresAuth && this.authToken.length > 0) {
+      headers['Authorization'] = `Bearer ${this.authToken}`
+    }
+    return headers
+  }
+
 }

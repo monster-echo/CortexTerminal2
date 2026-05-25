@@ -6,6 +6,7 @@
  * navigation router using the wrapBuilder pattern.
  */
 export { AuthComponent } from './src/main/ets/AuthComponent'
+export { PasswordLoginPage } from './src/main/ets/view/PasswordLoginPage'
 export { AuthService } from './src/main/ets/service/AuthService'
 export type {
   PhoneSendCodeRequest,

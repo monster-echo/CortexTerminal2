@@ -11,12 +11,8 @@
     { "name": "button_resume", "value": "Resume" },
     { "name": "button_activate", "value": "Activate Worker" },
     { "name": "button_sign_in", "value": "Sign In" },
-    { "name": "button_send_code", "value": "Send Code" },
     { "name": "button_choose_worker", "value": "Choose Worker" },
 
-    { "name": "label_phone_number", "value": "Phone Number" },
-    { "name": "label_verification_code", "value": "Verification Code" },
-    { "name": "label_or_sign_in_with", "value": "Or sign in with" },
     { "name": "label_recent_session", "value": "Recent Session" },
     { "name": "label_no_sessions", "value": "No active sessions" },
     { "name": "label_start_hint", "value": "Start a new terminal session to begin" },
@@ -64,6 +60,29 @@
     { "name": "time_hours_ago", "value": "%dh ago" },
     { "name": "time_days_ago", "value": "%dd ago" },
 
-    { "name": "pasteboard_reason", "value": "Used to paste text from clipboard into the terminal" }
+    { "name": "pasteboard_reason", "value": "Used to paste text from clipboard into the terminal" },
+
+    { "name": "login_tagline", "value": "Connect to your cloud terminal anytime" },
+    { "name": "login_other_method", "value": "Other login methods" },
+    { "name": "login_agreement_prefix", "value": "By logging in you agree to the " },
+    { "name": "login_agreement_terms", "value": "Terms of Service" },
+    { "name": "login_agreement_privacy", "value": "Privacy Policy" },
+    { "name": "login_error_huawei_failed", "value": "Huawei account login failed, please try again" },
+    { "name": "login_error_no_code", "value": "Failed to get Huawei auth code, please try again" },
+    { "name": "login_error_login_failed", "value": "Login failed" },
+    { "name": "login_error_empty_fields", "value": "Please enter username and password" },
+    { "name": "login_password_title", "value": "Password Login" },
+    { "name": "login_username_label", "value": "Username" },
+    { "name": "login_username_placeholder", "value": "Enter username" },
+    { "name": "login_password_label", "value": "Password" },
+    { "name": "login_password_placeholder", "value": "Enter password" },
+    { "name": "login_password_button", "value": "Sign in with username" },
+    { "name": "activate_title", "value": "Activate Worker" },
+    { "name": "activate_subtitle", "value": "Enter the activation code from your worker machine" },
+    { "name": "activate_code_label", "value": "Activation Code" },
+    { "name": "activate_code_placeholder", "value": "XXXX-XXXX" },
+    { "name": "activate_button", "value": "Activate" },
+    { "name": "activate_skip", "value": "Skip for now" },
+    { "name": "activate_success", "value": "Worker activated successfully!" }
   ]
 }

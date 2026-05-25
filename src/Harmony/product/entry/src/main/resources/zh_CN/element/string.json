@@ -11,12 +11,8 @@
     { "name": "button_resume", "value": "恢复" },
     { "name": "button_activate", "value": "激活节点" },
     { "name": "button_sign_in", "value": "登录" },
-    { "name": "button_send_code", "value": "发送验证码" },
     { "name": "button_choose_worker", "value": "选择节点" },
 
-    { "name": "label_phone_number", "value": "手机号" },
-    { "name": "label_verification_code", "value": "验证码" },
-    { "name": "label_or_sign_in_with", "value": "其他登录方式" },
     { "name": "label_recent_session", "value": "最近会话" },
     { "name": "label_no_sessions", "value": "暂无活跃会话" },
     { "name": "label_start_hint", "value": "创建一个新终端会话开始使用" },
@@ -64,6 +60,29 @@
     { "name": "time_hours_ago", "value": "%d小时前" },
     { "name": "time_days_ago", "value": "%d天前" },
 
-    { "name": "pasteboard_reason", "value": "用于从剪贴板粘贴文本到终端" }
+    { "name": "pasteboard_reason", "value": "用于从剪贴板粘贴文本到终端" },
+
+    { "name": "login_tagline", "value": "随时连接你的云端终端" },
+    { "name": "login_other_method", "value": "其他方式登录" },
+    { "name": "login_agreement_prefix", "value": "登录即表示同意" },
+    { "name": "login_agreement_terms", "value": "《用户协议》" },
+    { "name": "login_agreement_privacy", "value": "《隐私政策》" },
+    { "name": "login_error_huawei_failed", "value": "华为账号登录失败，请重试" },
+    { "name": "login_error_no_code", "value": "未获取到华为账号授权码，请重试" },
+    { "name": "login_error_login_failed", "value": "登录失败" },
+    { "name": "login_error_empty_fields", "value": "请输入用户名和密码" },
+    { "name": "login_password_title", "value": "密码登录" },
+    { "name": "login_username_label", "value": "用户名" },
+    { "name": "login_username_placeholder", "value": "请输入用户名" },
+    { "name": "login_password_label", "value": "密码" },
+    { "name": "login_password_placeholder", "value": "请输入密码" },
+    { "name": "login_password_button", "value": "用户名和密码登录" },
+    { "name": "activate_title", "value": "激活工作节点" },
+    { "name": "activate_subtitle", "value": "输入工作节点上的激活码" },
+    { "name": "activate_code_label", "value": "激活码" },
+    { "name": "activate_code_placeholder", "value": "XXXX-XXXX" },
+    { "name": "activate_button", "value": "激活" },
+    { "name": "activate_skip", "value": "暂时跳过" },
+    { "name": "activate_success", "value": "工作节点激活成功！" }
   ]
 }
