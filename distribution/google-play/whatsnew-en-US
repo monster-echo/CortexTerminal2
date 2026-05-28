@@ -1,1 +1,1 @@
-Added Altcha CAPTCHA verification to phone login for improved security. Fixed WebSocket fragmented message handling.
+Added account deletion and privacy policy pages for App Store compliance. Improved Android keyboard input handling. Fixed login-related issues.
