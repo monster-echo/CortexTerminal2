@@ -449,12 +449,6 @@ app.UseStaticFiles(new StaticFileOptions
     }
 });
 
-// Legal pages (served before SPA fallback)
-app.MapGet("/privacy", () => Results.File("wwwroot/privacy.html", "text/html"));
-app.MapGet("/terms", () => Results.File("wwwroot/terms.html", "text/html"));
-app.MapGet("/account-deletion", () => Results.File("wwwroot/account-deletion.html", "text/html"));
-app.MapGet("/support", () => Results.File("wwwroot/support.html", "text/html"));
-
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(30) });

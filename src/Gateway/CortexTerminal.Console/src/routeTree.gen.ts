@@ -13,6 +13,10 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedAuditLogRouteImport } from './routes/_authenticated/audit-log'
+import { Route as publicTermsRouteImport } from './routes/(public)/terms'
+import { Route as publicSupportRouteImport } from './routes/(public)/support'
+import { Route as publicPrivacyRouteImport } from './routes/(public)/privacy'
+import { Route as publicAccountDeletionRouteImport } from './routes/(public)/account-deletion'
 import { Route as errors503RouteImport } from './routes/(errors)/503'
 import { Route as errors500RouteImport } from './routes/(errors)/500'
 import { Route as errors404RouteImport } from './routes/(errors)/404'
@@ -50,6 +54,26 @@ const AuthenticatedAuditLogRoute = AuthenticatedAuditLogRouteImport.update({
   id: '/audit-log',
   path: '/audit-log',
   getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const publicTermsRoute = publicTermsRouteImport.update({
+  id: '/(public)/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const publicSupportRoute = publicSupportRouteImport.update({
+  id: '/(public)/support',
+  path: '/support',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const publicPrivacyRoute = publicPrivacyRouteImport.update({
+  id: '/(public)/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const publicAccountDeletionRoute = publicAccountDeletionRouteImport.update({
+  id: '/(public)/account-deletion',
+  path: '/account-deletion',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const errors503Route = errors503RouteImport.update({
   id: '/(errors)/503',
@@ -164,6 +188,10 @@ export interface FileRoutesByFullPath {
   '/404': typeof errors404Route
   '/500': typeof errors500Route
   '/503': typeof errors503Route
+  '/account-deletion': typeof publicAccountDeletionRoute
+  '/privacy': typeof publicPrivacyRoute
+  '/support': typeof publicSupportRoute
+  '/terms': typeof publicTermsRoute
   '/audit-log': typeof AuthenticatedAuditLogRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/sessions/$sessionId': typeof AuthenticatedSessionsSessionIdRoute
@@ -184,6 +212,10 @@ export interface FileRoutesByTo {
   '/404': typeof errors404Route
   '/500': typeof errors500Route
   '/503': typeof errors503Route
+  '/account-deletion': typeof publicAccountDeletionRoute
+  '/privacy': typeof publicPrivacyRoute
+  '/support': typeof publicSupportRoute
+  '/terms': typeof publicTermsRoute
   '/audit-log': typeof AuthenticatedAuditLogRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/sessions/$sessionId': typeof AuthenticatedSessionsSessionIdRoute
@@ -209,6 +241,10 @@ export interface FileRoutesById {
   '/(errors)/404': typeof errors404Route
   '/(errors)/500': typeof errors500Route
   '/(errors)/503': typeof errors503Route
+  '/(public)/account-deletion': typeof publicAccountDeletionRoute
+  '/(public)/privacy': typeof publicPrivacyRoute
+  '/(public)/support': typeof publicSupportRoute
+  '/(public)/terms': typeof publicTermsRoute
   '/_authenticated/audit-log': typeof AuthenticatedAuditLogRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/sessions/$sessionId': typeof AuthenticatedSessionsSessionIdRoute
@@ -234,6 +270,10 @@ export interface FileRouteTypes {
     | '/404'
     | '/500'
     | '/503'
+    | '/account-deletion'
+    | '/privacy'
+    | '/support'
+    | '/terms'
     | '/audit-log'
     | '/dashboard'
     | '/sessions/$sessionId'
@@ -254,6 +294,10 @@ export interface FileRouteTypes {
     | '/404'
     | '/500'
     | '/503'
+    | '/account-deletion'
+    | '/privacy'
+    | '/support'
+    | '/terms'
     | '/audit-log'
     | '/dashboard'
     | '/sessions/$sessionId'
@@ -278,6 +322,10 @@ export interface FileRouteTypes {
     | '/(errors)/404'
     | '/(errors)/500'
     | '/(errors)/503'
+    | '/(public)/account-deletion'
+    | '/(public)/privacy'
+    | '/(public)/support'
+    | '/(public)/terms'
     | '/_authenticated/audit-log'
     | '/_authenticated/dashboard'
     | '/_authenticated/sessions/$sessionId'
@@ -300,6 +348,10 @@ export interface RootRouteChildren {
   errors404Route: typeof errors404Route
   errors500Route: typeof errors500Route
   errors503Route: typeof errors503Route
+  publicAccountDeletionRoute: typeof publicAccountDeletionRoute
+  publicPrivacyRoute: typeof publicPrivacyRoute
+  publicSupportRoute: typeof publicSupportRoute
+  publicTermsRoute: typeof publicTermsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -331,6 +383,34 @@ declare module '@tanstack/react-router' {
       fullPath: '/audit-log'
       preLoaderRoute: typeof AuthenticatedAuditLogRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/(public)/terms': {
+      id: '/(public)/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof publicTermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/(public)/support': {
+      id: '/(public)/support'
+      path: '/support'
+      fullPath: '/support'
+      preLoaderRoute: typeof publicSupportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/(public)/privacy': {
+      id: '/(public)/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof publicPrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/(public)/account-deletion': {
+      id: '/(public)/account-deletion'
+      path: '/account-deletion'
+      fullPath: '/account-deletion'
+      preLoaderRoute: typeof publicAccountDeletionRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/(errors)/503': {
       id: '/(errors)/503'
@@ -542,6 +622,10 @@ const rootRouteChildren: RootRouteChildren = {
   errors404Route: errors404Route,
   errors500Route: errors500Route,
   errors503Route: errors503Route,
+  publicAccountDeletionRoute: publicAccountDeletionRoute,
+  publicPrivacyRoute: publicPrivacyRoute,
+  publicSupportRoute: publicSupportRoute,
+  publicTermsRoute: publicTermsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
