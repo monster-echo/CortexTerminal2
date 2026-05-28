@@ -136,6 +136,14 @@ export const DeleteAccountResponseSchema = z.object({
   success: z.boolean(),
 });
 
+export const HasClipboardTextSchema = z.object({
+  hasText: z.boolean(),
+});
+
+export const ReadClipboardTextSchema = z.object({
+  text: z.string().nullable(),
+});
+
 export type BridgeCapabilities = z.infer<typeof BridgeCapabilitiesSchema>;
 export type NativeMediaAsset = z.infer<typeof NativeMediaAssetSchema>;
 export type SystemInfo = z.infer<typeof SystemInfoSchema>;

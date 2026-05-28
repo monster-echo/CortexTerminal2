@@ -510,7 +510,11 @@
     "sessionClosedToast": "Session closed: {{reason}}",
     "sessionExitedToast": "Session exited ({{code}})",
     "sessionStartFailedToast": "Session start failed",
-    "paste": "Paste"
+    "displaced": "Taken by another device",
+    "sessionDisplacedToast": "This session was opened on another device",
+    "paste": "Paste",
+    "copy": "Copy",
+    "copied": "Copied"
   },
   "common": {
     "loading": "Loading...",

@@ -9,6 +9,7 @@ import {
   IonTitle,
   IonToolbar,
   useIonActionSheet,
+  useIonLoading,
   useIonToast,
 } from "@ionic/react";
 import {
@@ -17,6 +18,7 @@ import {
   arrowBackOutline,
   arrowForwardOutline,
   clipboardOutline,
+  copyOutline,
 } from "ionicons/icons";
 import { RouteComponentProps } from "react-router-dom";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -115,6 +117,8 @@ export default function TerminalSessionPage({
   const [statusMessage, setStatusMessage] = useState(t("terminal.connecting"));
   const [latency, setLatency] = useState<number | null>(null);
   const [presentActionSheet] = useIonActionSheet();
+  const [presentLoading, dismissLoading] = useIonLoading();
+  const loadingRef = useRef(false);
 
   // ── Platform detection ──
   const platformLabel = useAppStore((s) => s.platformLabel);
@@ -146,6 +150,7 @@ export default function TerminalSessionPage({
   const [ctrlActive, setCtrlActive] = useState(false);
   const [altActive, setAltActive] = useState(false);
   const [hasClipboard, setHasClipboard] = useState(false);
+  const [hasSelection, setHasSelection] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleKeyRef = useRef<any>(null);
 
@@ -164,14 +169,12 @@ export default function TerminalSessionPage({
     }
   }, [keyboardVisible]);
 
-  // Check clipboard content when keyboard becomes visible
+  // Check clipboard content when keyboard becomes visible (via native bridge)
   useEffect(() => {
     if (!keyboardVisible) return;
-    navigator.clipboard.readText().then((text) => {
-      setHasClipboard(!!text);
-    }).catch(() => {
-      setHasClipboard(false);
-    });
+    terminalBridge.hasClipboardText()
+      .then((result) => setHasClipboard(result.hasText))
+      .catch(() => setHasClipboard(false));
   }, [keyboardVisible]);
 
   // Clean up legacy FAB position from localStorage
@@ -207,15 +210,30 @@ export default function TerminalSessionPage({
   handleKeyRef.current = handleKey;
 
   const handlePaste = useCallback(() => {
-    navigator.clipboard.readText().then((text) => {
-      if (text) {
-        sendInput(text);
-      }
-      setHasClipboard(!!text);
-    }).catch(() => {
-      setHasClipboard(false);
-    });
+    terminalBridge.readClipboardText()
+      .then((result) => {
+        const text = result.text;
+        if (text) {
+          sendInput(text);
+        }
+        setHasClipboard(!!text);
+      })
+      .catch(() => setHasClipboard(false));
   }, [sendInput]);
+
+  const handleCopy = useCallback(() => {
+    const term = xtermRef.current;
+    if (!term?.hasSelection()) return;
+    const text = term.getSelection();
+    terminalBridge.writeClipboardText(text)
+      .then(() => {
+        term.clearSelection();
+        setHasSelection(false);
+        void nativeBridge.haptics("click");
+        void presentToast({ message: t("terminal.copied"), duration: 1500, position: "bottom", color: "success" });
+      })
+      .catch(() => {});
+  }, [presentToast, t]);
 
   // ── Initialize xterm ──
   useEffect(() => {
@@ -277,6 +295,10 @@ export default function TerminalSessionPage({
       handleKeyRef.current?.(data);
     });
 
+    const selectionDisposable = term.onSelectionChange(() => {
+      setHasSelection(term.hasSelection());
+    });
+
     let lastCols = term.cols;
     let lastRows = term.rows;
     const resizeDisposable = term.onResize(({ cols, rows }) => {
@@ -322,6 +344,7 @@ export default function TerminalSessionPage({
       observer.disconnect();
       textareaObserver.disconnect();
       inputDataDisposable.dispose();
+      selectionDisposable.dispose();
       resizeDisposable.dispose();
       if (resizeTimeoutRef.current) clearTimeout(resizeTimeoutRef.current);
       if (resizeSyncTimeoutRef.current) clearTimeout(resizeSyncTimeoutRef.current);
@@ -373,6 +396,7 @@ export default function TerminalSessionPage({
         connectedRef.current = true;
         setStatusMessage(t("terminal.connected"));
         setLatency(null);
+        if (loadingRef.current) { loadingRef.current = false; dismissLoading(); }
         fitAddonRef.current?.fit();
         if (term) void terminalBridge.resizeSession(sessionId, term.cols, term.rows);
       }
@@ -383,12 +407,14 @@ export default function TerminalSessionPage({
       if (event.type === "terminal.replayCompleted") {
         term?.reset();
         setStatusMessage(t("terminal.live"));
+        if (loadingRef.current) { loadingRef.current = false; dismissLoading(); }
         fitAddonRef.current?.fit();
         if (term) void terminalBridge.resizeSession(sessionId, term.cols, term.rows);
       }
       if (event.type === "terminal.reconnecting") {
         connectedRef.current = false;
         setStatusMessage(t("terminal.reconnecting"));
+        if (!loadingRef.current) { loadingRef.current = true; presentLoading({ message: t("terminal.reconnecting"), duration: 0 }); }
       }
       if (event.type === "terminal.reconnected") {
         connectedRef.current = true;
@@ -400,6 +426,7 @@ export default function TerminalSessionPage({
         connectedRef.current = false;
         const reason = event.reason ?? t("terminal.closed");
         setStatusMessage(reason);
+        if (loadingRef.current) { loadingRef.current = false; dismissLoading(); }
         removeSession(sessionId);
         presentToast({
           message: t("terminal.sessionClosedToast", { reason }),
@@ -411,6 +438,7 @@ export default function TerminalSessionPage({
       }
       if (event.type === "terminal.expired") {
         connectedRef.current = false;
+        if (loadingRef.current) { loadingRef.current = false; dismissLoading(); }
         const reason = event.reason ?? t("terminal.expired");
         setStatusMessage(reason);
         removeSession(sessionId);
@@ -424,6 +452,7 @@ export default function TerminalSessionPage({
       }
       if (event.type === "terminal.exited") {
         connectedRef.current = false;
+        if (loadingRef.current) { loadingRef.current = false; dismissLoading(); }
         const code = event.exitCode;
         const reason = event.reason;
         const statusMsg = reason
@@ -442,6 +471,7 @@ export default function TerminalSessionPage({
       }
       if (event.type === "terminal.startFailed") {
         connectedRef.current = false;
+        if (loadingRef.current) { loadingRef.current = false; dismissLoading(); }
         setStatusMessage(t("terminal.startFailedReason", { reason: event.reason ?? t("common.unknown") }));
         presentToast({
           message: t("terminal.sessionStartFailedToast"),
@@ -450,6 +480,18 @@ export default function TerminalSessionPage({
           color: "danger",
         });
         history.replace("/sessions");
+      }
+      if (event.type === "terminal.displaced") {
+        connectedRef.current = false;
+        if (loadingRef.current) { loadingRef.current = false; dismissLoading(); }
+        setStatusMessage(t("terminal.displaced"));
+        presentToast({
+          message: t("terminal.sessionDisplacedToast"),
+          duration: 3000,
+          position: "bottom",
+          color: "warning",
+        });
+        setTimeout(() => { if (!cancelled) history.replace("/sessions"); }, 1500);
       }
       if (event.type === "terminal.latency") {
         const rtt = (event as any).rtt;
@@ -556,9 +598,22 @@ export default function TerminalSessionPage({
     setStatusMessage(t("terminal.connecting"));
     void connect();
 
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible" && !connectedRef.current && !cancelled) {
+        if (!loadingRef.current) {
+          loadingRef.current = true;
+          presentLoading({ message: t("terminal.reconnecting"), duration: 0 });
+        }
+        void connect();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+
     return () => {
       cancelled = true;
       connectedRef.current = false;
+      document.removeEventListener("visibilitychange", handleVisibility);
+      if (loadingRef.current) { loadingRef.current = false; dismissLoading(); }
       unsubscribe();
       void terminalBridge.disconnectSession();
     };
@@ -660,6 +715,7 @@ export default function TerminalSessionPage({
                 <ToolbarButton icon={arrowDownOutline} onClick={() => handleKey("\x1b[B")} />
                 <ToolbarButton icon={arrowForwardOutline} onClick={() => handleKey("\x1b[C")} />
                 <ToolbarButton icon={clipboardOutline} label={t("terminal.paste")} disabled={!hasClipboard} onClick={handlePaste} />
+                <ToolbarButton icon={copyOutline} label={t("terminal.copy")} disabled={!hasSelection} onClick={handleCopy} />
               </div>
               <ToolbarButton
                 label={t("terminal.done")}

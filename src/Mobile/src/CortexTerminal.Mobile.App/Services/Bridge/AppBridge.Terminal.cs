@@ -114,6 +114,38 @@ public sealed partial class AppBridge
         return ExecuteSafeVoidAsync(() => RequireTerminalGateway().DisconnectAsync());
     }
 
+    [BridgeMethod]
+    public Task<string> DeleteTerminalSessionAsync(string sessionId)
+    {
+        return ExecuteSafeVoidAsync(() => RequireTerminalGateway().DeleteSessionAsync(sessionId, default));
+    }
+
+    [BridgeMethod]
+    public Task<string> HasClipboardTextAsync()
+    {
+        return ExecuteSafeAsync(() =>
+        {
+            var hasText = Clipboard.Default.HasText;
+            return Task.FromResult(new { hasText });
+        });
+    }
+
+    [BridgeMethod]
+    public Task<string> ReadClipboardTextAsync()
+    {
+        return ExecuteSafeAsync(async () =>
+        {
+            var text = await Clipboard.Default.GetTextAsync();
+            return new { text };
+        });
+    }
+
+    [BridgeMethod]
+    public Task<string> WriteClipboardTextAsync(string text)
+    {
+        return ExecuteSafeVoidAsync(() => Clipboard.Default.SetTextAsync(text));
+    }
+
     private TerminalGatewayService RequireTerminalGateway()
         => _terminalGateway ?? throw new InvalidOperationException("Terminal gateway is not configured.");
 

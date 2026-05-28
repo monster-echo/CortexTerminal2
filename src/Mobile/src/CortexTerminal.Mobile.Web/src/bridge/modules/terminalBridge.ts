@@ -1,4 +1,4 @@
-import { SuccessResponseSchema } from "../../schemas/bridgeSchema";
+import { HasClipboardTextSchema, ReadClipboardTextSchema, SuccessResponseSchema } from "../../schemas/bridgeSchema";
 import {
   TerminalSessionSchema,
   TerminalSessionsSchema,
@@ -32,4 +32,12 @@ export const terminalBridge = {
     invoke("CloseTerminalSessionAsync", SuccessResponseSchema, [sessionId], { timeoutMs: 15000 }),
   disconnectSession: () =>
     invoke("DisconnectTerminalSessionAsync", SuccessResponseSchema, [], { timeoutMs: 15000 }),
+  deleteSession: (sessionId: string) =>
+    invoke("DeleteTerminalSessionAsync", SuccessResponseSchema, [sessionId], { timeoutMs: 15000 }),
+  hasClipboardText: () =>
+    invoke("HasClipboardTextAsync", HasClipboardTextSchema, [], { timeoutMs: 3000 }),
+  readClipboardText: () =>
+    invoke("ReadClipboardTextAsync", ReadClipboardTextSchema, [], { timeoutMs: 3000 }),
+  writeClipboardText: (text: string) =>
+    invoke("WriteClipboardTextAsync", SuccessResponseSchema, [text], { timeoutMs: 3000 }),
 };

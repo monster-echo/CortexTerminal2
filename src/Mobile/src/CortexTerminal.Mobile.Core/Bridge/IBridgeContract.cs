@@ -160,6 +160,16 @@ public interface IBridgeContract
     [BridgeMethod]
     Task<string> DeleteAccountAsync();
 
+    // Clipboard
+    [BridgeMethod]
+    Task<string> HasClipboardTextAsync();
+
+    [BridgeMethod]
+    Task<string> ReadClipboardTextAsync();
+
+    [BridgeMethod]
+    Task<string> WriteClipboardTextAsync(string text);
+
     // Demo
     [BridgeMethod]
     Task<string> HelloAsync();
