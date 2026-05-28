@@ -40,6 +40,9 @@ public sealed class TerminalHub(
 
     private async Task<ReattachSessionResult> ReattachSessionCoreAsync(ReattachSessionRequest request, CancellationToken cancellationToken)
     {
+        sessions.TryGetSession(request.SessionId, out var oldSession);
+        var oldConnectionId = oldSession?.AttachedClientConnectionId;
+
         var result = await sessions.ReattachSessionAsync(
             Context.UserIdentifier ?? "unknown",
             request,
@@ -50,6 +53,12 @@ public sealed class TerminalHub(
         if (!result.IsSuccess)
         {
             return result;
+        }
+
+        if (!string.IsNullOrEmpty(oldConnectionId) && oldConnectionId != Context.ConnectionId)
+        {
+            _ = Clients.Client(oldConnectionId).SendAsync("SessionDisplaced",
+                new SessionDisplacedEvent(request.SessionId), CancellationToken.None);
         }
 
         try

@@ -21,10 +21,25 @@ import { nativeBridge } from "../../bridge/nativeBridge";
 import { useAuthStore, type AuthState } from "../../store/authStore";
 import { useAppStore, type AppStoreState } from "../../store/appStore";
 import logoSvg from "../../assets/logo.svg";
+import logoLightSvg from "../../assets/logo-dark.svg";
 import "altcha";
 
 const selectSetSession = (s: AuthState) => s.setSession;
 const selectAppInfo = (s: AppStoreState) => s.appInfo;
+
+function useIsDark() {
+  const [isDark, setIsDark] = useState(() =>
+    document.documentElement.classList.contains("ion-palette-dark")
+  );
+  useEffect(() => {
+    const observer = new MutationObserver(() =>
+      setIsDark(document.documentElement.classList.contains("ion-palette-dark"))
+    );
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    return () => observer.disconnect();
+  }, []);
+  return isDark;
+}
 
 export default function LoginPage() {
   const { t } = useTranslation();
@@ -42,6 +57,8 @@ export default function LoginPage() {
   const [loadingProvider, setLoadingProvider] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
   const setSession = useAuthStore(selectSetSession);
+  const isDark = useIsDark();
+  const logoSrc = isDark ? logoSvg : logoLightSvg;
   const [altchaPayload, setAltchaPayload] = useState<string | null>(null);
   const [altchaJson, setAltchaJson] = useState<string>("");
   const altchaRef = useRef<HTMLElement & { reset: () => void }>(null);
@@ -178,7 +195,7 @@ export default function LoginPage() {
             justifyContent: "center",
           }}
         >
-          <img src={logoSvg} alt="" style={{ width: 64, height: 64, marginBottom: 8 }} />
+          <img src={logoSrc} alt="" style={{ width: 64, height: 64, marginBottom: 8 }} />
           <IonLabel>
             <h1>{t("login.title")}</h1>
           </IonLabel>
@@ -220,6 +237,12 @@ export default function LoginPage() {
                   />
                 </IonItem>
               </IonList>
+
+              {errorMessage && (
+                <IonText color="danger" style={{ maxWidth: 400, width: "100%", textAlign: "left" }}>
+                  <p style={{ fontSize: 13, paddingLeft: 16 }}>{errorMessage}</p>
+                </IonText>
+              )}
 
               <IonButton
                 expand="block"
@@ -287,21 +310,28 @@ export default function LoginPage() {
               </IonList>
 
               {codeSent && (
-                <IonButton
-                  expand="block"
-                  style={btnStyle}
-                  onClick={handlePhoneLogin}
-                  disabled={loadingProvider !== null || code.length < 4}
-                >
-                  {loadingProvider === "phone-login" ? (
-                    <IonSpinner name="crescent" />
-                  ) : (
-                    <>
-                      <IonIcon slot="start" icon={phonePortraitOutline} />
-                      {t("login.login")}
-                    </>
+                <>
+                  {errorMessage && (
+                    <IonText color="danger" style={{ maxWidth: 400, width: "100%", textAlign: "left" }}>
+                      <p style={{ fontSize: 13, paddingLeft: 16 }}>{errorMessage}</p>
+                    </IonText>
                   )}
-                </IonButton>
+                  <IonButton
+                    expand="block"
+                    style={btnStyle}
+                    onClick={handlePhoneLogin}
+                    disabled={loadingProvider !== null || code.length < 4}
+                  >
+                    {loadingProvider === "phone-login" ? (
+                      <IonSpinner name="crescent" />
+                    ) : (
+                      <>
+                        <IonIcon slot="start" icon={phonePortraitOutline} />
+                        {t("login.login")}
+                      </>
+                    )}
+                  </IonButton>
+                </>
               )}
             </>
           )}
@@ -309,6 +339,12 @@ export default function LoginPage() {
           <div style={{ width: "100%", maxWidth: 400, textAlign: "center", paddingTop: 16, fontSize: 13, color: "var(--ion-color-medium)" }}>
             {t("login.orSignInWith")}
           </div>
+
+          {errorMessage && loginMethod !== "password" && !codeSent && (
+            <IonText color="danger" style={{ maxWidth: 400, width: "100%", textAlign: "left" }}>
+              <p style={{ fontSize: 13, paddingLeft: 16 }}>{errorMessage}</p>
+            </IonText>
+          )}
 
           <div className="ion-padding-top" style={{ width: "100%", maxWidth: 400 }}>
             {showAppleLogin && (
@@ -361,12 +397,6 @@ export default function LoginPage() {
               )}
             </IonButton>
           </div>
-
-          {errorMessage && (
-            <IonText color="danger" className="ion-padding-top">
-              <p>{errorMessage}</p>
-            </IonText>
-          )}
 
           <div style={{
             width: "100%", maxWidth: 400, textAlign: "center",

@@ -75,6 +75,10 @@ public sealed record ReplayCompleted(
     [property: Key(0)] string SessionId);
 
 [MessagePackObject]
+public sealed record SessionDisplacedEvent(
+    [property: Key(0)] string SessionId);
+
+[MessagePackObject]
 public sealed record WorkerInfoFrame(
     [property: Key(0)] string WorkerId,
     [property: Key(1)] string? Hostname,

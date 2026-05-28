@@ -250,7 +250,7 @@ export default function TerminalSessionPage({
         selectionBackground: "rgba(215,255,229,0.25)",
       },
       cursorBlink: true,
-      scrollback: 1000,
+      scrollback: 64000,
       convertEol: false,
     });
 

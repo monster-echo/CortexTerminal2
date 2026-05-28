@@ -6,6 +6,9 @@ import {
   IonHeader,
   IonIcon,
   IonItem,
+  IonItemOption,
+  IonItemOptions,
+  IonItemSliding,
   IonLabel,
   IonList,
   IonMenuButton,
@@ -15,8 +18,9 @@ import {
   IonSkeletonText,
   IonTitle,
   IonToolbar,
+  useIonToast,
 } from "@ionic/react";
-import { addOutline, terminalOutline } from "ionicons/icons";
+import { addOutline, terminalOutline, trashOutline } from "ionicons/icons";
 import { RouteComponentProps } from "react-router-dom";
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -44,6 +48,7 @@ const selectWorkers = (s: SessionState) => s.workers;
 const selectIsGatewayLoaded = (s: SessionState) => s.isGatewayLoaded;
 const selectSetSessions = (s: SessionState) => s.setSessions;
 const selectSetWorkers = (s: SessionState) => s.setWorkers;
+const selectRemoveSession = (s: SessionState) => s.removeSession;
 
 export default function SessionsPage({ history }: RouteComponentProps) {
   const { t } = useTranslation();
@@ -54,6 +59,8 @@ export default function SessionsPage({ history }: RouteComponentProps) {
   const isGatewayLoaded = useSessionStore(selectIsGatewayLoaded);
   const setSessions = useSessionStore(selectSetSessions);
   const setWorkers = useSessionStore(selectSetWorkers);
+  const removeSession = useSessionStore(selectRemoveSession);
+  const [presentToast] = useIonToast();
 
   const create = useCreateSession();
 
@@ -130,26 +137,47 @@ export default function SessionsPage({ history }: RouteComponentProps) {
           <>
             <IonList inset>
               {recentSessions.map((session) => (
-                <IonItem
-                  key={session.id}
-                  button
-                  detail
-                  onClick={() => {
-                    history.replace(`/sessions/${session.id}`);
-                  }}
-                >
-                  <IonIcon slot="start" icon={terminalOutline} />
-                  <IonLabel>
-                    <h2>{session.title}</h2>
-                    <p>{session.cwd ?? session.subtitle}{session.updatedAt ? ` · ${formatRelativeTime(session.updatedAt, t)}` : ""}</p>
-                  </IonLabel>
-                  <IonBadge
-                    color={session.status === "running" ? "success" : "medium"}
-                    slot="end"
+                <IonItemSliding key={session.id}>
+                  <IonItem
+                    button
+                    detail
+                    onClick={() => {
+                      history.replace(`/sessions/${session.id}`);
+                    }}
                   >
-                    {t(`sessions.status${session.status.charAt(0).toUpperCase()}${session.status.slice(1)}`)}
-                  </IonBadge>
-                </IonItem>
+                    <IonIcon slot="start" icon={terminalOutline} />
+                    <IonLabel>
+                      <h2>{session.title}</h2>
+                      <p>{session.cwd ?? session.subtitle}{session.updatedAt ? ` · ${formatRelativeTime(session.updatedAt, t)}` : ""}</p>
+                    </IonLabel>
+                    <IonBadge
+                      color={session.status === "running" ? "success" : "medium"}
+                      slot="end"
+                    >
+                      {t(`sessions.status${session.status.charAt(0).toUpperCase()}${session.status.slice(1)}`)}
+                    </IonBadge>
+                  </IonItem>
+                  <IonItemOptions side="end">
+                    <IonItemOption
+                      color="danger"
+                      onClick={async () => {
+                        try {
+                          await terminalBridge.deleteSession(session.id);
+                          removeSession(session.id);
+                        } catch (e) {
+                          presentToast({
+                            message: e instanceof Error ? e.message : String(e),
+                            duration: 3000,
+                            position: "bottom",
+                            color: "danger",
+                          });
+                        }
+                      }}
+                    >
+                      <IonIcon icon={trashOutline} slot="icon-only" />
+                    </IonItemOption>
+                  </IonItemOptions>
+                </IonItemSliding>
               ))}
             </IonList>
           </>

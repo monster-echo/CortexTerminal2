@@ -19,6 +19,7 @@ public sealed class TerminalGatewayService
     // Latency probe state
     private readonly Dictionary<string, System.Diagnostics.Stopwatch> _pendingProbes = [];
     private Timer? _latencyProbeTimer;
+    private volatile bool _suppressClosedEvent;
 
     public TerminalGatewayService(Uri gatewayBaseUri, AuthService authService, HttpClient httpClient, ILogger<TerminalGatewayService> logger)
     {
@@ -28,6 +29,7 @@ public sealed class TerminalGatewayService
         _logger = logger;
         // Pre-warm the HttpClient connection pool (DNS + TLS) in the background
         _ = WarmUpAsync();
+        App.AppResumed += OnAppResumed;
     }
 
     private async Task WarmUpAsync()
@@ -44,6 +46,41 @@ public sealed class TerminalGatewayService
         {
             LogDiag($"[GATEWAY] WarmUp FAIL in {sw.ElapsedMilliseconds}ms: {ex.Message}");
         }
+    }
+
+    public bool IsConnected => _connection?.State == HubConnectionState.Connected;
+
+    private async void OnAppResumed()
+    {
+        var sessionId = _connectedSessionId;
+        var connection = _connection;
+        if (string.IsNullOrEmpty(sessionId) || connection is null) return;
+
+        _logger.LogInformation("App resumed, checking SignalR connection state: {State}", connection.State);
+
+        if (connection.State == HubConnectionState.Connected)
+        {
+            // Connection still alive, request a fresh replay
+            try
+            {
+                var result = await connection.InvokeAsync<ReattachSessionResult>(
+                    "ReattachSession",
+                    new ReattachSessionRequest(sessionId),
+                    CancellationToken.None);
+                if (result.IsSuccess)
+                {
+                    await PushEventAsync(new { type = "terminal.reattached", sessionId });
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Re-attach on resume failed for session {SessionId}.", sessionId);
+            }
+            return;
+        }
+
+        // Connection is Disconnected or Reconnecting — let the front-end trigger a full reconnect
+        await PushEventAsync(new { type = "terminal.reconnecting", sessionId, reason = "app_resumed" });
     }
 
     public event Func<object, Task>? TerminalEvent;
@@ -95,7 +132,8 @@ public sealed class TerminalGatewayService
 
     public async Task ConnectSessionAsync(string sessionId, CancellationToken cancellationToken)
     {
-        if (_connection is not null && _connectedSessionId == sessionId)
+        if (_connection is not null && _connectedSessionId == sessionId
+            && _connection.State == HubConnectionState.Connected)
         {
             return;
         }
@@ -125,7 +163,15 @@ public sealed class TerminalGatewayService
 
         if (!result.IsSuccess)
         {
-            await connection.DisposeAsync();
+            _suppressClosedEvent = true;
+            try
+            {
+                await connection.DisposeAsync();
+            }
+            finally
+            {
+                _suppressClosedEvent = false;
+            }
             throw new InvalidOperationException(result.ErrorCode ?? "Could not reattach session.");
         }
 
@@ -161,6 +207,14 @@ public sealed class TerminalGatewayService
     {
         var connection = RequireConnection(sessionId);
         await connection.InvokeAsync("CloseSession", new CloseSessionRequest(sessionId), cancellationToken);
+    }
+
+    public async Task DeleteSessionAsync(string sessionId, CancellationToken cancellationToken)
+    {
+        var token = await RequireTokenAsync(cancellationToken);
+        using var request = CreateRequest(HttpMethod.Delete, $"/api/me/sessions/{sessionId}", token);
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
+        response.EnsureSuccessStatusCode();
     }
 
     public async Task DisconnectAsync()
@@ -201,6 +255,13 @@ public sealed class TerminalGatewayService
                 _ = PushEventAsync(new { type = "terminal.reattached", evt.SessionId });
             }
         });
+        connection.On<SessionDisplacedEvent>("SessionDisplaced", evt =>
+        {
+            if (evt.SessionId == sessionId)
+            {
+                _ = PushEventAsync(new { type = "terminal.displaced", evt.SessionId });
+            }
+        });
         connection.On<ReplayChunk>("ReplayChunk", chunk => PushTerminalChunkAsync("terminal.replay", sessionId, chunk.SessionId, chunk.Stream, chunk.Payload));
         connection.On<ReplayCompleted>("ReplayCompleted", evt =>
         {
@@ -233,8 +294,33 @@ public sealed class TerminalGatewayService
             }
         });
         connection.Reconnecting += error => PushEventAsync(new { type = "terminal.reconnecting", sessionId, reason = error?.Message });
-        connection.Reconnected += _ => PushEventAsync(new { type = "terminal.reconnected", sessionId });
-        connection.Closed += error => PushEventAsync(new { type = "terminal.closed", sessionId, reason = error?.Message });
+        connection.Reconnected += async _ =>
+        {
+            await PushEventAsync(new { type = "terminal.reconnected", sessionId });
+            if (_connectedSessionId == sessionId)
+            {
+                try
+                {
+                    var result = await connection.InvokeAsync<ReattachSessionResult>(
+                        "ReattachSession",
+                        new ReattachSessionRequest(sessionId),
+                        CancellationToken.None);
+                    if (result.IsSuccess)
+                    {
+                        await PushEventAsync(new { type = "terminal.reattached", sessionId });
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Re-attach after reconnect failed for session {SessionId}.", sessionId);
+                }
+            }
+        };
+        connection.Closed += error =>
+        {
+            if (_suppressClosedEvent) return Task.CompletedTask;
+            return PushEventAsync(new { type = "terminal.closed", sessionId, reason = error?.Message });
+        };
         connection.On<LatencyProbeFrame>("LatencyProbeAck", frame =>
         {
             if (frame.SessionId != sessionId) return Task.CompletedTask;

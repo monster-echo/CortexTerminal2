@@ -5,7 +5,7 @@ import { createHashHistory } from "history";
 import { useEffect } from "react";
 import AppLayout from "./components/AppLayout";
 import { nativeBridge } from "./bridge/nativeBridge";
-import { transport } from "./bridge/runtime";
+import { transport, registerSessionInvalidatedHandler } from "./bridge/runtime";
 import SettingsFeaturePage from "./features/settings/SettingsFeaturePage";
 import LoginPage from "./features/auth/LoginPage";
 import SessionsPage from "./features/sessions/SessionsPage";
@@ -207,6 +207,7 @@ export default function App({
     };
 
     const unsubscribeNative = transport.onMessage(onNativeMessage);
+    registerSessionInvalidatedHandler(() => clearSession());
     window.addEventListener("online", updateOnlineStatus);
     window.addEventListener("offline", updateOnlineStatus);
     bootstrap();

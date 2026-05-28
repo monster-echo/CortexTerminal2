@@ -36,18 +36,23 @@ public static class MauiProgram
 		builder.Services.AddSingleton(sp =>
 		{
 			var gatewayBaseUri = sp.GetRequiredService<Uri>();
-			var handler = CreateGatewayHandler();
-			var httpClient = new HttpClient(handler) { BaseAddress = gatewayBaseUri, Timeout = TimeSpan.FromSeconds(30) };
-			return new AuthService(sp.GetRequiredService<ITokenStore>(), httpClient);
+			var authService = new AuthService(
+				sp.GetRequiredService<ITokenStore>(),
+				new HttpClient(CreateGatewayHandler()) { BaseAddress = gatewayBaseUri, Timeout = TimeSpan.FromSeconds(30) });
+			return authService;
 		});
 		builder.Services.AddSingleton(sp =>
 		{
 			var gatewayBaseUri = sp.GetRequiredService<Uri>();
-			var handler = CreateGatewayHandler();
+			var authService = sp.GetRequiredService<AuthService>();
+			var handler = new UnauthorizedHandler(authService)
+			{
+				InnerHandler = CreateGatewayHandler()
+			};
 			var httpClient = new HttpClient(handler) { BaseAddress = gatewayBaseUri, Timeout = TimeSpan.FromSeconds(30) };
 			return new TerminalGatewayService(
 				gatewayBaseUri,
-				sp.GetRequiredService<AuthService>(),
+				authService,
 				httpClient,
 				sp.GetRequiredService<ILogger<TerminalGatewayService>>());
 		});

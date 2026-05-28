@@ -3,6 +3,12 @@
 import type { ZodType } from "zod";
 import { transport } from "./transport";
 
+let onSessionInvalidated: (() => void) | null = null;
+
+export function registerSessionInvalidatedHandler(handler: () => void) {
+  onSessionInvalidated = handler;
+}
+
 export class BridgeUnavailableError extends Error {}
 export class BridgeTimeoutError extends Error {}
 export class BridgeSchemaValidationError extends Error {}
@@ -58,8 +64,12 @@ export async function invoke<T>(
       const data = typeof result === "string" ? JSON.parse(result) : result;
 
       if (data && typeof data === "object" && "error" in data) {
-        console.log(`⏱ [bridge] ${methodName} IPC=${(t2 - t1).toFixed(0)}ms ERROR: ${(data as { error: string }).error}`);
-        throw new Error((data as { error: string }).error);
+        const errorMsg = (data as { error: string }).error;
+        console.log(`⏱ [bridge] ${methodName} IPC=${(t2 - t1).toFixed(0)}ms ERROR: ${errorMsg}`);
+        if (errorMsg.includes("401") || errorMsg.toLowerCase().includes("unauthorized")) {
+          onSessionInvalidated?.();
+        }
+        throw new Error(errorMsg);
       }
 
       const parsed = schema.safeParse(data);

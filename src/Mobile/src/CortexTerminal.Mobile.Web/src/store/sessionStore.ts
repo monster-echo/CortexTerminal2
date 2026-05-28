@@ -22,8 +22,9 @@ export const useSessionStore = create<SessionState>((set) => ({
   setCurrentSession: (currentSessionId) => set({ currentSessionId }),
   setSessions: (recentSessions) =>
     set((state) => {
-      const sorted = [...recentSessions].sort((a, b) =>
-        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+      const sorted = [...recentSessions].sort(
+        (a, b) =>
+          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
       );
       return {
         recentSessions: sorted,
@@ -31,7 +32,7 @@ export const useSessionStore = create<SessionState>((set) => ({
           state.currentSessionId &&
           sorted.some((session) => session.id === state.currentSessionId)
             ? state.currentSessionId
-            : sorted[0]?.id ?? null,
+            : (sorted[0]?.id ?? null),
       };
     }),
   setWorkers: (workers) => set({ workers }),
@@ -39,10 +40,10 @@ export const useSessionStore = create<SessionState>((set) => ({
   touchSession: (session) =>
     set((state) => ({
       currentSessionId: session.id,
-      recentSessions: [
-        session,
-        ...state.recentSessions.filter((item) => item.id !== session.id),
-      ],
+      // recentSessions: [
+      //   session,
+      //   ...state.recentSessions.filter((item) => item.id !== session.id),
+      // ],
     })),
   removeSession: (sessionId) =>
     set((state) => {
@@ -51,7 +52,7 @@ export const useSessionStore = create<SessionState>((set) => ({
         recentSessions: filtered,
         currentSessionId:
           state.currentSessionId === sessionId
-            ? filtered[0]?.id ?? null
+            ? (filtered[0]?.id ?? null)
             : state.currentSessionId,
       };
     }),
