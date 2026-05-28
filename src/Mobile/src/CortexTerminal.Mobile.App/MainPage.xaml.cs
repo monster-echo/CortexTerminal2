@@ -21,6 +21,8 @@ public partial class MainPage : ContentPage
 	private readonly AppBridge _bridge;
 	private readonly ILogger<MainPage> _logger;
 	private CancellationTokenSource? _splashTimeoutCts;
+	private volatile bool _isResumeHandling;
+	private TaskCompletionSource<object?>? _appReadyTcs;
 
 #if IOS || MACCATALYST
 	private NSObject? _keyboardShowToken;
@@ -86,11 +88,9 @@ public partial class MainPage : ContentPage
 	protected override void OnAppearing()
 	{
 		base.OnAppearing();
-		// Do NOT call ApplyNativeTheme here — the constructor already set splash-matching
-		// values. Let the JS bridge send the correct theme via ApplyNativeTheme() later.
 		App.AppResumed -= OnAppResumed;
 		App.AppResumed += OnAppResumed;
-
+		CheckAndRecoverWebViewIfNeeded();
 #if IOS || MACCATALYST
 		SetupKeyboardHandling();
 #endif
@@ -101,7 +101,6 @@ public partial class MainPage : ContentPage
 #if IOS || MACCATALYST
 		TeardownKeyboardHandling();
 #endif
-		App.AppResumed -= OnAppResumed;
 		base.OnDisappearing();
 	}
 
@@ -222,34 +221,50 @@ public partial class MainPage : ContentPage
 
 	private void OnAppResumed()
 	{
-		Task.Run(async () =>
+		if (_isResumeHandling) return;
+		CheckAndRecoverWebViewIfNeeded();
+	}
+
+	private async void CheckAndRecoverWebViewIfNeeded()
+	{
+		if (_isResumeHandling) return;
+		_isResumeHandling = true;
+		try
 		{
 			await Task.Delay(300);
-			MainThread.BeginInvokeOnMainThread(async () =>
+			await MainThread.InvokeOnMainThreadAsync(async () =>
 			{
-				try
-				{
-					await HandleResumeAsync();
-				}
+				try { await HandleResumeAsync(); }
 				catch (Exception ex)
 				{
 					_logger.LogError(ex, "Resume handling failed.");
 					HideSplashScreen();
 				}
 			});
-		});
+		}
+		finally
+		{
+			_isResumeHandling = false;
+		}
 	}
 
 	private async Task HandleResumeAsync()
 	{
-		if (hybridWebView?.Handler?.PlatformView is null)
+		// If the platform view is not ready, show splash and wait for it to mount
+		if (hybridWebView?.Handler?.PlatformView is null || !IsWebViewAttached(hybridWebView.Handler.PlatformView))
 		{
-			return;
-		}
-
-		if (!IsWebViewAttached(hybridWebView.Handler.PlatformView))
-		{
-			return;
+			ShowSplashScreenWithTimeout(TimeSpan.FromSeconds(10));
+			for (var i = 0; i < 25; i++)
+			{
+				await Task.Delay(200);
+				if (hybridWebView?.Handler?.PlatformView is not null && IsWebViewAttached(hybridWebView.Handler.PlatformView))
+					break;
+			}
+			if (hybridWebView?.Handler?.PlatformView is null || !IsWebViewAttached(hybridWebView.Handler.PlatformView))
+			{
+				_logger.LogWarning("WebView never reattached after resume.");
+				return; // splash stays visible, user doesn't see white screen
+			}
 		}
 
 		// 1. 静默探活：给 WebView 300 毫秒的时间来回应心跳
@@ -339,14 +354,82 @@ public partial class MainPage : ContentPage
 #endif
 
 #if IOS || MACCATALYST
-		if (platformView is WebKit.WKWebView wkWebView)
+		if (platformView is not WebKit.WKWebView wkWebView)
 		{
-			wkWebView.Reload();
+			HideSplashScreen();
 			return;
 		}
-#endif
 
-		HideSplashScreen();
+		// Level 1: Reload
+		_logger.LogInformation("Recovery Level 1: Reload");
+		wkWebView.Reload();
+		if (await WaitForAppReadyAsync(TimeSpan.FromSeconds(6))) return;
+
+		// Level 2: LoadRequest
+		_logger.LogInformation("Recovery Level 2: LoadRequest");
+		wkWebView.StopLoading();
+		await Task.Delay(100);
+		var url = wkWebView.Url?.AbsoluteString ?? "about:blank";
+		wkWebView.LoadRequest(new NSUrlRequest(new NSUrl(url)));
+		if (await WaitForAppReadyAsync(TimeSpan.FromSeconds(6))) return;
+
+		// Level 3: Recreate HybridWebView
+		_logger.LogWarning("Recovery Level 3: Recreating HybridWebView");
+		await RecreateHybridWebViewAsync();
+#endif
+	}
+
+	private async Task<bool> WaitForAppReadyAsync(TimeSpan timeout)
+	{
+		_appReadyTcs = new TaskCompletionSource<object?>();
+		var tcsTask = _appReadyTcs.Task;
+		var completed = await Task.WhenAny(tcsTask, Task.Delay(timeout));
+		_appReadyTcs = null;
+		return completed == tcsTask;
+	}
+
+	private async Task RecreateHybridWebViewAsync()
+	{
+		await MainThread.InvokeOnMainThreadAsync(() =>
+		{
+			try
+			{
+				var grid = hybridWebView.Parent as Grid;
+				if (grid is null)
+				{
+					_logger.LogError("Cannot recreate WebView: parent is not a Grid.");
+					HideSplashScreen();
+					return;
+				}
+
+				var oldWebView = hybridWebView;
+				grid.Children.Remove(oldWebView);
+
+				var newWebView = new HybridWebView
+				{
+					HybridRoot = "wwwroot",
+					DefaultFile = "index.html",
+				};
+				newWebView.Loaded += OnHybridWebViewLoaded;
+				newWebView.RawMessageReceived += OnHybridWebViewRawMessageReceived;
+				newWebView.WebResourceRequested += OnHybridWebViewWebResourceRequested;
+				Grid.SetRow(newWebView, 0);
+				grid.Children.Insert(0, newWebView);
+
+				hybridWebView = newWebView;
+				newWebView.SetInvokeJavaScriptTarget(_bridge);
+
+				oldWebView.Loaded -= OnHybridWebViewLoaded;
+				oldWebView.RawMessageReceived -= OnHybridWebViewRawMessageReceived;
+				oldWebView.WebResourceRequested -= OnHybridWebViewWebResourceRequested;
+				oldWebView.Handler?.DisconnectHandler();
+			}
+			catch (Exception ex)
+			{
+				_logger.LogError(ex, "Failed to recreate HybridWebView.");
+				HideSplashScreen();
+			}
+		});
 	}
 
 	private void OnHybridWebViewLoaded(object? sender, EventArgs e)
@@ -528,6 +611,7 @@ public partial class MainPage : ContentPage
 
 	private void HandleAppReady()
 	{
+		_appReadyTcs?.TrySetResult(null);
 		_splashTimeoutCts?.Cancel();
 		_splashTimeoutCts = null;
 		MainThread.BeginInvokeOnMainThread(HideSplashScreen);
