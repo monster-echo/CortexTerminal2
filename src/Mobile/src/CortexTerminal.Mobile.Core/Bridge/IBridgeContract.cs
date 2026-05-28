@@ -157,6 +157,9 @@ public interface IBridgeContract
     [BridgeMethod]
     Task<string> VerifyActivationCodeAsync(string userCode);
 
+    [BridgeMethod]
+    Task<string> DeleteAccountAsync();
+
     // Demo
     [BridgeMethod]
     Task<string> HelloAsync();

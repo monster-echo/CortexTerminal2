@@ -138,6 +138,25 @@ public sealed class AuthService
         await _tokenStore.ClearAsync(ct);
     }
 
+    public async Task<AuthResult> DeleteAccountAsync(CancellationToken ct)
+    {
+        if (string.IsNullOrEmpty(_accessToken))
+            return new AuthResult(false, "Not authenticated");
+
+        var request = new HttpRequestMessage(HttpMethod.Delete, "/api/me/account");
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _accessToken);
+
+        var response = await _httpClient.SendAsync(request, ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            var body = await response.Content.ReadAsStringAsync(ct);
+            return new AuthResult(false, ExtractError(body));
+        }
+
+        await LogoutAsync(ct);
+        return new AuthResult(true, null);
+    }
+
     private async Task SetTokenAsync(string token, string username, CancellationToken ct)
     {
         _accessToken = token;

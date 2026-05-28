@@ -120,4 +120,16 @@ public sealed partial class AppBridge
             return new { confirmed = true };
         });
     }
+
+    [BridgeMethod]
+    public Task<string> DeleteAccountAsync()
+    {
+        return ExecuteSafeAsync(async () =>
+        {
+            if (_authService is null) throw new InvalidOperationException("AuthService not configured");
+            var result = await _authService.DeleteAccountAsync(default);
+            if (!result.Success) throw new InvalidOperationException(result.Error);
+            return new { success = true };
+        });
+    }
 }

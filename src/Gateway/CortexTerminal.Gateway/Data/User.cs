@@ -39,6 +39,12 @@ public class User
     [Column("password_hash")]
     public string? PasswordHash { get; set; }
 
+    [Column("apple_refresh_token")]
+    public string? AppleRefreshToken { get; set; }
+
+    [Column("deleted_at_utc")]
+    public DateTimeOffset? DeletedAtUtc { get; set; }
+
     [Required]
     [Column("created_at_utc")]
     public DateTimeOffset CreatedAtUtc { get; set; } = DateTimeOffset.UtcNow;

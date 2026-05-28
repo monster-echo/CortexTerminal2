@@ -44,7 +44,10 @@
     "passwordLogin": "密码登录",
     "errorPasswordLogin": "用户名或密码错误",
     "phoneLogin": "手机号登录",
-    "verificationRequired": "请先完成人机验证"
+    "verificationRequired": "请先完成人机验证",
+    "agreementPrefix": "登录即表示同意",
+    "agreementAnd": "和",
+    "agreementSuffix": ""
   },
   "home": {
     "title": "原生功能",
@@ -426,7 +429,13 @@
     "activateWorker": "激活 Worker",
     "logoutConfirmTitle": "退出登录",
     "logoutConfirmMessage": "确定要退出登录吗？",
-    "logoutConfirm": "退出"
+    "logoutConfirm": "退出",
+    "deleteAccount": "注销账户",
+    "deleteAccountConfirmTitle": "注销账户",
+    "deleteAccountConfirmMessage": "此操作将永久删除您的账户及所有关联数据，且不可恢复。",
+    "deleteAccountFinalConfirm": "确定要注销吗？此操作不可撤销。",
+    "deleteAccountConfirm": "注销",
+    "deleteAccountSuccess": "账户已成功注销"
   },
   "sessions": {
     "title": "会话",
@@ -500,7 +509,8 @@
     "sessionExpiredToast": "会话已过期：{{reason}}",
     "sessionClosedToast": "会话已关闭：{{reason}}",
     "sessionExitedToast": "会话已退出 ({{code}})",
-    "sessionStartFailedToast": "会话启动失败"
+    "sessionStartFailedToast": "会话启动失败",
+    "paste": "粘贴"
   },
   "common": {
     "loading": "加载中...",

@@ -44,7 +44,10 @@
     "passwordLogin": "Sign in with password",
     "errorPasswordLogin": "Invalid username or password",
     "phoneLogin": "Phone Login",
-    "verificationRequired": "Please complete verification first"
+    "verificationRequired": "Please complete verification first",
+    "agreementPrefix": "By signing in you agree to the ",
+    "agreementAnd": " and ",
+    "agreementSuffix": "."
   },
   "home": {
     "title": "Native Features",
@@ -426,7 +429,13 @@
     "activateWorker": "Activate Worker",
     "logoutConfirmTitle": "Sign Out",
     "logoutConfirmMessage": "Are you sure you want to sign out?",
-    "logoutConfirm": "Sign Out"
+    "logoutConfirm": "Sign Out",
+    "deleteAccount": "Delete Account",
+    "deleteAccountConfirmTitle": "Delete Account",
+    "deleteAccountConfirmMessage": "This will permanently delete your account and all associated data. This action cannot be undone.",
+    "deleteAccountFinalConfirm": "Are you absolutely sure? Type your username to confirm is not required, but please be certain.",
+    "deleteAccountConfirm": "Delete",
+    "deleteAccountSuccess": "Account deleted successfully"
   },
   "sessions": {
     "title": "Sessions",
@@ -500,7 +509,8 @@
     "sessionExpiredToast": "Session expired: {{reason}}",
     "sessionClosedToast": "Session closed: {{reason}}",
     "sessionExitedToast": "Session exited ({{code}})",
-    "sessionStartFailedToast": "Session start failed"
+    "sessionStartFailedToast": "Session start failed",
+    "paste": "Paste"
   },
   "common": {
     "loading": "Loading...",

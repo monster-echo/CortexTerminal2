@@ -244,6 +244,7 @@ var phoneAuthOptions = new PhoneAuthOptions();
 builder.Configuration.GetSection("PhoneAuth").Bind(phoneAuthOptions);
 var appleOAuthOptions = new AppleOAuthOptions();
 builder.Configuration.GetSection("AppleOAuth").Bind(appleOAuthOptions);
+builder.Services.AddSingleton(appleOAuthOptions);
 var huaweiOAuthOptions = new HuaweiOAuthOptions();
 builder.Configuration.GetSection("HuaweiOAuth").Bind(huaweiOAuthOptions);
 
@@ -448,6 +449,12 @@ app.UseStaticFiles(new StaticFileOptions
     }
 });
 
+// Legal pages (served before SPA fallback)
+app.MapGet("/privacy", () => Results.File("wwwroot/privacy.html", "text/html"));
+app.MapGet("/terms", () => Results.File("wwwroot/terms.html", "text/html"));
+app.MapGet("/account-deletion", () => Results.File("wwwroot/account-deletion.html", "text/html"));
+app.MapGet("/support", () => Results.File("wwwroot/support.html", "text/html"));
+
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(30) });
@@ -514,8 +521,8 @@ app.MapPost("/api/auth/refresh", async (ClaimsPrincipal user, IServiceProvider s
     var isWorker = user.HasClaim("role", "worker");
     var existingRole = user.FindFirstValue("role");
 
-    // 旧 token 可能没有 role claim，从数据库补充
-    if (string.IsNullOrEmpty(existingRole) && !isWorker)
+    // Check user status for non-worker refresh
+    if (!isWorker)
     {
         try
         {
@@ -526,7 +533,11 @@ app.MapPost("/api/auth/refresh", async (ClaimsPrincipal user, IServiceProvider s
             if (dbUser is null)
                 dbUser = await db.Users.FirstOrDefaultAsync(u => u.Username == userId);
             if (dbUser is not null)
+            {
+                if (dbUser.Status == "disabled" || dbUser.Status == "deleted")
+                    return Results.Unauthorized();
                 existingRole = dbUser.Role;
+            }
         }
         catch (InvalidOperationException) { }
     }
@@ -619,7 +630,7 @@ app.MapGet("/api/auth/callback/github", async (string? code, string? state, OAut
 
     // Auto-register / lookup user in database
     var dbUser = await EnsureUser(serviceProvider, githubLogin, email, displayName, avatarUrl, "github", githubLogin);
-    if (dbUser is null || dbUser.Status == "disabled")
+    if (dbUser is null || dbUser.Status == "disabled" || dbUser.Status == "deleted")
         return OAuthRedirect(redirectUrl, error: "account_disabled");
 
     var jwt = CreateAccessToken(dbUser.Username, dbUser.Email, dbUser.Role);
@@ -693,7 +704,7 @@ app.MapGet("/api/auth/callback/google", async (string? code, string? state, OAut
 
     // Auto-register / lookup user in database
     var dbUser = await EnsureUser(serviceProvider, username, email, displayName, avatarUrl, "google", providerId);
-    if (dbUser is null || dbUser.Status == "disabled")
+    if (dbUser is null || dbUser.Status == "disabled" || dbUser.Status == "deleted")
         return OAuthRedirect(redirectUrl, error: "account_disabled");
 
     var jwt = CreateAccessToken(dbUser.Username, dbUser.Email, dbUser.Role);
@@ -858,7 +869,7 @@ app.MapPost("/api/auth/phone/verify", async (VerifyCodeRequest request, PhoneCod
     var displayName = $"{request.Phone[..3]}****{last4}";
 
     var dbUser = await EnsureUser(serviceProvider, username, null, displayName, null, "phone", providerId);
-    if (dbUser is null || dbUser.Status == "disabled")
+    if (dbUser is null || dbUser.Status == "disabled" || dbUser.Status == "deleted")
         return Results.BadRequest(new { error = "Account disabled" });
 
     var jwt = CreateAccessToken(dbUser.Username, dbUser.Email, dbUser.Role);
@@ -946,7 +957,7 @@ app.MapPost("/api/auth/huawei/quick-login", async (HuaweiQuickLoginRequest reque
         var displayName = $"{phoneNumber[..3]}****{last4}";
 
         var dbUser = await EnsureUser(serviceProvider, username, null, displayName, null, "huawei", providerId);
-        if (dbUser is null || dbUser.Status == "disabled")
+        if (dbUser is null || dbUser.Status == "disabled" || dbUser.Status == "deleted")
             return Results.BadRequest(new { error = "Account disabled" });
 
         var jwt = CreateAccessToken(dbUser.Username, dbUser.Email, dbUser.Role);
@@ -1052,8 +1063,30 @@ app.MapPost("/api/auth/callback/apple", async (HttpContext ctx, OAuthStateServic
     var displayName = !string.IsNullOrEmpty(appleEmail) ? appleEmail : username;
 
     var dbUser = await EnsureUser(serviceProvider, username, appleEmail, displayName, null, "apple", appleSub);
-    if (dbUser is null || dbUser.Status == "disabled")
+    if (dbUser is null || dbUser.Status == "disabled" || dbUser.Status == "deleted")
         return OAuthRedirect(redirectUrl, error: "account_disabled");
+
+    // Store Apple refresh token for account deletion revocation
+    var appleRefreshToken = tokenJson.TryGetProperty("refresh_token", out var rtProp) ? rtProp.GetString() : null;
+    if (!string.IsNullOrEmpty(appleRefreshToken))
+    {
+        try
+        {
+            var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
+            using var rtScope = scopeFactory.CreateScope();
+            var rtDb = rtScope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var rtUser = await rtDb.Users.FindAsync(dbUser.Id);
+            if (rtUser is not null)
+            {
+                rtUser.AppleRefreshToken = appleRefreshToken;
+                await rtDb.SaveChangesAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[AppleAuth] Failed to store refresh token: {ex.Message}");
+        }
+    }
 
     var jwt = CreateAccessToken(dbUser.Username, dbUser.Email, dbUser.Role);
     auditLog.Record(new AuditLogEntry(
@@ -1459,6 +1492,77 @@ app.MapPatch("/api/users/{userId}", async (string userId, UpdateUserRequest requ
     ));
 
     return Results.Ok();
+}).RequireAuthorization();
+
+app.MapDelete("/api/me/account", async (ClaimsPrincipal user, IServiceProvider serviceProvider, IAuditLogStore auditLog) =>
+{
+    var userId = GetUserId(user);
+
+    await using var scope = serviceProvider.CreateAsyncScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+    var dbUser = await db.Users.FindAsync(userId);
+    if (dbUser is null)
+        return Results.NotFound();
+    if (dbUser.Status == "deleted")
+        return Results.NotFound();
+
+    // Revoke Apple token if applicable
+    if (dbUser.AuthProvider == "apple" && !string.IsNullOrEmpty(dbUser.AppleRefreshToken))
+    {
+        try
+        {
+            var appleOptions = serviceProvider.GetRequiredService<AppleOAuthOptions>();
+            var clientSecret = CreateAppleClientSecret(appleOptions);
+            using var httpClient = new HttpClient();
+            var revokeResponse = await httpClient.PostAsync("https://appleid.apple.com/auth/revoke", new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["client_id"] = appleOptions.ClientId,
+                ["client_secret"] = clientSecret,
+                ["token"] = dbUser.AppleRefreshToken,
+                ["token_type_hint"] = "refresh_token"
+            }));
+            if (!revokeResponse.IsSuccessStatusCode)
+            {
+                var errorBody = await revokeResponse.Content.ReadAsStringAsync();
+                Console.WriteLine($"[AccountDelete] Apple token revocation failed: {errorBody}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[AccountDelete] Apple token revocation error: {ex.Message}");
+        }
+    }
+
+    // Soft delete: mark user as deleted
+    dbUser.Status = "deleted";
+    dbUser.DeletedAtUtc = DateTimeOffset.UtcNow;
+    dbUser.AppleRefreshToken = null;
+
+    // Remove associated sessions
+    var userSessions = db.Sessions.Where(s => s.UserId == userId);
+    db.Sessions.RemoveRange(userSessions);
+
+    // Unlink workers
+    var userWorkers = db.Workers.Where(w => w.OwnerUserId == userId);
+    foreach (var worker in userWorkers)
+    {
+        worker.OwnerUserId = null;
+    }
+
+    await db.SaveChangesAsync();
+
+    auditLog.Record(new AuditLogEntry(
+        Id: Guid.NewGuid().ToString("N"),
+        Timestamp: DateTimeOffset.UtcNow,
+        UserId: userId,
+        UserName: dbUser.Username,
+        Action: "user.delete_account",
+        TargetEntity: "user",
+        TargetId: userId
+    ));
+
+    return Results.NoContent();
 }).RequireAuthorization();
 
 app.MapDelete("/api/users/{userId}", async (string userId, ClaimsPrincipal user, IServiceProvider serviceProvider, IAuditLogStore auditLog) =>

@@ -17,14 +17,18 @@ import {
 import { logoApple, logoGithub, logoGoogle, phonePortraitOutline } from "ionicons/icons";
 import { useTranslation } from "react-i18next";
 import { authBridge } from "../../bridge/modules/authBridge";
+import { nativeBridge } from "../../bridge/nativeBridge";
 import { useAuthStore, type AuthState } from "../../store/authStore";
+import { useAppStore, type AppStoreState } from "../../store/appStore";
 import logoSvg from "../../assets/logo.svg";
 import "altcha";
 
 const selectSetSession = (s: AuthState) => s.setSession;
+const selectAppInfo = (s: AppStoreState) => s.appInfo;
 
 export default function LoginPage() {
   const { t } = useTranslation();
+  const appInfo = useAppStore(selectAppInfo);
   const platform = (window as any).initData?.platform ?? "unknown";
   const showAppleLogin = platform === "ios" || platform === "maccatalyst";
   const [loginMethod, setLoginMethod] = useState<"password" | "phone">("password");
@@ -363,6 +367,24 @@ export default function LoginPage() {
               <p>{errorMessage}</p>
             </IonText>
           )}
+
+          <div style={{
+            width: "100%", maxWidth: 400, textAlign: "center",
+            padding: "16px 0 0", fontSize: 12,
+            color: "var(--ion-color-medium)", lineHeight: 1.6,
+          }}>
+            {t("login.agreementPrefix")}
+            <a
+              onClick={(e) => { e.preventDefault(); nativeBridge.openExternalLink(appInfo?.privacyPolicyUrl ?? ""); }}
+              style={{ color: "var(--ion-color-primary)", cursor: "pointer", textDecoration: "underline" }}
+            >{t("settings.privacy")}</a>
+            {t("login.agreementAnd")}
+            <a
+              onClick={(e) => { e.preventDefault(); nativeBridge.openExternalLink(appInfo?.termsOfServiceUrl ?? ""); }}
+              style={{ color: "var(--ion-color-primary)", cursor: "pointer", textDecoration: "underline" }}
+            >{t("settings.terms")}</a>
+            {t("login.agreementSuffix")}
+          </div>
         </div>
       </IonContent>
     </IonPage>

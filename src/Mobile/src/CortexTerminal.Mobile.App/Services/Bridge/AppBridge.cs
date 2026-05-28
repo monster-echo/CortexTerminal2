@@ -13,16 +13,16 @@ namespace CortexTerminal.Mobile.App.Services.Bridge;
 
 public sealed partial class AppBridge(ILogger<AppBridge> logger) : IBridgeContract
 {
-    public const string PendingNavigationRouteKey = "template.pending_navigation.route";
-    public const string PendingNavigationPayloadKey = "template.pending_navigation.payload";
+    public const string PendingNavigationRouteKey = "corterm.pending_navigation.route";
+    public const string PendingNavigationPayloadKey = "corterm.pending_navigation.payload";
     public const string WebFileRoutePrefix = "/__backend-file/";
     private const int MaxRecentOperations = 20;
 
     private readonly AppSettings _appSettings = new(
         GatewayBaseUri: "https://gateway.ct.rwecho.top",
-        SupportEmail: "support@example.com",
-        PrivacyPolicyUrl: "https://example.com/privacy",
-        TermsOfServiceUrl: "https://example.com/terms",
+        SupportEmail: "rwecho@live.com",
+        PrivacyPolicyUrl: "https://gateway.ct.rwecho.top/privacy",
+        TermsOfServiceUrl: "https://gateway.ct.rwecho.top/terms",
         EnableDiagnostics: true,
         EnableFeatureShowcase: true);
     private readonly ConcurrentQueue<BridgeOperationInfo> _recentOperations = new();

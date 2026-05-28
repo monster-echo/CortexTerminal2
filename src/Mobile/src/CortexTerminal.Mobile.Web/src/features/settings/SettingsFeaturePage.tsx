@@ -8,12 +8,17 @@ import {
   IonPage,
   useIonActionSheet,
   useIonAlert,
+  useIonToast,
 } from "@ionic/react";
 import {
+  clipboardOutline,
   contrastOutline,
+  documentTextOutline,
   keyOutline,
   languageOutline,
   logOutOutline,
+  shieldCheckmarkOutline,
+  trashOutline,
 } from "ionicons/icons";
 import { RouteComponentProps } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -21,6 +26,7 @@ import PageHeader from "../../components/PageHeader";
 import { useAppStore, type AppStoreState } from "../../store/appStore";
 import { useAuthStore, type AuthState } from "../../store/authStore";
 import { authBridge } from "../../bridge/modules/authBridge";
+import { nativeBridge } from "../../bridge/nativeBridge";
 import {
   applyColorMode,
   setStoredMode,
@@ -46,6 +52,7 @@ export default function SettingsFeaturePage({ history }: RouteComponentProps) {
   const setLanguage = useAppStore(selectSetLanguage);
   const [presentActionSheet] = useIonActionSheet();
   const [presentAlert] = useIonAlert();
+  const [presentToast] = useIonToast();
 
   const logout = async () => {
     try {
@@ -70,6 +77,56 @@ export default function SettingsFeaturePage({ history }: RouteComponentProps) {
         },
       ],
     });
+  };
+
+  const handleDeleteAccount = () => {
+    presentAlert({
+      header: t("settings.deleteAccountConfirmTitle"),
+      message: t("settings.deleteAccountConfirmMessage"),
+      buttons: [
+        { text: t("settings.cancel"), role: "cancel" },
+        {
+          text: t("settings.deleteAccountConfirm"),
+          role: "destructive",
+          handler: () => {
+            presentAlert({
+              header: t("settings.deleteAccountConfirmTitle"),
+              message: t("settings.deleteAccountFinalConfirm"),
+              buttons: [
+                { text: t("settings.cancel"), role: "cancel" },
+                {
+                  text: t("settings.deleteAccountConfirm"),
+                  role: "destructive",
+                  handler: () => void deleteAccount(),
+                },
+              ],
+            });
+          },
+        },
+      ],
+    });
+  };
+
+  const deleteAccount = async () => {
+    try {
+      await authBridge.deleteAccount();
+      clearSession();
+      void presentToast({
+        message: t("settings.deleteAccountSuccess"),
+        duration: 2000,
+        position: "bottom",
+        color: "success",
+      });
+      history.replace("/sessions");
+    } catch (e) {
+      console.error("[settings] Delete account failed:", e);
+      void presentToast({
+        message: e instanceof Error ? e.message : String(e),
+        duration: 3000,
+        position: "bottom",
+        color: "danger",
+      });
+    }
   };
 
   const handleColorModeChange = (mode: ColorMode) => {
@@ -139,6 +196,10 @@ export default function SettingsFeaturePage({ history }: RouteComponentProps) {
       : t("settings.languageEn");
   };
 
+  const openLink = (url: string) => {
+    void nativeBridge.openExternalLink(url);
+  };
+
   return (
     <IonPage>
       <PageHeader title={t("settings.title")} defaultHref="/sessions" />
@@ -203,14 +264,42 @@ export default function SettingsFeaturePage({ history }: RouteComponentProps) {
               <IonIcon slot="start" icon={logOutOutline} color="danger" />
               <IonLabel color="danger">{t("sidebar.logout")}</IonLabel>
             </IonItem>
+            <IonItem button onClick={handleDeleteAccount} detail={false}>
+              <IonIcon slot="start" icon={trashOutline} color="danger" />
+              <IonLabel color="danger">{t("settings.deleteAccount")}</IonLabel>
+            </IonItem>
           </IonList>
+        </div>
+
+        <div style={{
+          textAlign: "center",
+          padding: "16px 0 4px",
+        }}>
+          <IonItem button={false} lines="none" style={{ "--background": "transparent", "--padding-start": "0" }}>
+            <div style={{ display: "flex", justifyContent: "center", gap: 24, width: "100%" }}>
+              <a
+                onClick={(e) => { e.preventDefault(); openLink(appInfo?.privacyPolicyUrl ?? ""); }}
+                style={{ color: "var(--ion-color-medium)", fontSize: 12, cursor: "pointer", textDecoration: "underline" }}
+              >
+                <IonIcon icon={shieldCheckmarkOutline} style={{ fontSize: 14, marginRight: 4, verticalAlign: "middle" }} />
+                {t("settings.privacy")}
+              </a>
+              <a
+                onClick={(e) => { e.preventDefault(); openLink(appInfo?.termsOfServiceUrl ?? ""); }}
+                style={{ color: "var(--ion-color-medium)", fontSize: 12, cursor: "pointer", textDecoration: "underline" }}
+              >
+                <IonIcon icon={documentTextOutline} style={{ fontSize: 14, marginRight: 4, verticalAlign: "middle" }} />
+                {t("settings.terms")}
+              </a>
+            </div>
+          </IonItem>
         </div>
 
         <div style={{
           textAlign: "center",
           color: "var(--ion-color-medium)",
           fontSize: 12,
-          padding: "24px 0",
+          padding: "4px 0 24px",
         }}>
           v{appInfo?.appVersion ?? "..."}
         </div>

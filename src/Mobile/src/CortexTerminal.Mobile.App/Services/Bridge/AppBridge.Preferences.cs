@@ -7,10 +7,10 @@ public sealed partial class AppBridge
 {
     private static readonly PreferenceDescriptor[] KnownPreferenceDescriptors =
     [
-        new("template.bridge.demo", "Bridge demo value", "bridge", "JS 和 C# 交互页的 roundtrip 示例。"),
-        new("template.camera.last", "Last camera metadata", "camera", "最近一次拍照写入的元数据缓存。"),
-        new("template.photos.last", "Last photo metadata", "photos", "最近一次相册选图写入的元数据缓存。"),
-        new("template.video.last", "Last video metadata", "video", "最近一次视频选择或拍摄写入的元数据缓存。"),
+        new("corterm.bridge.demo", "Bridge demo value", "bridge", "JS 和 C# 交互页的 roundtrip 示例。"),
+        new("corterm.camera.last", "Last camera metadata", "camera", "最近一次拍照写入的元数据缓存。"),
+        new("corterm.photos.last", "Last photo metadata", "photos", "最近一次相册选图写入的元数据缓存。"),
+        new("corterm.video.last", "Last video metadata", "video", "最近一次视频选择或拍摄写入的元数据缓存。"),
         new(PendingNavigationRouteKey, "Pending navigation route", "notifications", "通知/深链待处理跳转的目标路由。"),
         new(PendingNavigationPayloadKey, "Pending navigation payload", "notifications", "通知/深链待处理跳转附带的 payload。"),
     ];

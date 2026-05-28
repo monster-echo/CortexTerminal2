@@ -2,7 +2,7 @@ import { nativeBridge } from "../bridge/nativeBridge";
 
 export type ColorMode = "light" | "dark" | "system";
 
-const STORAGE_KEY = "template.colorMode";
+const STORAGE_KEY = "corterm.colorMode";
 let systemThemeListener: ((e: MediaQueryListEvent) => void) | null = null;
 let mediaQuery: MediaQueryList | null = null;
 

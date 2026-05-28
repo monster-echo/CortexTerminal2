@@ -16,6 +16,7 @@ import {
   arrowDownOutline,
   arrowBackOutline,
   arrowForwardOutline,
+  clipboardOutline,
 } from "ionicons/icons";
 import { RouteComponentProps } from "react-router-dom";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -63,37 +64,41 @@ function fitTerminal(term: Terminal, fitAddon: FitAddon): void {
 }
 
 // ── Keyboard toolbar button ──
-function ToolbarButton({ label, icon, active, onClick }: {
+function ToolbarButton({ label, icon, active, disabled, onClick }: {
   label?: string;
   icon?: string;
   active?: boolean;
+  disabled?: boolean;
   onClick: () => void;
 }) {
   return (
     <button
       onMouseDown={(e) => e.preventDefault()}
       onClick={() => {
+        if (disabled) return;
         onClick();
         void nativeBridge.haptics("click");
       }}
+      disabled={disabled}
       style={{
         minWidth: 40,
         height: 34,
         border: "none",
         borderRadius: 6,
-        background: active ? "#00ff88" : "rgba(215, 255, 229, 0.12)",
-        color: active ? "#000" : "#d7ffe5",
+        background: active ? "#00ff88" : disabled ? "rgba(215, 255, 229, 0.05)" : "rgba(215, 255, 229, 0.12)",
+        color: active ? "#000" : disabled ? "rgba(215, 255, 229, 0.25)" : "#d7ffe5",
         fontSize: 13,
         fontWeight: 600,
         fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
         padding: "0 8px",
-        cursor: "pointer",
+        cursor: disabled ? "not-allowed" : "pointer",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         flexShrink: 0,
         touchAction: "manipulation",
         WebkitTapHighlightColor: "transparent",
+        opacity: disabled ? 0.4 : 1,
       }}
     >
       {label ?? <IonIcon icon={icon!} style={{ fontSize: 18 }} />}
@@ -140,6 +145,7 @@ export default function TerminalSessionPage({
 
   const [ctrlActive, setCtrlActive] = useState(false);
   const [altActive, setAltActive] = useState(false);
+  const [hasClipboard, setHasClipboard] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleKeyRef = useRef<any>(null);
 
@@ -156,6 +162,16 @@ export default function TerminalSessionPage({
       setCtrlActive(false);
       setAltActive(false);
     }
+  }, [keyboardVisible]);
+
+  // Check clipboard content when keyboard becomes visible
+  useEffect(() => {
+    if (!keyboardVisible) return;
+    navigator.clipboard.readText().then((text) => {
+      setHasClipboard(!!text);
+    }).catch(() => {
+      setHasClipboard(false);
+    });
   }, [keyboardVisible]);
 
   // Clean up legacy FAB position from localStorage
@@ -189,6 +205,17 @@ export default function TerminalSessionPage({
     [ctrlActive, altActive, connectedRef.current],
   );
   handleKeyRef.current = handleKey;
+
+  const handlePaste = useCallback(() => {
+    navigator.clipboard.readText().then((text) => {
+      if (text) {
+        sendInput(text);
+      }
+      setHasClipboard(!!text);
+    }).catch(() => {
+      setHasClipboard(false);
+    });
+  }, [sendInput]);
 
   // ── Initialize xterm ──
   useEffect(() => {
@@ -500,7 +527,15 @@ export default function TerminalSessionPage({
         setStatusMessage(msg);
 
         const lowerMsg = msg.toLowerCase();
-        if (
+        if (lowerMsg.includes("session-expired")) {
+          presentToast({
+            message: t("terminal.sessionExpiredToast", { reason: msg }),
+            duration: 3000,
+            position: "bottom",
+            color: "warning",
+          });
+          history.replace("/sessions");
+        } else if (
           lowerMsg.includes("not found") ||
           lowerMsg.includes("404") ||
           lowerMsg.includes("does not exist") ||
@@ -624,6 +659,7 @@ export default function TerminalSessionPage({
                 <ToolbarButton icon={arrowUpOutline} onClick={() => handleKey("\x1b[A")} />
                 <ToolbarButton icon={arrowDownOutline} onClick={() => handleKey("\x1b[B")} />
                 <ToolbarButton icon={arrowForwardOutline} onClick={() => handleKey("\x1b[C")} />
+                <ToolbarButton icon={clipboardOutline} label={t("terminal.paste")} disabled={!hasClipboard} onClick={handlePaste} />
               </div>
               <ToolbarButton
                 label={t("terminal.done")}

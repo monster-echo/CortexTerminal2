@@ -12,6 +12,7 @@ import {
   PasswordLoginResponseSchema,
   type PasswordLoginResponse,
   AltchaChallengeResponseSchema,
+  DeleteAccountResponseSchema,
 } from "../../schemas/bridgeSchema";
 
 export const authBridge = {
@@ -41,4 +42,7 @@ export const authBridge = {
 
   loginWithPassword: (username: string, password: string): Promise<PasswordLoginResponse> =>
     invoke("LoginWithPasswordAsync", PasswordLoginResponseSchema, [username, password]),
+
+  deleteAccount: (): Promise<{ success: boolean }> =>
+    invoke("DeleteAccountAsync", DeleteAccountResponseSchema),
 };
