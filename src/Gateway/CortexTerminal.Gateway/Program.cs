@@ -308,7 +308,7 @@ if (string.IsNullOrEmpty(connectionString))
     }
 }
 
-// Auto-create database tables
+// Auto-migrate database schema
 if (!string.IsNullOrEmpty(connectionString))
 {
     using (var scope = app.Services.CreateScope())
@@ -316,96 +316,7 @@ if (!string.IsNullOrEmpty(connectionString))
         try
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            await db.Database.EnsureCreatedAsync();
-
-            // EnsureCreatedAsync won't add new tables to an existing database.
-            // Create the Workers table if it doesn't exist yet.
-            await db.Database.ExecuteSqlRawAsync("""
-                CREATE TABLE IF NOT EXISTS "Workers" (
-                    "worker_id"           text        NOT NULL PRIMARY KEY,
-                    "owner_user_id"       text        NULL,
-                    "hostname"            text        NULL,
-                    "operating_system"    text        NULL,
-                    "architecture"        text        NULL,
-                    "name"                text        NULL,
-                    "version"             text        NULL,
-                    "last_seen_at_utc"    timestamptz NOT NULL,
-                    "first_connected_at_utc" timestamptz NULL,
-                    "is_online"           boolean     NOT NULL
-                );
-                """);
-
-            await db.Database.ExecuteSqlRawAsync("""
-                CREATE TABLE IF NOT EXISTS "Sessions" (
-                    "session_id"                    text        NOT NULL PRIMARY KEY,
-                    "user_id"                       text        NOT NULL,
-                    "worker_id"                     text        NOT NULL,
-                    "columns"                       int         NOT NULL,
-                    "rows"                          int         NOT NULL,
-                    "created_at_utc"                timestamptz NOT NULL,
-                    "last_activity_at_utc"          timestamptz NOT NULL,
-                    "attachment_state"              text        NOT NULL,
-                    "attached_client_connection_id" text        NULL,
-                    "lease_expires_at_utc"          timestamptz NULL,
-                    "exit_code"                     int         NULL,
-                    "exit_reason"                   text        NULL,
-                    "replay_pending"                boolean     NOT NULL
-                );
-
-                CREATE INDEX IF NOT EXISTS "IX_Sessions_user_id" ON "Sessions" ("user_id");
-                CREATE INDEX IF NOT EXISTS "IX_Sessions_worker_id" ON "Sessions" ("worker_id");
-                CREATE INDEX IF NOT EXISTS "IX_Sessions_attachment_state" ON "Sessions" ("attachment_state");
-                CREATE INDEX IF NOT EXISTS "IX_Sessions_created_at_utc" ON "Sessions" ("created_at_utc");
-                """);
-
-            await db.Database.ExecuteSqlRawAsync("""
-                CREATE TABLE IF NOT EXISTS "Users" (
-                    "id"                    text        NOT NULL PRIMARY KEY,
-                    "username"              text        NOT NULL,
-                    "email"                 text        NULL,
-                    "display_name"          text        NULL,
-                    "avatar_url"            text        NULL,
-                    "role"                  text        NOT NULL DEFAULT 'user',
-                    "status"                text        NOT NULL DEFAULT 'active',
-                    "auth_provider"         text        NULL,
-                    "auth_provider_id"      text        NULL,
-                    "password_hash"         text        NULL,
-                    "created_at_utc"        timestamptz NOT NULL,
-                    "updated_at_utc"        timestamptz NOT NULL
-                );
-
-                CREATE UNIQUE INDEX IF NOT EXISTS "IX_Users_Username" ON "Users" ("username");
-                CREATE INDEX IF NOT EXISTS "IX_Users_AuthProvider_AuthProviderId" ON "Users" ("auth_provider", "auth_provider_id");
-                """);
-
-            await db.Database.ExecuteSqlRawAsync("""
-                CREATE TABLE IF NOT EXISTS "AuditLogs" (
-                    "id"                    text        NOT NULL PRIMARY KEY,
-                    "timestamp"             timestamptz NOT NULL,
-                    "user_id"               text        NULL,
-                    "user_name"             text        NULL,
-                    "action"                text        NOT NULL,
-                    "target_entity"         text        NULL,
-                    "target_id"             text        NULL,
-                    "details"               text        NULL
-                );
-
-                CREATE INDEX IF NOT EXISTS "IX_AuditLogs_Timestamp" ON "AuditLogs" ("timestamp");
-                CREATE INDEX IF NOT EXISTS "IX_AuditLogs_UserId" ON "AuditLogs" ("user_id");
-                CREATE INDEX IF NOT EXISTS "IX_AuditLogs_Action" ON "AuditLogs" ("action");
-                """);
-
-            // Add password_hash column to Users table if it doesn't exist
-            try
-            {
-                await db.Database.ExecuteSqlRawAsync("""
-                    ALTER TABLE "Users" ADD COLUMN IF NOT EXISTS "password_hash" text NULL;
-                    """);
-            }
-            catch (Exception)
-            {
-                // Column may already exist or ALTER TABLE not supported; ignore
-            }
+            await db.Database.MigrateAsync();
 
             // Seed dev user if Users table is empty
             if (!await db.Users.AnyAsync())
