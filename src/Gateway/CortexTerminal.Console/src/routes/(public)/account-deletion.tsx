@@ -2,97 +2,81 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { Mail, AlertTriangle } from 'lucide-react'
 import { PublicPageLayout } from '@/features/public'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 export const Route = createFileRoute('/(public)/account-deletion')({
   component: AccountDeletionRoute,
 })
 
+const section = 'bg-[#121214] border border-[#2e2e36] rounded-xl p-6 space-y-4'
+const title = 'text-lg font-semibold text-[#e4e4e7]'
+const text = 'text-sm text-[#a1a1aa] leading-relaxed'
+const link = 'text-emerald-500 hover:text-emerald-400 transition-colors underline'
+
 function AccountDeletionRoute() {
   const { t } = useTranslation()
   return (
     <PublicPageLayout>
-      <h1 className='text-2xl font-bold tracking-tight'>{t('legal.accountDeletion.title')}</h1>
-      <p className='text-sm text-muted-foreground'>{t('legal.lastUpdated')}</p>
+      <h1 className="text-3xl font-bold tracking-tight">{t('legal.accountDeletion.title')}</h1>
+      <p className="text-sm text-[#71717a]">{t('legal.lastUpdated')}</p>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('legal.accountDeletion.stepsTitle')}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ol className='list-decimal space-y-2 pl-5 text-sm'>
-            <li>{t('legal.accountDeletion.step1')}</li>
-            <li>{t('legal.accountDeletion.step2')}</li>
-            <li>{t('legal.accountDeletion.step3')}</li>
-            <li>{t('legal.accountDeletion.step4')}</li>
-            <li>{t('legal.accountDeletion.step5')}</li>
-            <li>{t('legal.accountDeletion.step6')}</li>
-          </ol>
-        </CardContent>
-      </Card>
+      <div className={section}>
+        <h2 className={title}>{t('legal.accountDeletion.stepsTitle')}</h2>
+        <ol className="list-decimal space-y-2 pl-5 text-sm text-[#a1a1aa]">
+          <li>{t('legal.accountDeletion.step1')}</li>
+          <li>{t('legal.accountDeletion.step2')}</li>
+          <li>{t('legal.accountDeletion.step3')}</li>
+          <li>{t('legal.accountDeletion.step4')}</li>
+          <li>{t('legal.accountDeletion.step5')}</li>
+          <li>{t('legal.accountDeletion.step6')}</li>
+        </ol>
+      </div>
 
-      <Card className='border-destructive/50'>
-        <CardHeader>
-          <CardTitle>{t('legal.accountDeletion.impactTitle')}</CardTitle>
-        </CardHeader>
-        <CardContent className='space-y-4'>
-          <div className='flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-sm'>
-            <AlertTriangle className='mt-0.5 size-4 shrink-0 text-destructive' />
-            <strong>{t('legal.accountDeletion.warning')}</strong>
-          </div>
-          <p className='text-sm text-muted-foreground'>{t('legal.accountDeletion.impactDesc')}</p>
-          <ul className='space-y-2 text-sm'>
-            <li>
-              <strong className='text-destructive'>{t('legal.accountDeletion.immediateDelete')}</strong>：{t('legal.accountDeletion.immediateDeleteItem')}
-            </li>
-            <li>
-              <strong className='text-destructive'>{t('legal.accountDeletion.immediateUnbind')}</strong>：{t('legal.accountDeletion.immediateUnbindItem')}
-            </li>
-            <li>
-              <strong className='text-destructive'>{t('legal.accountDeletion.immediateRevoke')}</strong>：{t('legal.accountDeletion.immediateRevokeItem')}
-            </li>
-            <li>
-              <strong>{t('legal.accountDeletion.immediateMark')}</strong>：{t('legal.accountDeletion.immediateMarkItem')}
-            </li>
-          </ul>
-        </CardContent>
-      </Card>
+      <div className="bg-[#121214] border border-emerald-500/30 rounded-xl p-6 space-y-4">
+        <h2 className={title}>{t('legal.accountDeletion.impactTitle')}</h2>
+        <div className="flex items-start gap-2 rounded-md bg-emerald-500/10 p-3 text-sm">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-emerald-500" />
+          <strong className="text-[#e4e4e7]">{t('legal.accountDeletion.warning')}</strong>
+        </div>
+        <p className={text}>{t('legal.accountDeletion.impactDesc')}</p>
+        <ul className="space-y-2 text-sm">
+          <li>
+            <strong className="text-emerald-500">{t('legal.accountDeletion.immediateDelete')}</strong>：{t('legal.accountDeletion.immediateDeleteItem')}
+          </li>
+          <li>
+            <strong className="text-emerald-500">{t('legal.accountDeletion.immediateUnbind')}</strong>：{t('legal.accountDeletion.immediateUnbindItem')}
+          </li>
+          <li>
+            <strong className="text-emerald-500">{t('legal.accountDeletion.immediateRevoke')}</strong>：{t('legal.accountDeletion.immediateRevokeItem')}
+          </li>
+          <li>
+            <strong className="text-[#e4e4e7]">{t('legal.accountDeletion.immediateMark')}</strong>：{t('legal.accountDeletion.immediateMarkItem')}
+          </li>
+        </ul>
+      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('legal.accountDeletion.retainedTitle')}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className='mb-3 text-sm text-muted-foreground'>{t('legal.accountDeletion.retainedDesc')}</p>
-          <ul className='list-disc pl-5 text-sm'>
-            <li>{t('legal.accountDeletion.retainedItem')}</li>
-          </ul>
-        </CardContent>
-      </Card>
+      <div className={section}>
+        <h2 className={title}>{t('legal.accountDeletion.retainedTitle')}</h2>
+        <p className={`mb-3 ${text}`}>{t('legal.accountDeletion.retainedDesc')}</p>
+        <ul className="list-disc pl-5 text-sm text-[#a1a1aa]">
+          <li>{t('legal.accountDeletion.retainedItem')}</li>
+        </ul>
+      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('legal.accountDeletion.statusTitle')}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className='text-sm text-muted-foreground'>{t('legal.accountDeletion.statusDesc')}</p>
-        </CardContent>
-      </Card>
+      <div className={section}>
+        <h2 className={title}>{t('legal.accountDeletion.statusTitle')}</h2>
+        <p className={text}>{t('legal.accountDeletion.statusDesc')}</p>
+      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('legal.accountDeletion.helpTitle')}</CardTitle>
-        </CardHeader>
-        <CardContent className='text-sm'>
-          <p className='text-muted-foreground'>
-            {t('legal.accountDeletion.helpDesc')}{' '}
-            <a href={`mailto:${t('legal.contactEmail')}`} className='inline-flex items-center gap-1 text-primary underline'>
-              <Mail className='size-3' />
-              {t('legal.contactEmail')}
-            </a>
-          </p>
-        </CardContent>
-      </Card>
+      <div className={section}>
+        <h2 className={title}>{t('legal.accountDeletion.helpTitle')}</h2>
+        <p className="text-sm text-[#a1a1aa]">
+          {t('legal.accountDeletion.helpDesc')}{' '}
+          <a href={`mailto:${t('legal.contactEmail')}`} className={`inline-flex items-center gap-1 ${link}`}>
+            <Mail className="size-3" />
+            {t('legal.contactEmail')}
+          </a>
+        </p>
+      </div>
     </PublicPageLayout>
   )
 }
