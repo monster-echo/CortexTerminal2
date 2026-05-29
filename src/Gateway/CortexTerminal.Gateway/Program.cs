@@ -713,9 +713,10 @@ app.MapPost("/api/auth/phone/send-code", async (SendCodeRequest request, PhoneCo
     {
         code = codeStore.Create(request.Phone);
     }
-    catch (InvalidOperationException)
+    catch (InvalidOperationException ex) when (ex.Message.StartsWith("RATE_LIMITED:"))
     {
-        return Results.StatusCode(429);
+        var seconds = int.Parse(ex.Message["RATE_LIMITED:".Length..]);
+        return Results.Json(new { error = "Too many requests", retryAfter = seconds }, statusCode: 429);
     }
 
     if (env.IsDevelopment())

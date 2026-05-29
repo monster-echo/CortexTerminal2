@@ -10,12 +10,15 @@ public sealed class PhoneCodeStore
     {
         RemoveExpired();
 
-        // Rate limit: if an entry exists and hasn't expired, reject
         if (_codes.TryGetValue(phone, out var existing) && existing.ExpiresAtUtc > DateTimeOffset.UtcNow)
-            throw new InvalidOperationException("RATE_LIMITED");
+        {
+            var remaining = 60 - (int)(DateTimeOffset.UtcNow - existing.CreatedAtUtc).TotalSeconds;
+            if (remaining > 0)
+                throw new InvalidOperationException($"RATE_LIMITED:{remaining}");
+        }
 
         var code = Random.Shared.Next(100000, 999999).ToString();
-        _codes[phone] = new PhoneCodeEntry(code, phone, DateTimeOffset.UtcNow.AddMinutes(5));
+        _codes[phone] = new PhoneCodeEntry(code, phone, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddMinutes(5));
         return code;
     }
 
@@ -40,5 +43,5 @@ public sealed class PhoneCodeStore
         }
     }
 
-    private sealed record PhoneCodeEntry(string Code, string Phone, DateTimeOffset ExpiresAtUtc);
+    private sealed record PhoneCodeEntry(string Code, string Phone, DateTimeOffset CreatedAtUtc, DateTimeOffset ExpiresAtUtc);
 }

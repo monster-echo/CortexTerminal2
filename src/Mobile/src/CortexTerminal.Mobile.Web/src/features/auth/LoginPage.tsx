@@ -62,6 +62,25 @@ export default function LoginPage() {
   const [altchaPayload, setAltchaPayload] = useState<string | null>(null);
   const [altchaJson, setAltchaJson] = useState<string>("");
   const altchaRef = useRef<HTMLElement & { reset: () => void }>(null);
+  const COOLDOWN_KEY = "phone_code_sent_at";
+
+  const startCountdown = (seconds: number) => {
+    setCountdown(seconds);
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => setCountdown((c) => c - 1), 1000);
+  };
+
+  useEffect(() => {
+    const sentAt = localStorage.getItem(COOLDOWN_KEY);
+    if (sentAt) {
+      const remaining = 60 - Math.floor((Date.now() - parseInt(sentAt, 10)) / 1000);
+      if (remaining > 0) {
+        startCountdown(remaining);
+      } else {
+        localStorage.removeItem(COOLDOWN_KEY);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -73,6 +92,7 @@ export default function LoginPage() {
     if (countdown <= 0 && timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = undefined;
+      localStorage.removeItem(COOLDOWN_KEY);
     }
   }, [countdown]);
 
@@ -119,13 +139,20 @@ export default function LoginPage() {
     try {
       await authBridge.sendPhoneCode(phone, altchaPayload);
       setCodeSent(true);
-      setCountdown(60);
-      timerRef.current = setInterval(() => setCountdown((c) => c - 1), 1000);
+      localStorage.setItem(COOLDOWN_KEY, Date.now().toString());
+      startCountdown(60);
       setAltchaPayload(null);
       altchaRef.current?.reset();
       fetchChallenge();
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : t("login.errorSendCode"));
+      const msg = error instanceof Error ? error.message : t("login.errorSendCode");
+      const match = msg.match(/RATE_LIMITED:(\d+)/);
+      if (match) {
+        startCountdown(parseInt(match[1], 10));
+        setCodeSent(true);
+      } else {
+        setErrorMessage(msg || t("login.errorSendCode"));
+      }
     } finally {
       setLoadingProvider(null);
     }

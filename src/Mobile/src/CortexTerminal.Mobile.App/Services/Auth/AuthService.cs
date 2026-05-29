@@ -44,7 +44,17 @@ public sealed class AuthService
         var response = await _httpClient.PostAsJsonAsync("/api/auth/phone/send-code", new { phone, altcha = altchaPayload }, ct);
         var body = await response.Content.ReadAsStringAsync(ct);
         if (!response.IsSuccessStatusCode)
-            return new AuthResult(false, ExtractError(body));
+        {
+            var error = ExtractError(body);
+            try
+            {
+                var json = JsonSerializer.Deserialize<JsonElement>(body);
+                if (json.TryGetProperty("retryAfter", out var ra))
+                    error = $"RATE_LIMITED:{ra.GetInt32()}";
+            }
+            catch { }
+            return new AuthResult(false, error);
+        }
         return new AuthResult(true, null);
     }
 
