@@ -22,6 +22,7 @@ public partial class MainPage : ContentPage
 	private readonly ILogger<MainPage> _logger;
 	private CancellationTokenSource? _splashTimeoutCts;
 	private volatile bool _isResumeHandling;
+	private bool _hasAppearedOnce;
 	private TaskCompletionSource<object?>? _appReadyTcs;
 
 #if IOS || MACCATALYST
@@ -90,7 +91,8 @@ public partial class MainPage : ContentPage
 		base.OnAppearing();
 		App.AppResumed -= OnAppResumed;
 		App.AppResumed += OnAppResumed;
-		CheckAndRecoverWebViewIfNeeded();
+		if (_hasAppearedOnce) CheckAndRecoverWebViewIfNeeded();
+		_hasAppearedOnce = true;
 #if IOS || MACCATALYST
 		SetupKeyboardHandling();
 #endif
