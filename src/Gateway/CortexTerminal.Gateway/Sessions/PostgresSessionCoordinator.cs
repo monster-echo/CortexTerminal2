@@ -124,11 +124,6 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
             {
                 return Task.FromResult(DeleteSessionResult.Failure("session-not-found"));
             }
-
-            if (session.AttachmentState is SessionAttachmentState.Attached or SessionAttachmentState.DetachedGracePeriod)
-            {
-                return Task.FromResult(DeleteSessionResult.Failure("session-running"));
-            }
         }
 
         lock (_sync)

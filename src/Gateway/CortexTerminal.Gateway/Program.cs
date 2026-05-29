@@ -1137,17 +1137,29 @@ app.MapDelete("/api/me/sessions/{sessionId}", async (
     string sessionId,
     ClaimsPrincipal user,
     ISessionCoordinator sessions,
+    IWorkerRegistry workers,
+    IWorkerCommandDispatcher workerCommands,
     IAuditLogStore auditLog,
     CancellationToken cancellationToken) =>
 {
     var userId = GetUserId(user);
+
+    // If the session is still running, terminate the worker PTY first
+    if (sessions.TryGetSession(sessionId, out var runningSession)
+        && runningSession.UserId == userId
+        && runningSession.AttachmentState is SessionAttachmentState.Attached or SessionAttachmentState.DetachedGracePeriod
+        && workers.TryGetWorker(runningSession.WorkerId, out var worker)
+        && string.Equals(worker.ConnectionId, runningSession.WorkerConnectionId, StringComparison.Ordinal))
+    {
+        await workerCommands.CloseSessionAsync(worker.ConnectionId, new CloseSessionRequest(sessionId), cancellationToken);
+    }
+
     var result = await sessions.DeleteSessionAsync(userId, sessionId, cancellationToken);
     if (!result.IsSuccess)
     {
         return result.ErrorCode switch
         {
             "session-not-found" => Results.NotFound(),
-            "session-running" => SessionOperationError(StatusCodes.Status409Conflict, "Session is still running. Terminate it before deleting."),
             _ => SessionOperationError(StatusCodes.Status409Conflict, "Session could not be deleted.")
         };
     }

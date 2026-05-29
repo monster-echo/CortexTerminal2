@@ -193,7 +193,7 @@ public sealed class InteractiveSessionFlowTests : IClassFixture<GatewayApplicati
     }
 
     [Fact]
-    public async Task DeleteSession_WhenStillRunning_ReturnsConflict()
+    public async Task DeleteSession_WhenStillRunning_AutoTerminatesAndSucceeds()
     {
         using var factory = new GatewayApplicationFactory();
         var registry = factory.Services.GetRequiredService<IWorkerRegistry>();
@@ -207,7 +207,7 @@ public sealed class InteractiveSessionFlowTests : IClassFixture<GatewayApplicati
 
         using var deleteResponse = await client.DeleteAsync($"/api/me/sessions/{Uri.EscapeDataString(created!.SessionId)}");
 
-        deleteResponse.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        deleteResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
     }
 
     private static System.Collections.Concurrent.ConcurrentDictionary<string, SessionRecord> GetSessions(ISessionCoordinator coordinator)

@@ -43,7 +43,7 @@ public sealed class SessionLifecycleCoordinatorTests
     }
 
     [Fact]
-    public async Task DeleteSessionAsync_WhenSessionIsStillRunning_ReturnsFailure()
+    public async Task DeleteSessionAsync_WhenSessionIsStillRunning_SucceedsAndTerminates()
     {
         var coordinator = CreateCoordinator();
         var createResult = await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), "client-1", CancellationToken.None);
@@ -51,8 +51,8 @@ public sealed class SessionLifecycleCoordinatorTests
 
         var result = await coordinator.DeleteSessionAsync("user-1", createResult.Response.SessionId, CancellationToken.None);
 
-        result.Should().Be(DeleteSessionResult.Failure("session-running"));
-        coordinator.TryGetSession(createResult.Response.SessionId, out _).Should().BeTrue();
+        result.Should().Be(DeleteSessionResult.Success());
+        coordinator.TryGetSession(createResult.Response.SessionId, out _).Should().BeFalse();
     }
 
     [Fact]
@@ -133,20 +133,13 @@ public sealed class SessionLifecycleCoordinatorTests
     }
 
     [Fact]
-    public async Task ExpireSessionsForWorkerConnection_AllowsDeleteAfterExpiry()
+    public async Task DeleteSessionAsync_SucceedsForRunningSession()
     {
         var coordinator = CreateCoordinator();
         var result = await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), "client-1", CancellationToken.None);
 
-        // Before expiry - cannot delete
-        var deleteBeforeExpiry = await coordinator.DeleteSessionAsync("user-1", result.Response!.SessionId, CancellationToken.None);
-        deleteBeforeExpiry.IsSuccess.Should().BeFalse();
-
-        coordinator.ExpireSessionsForWorkerConnection("worker-1", "worker-conn-1");
-
-        // After expiry - can delete
-        var deleteAfterExpiry = await coordinator.DeleteSessionAsync("user-1", result.Response!.SessionId, CancellationToken.None);
-        deleteAfterExpiry.IsSuccess.Should().BeTrue();
+        var deleteResult = await coordinator.DeleteSessionAsync("user-1", result.Response!.SessionId, CancellationToken.None);
+        deleteResult.IsSuccess.Should().BeTrue();
     }
 
     private static InMemorySessionCoordinator CreateCoordinator()

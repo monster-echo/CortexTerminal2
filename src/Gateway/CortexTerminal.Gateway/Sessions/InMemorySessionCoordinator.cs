@@ -95,11 +95,6 @@ public sealed class InMemorySessionCoordinator : ISessionCoordinator
                 return Task.FromResult(DeleteSessionResult.Failure("session-not-found"));
             }
 
-            if (session.AttachmentState is SessionAttachmentState.Attached or SessionAttachmentState.DetachedGracePeriod)
-            {
-                return Task.FromResult(DeleteSessionResult.Failure("session-running"));
-            }
-
             _sessions.TryRemove(sessionId, out _);
             return Task.FromResult(DeleteSessionResult.Success());
         }
