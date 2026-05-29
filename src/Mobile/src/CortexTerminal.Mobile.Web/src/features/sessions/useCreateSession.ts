@@ -6,13 +6,11 @@ import { useSessionStore, type SessionState } from "../../store/sessionStore";
 import { terminalBridge } from "../../bridge/modules/terminalBridge";
 
 const selectWorkers = (s: SessionState) => s.workers;
-const selectTouchSession = (s: SessionState) => s.touchSession;
 
 export function useCreateSession() {
   const { t } = useTranslation();
   const history = useHistory();
   const workers = useSessionStore(selectWorkers);
-  const touchSession = useSessionStore(selectTouchSession);
   const [presentToast] = useIonToast();
 
   const [showModal, setShowModal] = useState(false);
@@ -59,7 +57,6 @@ export function useCreateSession() {
         rows,
         selectedWorkerId ?? undefined,
       );
-      touchSession(session);
       closeModal();
       history.replace(`/sessions/${session.id}`);
       return session;

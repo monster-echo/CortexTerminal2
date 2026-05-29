@@ -232,6 +232,7 @@ public sealed class TerminalGatewayService
         StopLatencyProbeTimer();
         _pendingProbes.Clear();
 
+        _suppressClosedEvent = true;
         try
         {
             await connection.StopAsync();
@@ -239,6 +240,7 @@ public sealed class TerminalGatewayService
         }
         finally
         {
+            _suppressClosedEvent = false;
             if (!string.IsNullOrWhiteSpace(sessionId))
             {
                 await PushEventAsync(new { type = "terminal.disconnected", sessionId });

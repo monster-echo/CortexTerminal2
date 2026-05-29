@@ -72,7 +72,7 @@ function RecentSessionsGroup() {
   )
 
   const { data: sessions } = useQuery({
-    queryKey: ['sidebar-recent-sessions'],
+    queryKey: ['sidebar-recent-sessions', api],
     queryFn: () => api.listSessions(),
     staleTime: 30_000,
   })

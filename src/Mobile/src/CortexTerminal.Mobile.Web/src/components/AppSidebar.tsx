@@ -22,14 +22,12 @@ import {
   hardwareChipOutline,
 } from "ionicons/icons";
 import { useTranslation } from "react-i18next";
-import { useAppStore, type AppStoreState } from "../store/appStore";
 import { useAuthStore, type AuthState } from "../store/authStore";
 import { useSessionStore, type SessionState } from "../store/sessionStore";
 import { useCreateSession } from "../features/sessions/useCreateSession";
 import CreateSessionModal from "../features/sessions/CreateSessionModal";
 import logoSvg from "../assets/logo-dark.svg";
 
-const selectAppInfo = (s: AppStoreState) => s.appInfo;
 const selectUser = (s: AuthState) => s.user;
 const selectRecentSessions = (s: SessionState) => s.recentSessions;
 const selectCurrentSessionId = (s: SessionState) => s.currentSessionId;
@@ -37,7 +35,6 @@ const selectSetCurrentSession = (s: SessionState) => s.setCurrentSession;
 
 export default function AppSidebar() {
   const { t } = useTranslation();
-  const appInfo = useAppStore(selectAppInfo);
   const user = useAuthStore(selectUser);
   const recentSessions = useSessionStore(selectRecentSessions);
   const currentSessionId = useSessionStore(selectCurrentSessionId);
@@ -52,10 +49,23 @@ export default function AppSidebar() {
   };
 
   return (
-    <IonMenu ref={menuRef} side="start" menuId="main-menu" contentId="main-content">
+    <IonMenu
+      ref={menuRef}
+      side="start"
+      menuId="main-menu"
+      contentId="main-content"
+    >
       <IonHeader>
         <IonToolbar>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, paddingLeft: 16, height: "100%" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              paddingLeft: 16,
+              height: "100%",
+            }}
+          >
             <img src={logoSvg} alt="" style={{ width: 32, height: 32 }} />
             <IonTitle style={{ padding: 0 }}>{t("sidebar.title")}</IonTitle>
           </div>
@@ -77,7 +87,11 @@ export default function AppSidebar() {
             <IonLabel>{t("sidebar.sessions")}</IonLabel>
           </IonItemDivider>
           {recentSessions.length === 0 && (
-            <IonItem routerLink="/sessions" routerDirection="root" onClick={closeMenu}>
+            <IonItem
+              routerLink="/sessions"
+              routerDirection="root"
+              onClick={closeMenu}
+            >
               <IonIcon slot="start" icon={terminalOutline} />
               <IonLabel>
                 <h2>{t("sidebar.noSessions")}</h2>
@@ -104,20 +118,35 @@ export default function AppSidebar() {
               </IonLabel>
             </IonItem>
           ))}
-          {recentSessions.length > 5 && (
-            <IonItem button routerLink="/sessions" routerDirection="root" onClick={closeMenu}>
+          {
+            <IonItem
+              button
+              routerLink="/sessions"
+              routerDirection="root"
+              onClick={closeMenu}
+            >
               <IonIcon slot="start" icon={ellipsisHorizontalOutline} />
               <IonLabel>{t("sidebar.more")}</IonLabel>
             </IonItem>
-          )}
+          }
 
           <IonItemDivider />
 
-          <IonItem button routerLink="/workers" routerDirection="root" onClick={closeMenu}>
+          <IonItem
+            button
+            routerLink="/workers"
+            routerDirection="root"
+            onClick={closeMenu}
+          >
             <IonIcon slot="start" icon={hardwareChipOutline} />
             <IonLabel>{t("sidebar.workers")}</IonLabel>
           </IonItem>
-          <IonItem button routerLink="/settings" routerDirection="root" onClick={closeMenu}>
+          <IonItem
+            button
+            routerLink="/settings"
+            routerDirection="root"
+            onClick={closeMenu}
+          >
             <IonIcon slot="start" icon={settingsOutline} />
             <IonLabel>{t("sidebar.settings")}</IonLabel>
           </IonItem>
@@ -126,7 +155,12 @@ export default function AppSidebar() {
 
       <IonFooter>
         <IonToolbar>
-          <IonItem lines="none" routerLink="/settings" routerDirection="root" onClick={closeMenu}>
+          <IonItem
+            lines="none"
+            routerLink="/settings"
+            routerDirection="root"
+            onClick={closeMenu}
+          >
             <div
               slot="start"
               style={{

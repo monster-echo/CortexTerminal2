@@ -10,7 +10,6 @@ export interface SessionState {
   setSessions: (sessions: TerminalSession[]) => void;
   setWorkers: (workers: WorkerSummary[]) => void;
   setGatewayLoaded: (value: boolean) => void;
-  touchSession: (session: TerminalSession) => void;
   removeSession: (sessionId: string) => void;
 }
 
@@ -22,12 +21,9 @@ export const useSessionStore = create<SessionState>((set) => ({
   setCurrentSession: (currentSessionId) => set({ currentSessionId }),
   setSessions: (recentSessions) =>
     set((state) => {
-      const sorted = [...recentSessions].sort(
-        (a, b) =>
-          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
-      );
+      const sorted = recentSessions;
       return {
-        recentSessions: sorted,
+        recentSessions: recentSessions,
         currentSessionId:
           state.currentSessionId &&
           sorted.some((session) => session.id === state.currentSessionId)
@@ -37,14 +33,7 @@ export const useSessionStore = create<SessionState>((set) => ({
     }),
   setWorkers: (workers) => set({ workers }),
   setGatewayLoaded: (isGatewayLoaded) => set({ isGatewayLoaded }),
-  touchSession: (session) =>
-    set((state) => ({
-      currentSessionId: session.id,
-      // recentSessions: [
-      //   session,
-      //   ...state.recentSessions.filter((item) => item.id !== session.id),
-      // ],
-    })),
+
   removeSession: (sessionId) =>
     set((state) => {
       const filtered = state.recentSessions.filter((s) => s.id !== sessionId);

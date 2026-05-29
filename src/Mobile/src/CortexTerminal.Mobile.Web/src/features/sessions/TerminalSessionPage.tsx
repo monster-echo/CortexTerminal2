@@ -56,8 +56,8 @@ function decodeBase64ToBytes(base64: string): Uint8Array {
 // Linux PTY output may contain bare \n that causes staircase garbling.
 function normalizeTerminalOutput(bytes: Uint8Array): Uint8Array {
   const text = new TextDecoder().decode(bytes);
-  if (!text.includes('\n')) return bytes;
-  const normalized = text.replace(/(?<!\r)\n/g, '\r\n');
+  if (!text.includes("\n")) return bytes;
+  const normalized = text.replace(/(?<!\r)\n/g, "\r\n");
   return new TextEncoder().encode(normalized);
 }
 
@@ -66,7 +66,13 @@ function fitTerminal(term: Terminal, fitAddon: FitAddon): void {
 }
 
 // ── Keyboard toolbar button ──
-function ToolbarButton({ label, icon, active, disabled, onClick }: {
+function ToolbarButton({
+  label,
+  icon,
+  active,
+  disabled,
+  onClick,
+}: {
   label?: string;
   icon?: string;
   active?: boolean;
@@ -87,8 +93,16 @@ function ToolbarButton({ label, icon, active, disabled, onClick }: {
         height: 34,
         border: "none",
         borderRadius: 6,
-        background: active ? "#00ff88" : disabled ? "rgba(215, 255, 229, 0.05)" : "rgba(215, 255, 229, 0.12)",
-        color: active ? "#000" : disabled ? "rgba(215, 255, 229, 0.25)" : "#d7ffe5",
+        background: active
+          ? "#00ff88"
+          : disabled
+            ? "rgba(215, 255, 229, 0.05)"
+            : "rgba(215, 255, 229, 0.12)",
+        color: active
+          ? "#000"
+          : disabled
+            ? "rgba(215, 255, 229, 0.25)"
+            : "#d7ffe5",
         fontSize: 13,
         fontWeight: 600,
         fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
@@ -142,7 +156,8 @@ export default function TerminalSessionPage({
   const resizeSyncTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const connectedRef = useRef(false);
   const keyboardTransitionRef = useRef(false);
-  const keyboardTransitionTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const keyboardTransitionTimerRef =
+    useRef<ReturnType<typeof setTimeout>>(undefined);
   const containerHeightRef = useRef<number>(0);
   const cellHeightRef = useRef<number>(0);
   const keyboardActiveRef = useRef(false);
@@ -154,7 +169,11 @@ export default function TerminalSessionPage({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleKeyRef = useRef<any>(null);
 
-  const { keyboardVisible: vvKeyboardVisible, keyboardHeight: vvKeyboardHeight, toolbarHeight } = useKeyboardToolbar();
+  const {
+    keyboardVisible: vvKeyboardVisible,
+    keyboardHeight: vvKeyboardHeight,
+    toolbarHeight,
+  } = useKeyboardToolbar();
   const keyboardVisible = nativeKeyboardVisible || vvKeyboardVisible;
   const keyboardHeight = nativeKeyboardHeight || vvKeyboardHeight;
 
@@ -172,14 +191,19 @@ export default function TerminalSessionPage({
   // Check clipboard content when keyboard becomes visible (via native bridge)
   useEffect(() => {
     if (!keyboardVisible) return;
-    terminalBridge.hasClipboardText()
+    terminalBridge
+      .hasClipboardText()
       .then((result) => setHasClipboard(result.hasText))
       .catch(() => setHasClipboard(false));
   }, [keyboardVisible]);
 
   // Clean up legacy FAB position from localStorage
   useEffect(() => {
-    try { localStorage.removeItem("fab-pos"); } catch { /* ignore */ }
+    try {
+      localStorage.removeItem("fab-pos");
+    } catch {
+      /* ignore */
+    }
   }, []);
 
   const sendInput = (text: string) => {
@@ -210,7 +234,8 @@ export default function TerminalSessionPage({
   handleKeyRef.current = handleKey;
 
   const handlePaste = useCallback(() => {
-    terminalBridge.readClipboardText()
+    terminalBridge
+      .readClipboardText()
       .then((result) => {
         const text = result.text;
         if (text) {
@@ -225,12 +250,18 @@ export default function TerminalSessionPage({
     const term = xtermRef.current;
     if (!term?.hasSelection()) return;
     const text = term.getSelection();
-    terminalBridge.writeClipboardText(text)
+    terminalBridge
+      .writeClipboardText(text)
       .then(() => {
         term.clearSelection();
         setHasSelection(false);
         void nativeBridge.haptics("click");
-        void presentToast({ message: t("terminal.copied"), duration: 1500, position: "bottom", color: "success" });
+        void presentToast({
+          message: t("terminal.copied"),
+          duration: 1500,
+          position: "bottom",
+          color: "success",
+        });
       })
       .catch(() => {});
   }, [presentToast, t]);
@@ -266,13 +297,19 @@ export default function TerminalSessionPage({
     const textareaObserver = new MutationObserver((mutations) => {
       for (const mutation of mutations) {
         for (const node of mutation.addedNodes) {
-          if (node instanceof HTMLElement && node.classList.contains("xterm-helper-textarea")) {
+          if (
+            node instanceof HTMLElement &&
+            node.classList.contains("xterm-helper-textarea")
+          ) {
             node.setAttribute("autocomplete", "off");
           }
         }
       }
     });
-    textareaObserver.observe(terminalRef.current, { childList: true, subtree: true });
+    textareaObserver.observe(terminalRef.current, {
+      childList: true,
+      subtree: true,
+    });
 
     try {
       term.loadAddon(new WebglAddon());
@@ -347,8 +384,10 @@ export default function TerminalSessionPage({
       selectionDisposable.dispose();
       resizeDisposable.dispose();
       if (resizeTimeoutRef.current) clearTimeout(resizeTimeoutRef.current);
-      if (resizeSyncTimeoutRef.current) clearTimeout(resizeSyncTimeoutRef.current);
-      if (keyboardTransitionTimerRef.current) clearTimeout(keyboardTransitionTimerRef.current);
+      if (resizeSyncTimeoutRef.current)
+        clearTimeout(resizeSyncTimeoutRef.current);
+      if (keyboardTransitionTimerRef.current)
+        clearTimeout(keyboardTransitionTimerRef.current);
       term.dispose();
       xtermRef.current = null;
       fitAddonRef.current = null;
@@ -375,12 +414,16 @@ export default function TerminalSessionPage({
       if (event.sessionId && event.sessionId !== sessionId) return;
 
       if (
-        (event.type === "terminal.replay" || event.type === "terminal.output") &&
+        (event.type === "terminal.replay" ||
+          event.type === "terminal.output") &&
         event.base64 &&
         term
       ) {
         try {
-          term.write(normalizeTerminalOutput(decodeBase64ToBytes(event.base64)), () => {});
+          term.write(
+            normalizeTerminalOutput(decodeBase64ToBytes(event.base64)),
+            () => {},
+          );
         } catch {
           /* ignore decode errors */
         }
@@ -396,9 +439,13 @@ export default function TerminalSessionPage({
         connectedRef.current = true;
         setStatusMessage(t("terminal.connected"));
         setLatency(null);
-        if (loadingRef.current) { loadingRef.current = false; dismissLoading(); }
+        if (loadingRef.current) {
+          loadingRef.current = false;
+          dismissLoading();
+        }
         fitAddonRef.current?.fit();
-        if (term) void terminalBridge.resizeSession(sessionId, term.cols, term.rows);
+        if (term)
+          void terminalBridge.resizeSession(sessionId, term.cols, term.rows);
       }
       if (event.type === "terminal.reattached") {
         term?.reset();
@@ -407,26 +454,38 @@ export default function TerminalSessionPage({
       if (event.type === "terminal.replayCompleted") {
         term?.reset();
         setStatusMessage(t("terminal.live"));
-        if (loadingRef.current) { loadingRef.current = false; dismissLoading(); }
+        if (loadingRef.current) {
+          loadingRef.current = false;
+          dismissLoading();
+        }
         fitAddonRef.current?.fit();
-        if (term) void terminalBridge.resizeSession(sessionId, term.cols, term.rows);
+        if (term)
+          void terminalBridge.resizeSession(sessionId, term.cols, term.rows);
       }
       if (event.type === "terminal.reconnecting") {
         connectedRef.current = false;
         setStatusMessage(t("terminal.reconnecting"));
-        if (!loadingRef.current) { loadingRef.current = true; presentLoading({ message: t("terminal.reconnecting"), duration: 0 }); }
+        if (!loadingRef.current) {
+          loadingRef.current = true;
+          presentLoading({ message: t("terminal.reconnecting"), duration: 0 });
+        }
       }
       if (event.type === "terminal.reconnected") {
         connectedRef.current = true;
         setStatusMessage(t("terminal.reconnected"));
         fitAddonRef.current?.fit();
-        if (term) void terminalBridge.resizeSession(sessionId, term.cols, term.rows);
+        if (term)
+          void terminalBridge.resizeSession(sessionId, term.cols, term.rows);
       }
       if (event.type === "terminal.closed") {
+        if (!connectedRef.current) return;
         connectedRef.current = false;
         const reason = event.reason ?? t("terminal.closed");
         setStatusMessage(reason);
-        if (loadingRef.current) { loadingRef.current = false; dismissLoading(); }
+        if (loadingRef.current) {
+          loadingRef.current = false;
+          dismissLoading();
+        }
         removeSession(sessionId);
         presentToast({
           message: t("terminal.sessionClosedToast", { reason }),
@@ -438,7 +497,10 @@ export default function TerminalSessionPage({
       }
       if (event.type === "terminal.expired") {
         connectedRef.current = false;
-        if (loadingRef.current) { loadingRef.current = false; dismissLoading(); }
+        if (loadingRef.current) {
+          loadingRef.current = false;
+          dismissLoading();
+        }
         const reason = event.reason ?? t("terminal.expired");
         setStatusMessage(reason);
         removeSession(sessionId);
@@ -452,7 +514,10 @@ export default function TerminalSessionPage({
       }
       if (event.type === "terminal.exited") {
         connectedRef.current = false;
-        if (loadingRef.current) { loadingRef.current = false; dismissLoading(); }
+        if (loadingRef.current) {
+          loadingRef.current = false;
+          dismissLoading();
+        }
         const code = event.exitCode;
         const reason = event.reason;
         const statusMsg = reason
@@ -471,8 +536,15 @@ export default function TerminalSessionPage({
       }
       if (event.type === "terminal.startFailed") {
         connectedRef.current = false;
-        if (loadingRef.current) { loadingRef.current = false; dismissLoading(); }
-        setStatusMessage(t("terminal.startFailedReason", { reason: event.reason ?? t("common.unknown") }));
+        if (loadingRef.current) {
+          loadingRef.current = false;
+          dismissLoading();
+        }
+        setStatusMessage(
+          t("terminal.startFailedReason", {
+            reason: event.reason ?? t("common.unknown"),
+          }),
+        );
         presentToast({
           message: t("terminal.sessionStartFailedToast"),
           duration: 3000,
@@ -483,7 +555,10 @@ export default function TerminalSessionPage({
       }
       if (event.type === "terminal.displaced") {
         connectedRef.current = false;
-        if (loadingRef.current) { loadingRef.current = false; dismissLoading(); }
+        if (loadingRef.current) {
+          loadingRef.current = false;
+          dismissLoading();
+        }
         setStatusMessage(t("terminal.displaced"));
         presentToast({
           message: t("terminal.sessionDisplacedToast"),
@@ -491,7 +566,9 @@ export default function TerminalSessionPage({
           position: "bottom",
           color: "warning",
         });
-        setTimeout(() => { if (!cancelled) history.replace("/sessions"); }, 1500);
+        setTimeout(() => {
+          if (!cancelled) history.replace("/sessions");
+        }, 1500);
       }
       if (event.type === "terminal.latency") {
         const rtt = (event as any).rtt;
@@ -518,14 +595,21 @@ export default function TerminalSessionPage({
         if (el && t && cellHeightRef.current > 0) {
           if (visible) {
             keyboardActiveRef.current = true;
-            const targetHeight = containerHeightRef.current - height - toolbarHeight;
-            const newRows = Math.max(1, Math.floor(targetHeight / cellHeightRef.current));
+            const targetHeight =
+              containerHeightRef.current - height - toolbarHeight;
+            const newRows = Math.max(
+              1,
+              Math.floor(targetHeight / cellHeightRef.current),
+            );
             el.style.height = `${Math.round(newRows * cellHeightRef.current)}px`;
             t.resize(t.cols, newRows);
           } else {
             keyboardActiveRef.current = false;
             const targetHeight = containerHeightRef.current;
-            const newRows = Math.max(1, Math.floor(targetHeight / cellHeightRef.current));
+            const newRows = Math.max(
+              1,
+              Math.floor(targetHeight / cellHeightRef.current),
+            );
             el.style.height = `${Math.round(newRows * cellHeightRef.current)}px`;
             t.resize(t.cols, newRows);
           }
@@ -533,7 +617,8 @@ export default function TerminalSessionPage({
 
         // Suppress ResizeObserver during native animation; final correction after 400ms
         keyboardTransitionRef.current = true;
-        if (keyboardTransitionTimerRef.current) clearTimeout(keyboardTransitionTimerRef.current);
+        if (keyboardTransitionTimerRef.current)
+          clearTimeout(keyboardTransitionTimerRef.current);
         keyboardTransitionTimerRef.current = setTimeout(() => {
           keyboardTransitionRef.current = false;
           const fa = fitAddonRef.current;
@@ -599,7 +684,11 @@ export default function TerminalSessionPage({
     void connect();
 
     const handleVisibility = () => {
-      if (document.visibilityState === "visible" && !connectedRef.current && !cancelled) {
+      if (
+        document.visibilityState === "visible" &&
+        !connectedRef.current &&
+        !cancelled
+      ) {
         if (!loadingRef.current) {
           loadingRef.current = true;
           presentLoading({ message: t("terminal.reconnecting"), duration: 0 });
@@ -613,7 +702,10 @@ export default function TerminalSessionPage({
       cancelled = true;
       connectedRef.current = false;
       document.removeEventListener("visibilitychange", handleVisibility);
-      if (loadingRef.current) { loadingRef.current = false; dismissLoading(); }
+      if (loadingRef.current) {
+        loadingRef.current = false;
+        dismissLoading();
+      }
       unsubscribe();
       void terminalBridge.disconnectSession();
     };
@@ -621,9 +713,24 @@ export default function TerminalSessionPage({
   }, [sessionId]);
 
   return (
-    <IonPage style={{ "--ion-safe-area-top": "0px", "--ion-safe-area-bottom": "0px" } as React.CSSProperties}>
+    <IonPage
+      style={
+        {
+          "--ion-safe-area-top": "0px",
+          "--ion-safe-area-bottom": "0px",
+        } as React.CSSProperties
+      }
+    >
       <IonHeader>
-        <IonToolbar style={{ "--min-height": "44px", "--padding-top": "0px", "--padding-bottom": "0px" } as React.CSSProperties}>
+        <IonToolbar
+          style={
+            {
+              "--min-height": "44px",
+              "--padding-top": "0px",
+              "--padding-bottom": "0px",
+            } as React.CSSProperties
+          }
+        >
           <IonButtons slot="start">
             <IonMenuButton />
           </IonButtons>
@@ -641,9 +748,18 @@ export default function TerminalSessionPage({
                 header: t("terminal.sessionDetails"),
                 subHeader: `${t("terminal.status")}: ${statusMessage}`,
                 buttons: [
-                  { text: `${t("terminal.cols")}: ${cols}`, role: "destructive" as any },
-                  { text: `${t("terminal.rows")}: ${rows}`, role: "destructive" as any },
-                  { text: `${t("terminal.latency")}: ${lat}`, role: "destructive" as any },
+                  {
+                    text: `${t("terminal.cols")}: ${cols}`,
+                    role: "destructive" as any,
+                  },
+                  {
+                    text: `${t("terminal.rows")}: ${rows}`,
+                    role: "destructive" as any,
+                  },
+                  {
+                    text: `${t("terminal.latency")}: ${lat}`,
+                    role: "destructive" as any,
+                  },
                   { text: t("common.ok"), role: "cancel" },
                 ],
               });
@@ -653,79 +769,114 @@ export default function TerminalSessionPage({
           </IonBadge>
         </IonToolbar>
       </IonHeader>
-      <IonContent scrollY={false} style={{ '--background': '#0b0f0e' } as React.CSSProperties}>
-          <div style={{ position: "relative", height: "100%", overflow: "hidden" }}>
+      <IonContent
+        scrollY={false}
+        style={{ "--background": "#0b0f0e" } as React.CSSProperties}
+      >
+        <div
+          style={{ position: "relative", height: "100%", overflow: "hidden" }}
+        >
+          <div
+            ref={terminalRef}
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              height: "100%",
+              background: "#0b0f0e",
+              touchAction: "none",
+            }}
+          />
+        </div>
+
+        {/* Keyboard toolbar: appears above the soft keyboard */}
+        {keyboardVisible && (
+          <div
+            className="terminal-toolbar"
+            style={{
+              position: "fixed",
+              bottom: 0,
+              left: 0,
+              right: 0,
+              height: toolbarHeight,
+              zIndex: 100,
+              display: "flex",
+              alignItems: "center",
+              background: "rgba(11, 15, 14, 0.95)",
+              borderTop: "1px solid rgba(215, 255, 229, 0.15)",
+              transform: `translateY(0)`,
+              willChange: "transform",
+              transition: "transform 0.25s cubic-bezier(0.25, 1, 0.5, 1)",
+              touchAction: "manipulation",
+              userSelect: "none",
+              WebkitUserSelect: "none",
+            }}
+          >
             <div
-              ref={terminalRef}
               style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                right: 0,
-                height: "100%",
-                background: "#0b0f0e",
-                touchAction: "none",
+                flex: 1,
+                display: "flex",
+                alignItems: "center",
+                padding: "0 6px",
+                gap: 4,
+                overflowX: "auto",
+                overflowY: "hidden",
+                WebkitOverflowScrolling: "touch",
+                scrollbarWidth: "none",
+              }}
+            >
+              <ToolbarButton label="Esc" onClick={() => handleKey("\x1b")} />
+              <ToolbarButton label="Tab" onClick={() => handleKey("\t")} />
+              <ToolbarButton
+                label="S-Tab"
+                onClick={() => handleKey("\x1b[Z")}
+              />
+              <ToolbarButton
+                label="Ctrl"
+                active={ctrlActive}
+                onClick={() => setCtrlActive((v) => !v)}
+              />
+              <ToolbarButton
+                label="Alt"
+                active={altActive}
+                onClick={() => setAltActive((v) => !v)}
+              />
+              <ToolbarButton
+                icon={arrowBackOutline}
+                onClick={() => handleKey("\x1b[D")}
+              />
+              <ToolbarButton
+                icon={arrowUpOutline}
+                onClick={() => handleKey("\x1b[A")}
+              />
+              <ToolbarButton
+                icon={arrowDownOutline}
+                onClick={() => handleKey("\x1b[B")}
+              />
+              <ToolbarButton
+                icon={arrowForwardOutline}
+                onClick={() => handleKey("\x1b[C")}
+              />
+              <ToolbarButton
+                icon={clipboardOutline}
+                label={t("terminal.paste")}
+                disabled={!hasClipboard}
+                onClick={handlePaste}
+              />
+              {/* <ToolbarButton icon={copyOutline} label={t("terminal.copy")} disabled={!hasSelection} onClick={handleCopy} /> */}
+            </div>
+            <ToolbarButton
+              label={t("terminal.done")}
+              onClick={() => {
+                const textarea = terminalRef.current?.querySelector(
+                  ".xterm-helper-textarea",
+                ) as HTMLElement | null;
+                textarea?.blur();
               }}
             />
           </div>
-
-          {/* Keyboard toolbar: appears above the soft keyboard */}
-          {keyboardVisible && (
-            <div
-              className="terminal-toolbar"
-              style={{
-                position: "fixed",
-                bottom: 0,
-                left: 0,
-                right: 0,
-                height: toolbarHeight,
-                zIndex: 100,
-                display: "flex",
-                alignItems: "center",
-                background: "rgba(11, 15, 14, 0.95)",
-                borderTop: "1px solid rgba(215, 255, 229, 0.15)",
-                transform: `translateY(0)`,
-                willChange: "transform",
-                transition: "transform 0.25s cubic-bezier(0.25, 1, 0.5, 1)",
-                touchAction: "manipulation",
-                userSelect: "none",
-                WebkitUserSelect: "none",
-              }}
-            >
-              <div
-                style={{
-                  flex: 1,
-                  display: "flex",
-                  alignItems: "center",
-                  padding: "0 6px",
-                  gap: 4,
-                  overflowX: "auto",
-                  overflowY: "hidden",
-                  WebkitOverflowScrolling: "touch",
-                  scrollbarWidth: "none",
-                }}
-              >
-                <ToolbarButton label="Esc" onClick={() => handleKey("\x1b")} />
-                <ToolbarButton label="Tab" onClick={() => handleKey("\t")} />
-                <ToolbarButton label="S-Tab" onClick={() => handleKey("\x1b[Z")} />
-                <ToolbarButton label="Ctrl" active={ctrlActive} onClick={() => setCtrlActive((v) => !v)} />
-                <ToolbarButton label="Alt" active={altActive} onClick={() => setAltActive((v) => !v)} />
-                <ToolbarButton icon={arrowBackOutline} onClick={() => handleKey("\x1b[D")} />
-                <ToolbarButton icon={arrowUpOutline} onClick={() => handleKey("\x1b[A")} />
-                <ToolbarButton icon={arrowDownOutline} onClick={() => handleKey("\x1b[B")} />
-                <ToolbarButton icon={arrowForwardOutline} onClick={() => handleKey("\x1b[C")} />
-                <ToolbarButton icon={clipboardOutline} label={t("terminal.paste")} disabled={!hasClipboard} onClick={handlePaste} />
-                <ToolbarButton icon={copyOutline} label={t("terminal.copy")} disabled={!hasSelection} onClick={handleCopy} />
-              </div>
-              <ToolbarButton
-                label={t("terminal.done")}
-                onClick={() => {
-                  const textarea = terminalRef.current?.querySelector(".xterm-helper-textarea") as HTMLElement | null;
-                  textarea?.blur();
-                }}
-              />
-            </div>
-          )}
+        )}
       </IonContent>
     </IonPage>
   );
