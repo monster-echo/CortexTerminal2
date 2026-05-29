@@ -27,6 +27,7 @@ import { useSessionStore, type SessionState } from "../store/sessionStore";
 import { useCreateSession } from "../features/sessions/useCreateSession";
 import CreateSessionModal from "../features/sessions/CreateSessionModal";
 import logoSvg from "../assets/logo-dark.svg";
+import UserAvatar from "./UserAvatar";
 
 const selectUser = (s: AuthState) => s.user;
 const selectRecentSessions = (s: SessionState) => s.recentSessions;
@@ -142,23 +143,7 @@ export default function AppSidebar() {
             routerDirection="root"
             onClick={closeMenu}
           >
-            <div
-              slot="start"
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: "50%",
-                background: "var(--ion-color-primary)",
-                color: "var(--ion-color-primary-contrast)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontWeight: 600,
-                fontSize: 14,
-              }}
-            >
-              {(user?.username ?? "?")[0].toUpperCase()}
-            </div>
+            <UserAvatar username={user?.username} slot="start" />
             <IonLabel>
               <h3>{user?.username ?? t("sidebar.notSignedIn")}</h3>
             </IonLabel>

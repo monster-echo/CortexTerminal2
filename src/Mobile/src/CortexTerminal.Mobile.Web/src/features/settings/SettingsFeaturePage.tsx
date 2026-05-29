@@ -27,6 +27,7 @@ import { useAppStore, type AppStoreState } from "../../store/appStore";
 import { useAuthStore, type AuthState } from "../../store/authStore";
 import { authBridge } from "../../bridge/modules/authBridge";
 import { nativeBridge } from "../../bridge/nativeBridge";
+import UserAvatar from "../../components/UserAvatar";
 import {
   applyColorMode,
   setStoredMode,
@@ -211,24 +212,8 @@ export default function SettingsFeaturePage({ history }: RouteComponentProps) {
           <IonItemDivider>
             <IonLabel className="py-2">{t("settings.userSection")}</IonLabel>
           </IonItemDivider>
-          <IonItem className="ion-no-padding" lines="none">
-            <div
-              slot="start"
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: "50%",
-                background: "var(--ion-color-primary)",
-                color: "var(--ion-color-primary-contrast)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontWeight: 600,
-                fontSize: 18,
-              }}
-            >
-              {(user?.username ?? "?")[0].toUpperCase()}
-            </div>
+          <IonItem lines="none">
+            <UserAvatar username={user?.username} slot="start" />
             <IonLabel>
               <h2>{user?.username ?? "..."}</h2>
             </IonLabel>
