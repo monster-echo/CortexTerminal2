@@ -32,7 +32,7 @@ public sealed class DeviceFlowLoginServiceTests : IAsyncDisposable
             Results.Ok(new DeviceFlowStartResponse(
                 DeviceCode: "test-device-code",
                 UserCode: "ABCD-1234",
-                VerificationUri: "https://gateway.ct.rwecho.top/activate",
+                VerificationUri: "https://corterm.rwecho.top/activate",
                 ExpiresInSeconds: 900,
                 PollIntervalSeconds: 1)));
 

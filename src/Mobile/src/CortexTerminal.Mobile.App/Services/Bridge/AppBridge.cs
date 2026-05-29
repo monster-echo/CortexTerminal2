@@ -19,10 +19,10 @@ public sealed partial class AppBridge(ILogger<AppBridge> logger) : IBridgeContra
     private const int MaxRecentOperations = 20;
 
     private readonly AppSettings _appSettings = new(
-        GatewayBaseUri: "https://gateway.ct.rwecho.top",
+        GatewayBaseUri: "https://corterm.rwecho.top",
         SupportEmail: "rwecho@live.com",
-        PrivacyPolicyUrl: "https://gateway.ct.rwecho.top/privacy",
-        TermsOfServiceUrl: "https://gateway.ct.rwecho.top/terms",
+        PrivacyPolicyUrl: "https://corterm.rwecho.top/privacy",
+        TermsOfServiceUrl: "https://corterm.rwecho.top/terms",
         EnableDiagnostics: true,
         EnableFeatureShowcase: true);
     private readonly ConcurrentQueue<BridgeOperationInfo> _recentOperations = new();

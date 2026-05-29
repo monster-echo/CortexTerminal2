@@ -47,13 +47,13 @@ docker run -p 5045:5045 ghcr.io/monster-echo/corterm-gateway:latest
 **Linux / macOS：**
 
 ```bash
-curl -fsSL https://gateway.ct.rwecho.top/install.sh | sh
+curl -fsSL https://corterm.rwecho.top/install.sh | sh
 ```
 
 **Windows (PowerShell)：**
 
 ```powershell
-powershell -Command "irm https://gateway.ct.rwecho.top/install.ps1 | iex"
+powershell -Command "irm https://corterm.rwecho.top/install.ps1 | iex"
 ```
 
 ### 3. 打开浏览器

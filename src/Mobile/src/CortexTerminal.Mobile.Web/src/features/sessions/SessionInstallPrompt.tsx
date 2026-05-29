@@ -4,10 +4,10 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 const bashInstallCommand =
-  "curl -fsSL https://gateway.ct.rwecho.top/install.sh | sh";
+  "curl -fsSL https://corterm.rwecho.top/install.sh | sh";
 const psInstallCommand =
-  'powershell -Command "irm https://gateway.ct.rwecho.top/install.ps1 | iex"';
-const activateUrl = "https://gateway.ct.rwecho.top/activate";
+  'powershell -Command "irm https://corterm.rwecho.top/install.ps1 | iex"';
+const activateUrl = "https://corterm.rwecho.top/activate";
 
 async function copyToClipboard(text: string) {
   await navigator.clipboard?.writeText(text);

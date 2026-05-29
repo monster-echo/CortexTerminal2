@@ -53,7 +53,7 @@ export function ProfileForm() {
   const defaultValues: Partial<ProfileFormValues> = {
     bio: '',
     urls: [
-      { value: 'https://gateway.ct.rwecho.top' },
+      { value: 'https://corterm.rwecho.top' },
       { value: 'https://github.com/monster-echo/CortexTerminal2' },
     ],
   }

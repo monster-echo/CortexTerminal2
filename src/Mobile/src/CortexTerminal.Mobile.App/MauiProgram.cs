@@ -28,7 +28,7 @@ public static class MauiProgram
 		{
 			var gatewayBaseUri = sp.GetRequiredService<IConfiguration>()["App:GatewayBaseUri"];
 			return new Uri(string.IsNullOrWhiteSpace(gatewayBaseUri)
-				? "https://gateway.ct.rwecho.top"
+				? "https://corterm.rwecho.top"
 				: gatewayBaseUri);
 		});
 		// Auth services

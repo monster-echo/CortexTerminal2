@@ -1,24 +1,28 @@
 using CortexTerminal.Mobile.App.Services.Auth;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace CortexTerminal.Mobile.App;
 
 public partial class App : Application
 {
 	private readonly AppShell _appShell;
+	private readonly ILogger<App> _logger;
 
 	public static event Action? AppResumed;
 	public static event Action? AppSlept;
 	public static DateTimeOffset? LastSleepTime { get; private set; }
 
-	public App(AppShell appShell)
+	public App(AppShell appShell, ILogger<App> logger)
 	{
 		InitializeComponent();
 		_appShell = appShell;
+		_logger = logger;
 	}
 
 	protected override void OnSleep()
 	{
+		_logger.LogInformation("[Lifecycle] OnSleep");
 		LastSleepTime = DateTimeOffset.UtcNow;
 		AppSlept?.Invoke();
 		base.OnSleep();
@@ -26,12 +30,14 @@ public partial class App : Application
 
 	protected override void OnResume()
 	{
+		_logger.LogInformation("[Lifecycle] OnResume — AppResumed subscribers: {Count}", AppResumed?.GetInvocationList()?.Length ?? 0);
 		AppResumed?.Invoke();
 		base.OnResume();
 	}
 
 	protected override Window CreateWindow(IActivationState? activationState)
 	{
+		_logger.LogInformation("[Lifecycle] CreateWindow");
 		return new Window(_appShell);
 	}
 

@@ -4,12 +4,12 @@ set -e
 # Corterm Worker Installer
 # Downloads and installs the latest worker binary for your platform.
 #
-# Usage: curl -fsSL https://gateway.ct.rwecho.top/install.sh | sh
+# Usage: curl -fsSL https://corterm.rwecho.top/install.sh | sh
 
 REPO="monster-echo/CortexTerminal2"
 BIN_NAME="corterm"
 INSTALL_DIR="${CORTERM_HOME:-${CORTEX_TERMINAL_HOME:-$HOME/.corterm}}"
-DEFAULT_GATEWAY_URL="https://gateway.ct.rwecho.top"
+DEFAULT_GATEWAY_URL="https://corterm.rwecho.top"
 GITHUB_PROXY="https://proxy.0x2a.top"
 
 # ---- Color output ----

@@ -1,14 +1,14 @@
 # Corterm Worker Installer for Windows
 # Downloads and installs the latest worker binary for your platform.
 #
-# Usage: irm https://gateway.ct.rwecho.top/install.ps1 | iex
+# Usage: irm https://corterm.rwecho.top/install.ps1 | iex
 
 $ErrorActionPreference = "Stop"
 
 $REPO = "monster-echo/CortexTerminal2"
 $BIN_NAME = "corterm"
 $INSTALL_DIR = if ($env:CORTERM_HOME) { $env:CORTERM_HOME } elseif ($env:CORTEX_TERMINAL_HOME) { $env:CORTEX_TERMINAL_HOME } else { "$env:USERPROFILE\.corterm" }
-$DEFAULT_GATEWAY_URL = "https://gateway.ct.rwecho.top"
+$DEFAULT_GATEWAY_URL = "https://corterm.rwecho.top"
 $GITHUB_PROXY = "https://proxy.0x2a.top"
 
 # ---- Helpers ----

@@ -365,7 +365,7 @@ app.UseMiddleware<TerminalWebSocketMiddleware>();
 app.MapControllers();
 
 
-var verificationUri = builder.Configuration["Auth:VerificationUri"] ?? "https://gateway.ct.rwecho.top/activate";
+var verificationUri = builder.Configuration["Auth:VerificationUri"] ?? "https://corterm.rwecho.top/activate";
 
 app.MapPost("/api/auth/device-flow", (InMemoryDeviceFlowStore store) =>
 {

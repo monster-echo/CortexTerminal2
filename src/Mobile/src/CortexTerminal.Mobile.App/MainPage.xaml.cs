@@ -62,6 +62,7 @@ public partial class MainPage : ContentPage
 		InitializeComponent();
 		_bridge = bridge;
 		_logger = logger;
+		_logger.LogInformation("[MainPage] Constructor — cold start");
 
 		// Always match splash screen (#08080A) — the overlay covers content,
 		// only status bar is visible. ApplyNativeTheme() will set correct values later.
@@ -78,6 +79,7 @@ public partial class MainPage : ContentPage
 		{
 			Application.Current.RequestedThemeChanged += (_, args) =>
 			{
+				_logger.LogInformation("[Audit] RequestedThemeChanged — theme: {Theme}", args.RequestedTheme);
 				ApplyNativeTheme(args.RequestedTheme == AppTheme.Dark ? "dark" : "light");
 			};
 		}
@@ -89,6 +91,7 @@ public partial class MainPage : ContentPage
 	protected override void OnAppearing()
 	{
 		base.OnAppearing();
+		_logger.LogInformation("[MainPage] OnAppearing — hasAppearedOnce: {HasAppeared}", _hasAppearedOnce);
 		App.AppResumed -= OnAppResumed;
 		App.AppResumed += OnAppResumed;
 		if (_hasAppearedOnce) CheckAndRecoverWebViewIfNeeded();
@@ -178,6 +181,7 @@ public partial class MainPage : ContentPage
 
 	private void ShowSplashScreenWithTimeout(TimeSpan timeout)
 	{
+		_logger.LogInformation("[Audit] ShowSplashScreen — timeout: {Timeout}s", timeout.TotalSeconds);
 		IsLoading = true;
 		splashScreen.IsVisible = true;
 		splashScreen.Opacity = 1;
@@ -208,6 +212,7 @@ public partial class MainPage : ContentPage
 
 	private async void HideSplashScreen()
 	{
+		_logger.LogInformation("[MainPage] HideSplashScreen — start fade out");
 		try
 		{
 			await splashScreen.FadeToAsync(0, 500, Easing.CubicInOut);
@@ -217,12 +222,14 @@ public partial class MainPage : ContentPage
 			_logger.LogDebug(ex, "Failed to animate splash screen fade out.");
 		}
 
+		_logger.LogInformation("[Audit] HideSplashScreen — overlay removed");
 		splashScreen.IsVisible = false;
 		IsLoading = false;
 	}
 
 	private void OnAppResumed()
 	{
+		_logger.LogInformation("[MainPage] OnAppResumed — hasAppearedOnce: {HasAppeared}, isResumeHandling: {IsResumeHandling}", _hasAppearedOnce, _isResumeHandling);
 		if (_isResumeHandling) return;
 		CheckAndRecoverWebViewIfNeeded();
 	}
@@ -230,6 +237,7 @@ public partial class MainPage : ContentPage
 	private async void CheckAndRecoverWebViewIfNeeded()
 	{
 		if (_isResumeHandling) return;
+		_logger.LogInformation("[MainPage] CheckAndRecoverWebViewIfNeeded — entering recovery flow");
 		_isResumeHandling = true;
 		try
 		{
@@ -252,9 +260,11 @@ public partial class MainPage : ContentPage
 
 	private async Task HandleResumeAsync()
 	{
+		_logger.LogInformation("[MainPage] HandleResumeAsync — platformView ready: {Ready}", hybridWebView?.Handler?.PlatformView is not null);
 		// If the platform view is not ready, show splash and wait for it to mount
 		if (hybridWebView?.Handler?.PlatformView is null || !IsWebViewAttached(hybridWebView.Handler.PlatformView))
 		{
+			_logger.LogWarning("[MainPage] HandleResumeAsync — platformView not attached, waiting...");
 			ShowSplashScreenWithTimeout(TimeSpan.FromSeconds(10));
 			for (var i = 0; i < 25; i++)
 			{
@@ -271,16 +281,19 @@ public partial class MainPage : ContentPage
 
 		// 1. 静默探活：给 WebView 300 毫秒的时间来回应心跳
 		// 如果应用只是短暂切出并秒回，且前端运行正常，我们就完全跳过动画遮罩，避免白屏闪烁
+		_logger.LogInformation("[MainPage] HandleResumeAsync — starting health check (300ms timeout)");
 		var healthTask = CheckWebViewHealthAsync();
 		var firstCompleted = await Task.WhenAny(healthTask, Task.Delay(300));
 
 		if (firstCompleted == healthTask && await healthTask)
 		{
+			_logger.LogInformation("[MainPage] HandleResumeAsync — health check passed, skipping recovery");
 			DispatchPendingNavigation();
 			return;
 		}
 
 		// 2. 超时未回应，或者判定假死：这时候必须拉起加载遮罩蒙层了
+		_logger.LogWarning("[MainPage] HandleResumeAsync — health check timeout/failed, showing splash and retrying (2s)");
 		ShowSplashScreenWithTimeout(TimeSpan.FromSeconds(8));
 
 		// 3. 再给它最多 2 秒的时间挣扎一下，确认是不是彻底卡死了
@@ -292,10 +305,12 @@ public partial class MainPage : ContentPage
 		if (firstCompleted != healthTask || !(await healthTask))
 		{
 			// 确认无法抢救，执行重新加载操作
+			_logger.LogWarning("[MainPage] HandleResumeAsync — WebView unresponsive, triggering recovery");
 			await RecoverWebViewAsync();
 			return;
 		}
 
+		_logger.LogInformation("[MainPage] HandleResumeAsync — second health check passed");
 		HideSplashScreen();
 		DispatchPendingNavigation();
 	}
@@ -436,7 +451,7 @@ public partial class MainPage : ContentPage
 
 	private void OnHybridWebViewLoaded(object? sender, EventArgs e)
 	{
-		_logger.LogInformation("HybridWebView loaded.");
+		_logger.LogInformation("[Audit] HybridWebView loaded.");
 	}
 
 	private void OnHybridWebViewWebResourceRequested(object? sender, WebViewWebResourceRequestedEventArgs e)
@@ -447,6 +462,11 @@ public partial class MainPage : ContentPage
 				&& !string.Equals(e.Method, "HEAD", StringComparison.OrdinalIgnoreCase))
 			{
 				return;
+			}
+
+			if (e.Uri.EndsWith("index.html"))
+			{
+				_logger.LogInformation("[Audit] WebResourceRequested — index.html ({Method})", e.Method);
 			}
 
 			if (!_bridge.TryResolveWebFile(e.Uri, out var file) || file is null)
@@ -500,7 +520,9 @@ public partial class MainPage : ContentPage
 				return;
 			}
 
-			switch (typeProp.GetString())
+				_logger.LogInformation("[Audit] RawMessageReceived — type: {Type}", msgType);
+				var msgType = typeProp.GetString();
+			switch (msgType)
 			{
 				case "appInit":
 					HandleAppInit();
@@ -613,6 +635,7 @@ public partial class MainPage : ContentPage
 
 	private void HandleAppReady()
 	{
+		_logger.LogInformation("[MainPage] HandleAppReady — received appReady from WebView");
 		_appReadyTcs?.TrySetResult(null);
 		_splashTimeoutCts?.Cancel();
 		_splashTimeoutCts = null;
@@ -783,6 +806,7 @@ public partial class MainPage : ContentPage
 
 	private void ApplyNativeTheme(string mode)
 	{
+		_logger.LogInformation("[MainPage] ApplyNativeTheme — mode: {Mode}", mode);
 		MainThread.BeginInvokeOnMainThread(() =>
 		{
 			var isDark = mode == "dark";
