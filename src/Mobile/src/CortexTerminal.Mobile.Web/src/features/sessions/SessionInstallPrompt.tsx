@@ -3,7 +3,8 @@ import { checkmarkOutline, copyOutline, keyOutline } from "ionicons/icons";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-const bashInstallCommand = "curl -fsSL https://gateway.ct.rwecho.top/install.sh | sh";
+const bashInstallCommand =
+  "curl -fsSL https://gateway.ct.rwecho.top/install.sh | sh";
 const psInstallCommand =
   'powershell -Command "irm https://gateway.ct.rwecho.top/install.ps1 | iex"';
 const activateUrl = "https://gateway.ct.rwecho.top/activate";
@@ -82,7 +83,10 @@ function CopyBtn({ text }: { text: string }) {
         });
       }}
     >
-      <IonIcon slot="icon-only" icon={copied ? checkmarkOutline : copyOutline} />
+      <IonIcon
+        slot="icon-only"
+        icon={copied ? checkmarkOutline : copyOutline}
+      />
     </IonButton>
   );
 }
@@ -99,7 +103,9 @@ function TerminalBlock({ title, children }: TerminalBlockProps) {
         <span style={dotStyle("#ff5f57")} />
         <span style={dotStyle("#febc2e")} />
         <span style={dotStyle("#28c840")} />
-        <span style={{ color: "#8b949e", fontSize: 12, marginLeft: 8 }}>{title}</span>
+        <span style={{ color: "#8b949e", fontSize: 12, marginLeft: 8 }}>
+          {title}
+        </span>
       </div>
       <div style={termBodyStyle}>{children}</div>
     </div>
@@ -152,13 +158,6 @@ export default function SessionInstallPrompt() {
           <span style={{ color: "#58a6ff" }}>{activateUrl}</span>
           <CopyBtn text={activateUrl} />
         </div>
-        <div style={{ marginBottom: 8 }}>
-          <span style={successStyle}>{t("sessionInstall.enterCodeLabel")}</span>
-          <span style={highlightStyle}>XXXX-YYYY</span>
-        </div>
-        <div>
-          <span style={commentStyle}>{t("sessionInstall.openLink")}</span>
-        </div>
       </TerminalBlock>
 
       {/* Step 3: Back here */}
@@ -173,16 +172,6 @@ export default function SessionInstallPrompt() {
           <span style={successStyle}>{t("sessionInstall.ready")}</span>
         </div>
       </TerminalBlock>
-
-      {/* Actions */}
-      <div style={{ padding: "0 16px", display: "flex", gap: 8 }}>
-        <IonButton
-          routerLink="/activate"
-        >
-          <IonIcon slot="start" icon={keyOutline} />
-          {t("sessionInstall.enterCode")}
-        </IonButton>
-      </div>
     </div>
   );
 }
