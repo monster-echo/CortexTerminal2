@@ -230,11 +230,9 @@ builder.Services.AddSingleton<TerminalWebSocketHandler>();
 builder.Services.AddSingleton<Ixnas.AltchaNet.AltchaService>(sp =>
 {
     var altchaStore = new AltchaChallengeStore();
-    var key = new byte[64];
-    using (var rng = System.Security.Cryptography.RandomNumberGenerator.Create())
-    {
-        rng.GetBytes(key);
-    }
+    var keyBase64 = builder.Configuration["Altcha:HmacKey"]
+        ?? throw new InvalidOperationException("Altcha:HmacKey is not configured.");
+    var key = Convert.FromBase64String(keyBase64);
     return Ixnas.AltchaNet.Altcha.CreateServiceBuilder()
         .UseSha256(key)
         .UseStore(altchaStore)
