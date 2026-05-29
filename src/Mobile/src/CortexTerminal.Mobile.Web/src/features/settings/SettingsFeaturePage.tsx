@@ -58,7 +58,10 @@ export default function SettingsFeaturePage({ history }: RouteComponentProps) {
     try {
       await authBridge.logout();
     } catch (e) {
-      console.warn("[settings] Bridge logout failed, clearing local session:", e);
+      console.warn(
+        "[settings] Bridge logout failed, clearing local session:",
+        e,
+      );
     }
     clearSession();
     history.replace("/sessions");
@@ -206,15 +209,24 @@ export default function SettingsFeaturePage({ history }: RouteComponentProps) {
       <IonContent fullscreen>
         <IonList inset>
           <IonItemDivider>
-            <IonLabel>{t("settings.userSection")}</IonLabel>
+            <IonLabel className="py-2">{t("settings.userSection")}</IonLabel>
           </IonItemDivider>
-          <IonItem>
-            <div slot="start" style={{
-              width: 40, height: 40, borderRadius: "50%",
-              background: "var(--ion-color-primary)",
-              color: "var(--ion-color-primary-contrast)", display: "flex", alignItems: "center",
-              justifyContent: "center", fontWeight: 600, fontSize: 18,
-            }}>
+          <IonItem className="ion-no-padding" lines="none">
+            <div
+              slot="start"
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: "50%",
+                background: "var(--ion-color-primary)",
+                color: "var(--ion-color-primary-contrast)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontWeight: 600,
+                fontSize: 18,
+              }}
+            >
               {(user?.username ?? "?")[0].toUpperCase()}
             </div>
             <IonLabel>
@@ -225,7 +237,9 @@ export default function SettingsFeaturePage({ history }: RouteComponentProps) {
 
         <IonList inset>
           <IonItemDivider>
-            <IonLabel>{t("settings.appearanceSection")}</IonLabel>
+            <IonLabel className="py-2">
+              {t("settings.appearanceSection")}
+            </IonLabel>
           </IonItemDivider>
           <IonItem button onClick={handleThemeSelect}>
             <IonIcon slot="start" icon={contrastOutline} />
@@ -250,7 +264,7 @@ export default function SettingsFeaturePage({ history }: RouteComponentProps) {
 
         <IonList inset>
           <IonItemDivider>
-            <IonLabel>{t("settings.featureSection")}</IonLabel>
+            <IonLabel className="py-2">{t("settings.featureSection")}</IonLabel>
           </IonItemDivider>
           <IonItem button routerLink="/activate" routerDirection="root">
             <IonIcon slot="start" icon={keyOutline} />
@@ -271,36 +285,81 @@ export default function SettingsFeaturePage({ history }: RouteComponentProps) {
           </IonList>
         </div>
 
-        <div style={{
-          textAlign: "center",
-          padding: "16px 0 4px",
-        }}>
-          <IonItem button={false} lines="none" style={{ "--background": "transparent", "--padding-start": "0" }}>
-            <div style={{ display: "flex", justifyContent: "center", gap: 24, width: "100%" }}>
+        <div
+          style={{
+            textAlign: "center",
+            padding: "16px 0 4px",
+          }}
+        >
+          <IonItem
+            button={false}
+            lines="none"
+            style={{ "--background": "transparent", "--padding-start": "0" }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "center",
+                gap: 24,
+                width: "100%",
+              }}
+            >
               <a
-                onClick={(e) => { e.preventDefault(); openLink(appInfo?.privacyPolicyUrl ?? ""); }}
-                style={{ color: "var(--ion-color-medium)", fontSize: 12, cursor: "pointer", textDecoration: "underline" }}
+                onClick={(e) => {
+                  e.preventDefault();
+                  openLink(appInfo?.privacyPolicyUrl ?? "");
+                }}
+                style={{
+                  color: "var(--ion-color-medium)",
+                  fontSize: 12,
+                  cursor: "pointer",
+                  textDecoration: "underline",
+                }}
               >
-                <IonIcon icon={shieldCheckmarkOutline} style={{ fontSize: 14, marginRight: 4, verticalAlign: "middle" }} />
+                <IonIcon
+                  icon={shieldCheckmarkOutline}
+                  style={{
+                    fontSize: 14,
+                    marginRight: 4,
+                    verticalAlign: "middle",
+                  }}
+                />
                 {t("settings.privacy")}
               </a>
               <a
-                onClick={(e) => { e.preventDefault(); openLink(appInfo?.termsOfServiceUrl ?? ""); }}
-                style={{ color: "var(--ion-color-medium)", fontSize: 12, cursor: "pointer", textDecoration: "underline" }}
+                onClick={(e) => {
+                  e.preventDefault();
+                  openLink(appInfo?.termsOfServiceUrl ?? "");
+                }}
+                style={{
+                  color: "var(--ion-color-medium)",
+                  fontSize: 12,
+                  cursor: "pointer",
+                  textDecoration: "underline",
+                }}
               >
-                <IonIcon icon={documentTextOutline} style={{ fontSize: 14, marginRight: 4, verticalAlign: "middle" }} />
+                <IonIcon
+                  icon={documentTextOutline}
+                  style={{
+                    fontSize: 14,
+                    marginRight: 4,
+                    verticalAlign: "middle",
+                  }}
+                />
                 {t("settings.terms")}
               </a>
             </div>
           </IonItem>
         </div>
 
-        <div style={{
-          textAlign: "center",
-          color: "var(--ion-color-medium)",
-          fontSize: 12,
-          padding: "4px 0 24px",
-        }}>
+        <div
+          style={{
+            textAlign: "center",
+            color: "var(--ion-color-medium)",
+            fontSize: 12,
+            padding: "4px 0 24px",
+          }}
+        >
           v{appInfo?.appVersion ?? "..."}
         </div>
       </IonContent>

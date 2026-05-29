@@ -30,15 +30,11 @@ import logoSvg from "../assets/logo-dark.svg";
 
 const selectUser = (s: AuthState) => s.user;
 const selectRecentSessions = (s: SessionState) => s.recentSessions;
-const selectCurrentSessionId = (s: SessionState) => s.currentSessionId;
-const selectSetCurrentSession = (s: SessionState) => s.setCurrentSession;
 
 export default function AppSidebar() {
   const { t } = useTranslation();
   const user = useAuthStore(selectUser);
   const recentSessions = useSessionStore(selectRecentSessions);
-  const currentSessionId = useSessionStore(selectCurrentSessionId);
-  const setCurrentSession = useSessionStore(selectSetCurrentSession);
 
   const create = useCreateSession();
 
@@ -86,28 +82,13 @@ export default function AppSidebar() {
           <IonItemDivider>
             <IonLabel>{t("sidebar.sessions")}</IonLabel>
           </IonItemDivider>
-          {recentSessions.length === 0 && (
-            <IonItem
-              routerLink="/sessions"
-              routerDirection="root"
-              onClick={closeMenu}
-            >
-              <IonIcon slot="start" icon={terminalOutline} />
-              <IonLabel>
-                <h2>{t("sidebar.noSessions")}</h2>
-                <p>{t("sidebar.noSessionsHint")}</p>
-              </IonLabel>
-            </IonItem>
-          )}
           {recentSessions.slice(0, 5).map((session) => (
             <IonItem
               key={session.id}
               button
               routerLink={`/sessions/${session.id}`}
               routerDirection="root"
-              color={session.id === currentSessionId ? "light" : undefined}
               onClick={() => {
-                setCurrentSession(session.id);
                 closeMenu();
               }}
             >

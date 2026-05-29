@@ -25,7 +25,10 @@ import { RouteComponentProps } from "react-router-dom";
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-function formatRelativeTime(isoDate: string, t: (key: string, opts?: Record<string, unknown>) => string): string {
+function formatRelativeTime(
+  isoDate: string,
+  t: (key: string, opts?: Record<string, unknown>) => string,
+): string {
   const diff = Date.now() - new Date(isoDate).getTime();
   const seconds = Math.floor(diff / 1000);
   if (seconds < 60) return t("sessions.justNow");
@@ -112,12 +115,35 @@ export default function SessionsPage({ history }: RouteComponentProps) {
           <IonList inset>
             {[0, 1, 2].map((i) => (
               <IonItem key={i}>
-                <IonSkeletonText animated style={{ width: "20px", height: "20px", borderRadius: "50%", minWidth: "20px" }} slot="start" />
+                <IonSkeletonText
+                  animated
+                  style={{
+                    width: "20px",
+                    height: "20px",
+                    borderRadius: "50%",
+                    minWidth: "20px",
+                  }}
+                  slot="start"
+                />
                 <IonLabel>
-                  <h2><IonSkeletonText animated style={{ width: "60%", height: "14px" }} /></h2>
-                  <p><IonSkeletonText animated style={{ width: "40%", height: "12px" }} /></p>
+                  <h2>
+                    <IonSkeletonText
+                      animated
+                      style={{ width: "60%", height: "14px" }}
+                    />
+                  </h2>
+                  <p>
+                    <IonSkeletonText
+                      animated
+                      style={{ width: "40%", height: "12px" }}
+                    />
+                  </p>
                 </IonLabel>
-                <IonSkeletonText animated style={{ width: "48px", height: "18px", borderRadius: "8px" }} slot="end" />
+                <IonSkeletonText
+                  animated
+                  style={{ width: "48px", height: "18px", borderRadius: "8px" }}
+                  slot="end"
+                />
               </IonItem>
             ))}
           </IonList>
@@ -129,9 +155,7 @@ export default function SessionsPage({ history }: RouteComponentProps) {
           </IonItem>
         )}
 
-        {isGatewayLoaded && showInstallPrompt && (
-          <SessionInstallPrompt />
-        )}
+        {isGatewayLoaded && showInstallPrompt && <SessionInstallPrompt />}
 
         {isGatewayLoaded && !showInstallPrompt && recentSessions.length > 0 && (
           <>
@@ -148,18 +172,36 @@ export default function SessionsPage({ history }: RouteComponentProps) {
                     <IonIcon slot="start" icon={terminalOutline} />
                     <IonLabel>
                       <h2>{session.title}</h2>
-                      <p>{session.cwd ?? session.subtitle}{session.updatedAt ? ` · ${formatRelativeTime(session.updatedAt, t)}` : ""}</p>
+                      <p>
+                        {session.cwd ?? session.subtitle}
+                        {session.updatedAt
+                          ? ` · ${formatRelativeTime(session.updatedAt, t)}`
+                          : ""}
+                      </p>
                     </IonLabel>
                     <IonBadge
-                      color={session.status === "running" ? "success" : "medium"}
+                      color={
+                        session.status === "running" ? "success" : "medium"
+                      }
                       slot="end"
                     >
-                      {t(`sessions.status${session.status.charAt(0).toUpperCase()}${session.status.slice(1)}`)}
+                      {t(
+                        `sessions.status${session.status.charAt(0).toUpperCase()}${session.status.slice(1)}`,
+                      )}
                     </IonBadge>
                   </IonItem>
-                  <IonItemOptions side="end">
+                  <IonItemOptions
+                    side="end"
+                    style={{ background: "transparent" }}
+                  >
                     <IonItemOption
                       color="danger"
+                      expandable
+                      style={{
+                        margin: "4px 8px 4px 0",
+                        borderRadius: "8px",
+                        padding: "0 16px",
+                      }}
                       onClick={async () => {
                         try {
                           await terminalBridge.deleteSession(session.id);
