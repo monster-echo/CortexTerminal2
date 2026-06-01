@@ -438,7 +438,7 @@ app.MapPost("/api/auth/refresh", async (ClaimsPrincipal user, IServiceProvider s
             if (dbUser is not null)
             {
                 if (dbUser.Status == "disabled" || dbUser.Status == "deleted")
-                    return Results.Unauthorized();
+                    return Results.Json(new { error = "Account not found or has been deactivated" }, statusCode: 401);
                 existingRole = dbUser.Role;
             }
         }
@@ -738,14 +738,14 @@ app.MapPost("/api/auth/password/login", async (PasswordLoginRequest request, ISe
 
         var user = await db.Users.FirstOrDefaultAsync(u => u.Username == request.Username);
         if (user is null || user.Status == "disabled" || user.Status == "deleted" || string.IsNullOrEmpty(user.PasswordHash) || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
-            return Results.Unauthorized();
+            return Results.Json(new { error = "Invalid username or password" }, statusCode: 401);
 
         var jwt = CreateAccessToken(user.Username, user.Email, user.Role);
         return Results.Ok(new { accessToken = jwt, username = user.Username });
     }
     catch (InvalidOperationException)
     {
-        return Results.Unauthorized();
+        return Results.Json(new { error = "Invalid username or password" }, statusCode: 401);
     }
 }).AllowAnonymous();
 

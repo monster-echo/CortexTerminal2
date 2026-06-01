@@ -57,7 +57,7 @@ export default function LoginPage() {
     try {
       await authBridge.startOAuth(provider);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : t("login.errorBrowser"));
+      setErrorMessage((error instanceof Error ? error.message : "") || t("login.errorBrowser"));
       setLoadingProvider(null);
     }
   };
@@ -75,7 +75,7 @@ export default function LoginPage() {
         setSession({ username: result.username }, "password-token");
       }
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : t("login.errorPasswordLogin"));
+      setErrorMessage((error instanceof Error ? error.message : "") || t("login.errorPasswordLogin"));
     } finally {
       setLoadingProvider(null);
     }

@@ -63,7 +63,7 @@ public sealed class AuthService
         var response = await _httpClient.PostAsJsonAsync("/api/auth/phone/verify", new { phone, code }, ct);
         var body = await response.Content.ReadAsStringAsync(ct);
         if (!response.IsSuccessStatusCode)
-            return new AuthResult(false, ExtractError(body));
+            return new AuthResult(false, FormatError(response, ExtractError(body)));
 
         var result = JsonSerializer.Deserialize<JsonElement>(body);
         var token = result.TryGetProperty("accessToken", out var t) ? t.GetString() : null;
@@ -80,7 +80,7 @@ public sealed class AuthService
         var response = await _httpClient.PostAsJsonAsync("/api/auth/password/login", new { username, password }, ct);
         var body = await response.Content.ReadAsStringAsync(ct);
         if (!response.IsSuccessStatusCode)
-            return new AuthResult(false, ExtractError(body));
+            return new AuthResult(false, FormatError(response, ExtractError(body)));
 
         var result = JsonSerializer.Deserialize<JsonElement>(body);
         var token = result.TryGetProperty("accessToken", out var t) ? t.GetString() : null;
