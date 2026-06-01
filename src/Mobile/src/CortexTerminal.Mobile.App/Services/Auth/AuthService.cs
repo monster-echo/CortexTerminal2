@@ -160,7 +160,7 @@ public sealed class AuthService
         if (!response.IsSuccessStatusCode)
         {
             var body = await response.Content.ReadAsStringAsync(ct);
-            return new AuthResult(false, ExtractError(body));
+            return new AuthResult(false, FormatError(response, ExtractError(body)));
         }
 
         await LogoutAsync(ct);
@@ -182,7 +182,7 @@ public sealed class AuthService
         if (!response.IsSuccessStatusCode)
         {
             var body = await response.Content.ReadAsStringAsync(ct);
-            return new AuthResult(false, ExtractError(body));
+            return new AuthResult(false, FormatError(response, ExtractError(body)));
         }
 
         return new AuthResult(true, null);
@@ -248,6 +248,14 @@ public sealed class AuthService
         {
             return body;
         }
+    }
+
+    private static string FormatError(HttpResponseMessage response, string? extractedError)
+    {
+        var statusCode = (int)response.StatusCode;
+        if (statusCode >= 500)
+            return "Internal server error";
+        return !string.IsNullOrEmpty(extractedError) ? extractedError : "Request failed";
     }
 
     internal static string ExtractUsernameFromJwt(string jwt)

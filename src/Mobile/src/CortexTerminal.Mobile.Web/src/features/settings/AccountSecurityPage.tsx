@@ -87,7 +87,7 @@ export default function AccountSecurityPage({ history }: RouteComponentProps) {
       passwordModalRef.current?.dismiss();
       resetPasswordForm();
     } catch (e) {
-      void presentToast({ message: e instanceof Error ? e.message : String(e), duration: 3000, position: "bottom", color: "danger" });
+      void presentToast({ message: (e instanceof Error ? e.message : String(e)) || t("settings.passwordError"), duration: 3000, position: "bottom", color: "danger" });
     } finally {
       setPasswordSubmitting(false);
     }
@@ -125,7 +125,7 @@ export default function AccountSecurityPage({ history }: RouteComponentProps) {
       clearSession();
       history.replace("/sessions");
     } catch (e) {
-      void presentToast({ message: e instanceof Error ? e.message : String(e), duration: 3000, position: "bottom", color: "danger" });
+      void presentToast({ message: (e instanceof Error ? e.message : String(e)) || t("settings.deleteAccountError"), duration: 3000, position: "bottom", color: "danger" });
     } finally {
       setDeleteSubmitting(false);
     }

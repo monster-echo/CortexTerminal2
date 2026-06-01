@@ -1486,7 +1486,9 @@ app.MapPatch("/api/users/{userId}", async (string userId, UpdateUserRequest requ
 
     var targetUser = await db.Users.FindAsync(userId);
     if (targetUser is null)
-        return Results.NotFound();
+        targetUser = await db.Users.FirstOrDefaultAsync(u => u.Username == userId);
+    if (targetUser is null)
+        return Results.NotFound(new { error = "User not found" });
 
     if (request.Role is not null)
         targetUser.Role = request.Role;
@@ -1518,9 +1520,11 @@ app.MapDelete("/api/me/account", async (ClaimsPrincipal user, IServiceProvider s
 
     var dbUser = await db.Users.FindAsync(userId);
     if (dbUser is null)
-        return Results.NotFound();
+        dbUser = await db.Users.FirstOrDefaultAsync(u => u.Username == userId);
+    if (dbUser is null)
+        return Results.NotFound(new { error = "User not found" });
     if (dbUser.Status == "deleted")
-        return Results.NotFound();
+        return Results.NotFound(new { error = "User not found" });
 
     // Revoke Apple token if applicable
     if (dbUser.AuthProvider == "apple" && !string.IsNullOrEmpty(dbUser.AppleRefreshToken))
@@ -1565,7 +1569,15 @@ app.MapDelete("/api/me/account", async (ClaimsPrincipal user, IServiceProvider s
         worker.OwnerUserId = null;
     }
 
-    await db.SaveChangesAsync();
+    try
+    {
+        await db.SaveChangesAsync();
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"[AccountDelete] SaveChanges failed for user {userId}: {ex.Message}");
+        return Results.Json(new { error = "An error occurred while deleting the account" }, statusCode: 500);
+    }
 
     auditLog.Record(new AuditLogEntry(
         Id: Guid.NewGuid().ToString("N"),
@@ -1591,7 +1603,9 @@ app.MapDelete("/api/users/{userId}", async (string userId, ClaimsPrincipal user,
 
     var targetUser = await db.Users.FindAsync(userId);
     if (targetUser is null)
-        return Results.NotFound();
+        targetUser = await db.Users.FirstOrDefaultAsync(u => u.Username == userId);
+    if (targetUser is null)
+        return Results.NotFound(new { error = "User not found" });
 
     db.Users.Remove(targetUser);
     await db.SaveChangesAsync();
