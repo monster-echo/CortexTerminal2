@@ -12,6 +12,7 @@ import SessionsPage from "./features/sessions/SessionsPage";
 import TerminalSessionPage from "./features/sessions/TerminalSessionPage";
 import WorkersPage from "./features/workers/WorkersPage";
 import ActivatePage from "./features/activate/ActivatePage";
+import AccountSecurityPage from "./features/settings/AccountSecurityPage";
 import {
   applyColorMode,
   getStoredMode,
@@ -298,6 +299,7 @@ export default function App({
           <Route exact path="/workers" render={() => requireAuth(WorkersPage)} />
           <Route exact path="/activate" render={() => requireAuth(ActivatePage)} />
           <Route exact path="/settings" render={() => requireAuth(SettingsFeaturePage)} />
+          <Route exact path="/settings/security" render={() => requireAuth(AccountSecurityPage)} />
           <Route render={() => <Redirect to="/sessions" />} />
         </AppLayout>
       </IonReactRouter>

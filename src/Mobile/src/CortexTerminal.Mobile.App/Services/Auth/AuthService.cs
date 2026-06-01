@@ -167,6 +167,47 @@ public sealed class AuthService
         return new AuthResult(true, null);
     }
 
+    public async Task<AuthResult> SetPasswordAsync(string? currentPassword, string newPassword, CancellationToken ct)
+    {
+        if (string.IsNullOrEmpty(_accessToken))
+            return new AuthResult(false, "Not authenticated");
+
+        var request = new HttpRequestMessage(HttpMethod.Put, "/api/me/password")
+        {
+            Content = JsonContent.Create(new { currentPassword, newPassword })
+        };
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _accessToken);
+
+        var response = await _httpClient.SendAsync(request, ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            var body = await response.Content.ReadAsStringAsync(ct);
+            return new AuthResult(false, ExtractError(body));
+        }
+
+        return new AuthResult(true, null);
+    }
+
+    public async Task<UserProfile?> GetProfileAsync(CancellationToken ct)
+    {
+        if (string.IsNullOrEmpty(_accessToken))
+            return null;
+
+        var request = new HttpRequestMessage(HttpMethod.Get, "/api/me/profile");
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _accessToken);
+
+        var response = await _httpClient.SendAsync(request, ct);
+        if (!response.IsSuccessStatusCode)
+            return null;
+
+        var body = await response.Content.ReadAsStringAsync(ct);
+        var json = JsonSerializer.Deserialize<JsonElement>(body);
+        var username = json.TryGetProperty("username", out var u) ? u.GetString() : null;
+        var hasPassword = json.TryGetProperty("hasPassword", out var hp) && hp.GetBoolean();
+
+        return new UserProfile(username ?? "user", hasPassword);
+    }
+
     private async Task SetTokenAsync(string token, string username, CancellationToken ct)
     {
         _accessToken = token;
@@ -213,6 +254,7 @@ public sealed class AuthService
 
 public sealed record AuthResult(bool Success, string? Error);
 public sealed record AuthSession(string Token, string Username);
+public sealed record UserProfile(string Username, bool HasPassword);
 
 internal static class AuthDiag
 {

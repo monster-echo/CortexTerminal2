@@ -8,17 +8,15 @@ import {
   IonPage,
   useIonActionSheet,
   useIonAlert,
-  useIonToast,
 } from "@ionic/react";
 import {
-  clipboardOutline,
   contrastOutline,
   documentTextOutline,
   keyOutline,
   languageOutline,
+  lockClosedOutline,
   logOutOutline,
   shieldCheckmarkOutline,
-  trashOutline,
 } from "ionicons/icons";
 import { RouteComponentProps } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -53,7 +51,6 @@ export default function SettingsFeaturePage({ history }: RouteComponentProps) {
   const setLanguage = useAppStore(selectSetLanguage);
   const [presentActionSheet] = useIonActionSheet();
   const [presentAlert] = useIonAlert();
-  const [presentToast] = useIonToast();
 
   const logout = async () => {
     try {
@@ -81,56 +78,6 @@ export default function SettingsFeaturePage({ history }: RouteComponentProps) {
         },
       ],
     });
-  };
-
-  const handleDeleteAccount = () => {
-    presentAlert({
-      header: t("settings.deleteAccountConfirmTitle"),
-      message: t("settings.deleteAccountConfirmMessage"),
-      buttons: [
-        { text: t("settings.cancel"), role: "cancel" },
-        {
-          text: t("settings.deleteAccountConfirm"),
-          role: "destructive",
-          handler: () => {
-            presentAlert({
-              header: t("settings.deleteAccountConfirmTitle"),
-              message: t("settings.deleteAccountFinalConfirm"),
-              buttons: [
-                { text: t("settings.cancel"), role: "cancel" },
-                {
-                  text: t("settings.deleteAccountConfirm"),
-                  role: "destructive",
-                  handler: () => void deleteAccount(),
-                },
-              ],
-            });
-          },
-        },
-      ],
-    });
-  };
-
-  const deleteAccount = async () => {
-    try {
-      await authBridge.deleteAccount();
-      clearSession();
-      void presentToast({
-        message: t("settings.deleteAccountSuccess"),
-        duration: 2000,
-        position: "bottom",
-        color: "success",
-      });
-      history.replace("/sessions");
-    } catch (e) {
-      console.error("[settings] Delete account failed:", e);
-      void presentToast({
-        message: e instanceof Error ? e.message : String(e),
-        duration: 3000,
-        position: "bottom",
-        color: "danger",
-      });
-    }
   };
 
   const handleColorModeChange = (mode: ColorMode) => {
@@ -257,15 +204,21 @@ export default function SettingsFeaturePage({ history }: RouteComponentProps) {
           </IonItem>
         </IonList>
 
+        <IonList inset>
+          <IonItemDivider>
+            <IonLabel className="py-2">{t("settings.securitySection")}</IonLabel>
+          </IonItemDivider>
+          <IonItem button routerLink="/settings/security" routerDirection="forward">
+            <IonIcon slot="start" icon={lockClosedOutline} />
+            <IonLabel>{t("settings.securitySection")}</IonLabel>
+          </IonItem>
+        </IonList>
+
         <div style={{ marginTop: 24 }}>
           <IonList inset>
             <IonItem button onClick={handleLogout} detail={false}>
               <IonIcon slot="start" icon={logOutOutline} color="danger" />
               <IonLabel color="danger">{t("sidebar.logout")}</IonLabel>
-            </IonItem>
-            <IonItem button onClick={handleDeleteAccount} detail={false}>
-              <IonIcon slot="start" icon={trashOutline} color="danger" />
-              <IonLabel color="danger">{t("settings.deleteAccount")}</IonLabel>
             </IonItem>
           </IonList>
         </div>

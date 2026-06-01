@@ -136,6 +136,15 @@ export const DeleteAccountResponseSchema = z.object({
   success: z.boolean(),
 });
 
+export const ChangePasswordResponseSchema = z.object({
+  success: z.boolean(),
+});
+
+export const UserProfileResponseSchema = z.object({
+  username: z.string(),
+  hasPassword: z.boolean(),
+});
+
 export const HasClipboardTextSchema = z.object({
   hasText: z.boolean(),
 });
@@ -167,3 +176,5 @@ export type VerifyActivationCodeResponse = z.infer<typeof VerifyActivationCodeRe
 export type PasswordLoginResponse = z.infer<typeof PasswordLoginResponseSchema>;
 export type AltchaChallengeResponse = z.infer<typeof AltchaChallengeResponseSchema>;
 export type DeleteAccountResponse = z.infer<typeof DeleteAccountResponseSchema>;
+export type ChangePasswordResponse = z.infer<typeof ChangePasswordResponseSchema>;
+export type UserProfileResponse = z.infer<typeof UserProfileResponseSchema>;

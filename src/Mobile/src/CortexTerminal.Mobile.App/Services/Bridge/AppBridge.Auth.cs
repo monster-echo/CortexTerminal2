@@ -132,4 +132,28 @@ public sealed partial class AppBridge
             return new { success = true };
         });
     }
+
+    [BridgeMethod]
+    public Task<string> SetPasswordAsync(string? currentPassword, string newPassword)
+    {
+        return ExecuteSafeAsync(async () =>
+        {
+            if (_authService is null) throw new InvalidOperationException("AuthService not configured");
+            var result = await _authService.SetPasswordAsync(currentPassword, newPassword, default);
+            if (!result.Success) throw new InvalidOperationException(result.Error);
+            return new { success = true };
+        });
+    }
+
+    [BridgeMethod]
+    public Task<string> GetProfileAsync()
+    {
+        return ExecuteSafeAsync(async () =>
+        {
+            if (_authService is null) return (object?)null;
+            var profile = await _authService.GetProfileAsync(default);
+            if (profile is null) return (object?)null;
+            return new { profile.Username, profile.HasPassword };
+        });
+    }
 }
