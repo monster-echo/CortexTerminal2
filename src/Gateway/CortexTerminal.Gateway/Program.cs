@@ -470,11 +470,46 @@ app.MapGet("/api/me/profile", async (ClaimsPrincipal userPrincipal, IServiceProv
             email = user.Email,
             role = user.Role,
             displayName = user.DisplayName,
+            hasPassword = !string.IsNullOrEmpty(user.PasswordHash),
         });
     }
     catch (InvalidOperationException)
     {
         return Results.Ok(new { id = userId, username = userId, role = "admin" });
+    }
+}).RequireAuthorization();
+
+app.MapPut("/api/me/password", async (ChangePasswordRequest request, ClaimsPrincipal userPrincipal, IServiceProvider serviceProvider) =>
+{
+    if (string.IsNullOrEmpty(request.NewPassword))
+        return Results.BadRequest(new { error = "New password is required" });
+
+    var userId = GetUserId(userPrincipal);
+    try
+    {
+        var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
+        using var scope = scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var user = await db.Users.FindAsync(userId);
+        if (user is null)
+            user = await db.Users.FirstOrDefaultAsync(u => u.Username == userId);
+        if (user is null)
+            return Results.NotFound(new { error = "User not found" });
+
+        if (!string.IsNullOrEmpty(user.PasswordHash))
+        {
+            if (string.IsNullOrEmpty(request.CurrentPassword) || !BCrypt.Net.BCrypt.Verify(request.CurrentPassword, user.PasswordHash))
+                return Results.BadRequest(new { error = "Current password is incorrect" });
+        }
+
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+        user.UpdatedAtUtc = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync();
+        return Results.Ok(new { success = true });
+    }
+    catch (InvalidOperationException)
+    {
+        return Results.StatusCode(500);
     }
 }).RequireAuthorization();
 
@@ -1615,6 +1650,7 @@ record VerifyCodeRequest(string Phone, string Code);
 record HuaweiQuickLoginRequest(string AuthCode, string UnionID, string OpenID);
 record PasswordLoginRequest(string Username, string Password);
 record PasswordRegisterRequest(string Username, string Password, string? DisplayName);
+record ChangePasswordRequest(string? CurrentPassword, string NewPassword);
 
 internal sealed class LatestVersionCache
 {
