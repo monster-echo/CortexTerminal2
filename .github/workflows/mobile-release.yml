@@ -192,8 +192,20 @@ jobs:
             -p:MtouchLink=SdkOnly \
             -p:ArchiveOnBuild=true \
             -p:RuntimeIdentifier=ios-arm64 \
+            -p:FirebaseCrashlyticsUploadSymbolsEnabled=false \
             -p:CodesignKey="${{ secrets.CORTEX_APPLE_SIGNING_IDENTITY }}" \
             -p:CodesignProvision="${{ secrets.CORTEX_APPLE_PROVISIONING_PROFILE_NAME }}"
+
+      - name: Upload dSYM to Crashlytics
+        run: |
+          UPLOAD_SCRIPT="$HOME/Library/Caches/XamarinBuildDownload/FCrshlytcs-12.5.0/upload-symbols.sh"
+          APP_PATH="src/Mobile/src/CortexTerminal.Mobile.App/bin/Release/net10.0-ios/ios-arm64/CortexTerminal.Mobile.App.app"
+          if [ -f "$APP_PATH/GoogleService-Info.plist" ]; then
+            chmod +x "$UPLOAD_SCRIPT"
+            "$UPLOAD_SCRIPT" -gsp "$APP_PATH/GoogleService-Info.plist" -p ios "$APP_PATH.dSYM"
+          else
+            echo "::warning::GoogleService-Info.plist not found in .app bundle, dSYM upload skipped"
+          fi
 
       - name: Upload to TestFlight
         uses: apple-actions/upload-testflight-build@v1
