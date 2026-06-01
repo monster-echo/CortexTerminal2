@@ -38,6 +38,12 @@ public partial class App : Application
 	protected override Window CreateWindow(IActivationState? activationState)
 	{
 		_logger.LogInformation("[Lifecycle] CreateWindow");
+
+#if ANDROID
+		Microsoft.Maui.Controls.PlatformConfiguration.AndroidSpecific.Application.SetWindowSoftInputModeAdjust(
+			this, Microsoft.Maui.Controls.PlatformConfiguration.AndroidSpecific.WindowSoftInputModeAdjust.Resize);
+#endif
+
 		return new Window(_appShell);
 	}
 
