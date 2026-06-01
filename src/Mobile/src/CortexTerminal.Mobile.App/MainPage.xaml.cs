@@ -464,7 +464,7 @@ public partial class MainPage : ContentPage
 				return;
 			}
 
-			if (e.Uri.EndsWith("index.html"))
+			if (e.Uri?.AbsoluteUri?.EndsWith("index.html") == true)
 			{
 				_logger.LogInformation("[Audit] WebResourceRequested — index.html ({Method})", e.Method);
 			}
@@ -520,8 +520,8 @@ public partial class MainPage : ContentPage
 				return;
 			}
 
-				_logger.LogInformation("[Audit] RawMessageReceived — type: {Type}", msgType);
 				var msgType = typeProp.GetString();
+				_logger.LogInformation("[Audit] RawMessageReceived — type: {Type}", msgType);
 			switch (msgType)
 			{
 				case "appInit":
