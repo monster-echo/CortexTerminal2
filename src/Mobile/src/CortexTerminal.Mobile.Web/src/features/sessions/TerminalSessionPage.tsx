@@ -137,9 +137,6 @@ export default function TerminalSessionPage({
   // ── Platform detection ──
   const platformLabel = useAppStore((s) => s.platformLabel);
 
-  // ── Native keyboard state (from native layer via bridge) ──
-  const [nativeKeyboardVisible, setNativeKeyboardVisible] = useState(false);
-  const [nativeKeyboardHeight, setNativeKeyboardHeight] = useState(0);
 
   const recentSessions = useSessionStore(selectRecentSessions);
   const session = useMemo(
@@ -155,12 +152,8 @@ export default function TerminalSessionPage({
   const resizeTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const resizeSyncTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const connectedRef = useRef(false);
-  const keyboardTransitionRef = useRef(false);
-  const keyboardTransitionTimerRef =
-    useRef<ReturnType<typeof setTimeout>>(undefined);
   const containerHeightRef = useRef<number>(0);
   const cellHeightRef = useRef<number>(0);
-  const keyboardActiveRef = useRef(false);
 
   const [ctrlActive, setCtrlActive] = useState(false);
   const [altActive, setAltActive] = useState(false);
@@ -174,8 +167,8 @@ export default function TerminalSessionPage({
     keyboardHeight: vvKeyboardHeight,
     toolbarHeight,
   } = useKeyboardToolbar();
-  const keyboardVisible = nativeKeyboardVisible || vvKeyboardVisible;
-  const keyboardHeight = nativeKeyboardHeight || vvKeyboardHeight;
+  const keyboardVisible = vvKeyboardVisible;
+  const keyboardHeight = vvKeyboardHeight;
 
   // ── Touch scroll for iOS (xterm.js doesn't handle touch natively) ──
   useTouchScroll({ terminalRef, xtermRef, enabled: true });
@@ -356,11 +349,10 @@ export default function TerminalSessionPage({
 
     const observer = new ResizeObserver(() => {
       if (resizeTimeoutRef.current) clearTimeout(resizeTimeoutRef.current);
-      if (keyboardTransitionRef.current) return;
       resizeTimeoutRef.current = setTimeout(() => {
         try {
           const el = terminalRef.current;
-          if (el && !keyboardActiveRef.current) {
+          if (el) {
             containerHeightRef.current = el.clientHeight;
             if (term.rows > 0) {
               cellHeightRef.current = el.clientHeight / term.rows;
@@ -383,9 +375,6 @@ export default function TerminalSessionPage({
       if (resizeTimeoutRef.current) clearTimeout(resizeTimeoutRef.current);
       if (resizeSyncTimeoutRef.current)
         clearTimeout(resizeSyncTimeoutRef.current);
-      if (keyboardTransitionTimerRef.current)
-        clearTimeout(keyboardTransitionTimerRef.current);
-      term.dispose();
       xtermRef.current = null;
       fitAddonRef.current = null;
     };
@@ -575,65 +564,6 @@ export default function TerminalSessionPage({
         }
       }
 
-      // ── Native keyboard state (iOS) ──
-      if (event.type === "nativeKeyboard") {
-        const knEvent = event as any;
-        const visible = knEvent.visible === true;
-        const height = typeof knEvent.height === "number" ? knEvent.height : 0;
-
-        setNativeKeyboardVisible(visible);
-        setNativeKeyboardHeight(height);
-
-        // Immediately set fixed pixel height and resize xterm — don't wait for native animation.
-        // The wrapper's overflow:hidden clips the terminal during the native padding animation,
-        // preventing the canvas from being visually squished.
-        const el = terminalRef.current;
-        const t = xtermRef.current;
-        if (el && t && cellHeightRef.current > 0) {
-          if (visible) {
-            keyboardActiveRef.current = true;
-            const targetHeight =
-              containerHeightRef.current - height - toolbarHeight;
-            const newRows = Math.max(
-              1,
-              Math.floor(targetHeight / cellHeightRef.current),
-            );
-            el.style.height = `${Math.round(newRows * cellHeightRef.current)}px`;
-            t.resize(t.cols, newRows);
-          } else {
-            keyboardActiveRef.current = false;
-            const targetHeight = containerHeightRef.current;
-            const newRows = Math.max(
-              1,
-              Math.floor(targetHeight / cellHeightRef.current),
-            );
-            el.style.height = `${Math.round(newRows * cellHeightRef.current)}px`;
-            t.resize(t.cols, newRows);
-          }
-        }
-
-        // Suppress ResizeObserver during native animation; final correction after 400ms
-        keyboardTransitionRef.current = true;
-        if (keyboardTransitionTimerRef.current)
-          clearTimeout(keyboardTransitionTimerRef.current);
-        keyboardTransitionTimerRef.current = setTimeout(() => {
-          keyboardTransitionRef.current = false;
-          const fa = fitAddonRef.current;
-          const tt = xtermRef.current;
-          if (tt && fa) {
-            try {
-              const el = terminalRef.current;
-              if (el && !keyboardActiveRef.current) {
-                containerHeightRef.current = el.clientHeight;
-                if (tt.rows > 0) {
-                  cellHeightRef.current = el.clientHeight / tt.rows;
-                }
-              }
-              fitTerminal(tt, fa);
-            } catch {}
-          }
-        }, 400);
-      }
     });
 
     const connect = async () => {
@@ -777,7 +707,7 @@ export default function TerminalSessionPage({
               top: 0,
               left: 0,
               right: 0,
-              height: keyboardVisible && !nativeKeyboardVisible
+              height: keyboardVisible
                 ? `calc(100% - ${toolbarHeight}px)`
                 : "100%",
               background: "#0b0f0e",

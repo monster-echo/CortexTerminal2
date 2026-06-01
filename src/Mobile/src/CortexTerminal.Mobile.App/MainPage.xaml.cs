@@ -10,7 +10,6 @@ using Microsoft.Maui.Dispatching;
 
 #if IOS || MACCATALYST
 using Foundation;
-using ObjCRuntime;
 using UIKit;
 #endif
 
@@ -24,11 +23,6 @@ public partial class MainPage : ContentPage
 	private volatile bool _isResumeHandling;
 	private bool _hasAppearedOnce;
 	private TaskCompletionSource<object?>? _appReadyTcs;
-
-#if IOS || MACCATALYST
-	private NSObject? _keyboardShowToken;
-	private NSObject? _keyboardHideToken;
-#endif
 
 	public static readonly BindableProperty NativeStatusBarColorProperty =
 		BindableProperty.Create(nameof(NativeStatusBarColor), typeof(Color), typeof(MainPage), Color.FromArgb("#121212"));
@@ -96,88 +90,12 @@ public partial class MainPage : ContentPage
 		App.AppResumed += OnAppResumed;
 		if (_hasAppearedOnce) CheckAndRecoverWebViewIfNeeded();
 		_hasAppearedOnce = true;
-#if IOS || MACCATALYST
-		SetupKeyboardHandling();
-#endif
 	}
 
 	protected override void OnDisappearing()
 	{
-#if IOS || MACCATALYST
-		TeardownKeyboardHandling();
-#endif
 		base.OnDisappearing();
 	}
-
-#if IOS || MACCATALYST
-	private void SetupKeyboardHandling()
-	{
-		_keyboardShowToken = NSNotificationCenter.DefaultCenter.AddObserver(
-			UIKeyboard.WillShowNotification, OnKeyboardWillShow);
-		_keyboardHideToken = NSNotificationCenter.DefaultCenter.AddObserver(
-			UIKeyboard.WillHideNotification, OnKeyboardWillHide);
-	}
-
-	private void TeardownKeyboardHandling()
-	{
-		_keyboardShowToken?.Dispose();
-		_keyboardShowToken = null;
-		_keyboardHideToken?.Dispose();
-		_keyboardHideToken = null;
-	}
-
-	private void OnKeyboardWillShow(NSNotification notification)
-	{
-		if (notification.UserInfo is null) return;
-
-		var userInfo = notification.UserInfo;
-		var frameValue = (NSValue)userInfo[UIKeyboard.FrameEndUserInfoKey]!;
-		var keyboardFrame = frameValue.CGRectValue;
-		var keyboardHeight = keyboardFrame.Height;
-
-		var screenBounds = UIScreen.MainScreen.Bounds;
-		if (keyboardHeight > screenBounds.Height * 0.6)
-			keyboardHeight = (nfloat)(screenBounds.Height * 0.6);
-
-		var durationValue = (NSNumber)userInfo[UIKeyboard.AnimationDurationUserInfoKey]!;
-		var curveValue = (NSNumber)userInfo[UIKeyboard.AnimationCurveUserInfoKey]!;
-		var animationDuration = durationValue.FloatValue;
-		var animationCurve = curveValue.UInt32Value;
-
-		UIView.Animate(animationDuration, 0, (UIViewAnimationOptions)animationCurve,
-			() => { Padding = new Thickness(0, 0, 0, keyboardHeight); },
-			() => { });
-
-		SendRawMessageToWebView(JsonSerializer.Serialize(new
-		{
-			type = "nativeKeyboard",
-			visible = true,
-			height = (double)keyboardHeight,
-		}), "keyboard state");
-	}
-
-	private void OnKeyboardWillHide(NSNotification notification)
-	{
-		if (notification.UserInfo is null) return;
-
-		var userInfo = notification.UserInfo;
-		var durationValue = (NSNumber)userInfo[UIKeyboard.AnimationDurationUserInfoKey]!;
-		var curveValue = (NSNumber)userInfo[UIKeyboard.AnimationCurveUserInfoKey]!;
-		var animationDuration = durationValue.FloatValue;
-		var animationCurve = curveValue.UInt32Value;
-
-		UIView.Animate(animationDuration, 0, (UIViewAnimationOptions)animationCurve,
-			() => { Padding = new Thickness(0, 0, 0, 0); },
-			() => { });
-
-		SendRawMessageToWebView(JsonSerializer.Serialize(new
-		{
-			type = "nativeKeyboard",
-			visible = false,
-			height = 0,
-		}), "keyboard state");
-	}
-#endif
 
 	private void ShowSplashScreenWithTimeout(TimeSpan timeout)
 	{
@@ -520,8 +438,8 @@ public partial class MainPage : ContentPage
 				return;
 			}
 
-				var msgType = typeProp.GetString();
-				_logger.LogInformation("[Audit] RawMessageReceived — type: {Type}", msgType);
+			var msgType = typeProp.GetString();
+			_logger.LogInformation("[Audit] RawMessageReceived — type: {Type}", msgType);
 			switch (msgType)
 			{
 				case "appInit":
