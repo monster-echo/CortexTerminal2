@@ -737,7 +737,7 @@ app.MapPost("/api/auth/password/login", async (PasswordLoginRequest request, ISe
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
         var user = await db.Users.FirstOrDefaultAsync(u => u.Username == request.Username);
-        if (user is null || string.IsNullOrEmpty(user.PasswordHash) || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
+        if (user is null || user.Status == "disabled" || user.Status == "deleted" || string.IsNullOrEmpty(user.PasswordHash) || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
             return Results.Unauthorized();
 
         var jwt = CreateAccessToken(user.Username, user.Email, user.Role);
