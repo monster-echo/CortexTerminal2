@@ -29,12 +29,13 @@ export function createBrowserTerminal(
   const fitAddon = new FitAddon()
   terminal.loadAddon(fitAddon)
   terminal.open(container)
-  fitAddon.fit()
 
   const dataDisposable = terminal.onData(onData)
   const resizeDisposable = terminal.onResize(({ cols, rows }) => {
     onResize?.({ columns: cols, rows })
   })
+
+  fitAddon.fit()
 
   return {
     write(data: string) {
