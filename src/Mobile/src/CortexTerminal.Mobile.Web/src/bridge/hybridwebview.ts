@@ -34,7 +34,9 @@ declare global {
   let sendMessageFunction: ((message: string) => void) | null = null;
 
   function stringifyAsciiSafe(value: unknown) {
-    return JSON.stringify(value).replace(/[\u007F-\uFFFF]/g, (character) => {
+    const json = JSON.stringify(value);
+    if (typeof json !== "string") return "null";
+    return json.replace(/[-￿]/g, (character) => {
       const codeUnit = character.charCodeAt(0);
       return `\\u${codeUnit.toString(16).padStart(4, "0")}`;
     });
