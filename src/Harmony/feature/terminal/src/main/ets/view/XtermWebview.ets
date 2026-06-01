@@ -5,29 +5,26 @@
  * Hosts an ArkWeb (WebView) component that loads xterm.js for
  * terminal rendering. Handles bidirectional communication between
  * the native transport layer and the web-based terminal emulator.
+ * Uses WebMessagePort for JS→Native input (replacing crash-prone javaScriptProxy).
  */
 import { webview } from '@kit.ArkWeb'
 
-/**
- * Callback type for when the webview is ready for input.
- */
 type OnInputReadyCallback = () => void
-
-/**
- * Proxy object for JavaScript bridge methods.
- */
-class NativeTerminalProxy {
-  sendInput(_data: string): void {}
-}
+type OnInputCallback = (data: string) => void
+type OnResizeCallback = (cols: number, rows: number) => void
 
 @Component
 export struct XtermWebview {
-  @Prop webviewController: webview.WebviewController = new webview.WebviewController()
-  @Prop onInputReady: OnInputReadyCallback = () => {}
+  webviewController: webview.WebviewController = new webview.WebviewController()
+  onInputReady: OnInputReadyCallback = () => {}
+  onInput: OnInputCallback = (_data: string) => {}
+  onResize: OnResizeCallback = (_cols: number, _rows: number) => {}
   @StorageLink('gatewayUrl') gatewayUrl: string = ''
+  @StorageLink('terminalCols') terminalCols: number = 80
+  @StorageLink('terminalRows') terminalRows: number = 24
 
-  // JavaScript port for receiving messages from xterm.js
-  private jsPort: NativeTerminalProxy = new NativeTerminalProxy()
+  private msgPorts: webview.WebMessagePort[] = []
+  private readyNotified: boolean = false
 
   build() {
     Column() {
@@ -43,56 +40,126 @@ export struct XtermWebview {
         .databaseAccess(true)
         .cacheMode(CacheMode.Default)
         .darkMode(WebDarkMode.On)
+        .focusable(true)
         .onPageEnd(() => {
+          this.initMessagePort()
           this.onWebviewReady()
         })
-        .javaScriptProxy({
-          object: this.jsPort,
-          name: 'NativeTerminal',
-          methodList: ['sendInput'],
-          controller: this.webviewController
+        .onConsole((event) => {
+          console.info('[WebView] ' + event.message.getMessage())
+          return false
         })
     }
     .width('100%')
     .height('100%')
   }
 
-  /**
-   * Called when the webview finishes loading the xterm.html page.
-   * Initializes the terminal and signals readiness.
-   */
+  private initMessagePort() {
+    try {
+      this.msgPorts = this.webviewController.createWebMessagePorts()
+      console.info('[XtermWebview] ports created, length=' + this.msgPorts.length)
+      this.msgPorts[1].onMessageEvent((result: webview.WebMessage) => {
+        console.info('[XtermWebview] onMessageEvent received, type=' + typeof result)
+        if (typeof result === 'string') {
+          console.info('[XtermWebview] message: ' + result.substring(0, 100))
+          try {
+            const msg = JSON.parse(result) as Record<string, Object>
+            const type = msg['type'] as string
+            if (type === 'input') {
+              console.info('[XtermWebview] forwarding input: ' + (msg['data'] as string).substring(0, 20))
+              this.onInput(msg['data'] as string)
+            } else if (type === 'resize') {
+              const cols = msg['cols'] as number
+              const rows = msg['rows'] as number
+              if (cols > 0 && rows > 0) {
+                this.onResize(cols, rows)
+              }
+            }
+          } catch (e) {
+            console.warn('[XtermWebview] onInput handler error: ' + (e as Error).message)
+          }
+        }
+      })
+      this.webviewController.postMessage('__init_port__', [this.msgPorts[0]], '*')
+      console.info('[XtermWebview] port0 sent to HTML')
+    } catch (e) {
+      console.error('[XtermWebview] initMessagePort failed: ' + (e as Error).message)
+    }
+  }
+
   private onWebviewReady() {
-    // Initialize xterm.js with appropriate dimensions
+    try {
+      this.webviewController.requestFocus()
+    } catch (_e) {}
+    setTimeout(() => {
+      this.tryInitializeTerminal(0)
+    }, 50)
+  }
+
+  private tryInitializeTerminal(attempt: number) {
+    if (this.readyNotified) {
+      return
+    }
+
     try {
       this.webviewController.runJavaScript(`
-        if (typeof initTerminal === 'function') {
-          initTerminal();
-        }
+        (function () {
+          if (typeof initTerminal === 'function') {
+          initTerminal(${this.terminalCols}, ${this.terminalRows});
+            return 'ready';
+          }
+          return 'missing';
+        })();
       `)
+        .then((result: string) => {
+          if (result.indexOf('ready') >= 0 || attempt >= 2) {
+            this.readyNotified = true
+            try {
+              this.webviewController.runJavaScript(
+                "var ta = document.querySelector('.xterm-helper-textarea'); if(ta) ta.focus();"
+              )
+            } catch (_e) {}
+            this.onInputReady()
+            return
+          }
+          setTimeout(() => {
+            this.tryInitializeTerminal(attempt + 1)
+          }, 120)
+        })
+        .catch((e: Error) => {
+          this.handleInitFailure(e, attempt)
+        })
     } catch (e) {
-      console.warn('Failed to init xterm: ' + (e as Error).message)
+      this.handleInitFailure(e as Error, attempt)
     }
+  }
+
+  private handleInitFailure(e: Error, attempt: number) {
+    if (attempt < 2) {
+      setTimeout(() => {
+        this.tryInitializeTerminal(attempt + 1)
+      }, 120)
+      return
+    }
+    console.warn('Failed to init xterm: ' + e.message)
+    this.readyNotified = true
+    try {
+      this.webviewController.runJavaScript(
+        "var ta = document.querySelector('.xterm-helper-textarea'); if(ta) ta.focus();"
+      )
+    } catch (_e2) {}
     this.onInputReady()
   }
 
-  /**
-   * Send output data to the xterm.js terminal for rendering.
-   * @param base64Payload Base64-encoded terminal output data.
-   */
   writeOutput(base64Payload: string) {
     try {
       const escaped = base64Payload.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
-      this.webviewController.runJavaScript(`handleOutput("${escaped}")`)
+      this.webviewController.runJavaScript(`writeBase64Output("${escaped}")`)
     } catch (e) {
       console.warn('Failed to write output: ' + (e as Error).message)
     }
   }
 
-  /**
-   * Notify xterm.js of a terminal resize event.
-   * @param cols New column count
-   * @param rows New row count
-   */
   resize(cols: number, rows: number) {
     try {
       this.webviewController.runJavaScript(`resizeTerminal(${cols}, ${rows})`)

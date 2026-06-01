@@ -23,6 +23,11 @@
       user-select: text;
       -webkit-user-select: text;
     }
+    /* Native smooth touch scrolling for xterm viewport */
+    .xterm-viewport {
+      overflow-y: auto !important;
+      -webkit-overflow-scrolling: touch;
+    }
   </style>
   <link rel="stylesheet" href="xterm.css" />
 </head>
@@ -36,6 +41,17 @@
     // === Globals ===
     let term = null;
     let fitAddon = null;
+
+    // === WebMessagePort 通信 ===
+    var h5Port;
+    window.addEventListener('message', function(event) {
+      if (event.data === '__init_port__') {
+        if (event.ports[0]) {
+          h5Port = event.ports[0];
+          console.log('h5Port initialized');
+        }
+      }
+    });
 
     // === Bridge functions (called from ArkTS via runJavaScript) ===
 
@@ -82,7 +98,7 @@
           brightCyan: '#80cbc4',
           brightWhite: '#e3e2e2'
         },
-        scrollback: 10000,
+        scrollback: 64000,
         allowProposedApi: true,
         allowTransparency: false
       });
@@ -93,26 +109,27 @@
       const container = document.getElementById('terminal-container');
       term.open(container);
 
-      // Fit after a small delay to ensure container is sized
-      setTimeout(function() {
-        try {
-          fitAddon.fit();
-        } catch(e) {
-          console.warn('fitAddon.fit() failed:', e);
-        }
-      }, 100);
+      // Fit immediately to ensure correct size before any output arrives
+      try {
+        fitAddon.fit();
+      } catch(e) {
+        console.warn('fitAddon.fit() failed:', e);
+      }
 
-      // Forward user input to ArkTS via JavaScript proxy
+      // Forward user input to ArkTS via WebMessagePort
       term.onData(function(data) {
-        if (window.terminalInputProxy && window.terminalInputProxy.onInput) {
-          window.terminalInputProxy.onInput(data);
+        if (h5Port) {
+          h5Port.postMessage(JSON.stringify({ type: 'input', data: data }));
+        } else {
+          console.error('h5Port is NULL, input dropped: ' + JSON.stringify(data));
+          document.title = 'h5Port NULL!';
         }
       });
 
-      // Notify ArkTS of resize events
+      // Notify ArkTS of resize events via WebMessagePort
       term.onResize(function(size) {
-        if (window.terminalInputProxy && window.terminalInputProxy.onResize) {
-          window.terminalInputProxy.onResize(size.cols, size.rows);
+        if (h5Port) {
+          h5Port.postMessage(JSON.stringify({ type: 'resize', cols: size.cols, rows: size.rows }));
         }
       });
 
@@ -207,11 +224,6 @@
         }
       }
     });
-
-    // Notify ArkTS when page is fully loaded
-    if (window.terminalInputProxy && window.terminalInputProxy.onPageLoaded) {
-      window.terminalInputProxy.onPageLoaded();
-    }
   </script>
 </body>
 </html>

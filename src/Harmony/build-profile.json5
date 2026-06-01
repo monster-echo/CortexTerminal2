@@ -20,9 +20,10 @@
         "name": "default",
         "bundleName": "top.rwecho.cortexterminal",
         "signingConfig": "default",
+        "compileSdkVersion": "6.1.0(23)",
         "compatibleSdkVersion": "5.0.0(12)",
         "runtimeOS": "HarmonyOS",
-        "targetSdkVersion": "6.0.2(22)"
+        "targetSdkVersion": "6.1.0(23)"
       }
     ],
     "buildModeSet": [
@@ -66,6 +67,10 @@
     {
       "name": "settings",
       "srcPath": "./feature/settings"
+    },
+    {
+      "name": "signalr",
+      "srcPath": "./common/signalr"
     }
   ]
 }

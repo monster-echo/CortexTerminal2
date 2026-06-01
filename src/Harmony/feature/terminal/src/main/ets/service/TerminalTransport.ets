@@ -1,273 +1,372 @@
-/**
- * @file TerminalTransport.ets
- * @brief WebSocket client for terminal session communication
- *
- * Manages the WebSocket connection to the terminal gateway.
- * Handles connect, send, reconnect with exponential backoff,
- * and ping/keep-alive.
- */
-import { webSocket } from '@kit.NetworkKit'
 import { buffer } from '@kit.ArkTS'
-import { WsFrame } from '../model/TerminalTransportModels'
+import { HubConnectionBuilder, HubConnection, HubConnectionState, LogLevel } from '@rwecho/signalr'
+import {
+  TransportFrame,
+  ReattachSessionParams,
+  WriteInputParams,
+  ResizeSessionParams,
+  CloseSessionParams,
+  ProbeLatencyParams,
+} from '../model/TerminalTransportModels'
 
-/**
- * Callback type for received WebSocket frames.
- */
-type OnFrameCallback = (frame: Record<string, Object>) => void
-
-/**
- * Callback type for disconnection events.
- */
+type OnFrameCallback = (frame: TransportFrame) => void
 type OnDisconnectedCallback = () => void
 
-/**
- * Terminal transport layer using WebSocket.
- * Connects to the gateway, sends input/resize/detach commands,
- * and receives output frames.
- */
 export class TerminalTransport {
   isConnected: boolean = false
 
-  // Callbacks
   onFrame: OnFrameCallback | null = null
   onDisconnected: OnDisconnectedCallback | null = null
 
-  // Internal state
-  private ws: webSocket.WebSocket | null = null
+  private connection: HubConnection | null = null
   private sessionId: string = ''
-  private token: string = ''
-  private gatewayUrl: string = ''
-  private pingTimer: number = -1
-  private reconnectTimer: number = -1
-  private reconnectAttempts: number = 0
-  private maxReconnectAttempts: number = 10
-  private baseReconnectDelay: number = 1000
-  private maxReconnectDelay: number = 30000
+  private latencyProbeTimer: number = -1
+  private manualDisconnect: boolean = false
+  private pendingProbes: Map<string, number> = new Map()
 
-  /**
-   * Connect to the terminal session WebSocket.
-   * @param sessionId The terminal session ID
-   * @param token Authentication token
-   * @param gatewayUrl The gateway base URL
-   */
   async connect(sessionId: string, token: string, gatewayUrl: string): Promise<void> {
+    if (!sessionId || sessionId.trim().length === 0) {
+      throw new Error('Missing terminal session id')
+    }
+    if (!token || token.trim().length === 0) {
+      throw new Error('Missing gateway access token')
+    }
+
     this.sessionId = sessionId
-    this.token = token
-    this.gatewayUrl = gatewayUrl
+    this.manualDisconnect = false
+    this.stopLatencyProbe()
 
-    // Convert http(s) URL to ws(s) URL
-    const wsUrl = gatewayUrl
-      .replace('https://', 'wss://')
-      .replace('http://', 'ws://')
+    const baseUrl = gatewayUrl.replace(/\/+$/, '')
+    const hubUrl = baseUrl + '/hubs/terminal'
+    console.info(`[TerminalTransport] connecting to ${hubUrl}, sessionId=${sessionId}, token=${token.substring(0, 10)}...`)
 
-    const fullUrl = `${wsUrl}/ws/terminal?sessionId=${sessionId}&token=${token}`
+    this.connection = new HubConnectionBuilder()
+      .withUrl(hubUrl)
+      .withAccessToken(() => token)
+      .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
+      .configureLogging(LogLevel.Information)
+      .build()
 
-    return new Promise<void>((resolve, reject) => {
-      this.ws = webSocket.createWebSocket()
+    const conn = this.connection
 
-      this.ws.on('open', () => {
-        this.isConnected = true
-        this.reconnectAttempts = 0
-        this.startPing()
-        resolve()
-      })
+    conn.on('SessionReattached', (args: Object[]) => {
+      const frame = new TransportFrame()
+      frame.type = 'replaying'
+      frame.sessionId = this.sessionId
+      this.emitFrame(frame)
+    })
 
-      this.ws.on('message', (err: Error, data: string | ArrayBuffer) => {
-        if (err) {
-          console.error('WebSocket message error: ' + err.message)
-          return
-        }
-        this.handleMessage(data)
-      })
+    conn.on('ReplayChunk', (args: Object[]) => {
+      const chunk = args[0] as Record<string, Object>
+      const frame = new TransportFrame()
+      frame.type = 'replay'
+      frame.sessionId = (chunk['sessionId'] as string) ?? this.sessionId
+      frame.stream = (chunk['stream'] as string) ?? 'stdout'
+      frame.payload = this.payloadToBase64(chunk['payload'])
+      this.emitFrame(frame)
+    })
 
-      this.ws.on('close', () => {
-        this.isConnected = false
-        this.stopPing()
-        if (this.onDisconnected) {
-          this.onDisconnected()
-        }
-        // Auto-reconnect with exponential backoff
-        this.scheduleReconnect()
-      })
+    conn.on('ReplayCompleted', (args: Object[]) => {
+      const replayFrame = new TransportFrame()
+      replayFrame.type = 'replayCompleted'
+      replayFrame.sessionId = this.sessionId
+      this.emitFrame(replayFrame)
 
-      this.ws.on('error', (err: Error) => {
-        console.error('WebSocket error: ' + err.message)
-        this.isConnected = false
-        reject(err)
-      })
+      const liveFrame = new TransportFrame()
+      liveFrame.type = 'live'
+      liveFrame.sessionId = this.sessionId
+      this.emitFrame(liveFrame)
+    })
 
-      this.ws.connect(fullUrl)
+    conn.on('StdoutChunk', (args: Object[]) => {
+      const chunk = args[0] as Record<string, Object>
+      const frame = new TransportFrame()
+      frame.type = 'output'
+      frame.sessionId = (chunk['sessionId'] as string) ?? this.sessionId
+      frame.stream = (chunk['stream'] as string) ?? 'stdout'
+      frame.payload = this.payloadToBase64(chunk['payload'])
+      console.info(`[Transport] StdoutChunk: payload=${frame.payload.substring(0, 60)}`)
+      this.emitFrame(frame)
+    })
+
+    conn.on('StderrChunk', (args: Object[]) => {
+      const chunk = args[0] as Record<string, Object>
+      const frame = new TransportFrame()
+      frame.type = 'output'
+      frame.sessionId = (chunk['sessionId'] as string) ?? this.sessionId
+      frame.stream = (chunk['stream'] as string) ?? 'stderr'
+      frame.payload = this.payloadToBase64(chunk['payload'])
+      console.info(`[Transport] StderrChunk: payload=${frame.payload.substring(0, 60)}`)
+      this.emitFrame(frame)
+    })
+
+    conn.on('SessionDetached', (args: Object[]) => {
+      const evt = args[0] as Record<string, Object>
+      const frame = new TransportFrame()
+      frame.type = 'detached'
+      frame.sessionId = (evt['sessionId'] as string) ?? this.sessionId
+      this.emitFrame(frame)
+    })
+
+    conn.on('SessionExpired', (args: Object[]) => {
+      const evt = args[0] as Record<string, Object>
+      const frame = new TransportFrame()
+      frame.type = 'expired'
+      frame.sessionId = (evt['sessionId'] as string) ?? this.sessionId
+      frame.reason = (evt['reason'] as string) ?? 'worker-offline'
+      this.emitFrame(frame)
+    })
+
+    conn.on('SessionExited', (args: Object[]) => {
+      const evt = args[0] as Record<string, Object>
+      const frame = new TransportFrame()
+      frame.type = 'exited'
+      frame.sessionId = (evt['sessionId'] as string) ?? this.sessionId
+      frame.exitCode = (evt['exitCode'] as number) ?? 0
+      frame.reason = (evt['reason'] as string) ?? ''
+      this.emitFrame(frame)
+    })
+
+    conn.on('SessionStartFailed', (args: Object[]) => {
+      const evt = args[0] as Record<string, Object>
+      const frame = new TransportFrame()
+      frame.type = 'error'
+      frame.sessionId = (evt['sessionId'] as string) ?? this.sessionId
+      frame.code = 'session-start-failed'
+      frame.message = (evt['reason'] as string) ?? 'Session start failed'
+      this.emitFrame(frame)
+    })
+
+    conn.on('LatencyProbeAck', (args: Object[]) => {
+      const ackData = args[0] as Record<string, Object>
+      const probeId = (ackData['probeId'] as string) ?? ''
+      const sendTime = this.pendingProbes.get(probeId)
+      if (sendTime !== undefined) {
+        this.pendingProbes.delete(probeId)
+        const rtt = Date.now() - sendTime
+        console.info(`[LatencyProbeAck] probeId=${probeId}, rtt=${rtt}ms`)
+        const frame = new TransportFrame()
+        frame.type = 'latencyAck'
+        frame.probeId = probeId
+        frame.clientTime = rtt
+        frame.serverTime = 0
+        this.emitFrame(frame)
+      }
+    })
+
+    conn.onreconnecting = (_error: Error | null) => {
+      this.isConnected = false
+      this.stopLatencyProbe()
+      if (!this.manualDisconnect && this.onDisconnected) {
+        this.onDisconnected()
+      }
+    }
+
+    conn.onreconnected = (_connectionId: string | null) => {
+      this.isConnected = true
+      this.startLatencyProbe()
+      this.reattachSession()
+    }
+
+    conn.onclose = (_error: Error | null) => {
+      this.isConnected = false
+      this.stopLatencyProbe()
+    }
+
+    await conn.start()
+    this.isConnected = true
+    console.info(`[TerminalTransport] HubConnection started, invoking ReattachSession`)
+
+    await this.reattachSession()
+    this.startLatencyProbe()
+  }
+
+  sendInput(base64Payload: string): void {
+    if (!this.connection || this.connection.state !== HubConnectionState.Connected) {
+      console.warn('[Transport] sendInput skipped: not connected')
+      return
+    }
+    console.info(`[Transport] sendInput: base64=${base64Payload}`)
+    const params = new WriteInputParams()
+    params.sessionId = this.sessionId
+    params.payload = base64Payload
+    this.connection.send('WriteInput', params).then(() => {
+      console.info('[Transport] WriteInput sent OK')
+    }).catch((e: Error) => {
+      console.error('[Transport] WriteInput failed: ' + e.message)
     })
   }
 
-  /**
-   * Send terminal input to the server.
-   * @param base64Payload Base64-encoded input data
-   */
-  sendInput(base64Payload: string): void {
-    const frame = new WsFrame()
-    frame.type = 'input'
-    frame.sessionId = this.sessionId
-    frame.payload = base64Payload
-    this.sendFrame(frame)
-  }
-
-  /**
-   * Send a terminal resize event.
-   * @param columns New column count
-   * @param rows New row count
-   */
   sendResize(columns: number, rows: number): void {
-    const frame = new WsFrame()
-    frame.type = 'resize'
-    frame.sessionId = this.sessionId
-    frame.columns = columns
-    frame.rows = rows
-    this.sendFrame(frame)
+    if (!this.connection || this.connection.state !== HubConnectionState.Connected) {
+      return
+    }
+    const params = new ResizeSessionParams()
+    params.sessionId = this.sessionId
+    params.columns = columns
+    params.rows = rows
+    this.connection.send('ResizeSession', params).catch((e: Error) => {
+      console.error('Failed to send resize: ' + e.message)
+    })
   }
 
-  /**
-   * Send a detach command to gracefully detach from the session.
-   */
   sendDetach(): void {
-    const frame = new WsFrame()
-    frame.type = 'detach'
-    frame.sessionId = this.sessionId
-    this.sendFrame(frame)
-    this.disconnect()
+    this.manualDisconnect = true
+    if (this.connection && this.connection.state === HubConnectionState.Connected) {
+      this.connection.invoke('DetachSession', this.sessionId).catch((_e: Error) => {
+        // Ignore detach errors
+      })
+    }
+    setTimeout(() => {
+      this.disconnect()
+    }, 100)
   }
 
-  /**
-   * Send a close/exit command.
-   */
   sendClose(): void {
-    const frame = new WsFrame()
-    frame.type = 'close'
-    frame.sessionId = this.sessionId
-    this.sendFrame(frame)
-  }
-
-  /**
-   * Start sending periodic ping frames to keep the connection alive.
-   */
-  startPing(): void {
-    this.stopPing()
-    this.pingTimer = setInterval(() => {
-      const frame = new WsFrame()
-      frame.type = 'ping'
-      this.sendFrame(frame)
-    }, 30000) as number
-  }
-
-  /**
-   * Stop the ping timer.
-   */
-  stopPing(): void {
-    if (this.pingTimer !== -1) {
-      clearInterval(this.pingTimer)
-      this.pingTimer = -1
+    if (this.connection && this.connection.state === HubConnectionState.Connected) {
+      const params = new CloseSessionParams()
+      params.sessionId = this.sessionId
+      this.connection.send('CloseSession', params).catch((_e: Error) => {
+        // Ignore close errors
+      })
     }
   }
 
-  /**
-   * Disconnect the WebSocket and cancel any pending reconnect.
-   */
   disconnect(): void {
-    this.cancelReconnect()
-    this.stopPing()
-    if (this.ws) {
-      try {
-        this.ws.close()
-      } catch (e) {
-        // Ignore close errors
-      }
-      this.ws = null
+    this.manualDisconnect = true
+    this.stopLatencyProbe()
+    if (this.connection) {
+      this.connection.stop().catch((_e: Error) => {
+        // Ignore stop errors
+      })
+      this.connection = null
     }
     this.isConnected = false
   }
 
-  /**
-   * Handle an incoming WebSocket message.
-   */
-  private handleMessage(data: string | ArrayBuffer): void {
-    try {
-      let jsonStr: string
-      if (typeof data === 'string') {
-        jsonStr = data
-      } else {
-        jsonStr = buffer.from(data).toString('utf-8')
-      }
-
-      const frame = JSON.parse(jsonStr) as Record<string, Object>
-      if (this.onFrame) {
-        this.onFrame(frame)
-      }
-    } catch (e) {
-      console.warn('Failed to parse WebSocket frame: ' + (e as Error).message)
-    }
-  }
-
-  /**
-   * Send a WsFrame over the WebSocket.
-   */
-  private sendFrame(frame: WsFrame): void {
-    if (!this.ws || !this.isConnected) {
+  private async reattachSession(): Promise<void> {
+    if (!this.connection || this.connection.state !== HubConnectionState.Connected) {
       return
     }
     try {
-      const obj: Record<string, Object> = {}
-      obj['type'] = frame.type
-      obj['sessionId'] = frame.sessionId
-      if (frame.payload) {
-        obj['payload'] = frame.payload
+      const params = new ReattachSessionParams()
+      params.sessionId = this.sessionId
+      const result = await this.connection.invoke('ReattachSession', params)
+      if (result !== null) {
+        const r = result as Record<string, Object>
+        const success = r['isSuccess'] ?? r['IsSuccess']
+        if (success === false || success === 0) {
+          const errorCode = (r['errorCode'] as string) ?? (r['ErrorCode'] as string) ?? 'unknown'
+          this.emitReattachError(errorCode)
+          this.disconnect()
+          return
+        }
       }
-      if (frame.columns > 0) {
-        obj['columns'] = frame.columns as Object
-      }
-      if (frame.rows > 0) {
-        obj['rows'] = frame.rows as Object
-      }
-      const jsonStr = JSON.stringify(obj)
-      this.ws.send(jsonStr)
     } catch (e) {
-      console.error('Failed to send WebSocket frame: ' + (e as Error).message)
+      this.emitReattachError('reattach-failed: ' + (e as Error).message)
+      this.disconnect()
     }
   }
 
-  /**
-   * Schedule a reconnection attempt with exponential backoff.
-   */
-  private scheduleReconnect(): void {
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.warn('Max reconnect attempts reached')
-      return
+  private emitReattachError(errorCode: string): void {
+    const frame = new TransportFrame()
+    frame.type = 'error'
+    frame.sessionId = this.sessionId
+    frame.code = errorCode
+    frame.message = this.translateErrorCode(errorCode)
+    this.emitFrame(frame)
+  }
+
+  private translateErrorCode(code: string): string {
+    switch (code) {
+      case 'session-not-found':
+        return '会话不存在或无权访问'
+      case 'session-expired':
+        return '会话已过期，请创建新会话'
+      case 'session-detached-without-lease':
+        return '会话状态异常，请重试'
+      default:
+        return code
     }
+  }
 
-    this.cancelReconnect()
-    const delay = Math.min(
-      this.baseReconnectDelay * Math.pow(2, this.reconnectAttempts),
-      this.maxReconnectDelay
-    )
-    // Add jitter (0-25% of delay)
-    const jitter = delay * (Math.random() * 0.25)
-    const totalDelay = delay + jitter
+  private emitFrame(frame: TransportFrame): void {
+    if (this.onFrame) {
+      this.onFrame(frame)
+    }
+  }
 
-    this.reconnectTimer = setTimeout(() => {
-      this.reconnectAttempts++
-      console.info(`Reconnect attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts}`)
-      this.connect(this.sessionId, this.token, this.gatewayUrl).catch((e: Error) => {
-        console.warn('Reconnect failed: ' + e.message)
+  private startLatencyProbe(): void {
+    this.stopLatencyProbe()
+    this.pendingProbes.clear()
+    this.latencyProbeTimer = setInterval(() => {
+      if (!this.connection || this.connection.state !== HubConnectionState.Connected) {
+        return
+      }
+      // Clean up probes older than 5 seconds
+      const now = Date.now()
+      const staleKeys: string[] = []
+      this.pendingProbes.forEach((time, key) => {
+        if (now - time > 5000) {
+          staleKeys.push(key)
+        }
       })
-    }, totalDelay) as number
+      for (const key of staleKeys) {
+        this.pendingProbes.delete(key)
+      }
+      const probeId = `probe-${now}-${Math.floor(Math.random() * 100000)}`
+      this.pendingProbes.set(probeId, now)
+      console.info(`[LatencyProbe] sending probeId=${probeId}, pending=${this.pendingProbes.size}`)
+      const params = new ProbeLatencyParams()
+      params.sessionId = this.sessionId
+      params.probeId = probeId
+      this.connection.send('ProbeLatency', params).catch((_e: Error) => {
+        this.pendingProbes.delete(probeId)
+      })
+    }, 15000) as number
   }
 
-  /**
-   * Cancel any pending reconnect timer.
-   */
-  private cancelReconnect(): void {
-    if (this.reconnectTimer !== -1) {
-      clearTimeout(this.reconnectTimer)
-      this.reconnectTimer = -1
+  private stopLatencyProbe(): void {
+    if (this.latencyProbeTimer !== -1) {
+      clearInterval(this.latencyProbeTimer)
+      this.latencyProbeTimer = -1
     }
+    this.pendingProbes.clear()
+  }
+
+  private payloadToBase64(payload: Object): string {
+    if (payload === null || payload === undefined) {
+      return ''
+    }
+    if (typeof payload === 'string') {
+      return payload
+    }
+    try {
+      const bytes = payload as number[]
+      const arr = new Uint8Array(bytes)
+      return buffer.from(arr.buffer).toString('base64')
+    } catch (_e) {
+      return String(payload)
+    }
+  }
+
+  private base64ToBytes(base64: string): number[] {
+    const map = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+    const result: number[] = []
+    const clean = base64.replace(/=+$/, '')
+    for (let i = 0; i < clean.length; i += 4) {
+      const c0 = map.indexOf(clean.charAt(i))
+      const c1 = map.indexOf(clean.charAt(i + 1))
+      const c2 = i + 2 < clean.length ? map.indexOf(clean.charAt(i + 2)) : 0
+      const c3 = i + 3 < clean.length ? map.indexOf(clean.charAt(i + 3)) : 0
+      result.push((c0 << 2) | (c1 >> 4))
+      if (i + 2 < clean.length && clean.charAt(i + 2) !== '=') {
+        result.push(((c1 & 15) << 4) | (c2 >> 2))
+      }
+      if (i + 3 < clean.length && clean.charAt(i + 3) !== '=') {
+        result.push(((c2 & 3) << 6) | c3)
+      }
+    }
+    return result
   }
 }

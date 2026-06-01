@@ -150,7 +150,7 @@ export struct ActivateWorkerPage {
 
     this.authService.activateWorker(this.activationCode).then(() => {
       this.isLoading = false
-      this.successMessage = $r('app.string.activate_success') as string
+      this.successMessage = '激活成功'
       setTimeout(() => {
         AuthService.navigateHome(this.pageStack)
       }, 1000)

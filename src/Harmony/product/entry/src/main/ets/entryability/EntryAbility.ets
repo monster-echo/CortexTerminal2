@@ -10,10 +10,10 @@ import { UIAbility, AbilityConstant, Want, Configuration, ConfigurationConstant 
 import { window } from '@kit.ArkUI'
 import { webview } from '@kit.ArkWeb'
 import { hilog } from '@kit.PerformanceAnalysisKit'
+import { AppConstants } from '@rwecho/core'
 
 const TAG = 'EntryAbility'
 const DOMAIN = 0x0001
-const DEFAULT_GATEWAY_URL = 'https://gateway.ct.rwecho.top'
 
 /**
  * Entry ability for CortexTerminal HarmonyOS app.
@@ -25,12 +25,16 @@ export default class EntryAbility extends UIAbility {
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
     hilog.info(DOMAIN, TAG, 'onCreate')
 
+    PersistentStorage.persistProp('authToken', '')
+    PersistentStorage.persistProp('refreshToken', '')
+    PersistentStorage.persistProp('isLoggedIn', false)
+    PersistentStorage.persistProp('userInfo', '')
+    PersistentStorage.persistProp('gatewayUrl', AppConstants.DEFAULT_GATEWAY_URL)
+    PersistentStorage.persistProp('themeMode', 'system')
+    PersistentStorage.persistProp('language', 'en')
+
     // Initialize AppStorage with default values
-    AppStorage.setOrCreate('authToken', '')
-    AppStorage.setOrCreate('refreshToken', '')
-    AppStorage.setOrCreate('isLoggedIn', false)
     AppStorage.setOrCreate('authCompleted', false)
-    AppStorage.setOrCreate('gatewayUrl', DEFAULT_GATEWAY_URL)
     AppStorage.setOrCreate('appVersion', '1.0.0')
     AppStorage.setOrCreate('currentBreakpoint', 'sm')
     AppStorage.setOrCreate('windowWidth', 0)
@@ -38,8 +42,6 @@ export default class EntryAbility extends UIAbility {
     AppStorage.setOrCreate('keyboardHeight', 0)
     AppStorage.setOrCreate('isKeyboardVisible', false)
     AppStorage.setOrCreate('colorMode', 'light')
-    AppStorage.setOrCreate('themeMode', 'system')
-    AppStorage.setOrCreate('language', 'en')
     AppStorage.setOrCreate('isNetworkAvailable', true)
     AppStorage.setOrCreate('networkType', 'unknown')
     AppStorage.setOrCreate('terminalState', 'Disconnected')
@@ -68,7 +70,6 @@ export default class EntryAbility extends UIAbility {
     // Set main window to full screen immersive mode
     windowStage.getMainWindow().then((win: window.Window) => {
       this.mainWindow = win
-      win.setWindowLayoutFullScreen(true)
 
       // Get initial window dimensions
       const properties = win.getWindowProperties()

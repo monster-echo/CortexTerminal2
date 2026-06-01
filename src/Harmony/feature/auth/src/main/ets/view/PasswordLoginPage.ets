@@ -5,6 +5,7 @@
  * Agreement handled as "login = consent" text at bottom.
  */
 import { AuthService } from '../service/AuthService'
+import { AppConstants } from '@rwecho/core'
 import { common, Want } from '@kit.AbilityKit'
 
 @Component
@@ -113,12 +114,12 @@ export struct PasswordLoginPage {
           Span($r('app.string.login_agreement_terms'))
             .fontColor($r('app.color.terminal_secondary'))
             .onClick(() => {
-              this.openExternal('https://gateway.ct.rwecho.top/terms')
+              this.openExternal((AppStorage.get<string>('gatewayUrl') || AppConstants.DEFAULT_GATEWAY_URL) + '/terms')
             })
           Span(' ' + $r('app.string.login_agreement_privacy'))
             .fontColor($r('app.color.terminal_secondary'))
             .onClick(() => {
-              this.openExternal('https://gateway.ct.rwecho.top/privacy')
+              this.openExternal((AppStorage.get<string>('gatewayUrl') || AppConstants.DEFAULT_GATEWAY_URL) + '/privacy')
             })
         }
         .fontSize(12)
@@ -134,7 +135,7 @@ export struct PasswordLoginPage {
 
   private async handleLogin() {
     if (this.username.length === 0 || this.password.length === 0) {
-      this.errorMessage = $r('app.string.login_error_empty_fields') as string
+      this.errorMessage = '请输入用户名和密码'
       return
     }
 
@@ -145,7 +146,7 @@ export struct PasswordLoginPage {
       this.isLoading = false
       AuthService.navigateHome(this.pageStack)
     } catch (err) {
-      this.errorMessage = (err as Error).message || $r('app.string.login_error_login_failed') as string
+      this.errorMessage = (err as Error).message || '登录失败'
       this.isLoading = false
     }
   }

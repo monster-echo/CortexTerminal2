@@ -1,0 +1,9 @@
+{
+  "name": "@rwecho/signalr",
+  "version": "1.0.0",
+  "description": "SignalR WebSocket client library for HarmonyOS",
+  "main": "Index.ets",
+  "author": "",
+  "license": "ISC",
+  "dependencies": {}
+}

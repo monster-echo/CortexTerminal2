@@ -3,7 +3,7 @@
  * @brief Authentication state management aligned with MAUI/mobile.
  */
 import { http } from '@kit.NetworkKit'
-import { NavPathStack } from '@kit.ArkUI'
+
 import { UserInfo, TokenRefreshRequest } from '../model/AuthModels'
 
 class HuaweiQuickLoginRequest {
@@ -141,7 +141,7 @@ export class AuthService {
   }
 
   private async post(path: string, body: Object, requiresAuth: boolean = true): Promise<Object> {
-    const baseUrl = this.gatewayUrl || 'https://gateway.ct.rwecho.top'
+    const baseUrl = this.gatewayUrl
     const url = `${baseUrl}${path}`
 
     return new Promise<Object>((resolve, reject) => {
@@ -175,7 +175,7 @@ export class AuthService {
   }
 
   private async get(path: string): Promise<Object> {
-    const baseUrl = this.gatewayUrl || 'https://gateway.ct.rwecho.top'
+    const baseUrl = this.gatewayUrl
     const url = `${baseUrl}${path}`
 
     return new Promise<Object>((resolve, reject) => {

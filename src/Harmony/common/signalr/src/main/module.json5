@@ -1,0 +1,7 @@
+{
+  "module": {
+    "name": "signalr",
+    "type": "har",
+    "deviceTypes": ["default"]
+  }
+}

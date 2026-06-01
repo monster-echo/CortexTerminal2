@@ -6,44 +6,28 @@
  * a "New Terminal" primary action, and shows worker availability.
  */
 import { RestApiClient } from '../service/RestApiClient'
-import { TerminalStateManager } from '../service/TerminalStateManager'
-import { SessionInfo, SessionCreateRequest } from '../model/SessionModels'
+import { SessionInfo } from '../model/SessionModels'
 
 @Component
 export struct TerminalHome {
   @State recentSessions: SessionInfo[] = []
   @State isLoading: boolean = false
+  @State errorMessage: string = ''
   @State onlineWorkers: number = 0
   @State offlineWorkers: number = 0
+  @State isRefreshing: boolean = false
   @Consume('pageStack') pageStack: NavPathStack
   private apiClient: RestApiClient = new RestApiClient()
 
   aboutToAppear() {
+    console.info('[TerminalHome] aboutToAppear')
     this.loadData()
   }
 
   build() {
-    Scroll() {
-      Column() {
-        // Header
-        Row() {
-          Column() {
-            Text($r('app.string.app_name'))
-              .fontSize(24)
-              .fontWeight(FontWeight.Bold)
-              .fontColor($r('app.color.terminal_primary'))
-
-            Text('Your terminal sessions')
-              .fontSize(14)
-              .fontColor($r('app.color.terminal_on_surface_variant'))
-              .margin({ top: 4 })
-          }
-          .alignItems(HorizontalAlign.Start)
-          .layoutWeight(1)
-        }
-        .width('100%')
-        .padding({ left: 20, right: 20, top: 16, bottom: 16 })
-
+    Refresh({ refreshing: $$this.isRefreshing }) {
+      Scroll() {
+        Column() {
         // Worker availability summary strip
         Row() {
           Row() {
@@ -51,7 +35,7 @@ export struct TerminalHome {
               .width(8)
               .height(8)
               .fill($r('app.color.terminal_tertiary'))
-            Text(`${this.onlineWorkers} Online`)
+            Text(`${this.onlineWorkers} 在线`)
               .fontSize(13)
               .fontColor($r('app.color.terminal_on_surface_variant'))
               .margin({ left: 6 })
@@ -62,7 +46,7 @@ export struct TerminalHome {
               .width(8)
               .height(8)
               .fill($r('app.color.terminal_outline_variant'))
-            Text(`${this.offlineWorkers} Offline`)
+            Text(`${this.offlineWorkers} 离线`)
               .fontSize(13)
               .fontColor($r('app.color.terminal_on_surface_variant'))
               .margin({ left: 6 })
@@ -70,7 +54,7 @@ export struct TerminalHome {
           .margin({ left: 16 })
         }
         .width('calc(100% - 40vp)')
-        .margin({ top: 8 })
+        .margin({ top: 16 })
         .padding(12)
         .borderRadius(12)
         .backgroundColor($r('app.color.terminal_surface_container'))
@@ -78,7 +62,7 @@ export struct TerminalHome {
         // Recent session card
         if (this.recentSessions.length > 0) {
           Column() {
-            Text('Recent Session')
+            Text('最近会话')
               .fontSize(14)
               .fontWeight(FontWeight.Medium)
               .fontColor($r('app.color.terminal_on_surface_variant'))
@@ -102,58 +86,67 @@ export struct TerminalHome {
             .margin({ top: 40 })
         }
 
-        // Empty state
-        if (!this.isLoading && this.recentSessions.length === 0) {
+        // Error state
+        if (!this.isLoading && this.errorMessage.length > 0) {
           Column() {
-            Text('No active sessions')
+            Text('连接网关失败')
               .fontSize(16)
+              .fontWeight(FontWeight.Medium)
+              .fontColor($r('app.color.terminal_error'))
+              .margin({ top: 40 })
+
+            Text(this.errorMessage)
+              .fontSize(13)
+              .fontColor($r('app.color.terminal_on_surface_variant'))
+              .textAlign(TextAlign.Center)
+              .margin({ top: 8 })
+              .padding({ left: 28, right: 28 })
+
+            Button('重试')
+              .height(44)
+              .borderRadius(12)
+              .backgroundColor($r('app.color.terminal_secondary_container'))
+              .fontColor($r('app.color.terminal_on_secondary_container'))
+              .margin({ top: 16 })
+              .onClick(() => {
+                this.loadData()
+              })
+          }
+          .width('100%')
+          .alignItems(HorizontalAlign.Center)
+        }
+
+        // Empty state
+        if (!this.isLoading && this.errorMessage.length === 0 && this.recentSessions.length === 0) {
+          Column() {
+            Text(this.emptyTitle())
+              .fontSize(16)
+              .fontWeight(FontWeight.Medium)
               .fontColor($r('app.color.terminal_on_surface_variant'))
               .margin({ top: 40 })
 
-            Text('Start a new terminal session to begin')
+            Text(this.emptyDescription())
               .fontSize(14)
               .fontColor($r('app.color.terminal_on_surface_variant'))
+              .textAlign(TextAlign.Center)
               .margin({ top: 8 })
+              .padding({ left: 32, right: 32 })
           }
           .width('100%')
           .alignItems(HorizontalAlign.Center)
         }
 
         Blank()
-
-        // New Terminal primary action button
-        Button('New Terminal')
-          .width('calc(100% - 40vp)')
-          .height(52)
-          .borderRadius(14)
-          .backgroundColor($r('app.color.terminal_secondary_container'))
-          .fontColor($r('app.color.terminal_on_secondary_container'))
-          .fontSize(16)
-          .fontWeight(FontWeight.Medium)
-          .margin({ top: 16 })
-          .onClick(() => {
-            this.createNewSession()
-          })
-
-        // Choose Worker secondary action
-        Button('Choose Worker')
-          .width('calc(100% - 40vp)')
-          .height(48)
-          .borderRadius(14)
-          .backgroundColor(Color.Transparent)
-          .fontColor($r('app.color.terminal_secondary'))
-          .fontSize(15)
-          .fontWeight(FontWeight.Medium)
-          .borderWidth(1)
-          .borderColor($r('app.color.terminal_outline_variant'))
-          .margin({ top: 8, bottom: 20 })
-          .onClick(() => {
-            AppStorage.setOrCreate('navigateTo', 'Workers')
-          })
+      }
+        .width('100%')
+        .height('100%')
       }
       .width('100%')
       .height('100%')
     }
+    .onRefreshing(() => {
+      this.loadData()
+    })
     .width('100%')
     .height('100%')
     .backgroundColor($r('app.color.terminal_surface'))
@@ -197,7 +190,7 @@ export struct TerminalHome {
       .layoutWeight(1)
 
       // Resume button
-      Button('Resume')
+      Button('恢复')
         .height(32)
         .borderRadius(8)
         .backgroundColor($r('app.color.terminal_secondary_container'))
@@ -221,6 +214,7 @@ export struct TerminalHome {
     switch (status.toLowerCase()) {
       case 'live':
       case 'connected':
+      case 'running':
         return $r('app.color.terminal_tertiary')
       case 'reconnecting':
       case 'connecting':
@@ -254,32 +248,43 @@ export struct TerminalHome {
 
   private async loadData() {
     this.isLoading = true
+    this.errorMessage = ''
     try {
       const sessions = await this.apiClient.listSessions()
       this.recentSessions = sessions
       const workers = await this.apiClient.listWorkers()
-      this.onlineWorkers = workers.filter(w => w.status === 'online').length
-      this.offlineWorkers = workers.filter(w => w.status !== 'online').length
+      this.onlineWorkers = workers.filter(w => w.status.toLowerCase() === 'online' || w.isOnline === true).length
+      this.offlineWorkers = workers.length - this.onlineWorkers
     } catch (e) {
-      console.warn('Failed to load terminal home data: ' + (e as Error).message)
+      this.errorMessage = (e as Error).message || '网络请求失败'
     } finally {
       this.isLoading = false
+      this.isRefreshing = false
     }
   }
 
-  private async createNewSession() {
-    this.isLoading = true
-    try {
-      const request = new SessionCreateRequest()
-      request.name = `Terminal ${new Date().toLocaleTimeString()}`
-      const session = await this.apiClient.createSession(request)
-      AppStorage.setOrCreate('navSessionId', session.id)
-      AppStorage.setOrCreate('navSessionName', session.name)
-      this.pageStack.pushPath({ name: 'TerminalSession' })
-    } catch (e) {
-      console.error('Failed to create session: ' + (e as Error).message)
-    } finally {
-      this.isLoading = false
-    }
+  private totalWorkers(): number {
+    return this.onlineWorkers + this.offlineWorkers
   }
+
+  private emptyTitle(): string {
+    if (this.totalWorkers() === 0) {
+      return '还没有可用 Worker'
+    }
+    if (this.onlineWorkers === 0) {
+      return 'Worker 当前离线'
+    }
+    return '暂无活跃会话'
+  }
+
+  private emptyDescription(): string {
+    if (this.totalWorkers() === 0) {
+      return '激活或选择一个 Worker 后，就可以从手机打开云端终端。'
+    }
+    if (this.onlineWorkers === 0) {
+      return '打开 Workers 查看节点状态，等节点在线后再创建终端。'
+    }
+    return '创建一个新终端会话，或从侧边栏恢复最近会话。'
+  }
+
 }

@@ -7,7 +7,6 @@
  */
 import { LoginPage } from './view/LoginPage'
 import { ActivateWorkerPage } from './view/ActivateWorkerPage'
-import { AuthService } from './service/AuthService'
 
 /**
  * Main AuthComponent that acts as a NavDestination wrapper.
@@ -15,12 +14,13 @@ import { AuthService } from './service/AuthService'
  */
 @Component
 export struct AuthComponent {
-  private authService: AuthService = new AuthService()
+  @StorageLink('authToken') authToken: string = ''
+  @StorageLink('isLoggedIn') isLoggedIn: boolean = false
 
   build() {
     NavDestination() {
       Column() {
-        if (!this.authService.isLoggedIn()) {
+        if (!this.isLoggedIn || this.authToken.length === 0) {
           LoginPage()
         } else {
           ActivateWorkerPage()
@@ -31,5 +31,6 @@ export struct AuthComponent {
     }
     .hideTitleBar(true)
     .backgroundColor($r('app.color.terminal_surface'))
+    .onBackPressed(() => true)
   }
 }

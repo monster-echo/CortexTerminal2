@@ -11,12 +11,14 @@
 @Observed
 export class SessionInfo {
   id: string = ''
+  sessionId: string = ''
   name: string = ''
   status: string = ''
   workerId: string = ''
   workerName: string = ''
   createdAt: string = ''
   updatedAt: string = ''
+  lastActivityAt: string = ''
   lastActiveAt: string = ''
   columns: number = 80
   rows: number = 24
@@ -36,10 +38,12 @@ export class SessionListResponse {
  */
 @Observed
 export class SessionCreateRequest {
+  runtime: string = 'shell'
   name: string = ''
   workerId: string = ''
   columns: number = 80
   rows: number = 24
+  clientRequestId: string = ''
 }
 
 /**
@@ -48,6 +52,8 @@ export class SessionCreateRequest {
 @Observed
 export class SessionCreateResponse {
   id: string = ''
+  sessionId: string = ''
+  workerId: string = ''
   name: string = ''
   status: string = ''
   wsUrl: string = ''

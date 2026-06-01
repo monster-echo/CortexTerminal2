@@ -1,34 +1,22 @@
 /**
  * @file VirtualKeyBar.ets
- * @brief Collapsible virtual keyboard bar for terminal input
+ * @brief Single-row horizontally scrollable virtual keyboard bar
  *
- * Provides modifier keys (Esc, Ctrl latch, Alt latch, Tab, Paste)
- * and an expandable row with arrow keys. All touch targets meet
- * the 44px minimum accessibility requirement.
+ * Provides modifier keys and special keys in a single scrollable row.
+ * All touch targets meet the 44px minimum accessibility requirement.
  */
 import { pasteboard } from '@kit.BasicServicesKit'
 
-/**
- * Callback type for virtual key press events.
- */
 type OnKeyPressCallback = (key: string) => void
-
-/**
- * Callback type for expand toggle events.
- */
-type OnToggleExpandCallback = () => void
 
 @Component
 export struct VirtualKeyBar {
-  @Prop onKeyPress: OnKeyPressCallback = (_key: string) => {}
-  @Prop onToggleExpand: OnToggleExpandCallback = () => {}
-  @State expanded: boolean = false
+  onKeyPress: OnKeyPressCallback = (_key: string) => {}
   @State ctrlLatched: boolean = false
   @State altLatched: boolean = false
 
   build() {
-    Column() {
-      // Main key row
+    Scroll() {
       Row() {
         this.KeyButton('Esc', () => {
           this.onKeyPress('Escape')
@@ -46,66 +34,42 @@ export struct VirtualKeyBar {
           this.onKeyPress('Tab')
         })
 
+        this.KeyButton('←', () => {
+          this.onKeyPress('ArrowLeft')
+        })
+
+        this.KeyButton('↑', () => {
+          this.onKeyPress('ArrowUp')
+        })
+
+        this.KeyButton('↓', () => {
+          this.onKeyPress('ArrowDown')
+        })
+
+        this.KeyButton('→', () => {
+          this.onKeyPress('ArrowRight')
+        })
+
+        this.KeyButton('Home', () => {
+          this.onKeyPress('\x1b[H')
+        })
+
+        this.KeyButton('End', () => {
+          this.onKeyPress('\x1b[F')
+        })
+
         this.KeyButton('Paste', () => {
           this.handlePaste()
         })
-
-        // Expand/collapse toggle
-        Button() {
-          Text(this.expanded ? '▼' : '▲')
-            .fontSize(14)
-            .fontColor($r('app.color.terminal_primary'))
-        }
-        .width(44)
-        .height(44)
-        .borderRadius(8)
-        .backgroundColor($r('app.color.terminal_surface_container'))
-        .onClick(() => {
-          this.onToggleExpand()
-        })
       }
-      .width('100%')
       .height(52)
-      .justifyContent(FlexAlign.SpaceEvenly)
+      .justifyContent(FlexAlign.Start)
       .padding({ left: 4, right: 4 })
-      .backgroundColor($r('app.color.terminal_surface_container'))
-
-      // Expandable arrow key row
-      if (this.expanded) {
-        Row() {
-          this.KeyButton('↑', () => {
-            this.onKeyPress('ArrowUp')
-          })
-
-          this.KeyButton('↓', () => {
-            this.onKeyPress('ArrowDown')
-          })
-
-          this.KeyButton('←', () => {
-            this.onKeyPress('ArrowLeft')
-          })
-
-          this.KeyButton('→', () => {
-            this.onKeyPress('ArrowRight')
-          })
-
-          // Home and End
-          this.KeyButton('Home', () => {
-            this.onKeyPress('\x1b[H')
-          })
-
-          this.KeyButton('End', () => {
-            this.onKeyPress('\x1b[F')
-          })
-        }
-        .width('100%')
-        .height(52)
-        .justifyContent(FlexAlign.SpaceEvenly)
-        .padding({ left: 4, right: 4 })
-        .backgroundColor($r('app.color.terminal_surface_container'))
-      }
     }
+    .scrollable(ScrollDirection.Horizontal)
+    .scrollBar(BarState.Off)
     .width('100%')
+    .backgroundColor($r('app.color.terminal_surface_container'))
   }
 
   @Builder
@@ -118,6 +82,7 @@ export struct VirtualKeyBar {
       .fontColor($r('app.color.terminal_primary'))
       .fontSize(14)
       .fontWeight(FontWeight.Medium)
+      .margin({ left: 2, right: 2 })
       .onClick(() => {
         if (this.ctrlLatched) {
           this.onKeyPress(`Ctrl+${label}`)
@@ -145,13 +110,13 @@ export struct VirtualKeyBar {
         $r('app.color.terminal_primary'))
       .fontSize(14)
       .fontWeight(FontWeight.Medium)
+      .margin({ left: 2, right: 2 })
       .onClick(() => {
         toggle()
       })
   }
 
   private async handlePaste() {
-    // Read from the system clipboard using @ohos.pasteboard
     try {
       const systemPasteboard = pasteboard.getSystemPasteboard()
       const pasteData = await systemPasteboard.getData()

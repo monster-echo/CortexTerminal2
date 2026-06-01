@@ -2,6 +2,7 @@
  * @file Index.ets
  * @brief Main Navigation shell with adaptive sidebar
  */
+import { display } from '@kit.ArkUI'
 import { AuthComponent, AuthService, PasswordLoginPage } from '@rwecho/auth'
 import { RestApiClient, SessionCreateRequest, SessionInfo, TerminalHome, TerminalPage } from '@rwecho/terminal'
 import { WorkerDetailPage, WorkerListPage } from '@rwecho/worker'
@@ -288,16 +289,37 @@ struct ShellScaffold {
     }
   }
 
+  private calculateTerminalSize(): { cols: number, rows: number } {
+    try {
+      const disp = display.getDefaultDisplaySync()
+      const vpWidth = px2vp(disp.width)
+      const vpHeight = px2vp(disp.height)
+      const fontSize = 14
+      const charWidth = fontSize * 0.602
+      const charHeight = fontSize * 1.2
+      const topBarHeight = 52 + 28
+      const keyBarHeight = 52
+      const cols = Math.floor(vpWidth / charWidth)
+      const rows = Math.floor((vpHeight - topBarHeight - keyBarHeight) / charHeight)
+      return { cols: Math.max(cols, 20), rows: Math.max(rows, 6) }
+    } catch (e) {
+      return { cols: 80, rows: 24 }
+    }
+  }
+
   private async createSessionOnWorker(workerId: string) {
     if (this.isCreatingSession) {
       return
     }
     this.isCreatingSession = true
     try {
+      const size = this.calculateTerminalSize()
       const request = new SessionCreateRequest()
-      request.columns = 120
-      request.rows = 40
+      request.columns = size.cols
+      request.rows = size.rows
       request.workerId = workerId
+      AppStorage.setOrCreate('terminalCols', size.cols)
+      AppStorage.setOrCreate('terminalRows', size.rows)
       const session = await this.apiClient.createSession(request)
       AppStorage.setOrCreate('navSessionId', session.id)
       AppStorage.setOrCreate('navSessionName', session.name)

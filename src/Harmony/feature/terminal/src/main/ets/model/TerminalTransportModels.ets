@@ -1,19 +1,56 @@
 /**
- * @file TerminalTransportModels.ets
- * @brief Data transfer objects for terminal WebSocket frames
- *
- * Defines the frame types used for WebSocket communication
- * with the terminal gateway.
+ * Transport frame for terminal communication.
+ * Used by TerminalTransport to pass events to TerminalPage.
  */
-
-/**
- * WebSocket frame for terminal communication.
- */
-@Observed
-export class WsFrame {
+export class TransportFrame {
   type: string = ''
   sessionId: string = ''
+  stream: string = ''
   payload: string = ''
+  exitCode: number = 0
+  reason: string = ''
+  code: string = ''
+  message: string = ''
+  probeId: string = ''
+  clientTime: number = 0
+  serverTime: number = 0
+}
+
+/**
+ * Hub method parameter: ReattachSession
+ */
+export class ReattachSessionParams {
+  sessionId: string = ''
+}
+
+/**
+ * Hub method parameter: WriteInput
+ */
+export class WriteInputParams {
+  sessionId: string = ''
+  payload: string = ''
+}
+
+/**
+ * Hub method parameter: ResizeSession
+ */
+export class ResizeSessionParams {
+  sessionId: string = ''
   columns: number = 0
   rows: number = 0
+}
+
+/**
+ * Hub method parameter: CloseSession
+ */
+export class CloseSessionParams {
+  sessionId: string = ''
+}
+
+/**
+ * Hub method parameter: ProbeLatency
+ */
+export class ProbeLatencyParams {
+  sessionId: string = ''
+  probeId: string = ''
 }

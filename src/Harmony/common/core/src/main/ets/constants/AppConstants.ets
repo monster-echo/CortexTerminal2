@@ -10,7 +10,7 @@ export class AppConstants {
   // ── Gateway ──────────────────────────────────────────────────────
 
   /** Default API gateway base URL */
-  static readonly DEFAULT_GATEWAY_URL: string = 'https://gateway.ct.rwecho.top'
+  static readonly DEFAULT_GATEWAY_URL: string = 'https://corterm.rwecho.top'
 
   // ── WebSocket ────────────────────────────────────────────────────
 

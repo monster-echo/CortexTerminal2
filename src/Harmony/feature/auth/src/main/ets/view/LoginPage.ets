@@ -24,7 +24,7 @@ export struct LoginPage {
          response: loginComponentManager.HuaweiIDCredential) => {
           if (error) {
             if (error.code !== 1001502012 && error.code !== 1001502001) {
-              this.errorMessage = $r('app.string.login_error_huawei_failed')
+              this.errorMessage = '华为账号登录失败'
             }
             return
           }
@@ -33,7 +33,7 @@ export struct LoginPage {
             const openID = response.openID ?? ''
             const unionID = response.unionID ?? ''
             if (authCode.length === 0) {
-              this.errorMessage = $r('app.string.login_error_no_code')
+              this.errorMessage = '未获取到授权码'
               return
             }
             this.handleHuaweiLogin(authCode, unionID, openID)
@@ -148,7 +148,7 @@ export struct LoginPage {
       this.isHuaweiLoading = false
       AuthService.navigateHome(this.pageStack)
     } catch (err) {
-      this.errorMessage = (err as Error).message || $r('app.string.login_error_huawei_failed') as string
+      this.errorMessage = (err as Error).message || '华为账号登录失败'
       this.isHuaweiLoading = false
     }
   }

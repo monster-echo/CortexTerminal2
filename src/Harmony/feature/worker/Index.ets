@@ -6,6 +6,7 @@
  * from the worker feature module.
  */
 export { WorkerComponent } from './src/main/ets/WorkerComponent'
+export { WorkerListPage } from './src/main/ets/view/WorkerListPage'
 export { WorkerDetailPage } from './src/main/ets/view/WorkerDetailPage'
 export type {
   WorkerInfo,

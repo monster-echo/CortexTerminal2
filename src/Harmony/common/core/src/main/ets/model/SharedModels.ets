@@ -30,13 +30,20 @@ export class WorkerNavParam {
 @Observed
 export class WorkerInfo {
   id: string = ''
+  workerId: string = ''
   name: string = ''
   hostname: string = ''
   status: string = 'offline'
   os: string = ''
+  operatingSystem: string = ''
   arch: string = ''
+  architecture: string = ''
+  version: string = ''
   ip: string = ''
+  address: string = ''
+  isOnline: boolean = false
   activeSessions: number = 0
+  sessionCount: number = 0
   maxSessions: number = 1
   cpuUsage: number = 0
   memoryUsage: number = 0
@@ -60,8 +67,12 @@ export class WorkerListResponse {
 @Observed
 export class WorkerSessionInfo {
   id: string = ''
+  sessionId: string = ''
+  workerId: string = ''
   name: string = ''
   status: string = ''
   createdAt: string = ''
+  updatedAt: string = ''
+  lastActivityAt: string = ''
   lastActiveAt: string = ''
 }
