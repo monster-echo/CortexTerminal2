@@ -73,7 +73,7 @@ jobs:
           global-json-file: global.json
 
       - name: Install MAUI Android workload
-        run: dotnet workload install maui android
+        run: dotnet workload install maui android wasm-tools
 
       - name: Download web build artifact
         uses: actions/download-artifact@v7
