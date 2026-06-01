@@ -120,7 +120,8 @@ jobs:
           packageName: "top.rwecho.cortexterminal"
           releaseFiles: "src/Mobile/src/CortexTerminal.Mobile.App/bin/Release/net10.0-android/top.rwecho.cortexterminal-Signed.aab"
           tracks: "internal"
-          status: "draft"
+          status: "completed"
+          name: ${{ needs.build-web.outputs.display_version }}
           whatsNewDirectory: "distribution/google-play"
 
   build-ios:
