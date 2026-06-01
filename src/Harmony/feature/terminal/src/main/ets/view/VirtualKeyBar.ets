@@ -18,84 +18,90 @@ export struct VirtualKeyBar {
   @State altLatched: boolean = false
 
   build() {
-    Scroll() {
-      Row() {
-        this.KeyButton('Esc', () => {
-          this.onKeyPress('Escape')
-        })
+    Row() {
+      // Scrollable key buttons
+      Scroll() {
+        Row() {
+          this.KeyButton('Esc', () => {
+            this.onKeyPress('Escape')
+          })
 
-        this.LatchButton('Ctrl', this.ctrlLatched, () => {
-          this.ctrlLatched = !this.ctrlLatched
-        })
+          this.LatchButton('Ctrl', this.ctrlLatched, () => {
+            this.ctrlLatched = !this.ctrlLatched
+          })
 
-        this.LatchButton('Alt', this.altLatched, () => {
-          this.altLatched = !this.altLatched
-        })
+          this.LatchButton('Alt', this.altLatched, () => {
+            this.altLatched = !this.altLatched
+          })
 
-        this.KeyButton('Tab', () => {
-          this.onKeyPress('Tab')
-        })
+          this.KeyButton('Tab', () => {
+            this.onKeyPress('Tab')
+          })
 
-        this.KeyButton('←', () => {
-          this.onKeyPress('ArrowLeft')
-        })
+          this.KeyButton('S-Tab', () => {
+            this.onKeyPress('\x1b[Z')
+          })
 
-        this.KeyButton('↑', () => {
-          this.onKeyPress('ArrowUp')
-        })
+          this.KeyButton('←', () => {
+            this.onKeyPress('ArrowLeft')
+          })
 
-        this.KeyButton('↓', () => {
-          this.onKeyPress('ArrowDown')
-        })
+          this.KeyButton('↑', () => {
+            this.onKeyPress('ArrowUp')
+          })
 
-        this.KeyButton('→', () => {
-          this.onKeyPress('ArrowRight')
-        })
+          this.KeyButton('↓', () => {
+            this.onKeyPress('ArrowDown')
+          })
 
-        this.KeyButton('Home', () => {
-          this.onKeyPress('\x1b[H')
-        })
+          this.KeyButton('→', () => {
+            this.onKeyPress('ArrowRight')
+          })
 
-        this.KeyButton('End', () => {
-          this.onKeyPress('\x1b[F')
-        })
+          this.KeyButton('Home', () => {
+            this.onKeyPress('\x1b[H')
+          })
 
-        this.KeyButton('S-Tab', () => {
-          this.onKeyPress('\x1b[Z')
-        })
+          this.KeyButton('End', () => {
+            this.onKeyPress('\x1b[F')
+          })
 
-        this.KeyButton('Copy', () => {
-          if (this.onCopy) {
-            this.onCopy()
-          }
-        })
-
-        this.KeyButton('Paste', () => {
-          this.handlePaste()
-        })
-
-        Button('Done')
-          .height(44)
-          .constraintSize({ minWidth: 44 })
-          .borderRadius(8)
-          .backgroundColor($r('app.color.terminal_secondary_container'))
-          .fontColor($r('app.color.terminal_on_secondary_container'))
-          .fontSize(14)
-          .fontWeight(FontWeight.Medium)
-          .margin({ left: 2, right: 2 })
-          .onClick(() => {
-            if (this.onDismiss) {
-              this.onDismiss()
+          this.KeyButton('Copy', () => {
+            if (this.onCopy) {
+              this.onCopy()
             }
           })
+
+          this.KeyButton('Paste', () => {
+            this.handlePaste()
+          })
+        }
+        .height(52)
+        .alignItems(VerticalAlign.Center)
       }
-      .height(52)
-      .justifyContent(FlexAlign.Start)
-      .padding({ left: 4, right: 4 })
+      .scrollable(ScrollDirection.Horizontal)
+      .scrollBar(BarState.Off)
+      .layoutWeight(1)
+
+      // Done button - fixed to the right
+      Button('完成')
+        .height(44)
+        .constraintSize({ minWidth: 60 })
+        .borderRadius(8)
+        .backgroundColor($r('app.color.terminal_secondary_container'))
+        .fontColor($r('app.color.terminal_on_secondary_container'))
+        .fontSize(14)
+        .fontWeight(FontWeight.Medium)
+        .margin({ left: 4, right: 4 })
+        .onClick(() => {
+          if (this.onDismiss) {
+            this.onDismiss()
+          }
+        })
     }
-    .scrollable(ScrollDirection.Horizontal)
-    .scrollBar(BarState.Off)
     .width('100%')
+    .height(52)
+    .padding({ left: 4, right: 4 })
     .backgroundColor($r('app.color.terminal_surface_container'))
   }
 

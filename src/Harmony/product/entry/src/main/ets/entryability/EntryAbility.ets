@@ -41,6 +41,7 @@ export default class EntryAbility extends UIAbility {
     AppStorage.setOrCreate('windowHeight', 0)
     AppStorage.setOrCreate('keyboardHeight', 0)
     AppStorage.setOrCreate('isKeyboardVisible', false)
+    AppStorage.setOrCreate('bottomSafeArea', 0)
     AppStorage.setOrCreate('colorMode', 'light')
     AppStorage.setOrCreate('isNetworkAvailable', true)
     AppStorage.setOrCreate('networkType', 'unknown')
@@ -99,6 +100,14 @@ export default class EntryAbility extends UIAbility {
         })
       } catch (e) {
         hilog.warn(DOMAIN, TAG, `keyboard height monitoring not supported: ${(e as Error).message}`)
+      }
+
+      // Get navigation bar (bottom avoid area) height for safe area padding
+      try {
+        const avoidArea = win.getWindowAvoidArea(window.AvoidAreaType.TYPE_NAVIGATION_INDICATOR)
+        AppStorage.setOrCreate('bottomSafeArea', px2vp(avoidArea.bottomRect.height))
+      } catch (e) {
+        AppStorage.setOrCreate('bottomSafeArea', 0)
       }
 
       // Color mode changes are tracked via onConfigurationUpdate
