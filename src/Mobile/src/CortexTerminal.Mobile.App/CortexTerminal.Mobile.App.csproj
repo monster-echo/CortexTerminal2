@@ -109,6 +109,28 @@
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.0" />
 	</ItemGroup>
 
+	<!-- Firebase (avoid umbrella package) -->
+	<ItemGroup Condition="'$(TargetFramework)' == 'net10.0-android' Or '$(TargetFramework)' == 'net10.0-ios'">
+		<PackageReference Include="Plugin.Firebase.Analytics" Version="4.0.0" />
+		<PackageReference Include="Plugin.Firebase.Crashlytics" Version="4.0.0" />
+		<PackageReference Include="Plugin.Firebase.CloudMessaging" Version="4.0.0" />
+	</ItemGroup>
+
+	<!-- Serilog -->
+	<ItemGroup>
+		<PackageReference Include="Serilog.Extensions.Logging" Version="10.0.0" />
+		<PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
+		<PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
+	</ItemGroup>
+
+	<!-- Firebase config files -->
+	<ItemGroup Condition="'$(TargetFramework)' == 'net10.0-android'">
+		<GoogleServicesJson Include="Platforms\Android\google-services.json" Link="google-services.json" />
+	</ItemGroup>
+	<ItemGroup Condition="'$(TargetFramework)' == 'net10.0-ios'">
+		<BundleResource Include="Platforms\iOS\GoogleService-Info.plist" Link="GoogleService-Info.plist" />
+	</ItemGroup>
+
 	<ItemGroup>
 		<ProjectReference Include="..\CortexTerminal.Mobile.Core\CortexTerminal.Mobile.Core.csproj" />
 		<ProjectReference Include="..\..\..\Shared\CortexTerminal.Contracts\CortexTerminal.Contracts.csproj" />

@@ -4,6 +4,8 @@ using CortexTerminal.Mobile.App.Services.Auth;
 using CortexTerminal.Mobile.App.Services.Bridge;
 using CortexTerminal.Mobile.App.Services.Terminal;
 using Microsoft.Extensions.Configuration;
+using Serilog;
+using CortexTerminal.Mobile.App.Services;
 
 namespace CortexTerminal.Mobile.App;
 
@@ -74,8 +76,21 @@ public static class MauiProgram
 
 #if DEBUG
 		builder.Services.AddHybridWebViewDeveloperTools();
-		builder.Logging.AddDebug();
 #endif
+
+		Log.Logger = new LoggerConfiguration()
+			.MinimumLevel.Debug()
+			.WriteTo.Console()
+			.WriteTo.File(
+				Path.Combine(FileSystem.AppDataDirectory, "logs", "corterm-.txt"),
+				rollingInterval: RollingInterval.Day,
+				retainedFileCountLimit: 7)
+			.WriteTo.FirebaseCrashlytics()
+			.CreateLogger();
+
+		builder.Logging.AddSerilog(dispose: true);
+
+		builder.Services.AddSingleton<PushNotificationService>();
 
 		return builder.Build();
 	}
@@ -85,7 +100,7 @@ public static class MauiProgram
 #if IOS || MACCATALYST
 		return new NSUrlSessionHandler();
 #else
-		return new HttpClientHandler();
+			return new HttpClientHandler();
 #endif
 	}
 }

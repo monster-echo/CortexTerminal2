@@ -2,6 +2,7 @@ using System.Runtime.InteropServices;
 using CortexTerminal.Mobile.App.Services.Auth;
 using Foundation;
 using Microsoft.Extensions.DependencyInjection;
+using Plugin.Firebase.Core.Platforms.iOS;
 using UIKit;
 
 namespace CortexTerminal.Mobile.App;
@@ -13,6 +14,15 @@ public class AppDelegate : MauiUIApplicationDelegate
 
     public override bool FinishedLaunching(UIApplication application, NSDictionary? launchOptions)
     {
+        try
+        {
+            CrossFirebase.Initialize();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Trace.WriteLine($"Firebase init error: {ex}");
+        }
+
         var result = base.FinishedLaunching(application, launchOptions);
         HideKeyboardAccessoryBar();
         return result;
@@ -62,6 +72,12 @@ public class AppDelegate : MauiUIApplicationDelegate
     private static extern IntPtr method_setImplementation(IntPtr method, IntPtr imp);
 
     #endregion
+
+    [Export("application:didRegisterForRemoteNotificationsWithDeviceToken:")]
+    public void RegisteredForRemoteNotifications(UIApplication application, NSData deviceToken)
+    {
+        Firebase.CloudMessaging.Messaging.SharedInstance.ApnsToken = deviceToken;
+    }
 
     public override bool OpenUrl(UIApplication application, NSUrl url, NSDictionary options)
     {

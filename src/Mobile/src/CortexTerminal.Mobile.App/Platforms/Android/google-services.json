@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "778238026234",
+    "project_id": "corterm-21458",
+    "storage_bucket": "corterm-21458.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:778238026234:android:d206756e39c5e0cea04443",
+        "android_client_info": {
+          "package_name": "top.rwecho.cortexterminal"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDLWwV0DewDmGRsXIa8A37KBtVfh9QVRJE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

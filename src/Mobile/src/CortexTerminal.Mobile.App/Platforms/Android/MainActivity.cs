@@ -5,6 +5,7 @@ using Android.OS;
 using AndroidX.Core.View;
 using CortexTerminal.Mobile.App.Services.Auth;
 using Microsoft.Extensions.DependencyInjection;
+using Plugin.Firebase.Core.Platforms.Android;
 
 namespace CortexTerminal.Mobile.App;
 
@@ -14,6 +15,15 @@ public class MainActivity : MauiAppCompatActivity
     protected override void OnCreate(Bundle? savedInstanceState)
     {
         base.OnCreate(savedInstanceState);
+
+        try
+        {
+            CrossFirebase.Initialize(this, () => this);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Trace.WriteLine($"Firebase init error: {ex}");
+        }
 
         // Prevent white flash on navigation bar during dark mode startup.
         if (Window is not null)
