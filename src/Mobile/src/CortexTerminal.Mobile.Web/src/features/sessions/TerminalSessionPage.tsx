@@ -359,14 +359,11 @@ export default function TerminalSessionPage({
       if (keyboardTransitionRef.current) return;
       resizeTimeoutRef.current = setTimeout(() => {
         try {
-          const wrapper = terminalRef.current?.parentElement;
-          if (wrapper && terminalRef.current) {
-            if (!keyboardActiveRef.current) {
-              containerHeightRef.current = wrapper.clientHeight;
-              terminalRef.current.style.height = `${wrapper.clientHeight}px`;
-            }
-            if (term.rows > 0 && !keyboardActiveRef.current) {
-              cellHeightRef.current = wrapper.clientHeight / term.rows;
+          const el = terminalRef.current;
+          if (el && !keyboardActiveRef.current) {
+            containerHeightRef.current = el.clientHeight;
+            if (term.rows > 0) {
+              cellHeightRef.current = el.clientHeight / term.rows;
             }
           }
           fitTerminal(term, fitAddon);
@@ -625,14 +622,11 @@ export default function TerminalSessionPage({
           const tt = xtermRef.current;
           if (tt && fa) {
             try {
-              const wrapper = terminalRef.current?.parentElement;
-              if (wrapper && !keyboardActiveRef.current) {
-                containerHeightRef.current = wrapper.clientHeight;
-                if (terminalRef.current) {
-                  terminalRef.current.style.height = `${wrapper.clientHeight}px`;
-                }
+              const el = terminalRef.current;
+              if (el && !keyboardActiveRef.current) {
+                containerHeightRef.current = el.clientHeight;
                 if (tt.rows > 0) {
-                  cellHeightRef.current = wrapper.clientHeight / tt.rows;
+                  cellHeightRef.current = el.clientHeight / tt.rows;
                 }
               }
               fitTerminal(tt, fa);
@@ -783,19 +777,20 @@ export default function TerminalSessionPage({
               top: 0,
               left: 0,
               right: 0,
-              height: "100%",
+              height: keyboardVisible && !nativeKeyboardVisible
+                ? `calc(100% - ${toolbarHeight}px)`
+                : "100%",
               background: "#0b0f0e",
               touchAction: "none",
             }}
           />
-        </div>
 
-        {/* Keyboard toolbar: appears above the soft keyboard */}
-        {keyboardVisible && (
+          {/* Keyboard toolbar: positioned inside the relative container */}
+          {keyboardVisible && (
           <div
             className="terminal-toolbar"
             style={{
-              position: "fixed",
+              position: "absolute",
               bottom: 0,
               left: 0,
               right: 0,
@@ -805,9 +800,6 @@ export default function TerminalSessionPage({
               alignItems: "center",
               background: "rgba(11, 15, 14, 0.95)",
               borderTop: "1px solid rgba(215, 255, 229, 0.15)",
-              transform: `translateY(0)`,
-              willChange: "transform",
-              transition: "transform 0.25s cubic-bezier(0.25, 1, 0.5, 1)",
               touchAction: "manipulation",
               userSelect: "none",
               WebkitUserSelect: "none",
@@ -876,7 +868,8 @@ export default function TerminalSessionPage({
               }}
             />
           </div>
-        )}
+          )}
+        </div>
       </IonContent>
     </IonPage>
   );
