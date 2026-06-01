@@ -6,6 +6,7 @@
  * language selection, gateway URL configuration, and app version display.
  */
 import { common, Want } from '@kit.AbilityKit'
+import { RestApiClient } from '@rwecho/terminal'
 
 @Component
 export struct SettingsPage {
@@ -13,14 +14,18 @@ export struct SettingsPage {
   @StorageLink('language') currentLanguage: string = 'en'
   @StorageLink('gatewayUrl') gatewayUrl: string = ''
   @StorageLink('authToken') authToken: string = ''
+  @StorageLink('userInfo') userInfoStr: string = ''
   @Consume('pageStack') pageStack: NavPathStack
   @State editedGatewayUrl: string = ''
   @State showGatewayEditor: boolean = false
+  @State displayName: string = ''
   private appVersion: string = '1.0.0'
   private appBuild: string = '1'
+  private apiClient: RestApiClient = new RestApiClient()
 
   aboutToAppear() {
     this.editedGatewayUrl = this.gatewayUrl
+    this.loadProfile()
   }
 
   build() {
@@ -115,6 +120,33 @@ export struct SettingsPage {
 
         // Account section
         this.SectionHeader('账号')
+
+        // User profile
+        Row() {
+          Column() {
+            Text(this.displayName || '已登录用户')
+              .fontSize(15)
+              .fontWeight(FontWeight.Medium)
+              .fontColor($r('app.color.terminal_primary'))
+          }
+          .alignItems(HorizontalAlign.Start)
+          .layoutWeight(1)
+        }
+        .width('calc(100% - 40vp)')
+        .padding(14)
+        .borderRadius(12)
+        .backgroundColor($r('app.color.terminal_surface_container'))
+        .margin({ bottom: 8 })
+
+        // Account security
+        this.NavRow('账号安全', () => {
+          this.pageStack.pushPath({ name: 'AccountSecurity' })
+        })
+
+        // Activate worker
+        this.NavRow('激活 Worker', () => {
+          this.pageStack.pushPathByName('Auth', undefined)
+        })
 
         // Logout button
         Button('退出登录')
@@ -237,6 +269,28 @@ export struct SettingsPage {
   }
 
   @Builder
+  NavRow(title: string, action: () => void) {
+    Row() {
+      Text(title)
+        .fontSize(14)
+        .fontColor($r('app.color.terminal_primary'))
+        .layoutWeight(1)
+
+      SymbolGlyph($r('sys.symbol.chevron_right'))
+        .fontSize(16)
+        .fontColor([$r('app.color.terminal_on_surface_variant')])
+    }
+    .width('calc(100% - 40vp)')
+    .padding(14)
+    .borderRadius(12)
+    .backgroundColor($r('app.color.terminal_surface_container'))
+    .margin({ bottom: 8 })
+    .onClick(() => {
+      action()
+    })
+  }
+
+  @Builder
   LinkRow(title: string, value: string, action: () => void) {
     Row() {
       Column() {
@@ -269,6 +323,27 @@ export struct SettingsPage {
   private applyTheme(theme: string) {
     AppStorage.setOrCreate('themeMode', theme)
     // The EntryAbility will pick up the change via Configuration
+  }
+
+  private async loadProfile() {
+    // Load display name from stored user info or from API
+    if (this.userInfoStr.length > 0) {
+      try {
+        const user = JSON.parse(this.userInfoStr) as Record<string, string>
+        this.displayName = user['displayName'] || user['username'] || ''
+      } catch (_e) {}
+    }
+    if (this.displayName.length === 0) {
+      try {
+        const profile: Record<string, Object> = await this.apiClient.getProfile()
+        const dn: string = (profile['displayName'] as string) ?? ''
+        const un: string = (profile['username'] as string) ?? ''
+        this.displayName = dn.length > 0 ? dn : un
+        if (this.displayName.length > 0) {
+          AppStorage.setOrCreate('userInfo', JSON.stringify(profile))
+        }
+      } catch (_e) {}
+    }
   }
 
   private confirmLogout() {

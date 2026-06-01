@@ -109,6 +109,13 @@
       const container = document.getElementById('terminal-container');
       term.open(container);
 
+      // Register resize handler BEFORE fit() so the initial resize event is captured
+      term.onResize(function(size) {
+        if (h5Port) {
+          h5Port.postMessage(JSON.stringify({ type: 'resize', cols: size.cols, rows: size.rows }));
+        }
+      });
+
       // Fit immediately to ensure correct size before any output arrives
       try {
         fitAddon.fit();
@@ -123,13 +130,6 @@
         } else {
           console.error('h5Port is NULL, input dropped: ' + JSON.stringify(data));
           document.title = 'h5Port NULL!';
-        }
-      });
-
-      // Notify ArkTS of resize events via WebMessagePort
-      term.onResize(function(size) {
-        if (h5Port) {
-          h5Port.postMessage(JSON.stringify({ type: 'resize', cols: size.cols, rows: size.rows }));
         }
       });
 
@@ -148,13 +148,26 @@
 
     /**
      * Write base64-encoded data to the terminal.
+     * Decodes base64 to Uint8Array and passes bytes directly to xterm.js,
+     * avoiding TextEncoder re-encoding corruption of multi-byte UTF-8 sequences.
+     * Also normalizes bare \n to \r\n to prevent the staircase effect.
      * @param {string} base64Data - Base64 encoded output data
      */
     function writeBase64Output(base64Data) {
       if (term && base64Data) {
         try {
-          var decoded = atob(base64Data);
-          term.write(decoded);
+          var binaryStr = atob(base64Data);
+          var bytes = new Uint8Array(binaryStr.length);
+          for (var i = 0; i < binaryStr.length; i++) {
+            bytes[i] = binaryStr.charCodeAt(i) & 0xFF;
+          }
+          // Normalize bare \n to \r\n (matches MAUI normalizeTerminalOutput)
+          var text = new TextDecoder().decode(bytes);
+          if (text.indexOf('\n') !== -1) {
+            text = text.replace(/(?<!\r)\n/g, '\r\n');
+            bytes = new TextEncoder().encode(text);
+          }
+          term.write(bytes);
         } catch(e) {
           console.error('Failed to decode base64 output:', e);
         }
@@ -200,6 +213,26 @@
     function resetTerminal() {
       if (term) {
         term.reset();
+      }
+    }
+
+    /**
+     * Get current terminal selection.
+     * @returns {string} Selected text or empty string
+     */
+    function getSelection() {
+      if (term) {
+        return term.getSelection() || '';
+      }
+      return '';
+    }
+
+    /**
+     * Clear terminal selection.
+     */
+    function clearSelection() {
+      if (term) {
+        term.clearSelection();
       }
     }
 

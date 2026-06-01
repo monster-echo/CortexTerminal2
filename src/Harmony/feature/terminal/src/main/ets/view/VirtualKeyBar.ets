@@ -12,6 +12,8 @@ type OnKeyPressCallback = (key: string) => void
 @Component
 export struct VirtualKeyBar {
   onKeyPress: OnKeyPressCallback = (_key: string) => {}
+  onCopy: (() => void) | null = null
+  onDismiss: (() => void) | null = null
   @State ctrlLatched: boolean = false
   @State altLatched: boolean = false
 
@@ -58,9 +60,34 @@ export struct VirtualKeyBar {
           this.onKeyPress('\x1b[F')
         })
 
+        this.KeyButton('S-Tab', () => {
+          this.onKeyPress('\x1b[Z')
+        })
+
+        this.KeyButton('Copy', () => {
+          if (this.onCopy) {
+            this.onCopy()
+          }
+        })
+
         this.KeyButton('Paste', () => {
           this.handlePaste()
         })
+
+        Button('Done')
+          .height(44)
+          .constraintSize({ minWidth: 44 })
+          .borderRadius(8)
+          .backgroundColor($r('app.color.terminal_secondary_container'))
+          .fontColor($r('app.color.terminal_on_secondary_container'))
+          .fontSize(14)
+          .fontWeight(FontWeight.Medium)
+          .margin({ left: 2, right: 2 })
+          .onClick(() => {
+            if (this.onDismiss) {
+              this.onDismiss()
+            }
+          })
       }
       .height(52)
       .justifyContent(FlexAlign.Start)

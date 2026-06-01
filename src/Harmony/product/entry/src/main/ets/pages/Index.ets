@@ -6,8 +6,10 @@ import { display } from '@kit.ArkUI'
 import { AuthComponent, AuthService, PasswordLoginPage } from '@rwecho/auth'
 import { RestApiClient, SessionCreateRequest, SessionInfo, TerminalHome, TerminalPage } from '@rwecho/terminal'
 import { WorkerDetailPage, WorkerListPage } from '@rwecho/worker'
-import { SettingsPage } from '@rwecho/settings'
+import { SettingsPage, AccountSecurityPage } from '@rwecho/settings'
 import { WorkerInfo } from '@rwecho/core'
+
+interface TerminalSize { cols: number; rows: number }
 
 const ROUTE_AUTH = 'Auth'
 const ROUTE_PASSWORD_LOGIN = 'PasswordLogin'
@@ -15,6 +17,7 @@ const ROUTE_TERMINAL_HOME = 'TerminalHome'
 const ROUTE_TERMINAL_SESSION = 'TerminalSession'
 const ROUTE_WORKERS = 'Workers'
 const ROUTE_WORKER_DETAIL = 'WorkerDetail'
+const ROUTE_ACCOUNT_SECURITY = 'AccountSecurity'
 const ROUTE_SETTINGS = 'Settings'
 
 @Entry
@@ -101,6 +104,13 @@ struct Index {
     } else if (name === ROUTE_WORKER_DETAIL) {
       NavDestination() {
         ShellScaffold({ activeRoute: ROUTE_WORKER_DETAIL })
+      }
+      .hideTitleBar(true)
+      .backgroundColor($r('app.color.terminal_surface'))
+      .onBackPressed(() => true)
+    } else if (name === ROUTE_ACCOUNT_SECURITY) {
+      NavDestination() {
+        AccountSecurityPage()
       }
       .hideTitleBar(true)
       .backgroundColor($r('app.color.terminal_surface'))
@@ -289,7 +299,7 @@ struct ShellScaffold {
     }
   }
 
-  private calculateTerminalSize(): { cols: number, rows: number } {
+  private calculateTerminalSize(): TerminalSize {
     try {
       const disp = display.getDefaultDisplaySync()
       const vpWidth = px2vp(disp.width)
@@ -301,9 +311,11 @@ struct ShellScaffold {
       const keyBarHeight = 52
       const cols = Math.floor(vpWidth / charWidth)
       const rows = Math.floor((vpHeight - topBarHeight - keyBarHeight) / charHeight)
-      return { cols: Math.max(cols, 20), rows: Math.max(rows, 6) }
+      const size: TerminalSize = { cols: Math.max(cols, 20), rows: Math.max(rows, 6) }
+      return size
     } catch (e) {
-      return { cols: 80, rows: 24 }
+      const size: TerminalSize = { cols: 80, rows: 24 }
+      return size
     }
   }
 

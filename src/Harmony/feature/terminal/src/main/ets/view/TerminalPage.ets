@@ -8,6 +8,7 @@
  */
 import { buffer } from '@kit.ArkTS'
 import { webview } from '@kit.ArkWeb'
+import { pasteboard } from '@kit.BasicServicesKit'
 import { TerminalStateManager } from '../service/TerminalStateManager'
 import { TerminalTransport } from '../service/TerminalTransport'
 import { TransportFrame } from '../model/TerminalTransportModels'
@@ -17,6 +18,99 @@ import { XtermWebview } from './XtermWebview'
 import { VirtualKeyBar } from './VirtualKeyBar'
 
 class TerminalSize { cols: number = 0; rows: number = 0 }
+
+@CustomDialog
+struct SessionDetailDialog {
+  controller: CustomDialogController
+  status: string = ''
+  cols: number = 0
+  rows: number = 0
+  latencyMs: number = -1
+
+  build() {
+    Column() {
+      Text('会话详情')
+        .fontSize(18)
+        .fontWeight(FontWeight.Bold)
+        .fontColor($r('app.color.terminal_primary'))
+        .width('100%')
+        .textAlign(TextAlign.Start)
+        .margin({ bottom: 12 })
+
+      Row() {
+        Text('状态')
+          .fontSize(14)
+          .fontColor($r('app.color.terminal_on_surface_variant'))
+          .layoutWeight(1)
+        Text(this.status)
+          .fontSize(14)
+          .fontWeight(FontWeight.Medium)
+          .fontColor($r('app.color.terminal_primary'))
+      }
+      .width('100%')
+      .height(36)
+      .border({ width: { bottom: 0.5 }, color: $r('app.color.terminal_outline_variant') })
+
+      Row() {
+        Text('列')
+          .fontSize(14)
+          .fontColor($r('app.color.terminal_on_surface_variant'))
+          .layoutWeight(1)
+        Text(`${this.cols}`)
+          .fontSize(14)
+          .fontWeight(FontWeight.Medium)
+          .fontColor($r('app.color.terminal_primary'))
+      }
+      .width('100%')
+      .height(36)
+      .border({ width: { bottom: 0.5 }, color: $r('app.color.terminal_outline_variant') })
+
+      Row() {
+        Text('行')
+          .fontSize(14)
+          .fontColor($r('app.color.terminal_on_surface_variant'))
+          .layoutWeight(1)
+        Text(`${this.rows}`)
+          .fontSize(14)
+          .fontWeight(FontWeight.Medium)
+          .fontColor($r('app.color.terminal_primary'))
+      }
+      .width('100%')
+      .height(36)
+      .border({ width: { bottom: 0.5 }, color: $r('app.color.terminal_outline_variant') })
+
+      Row() {
+        Text('延迟')
+          .fontSize(14)
+          .fontColor($r('app.color.terminal_on_surface_variant'))
+          .layoutWeight(1)
+        Text(this.latencyMs >= 0 ? `${this.latencyMs}ms` : '—')
+          .fontSize(14)
+          .fontWeight(FontWeight.Medium)
+          .fontColor($r('app.color.terminal_primary'))
+      }
+      .width('100%')
+      .height(36)
+
+      Button('确定')
+        .width('100%')
+        .height(40)
+        .margin({ top: 16 })
+        .fontSize(15)
+        .fontColor($r('app.color.terminal_on_secondary_container'))
+        .backgroundColor($r('app.color.terminal_secondary_container'))
+        .borderRadius(10)
+        .onClick(() => {
+          this.controller.close()
+        })
+    }
+    .padding(20)
+    .borderRadius(16)
+    .backgroundColor($r('app.color.terminal_surface_container_high'))
+    .width('80%')
+    .constraintSize({ maxWidth: 320 })
+  }
+}
 
 @Component
 export struct TerminalPage {
@@ -31,6 +125,12 @@ export struct TerminalPage {
   @State connectionError: string = ''
   @State latencyMs: number = -1
   @State lastPingTime: number = 0
+  private detailDialog: CustomDialogController = new CustomDialogController({
+    builder: SessionDetailDialog({ status: '', cols: 0, rows: 0, latencyMs: -1 }),
+    autoCancel: true,
+    alignment: DialogAlignment.Center,
+    customStyle: true
+  })
   private stateManager: TerminalStateManager = new TerminalStateManager()
   private transport: TerminalTransport = new TerminalTransport()
   private webviewController: webview.WebviewController = new webview.WebviewController()
@@ -41,6 +141,7 @@ export struct TerminalPage {
   private initialFitDone: boolean = false
   private pendingOutput: string[] = []
   private connectTimer: number = -1
+  private pageVisible: boolean = true
 
   onKeyboardHeightChange() {
     if (this.webviewReady) {
@@ -49,18 +150,23 @@ export struct TerminalPage {
   }
 
   aboutToAppear() {
+    this.pageVisible = true
     this.stateManager.onStateChanged = (state: TerminalState) => {
       this.currentState = state
     }
-    this.connectSession()
+    // Only reconnect if transport is not already connected
+    if (!this.transport.isConnected) {
+      this.connectSession()
+    }
   }
 
   aboutToDisappear() {
+    this.pageVisible = false
     if (this.connectTimer !== -1) {
       clearTimeout(this.connectTimer)
       this.connectTimer = -1
     }
-    this.transport.disconnect()
+    // Don't disconnect - keep session alive for background/return
   }
 
   build() {
@@ -105,6 +211,9 @@ export struct TerminalPage {
         .padding({ left: 10, right: 10 })
         .borderRadius(14)
         .backgroundColor(this.getStatusBadgeBg())
+        .onClick(() => {
+          this.showSessionDetail()
+        })
       }
       .width('100%')
       .height(52)
@@ -169,6 +278,12 @@ export struct TerminalPage {
         VirtualKeyBar({
           onKeyPress: (key: string) => {
             this.handleVirtualKey(key)
+          },
+          onCopy: () => {
+            this.handleCopy()
+          },
+          onDismiss: () => {
+            this.dismissKeyboard()
           }
         })
       }
@@ -267,11 +382,17 @@ export struct TerminalPage {
       case 'expired':
         this.connectionError = frame.reason || '会话已过期'
         this.stateManager.setState(TerminalState.Expired)
+        setTimeout(() => {
+          this.pageStack.replacePath({ name: 'TerminalHome' })
+        }, 2000)
         break
 
       case 'exited':
         this.connectionError = frame.reason || '终端进程已退出'
         this.stateManager.setState(TerminalState.Exited)
+        setTimeout(() => {
+          this.pageStack.replacePath({ name: 'TerminalHome' })
+        }, 2000)
         break
     }
   }
@@ -361,16 +482,39 @@ export struct TerminalPage {
       'ArrowRight': '\x1b[C',
       'ArrowLeft': '\x1b[D'
     }
+    // Ctrl+key combos from VirtualKeyBar's KeyButton latch logic
+    const ctrlMap: Record<string, string> = {
+      'Esc': '\x03',         // Ctrl+C (SIGINT), matches MAUI
+      'ArrowUp': '\x1b[1;5A',
+      'ArrowDown': '\x1b[1;5B',
+      'ArrowRight': '\x1b[1;5C',
+      'ArrowLeft': '\x1b[1;5D',
+      'Home': '\x1b[1;5H',
+      'End': '\x1b[1;5F',
+    }
 
-    if (inputMap[key]) {
-      this.sendInput(inputMap[key])
-    } else if (key.startsWith('Ctrl+')) {
-      const ch = key.substring(5).toLowerCase().charCodeAt(0)
+    if (key.startsWith('Ctrl+')) {
+      const label = key.substring(5)
+      const mapped = ctrlMap[label]
+      if (mapped) {
+        this.sendInput(mapped)
+        return
+      }
+      // Single-letter Ctrl combo (a-z)
+      const ch = label.toLowerCase().charCodeAt(0)
       if (ch >= 97 && ch <= 122) {
         this.sendInput(String.fromCharCode(ch - 96))
       }
     } else if (key.startsWith('Alt+')) {
-      this.sendInput('\x1b' + key.substring(4))
+      const label = key.substring(4)
+      const altInput = inputMap[label]
+      if (altInput) {
+        this.sendInput('\x1b' + altInput)
+      } else {
+        this.sendInput('\x1b' + label)
+      }
+    } else if (inputMap[key]) {
+      this.sendInput(inputMap[key])
     } else {
       this.sendInput(key)
     }
@@ -453,6 +597,44 @@ export struct TerminalPage {
       default:
         return '...'
     }
+  }
+
+  private dismissKeyboard() {
+    try {
+      this.webviewController.runJavaScript(
+        "var ta = document.querySelector('.xterm-helper-textarea'); if(ta) ta.blur();"
+      )
+    } catch (_e) {}
+  }
+
+  private handleCopy() {
+    try {
+      this.webviewController.runJavaScript('getSelection()')
+        .then((selection: string) => {
+          if (selection && selection.length > 0) {
+            const systemPasteboard = pasteboard.getSystemPasteboard()
+            const pasteData = pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, selection)
+            systemPasteboard.setData(pasteData)
+            this.webviewController.runJavaScript('clearSelection()')
+          }
+        })
+        .catch((_e: Error) => {})
+    } catch (_e) {}
+  }
+
+  private showSessionDetail() {
+    this.detailDialog = new CustomDialogController({
+      builder: SessionDetailDialog({
+        status: this.getStatusLabel(),
+        cols: this.lastCols,
+        rows: this.lastRows,
+        latencyMs: this.latencyMs
+      }),
+      autoCancel: true,
+      alignment: DialogAlignment.Center,
+      customStyle: true
+    })
+    this.detailDialog.open()
   }
 
   private handleBack() {

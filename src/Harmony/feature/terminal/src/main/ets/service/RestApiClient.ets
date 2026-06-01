@@ -38,6 +38,23 @@ export class RestApiClient {
     return this.mapSession(await this.get(`/api/me/sessions/${encodeURIComponent(sessionId)}`))
   }
 
+  async deleteSession(sessionId: string): Promise<void> {
+    await this.httpDelete(`/api/me/sessions/${encodeURIComponent(sessionId)}`)
+  }
+
+  async getProfile(): Promise<Record<string, Object>> {
+    const response = await this.get('/api/me/profile') as Record<string, Object>
+    return response
+  }
+
+  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    const body: Record<string, Object> = {
+      'currentPassword': currentPassword,
+      'newPassword': newPassword
+    }
+    await this.post('/api/me/password/change', body as Object)
+  }
+
   async listWorkers(): Promise<WorkerInfo[]> {
     try {
       const response = await this.get('/api/me/workers') as Object[]
@@ -127,6 +144,41 @@ export class RestApiClient {
     })
   }
 
+  private async httpDelete(path: string, requiresAuth: boolean = true, isRetry: boolean = false): Promise<Object> {
+    const baseUrl = this.gatewayUrl
+    const url = `${baseUrl}${path}`
+
+    return new Promise<Object>((resolve, reject) => {
+      const httpRequest = http.createHttp()
+      httpRequest.request(url, {
+        method: http.RequestMethod.DELETE,
+        header: this.buildHeaders(requiresAuth),
+        expectDataType: http.HttpDataType.OBJECT,
+        connectTimeout: 15000,
+        readTimeout: 15000
+      }, async (err, data) => {
+        if (err) {
+          reject(new Error(err.message || 'Network request failed'))
+          return
+        }
+        if (data.responseCode === 200 || data.responseCode === 204) {
+          const result: Object = data.result as Object ?? new Object()
+          resolve(result)
+        } else if (data.responseCode === 401 && requiresAuth && !isRetry) {
+          try {
+            const retried = await this.handle401AndRetry('DELETE', path, null, requiresAuth)
+            resolve(retried)
+          } catch (retryErr) {
+            reject(retryErr)
+          }
+        } else {
+          reject(new Error(`Request failed (${data.responseCode})`))
+        }
+        httpRequest.destroy()
+      })
+    })
+  }
+
   private async handle401AndRetry(method: string, path: string, body: Object | null,
     requiresAuth: boolean): Promise<Object> {
     if (RestApiClient.isRefreshing) {
@@ -141,6 +193,8 @@ export class RestApiClient {
       }
       if (method === 'GET') {
         return await this.get(path, requiresAuth, true)
+      } else if (method === 'DELETE') {
+        return await this.httpDelete(path, requiresAuth, true)
       } else {
         return await this.post(path, body!, requiresAuth, true)
       }

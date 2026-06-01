@@ -2,6 +2,6 @@
   "sdk": {
     "version": "10.0.202",
     "workloadVersion": "10.0.105",
-    "rollForward": "disable"
+    "rollForward": "latestPatch"
   }
 }

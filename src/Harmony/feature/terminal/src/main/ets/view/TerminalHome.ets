@@ -69,7 +69,7 @@ export struct TerminalHome {
               .width('100%')
               .margin({ bottom: 12 })
 
-            ForEach(this.recentSessions.slice(0, 3), (session: SessionInfo) => {
+            ForEach(this.recentSessions.slice(0, 5), (session: SessionInfo) => {
               this.SessionCard(session)
             }, (session: SessionInfo) => session.id)
           }
@@ -77,13 +77,38 @@ export struct TerminalHome {
           .margin({ top: 20 })
         }
 
-        // Loading indicator
+        // Loading skeleton
         if (this.isLoading) {
-          LoadingProgress()
-            .width(32)
-            .height(32)
-            .color($r('app.color.terminal_secondary'))
-            .margin({ top: 40 })
+          ForEach([0, 1, 2], (_: number) => {
+            Row() {
+              Row()
+                .width(60)
+                .height(12)
+                .borderRadius(4)
+                .backgroundColor($r('app.color.terminal_surface_container_high'))
+              Blank()
+              Column() {
+                Row()
+                  .width(100)
+                  .height(12)
+                  .borderRadius(4)
+                  .backgroundColor($r('app.color.terminal_surface_container_high'))
+                Row()
+                  .width(60)
+                  .height(10)
+                  .borderRadius(4)
+                  .backgroundColor($r('app.color.terminal_surface_container_high'))
+                  .margin({ top: 6 })
+              }
+              .alignItems(HorizontalAlign.End)
+            }
+            .width('100%')
+            .height(60)
+            .padding(14)
+            .borderRadius(12)
+            .backgroundColor($r('app.color.terminal_surface_container'))
+            .margin({ bottom: 8 })
+          }, (_: number, idx: number) => `${idx}`)
         }
 
         // Error state
@@ -202,6 +227,21 @@ export struct TerminalHome {
           AppStorage.setOrCreate('navSessionName', session.name || 'Terminal')
           this.pageStack.pushPath({ name: 'TerminalSession' })
         })
+
+      // Delete button
+      Button() {
+        SymbolGlyph($r('sys.symbol.trash'))
+          .fontSize(16)
+          .fontColor([$r('app.color.terminal_error')])
+      }
+      .width(32)
+      .height(32)
+      .borderRadius(8)
+      .backgroundColor(Color.Transparent)
+      .margin({ left: 6 })
+      .onClick(() => {
+        this.confirmDeleteSession(session)
+      })
     }
     .width('100%')
     .padding(14)
@@ -243,6 +283,37 @@ export struct TerminalHome {
       return `${Math.floor(diffMins / 60)}h ago`
     } else {
       return `${Math.floor(diffMins / 1440)}d ago`
+    }
+  }
+
+  private async confirmDeleteSession(session: SessionInfo) {
+    AlertDialog.show({
+      title: '删除会话',
+      message: `确定要删除会话 "${session.name || session.id.substring(0, 8)}" 吗？`,
+      primaryButton: {
+        value: '取消',
+        action: () => {}
+      },
+      secondaryButton: {
+        value: '删除',
+        fontColor: $r('app.color.terminal_error'),
+        action: () => {
+          this.deleteSession(session)
+        }
+      }
+    })
+  }
+
+  private async deleteSession(session: SessionInfo) {
+    try {
+      await this.apiClient.deleteSession(session.id)
+      this.recentSessions = this.recentSessions.filter(s => s.id !== session.id)
+    } catch (e) {
+      AlertDialog.show({
+        title: '删除失败',
+        message: (e as Error).message || '网络错误',
+        confirm: { value: '确定', action: () => {} }
+      })
     }
   }
 

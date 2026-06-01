@@ -6,3 +6,4 @@
  */
 export { SettingsComponent } from './src/main/ets/SettingsComponent'
 export { SettingsPage } from './src/main/ets/view/SettingsPage'
+export { AccountSecurityPage } from './src/main/ets/view/AccountSecurityPage'
