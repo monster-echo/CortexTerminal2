@@ -143,6 +143,12 @@ export const ChangePasswordResponseSchema = z.object({
 export const UserProfileResponseSchema = z.object({
   username: z.string(),
   hasPassword: z.boolean(),
+  avatarUrl: z.string().nullable().optional(),
+});
+
+export const UpdateAvatarResponseSchema = z.object({
+  success: z.boolean(),
+  avatarUrl: z.string().nullable().optional(),
 });
 
 export const HasClipboardTextSchema = z.object({
@@ -178,3 +184,4 @@ export type AltchaChallengeResponse = z.infer<typeof AltchaChallengeResponseSche
 export type DeleteAccountResponse = z.infer<typeof DeleteAccountResponseSchema>;
 export type ChangePasswordResponse = z.infer<typeof ChangePasswordResponseSchema>;
 export type UserProfileResponse = z.infer<typeof UserProfileResponseSchema>;
+export type UpdateAvatarResponse = z.infer<typeof UpdateAvatarResponseSchema>;

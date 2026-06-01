@@ -16,6 +16,7 @@ import {
   ChangePasswordResponseSchema,
   UserProfileResponseSchema,
   type UserProfileResponse,
+  UpdateAvatarResponseSchema,
 } from "../../schemas/bridgeSchema";
 
 export const authBridge = {
@@ -54,4 +55,7 @@ export const authBridge = {
 
   getProfile: (): Promise<UserProfileResponse | null> =>
     invoke("GetProfileAsync", UserProfileResponseSchema.nullable()),
+
+  updateAvatar: (base64Image: string): Promise<{ success: boolean; avatarUrl?: string | null }> =>
+    invoke("UpdateAvatarAsync", UpdateAvatarResponseSchema, [base64Image]),
 };

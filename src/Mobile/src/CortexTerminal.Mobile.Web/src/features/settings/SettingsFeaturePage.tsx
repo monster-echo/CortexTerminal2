@@ -1,3 +1,4 @@
+import { useState, useCallback } from "react";
 import {
   IonContent,
   IonIcon,
@@ -6,10 +7,14 @@ import {
   IonLabel,
   IonList,
   IonPage,
+  IonModal,
+  IonButton,
   useIonActionSheet,
   useIonAlert,
+  useIonToast,
 } from "@ionic/react";
 import {
+  cameraOutline,
   contrastOutline,
   documentTextOutline,
   keyOutline,
@@ -20,10 +25,13 @@ import {
 } from "ionicons/icons";
 import { RouteComponentProps } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import Cropper from "react-easy-crop";
+import type { Area } from "react-easy-crop";
 import PageHeader from "../../components/PageHeader";
 import { useAppStore, type AppStoreState } from "../../store/appStore";
 import { useAuthStore, type AuthState } from "../../store/authStore";
 import { authBridge } from "../../bridge/modules/authBridge";
+import { deviceBridge } from "../../bridge/modules/deviceBridge";
 import { nativeBridge } from "../../bridge/nativeBridge";
 import UserAvatar from "../../components/UserAvatar";
 import {
@@ -31,6 +39,7 @@ import {
   setStoredMode,
   type ColorMode,
 } from "../../theme/colorMode";
+import cropImage from "../../utils/cropImage";
 
 const selectAppInfo = (s: AppStoreState) => s.appInfo;
 const selectColorMode = (s: AppStoreState) => s.colorMode;
@@ -39,18 +48,89 @@ const selectLanguage = (s: AppStoreState) => s.language;
 const selectSetLanguage = (s: AppStoreState) => s.setLanguage;
 const selectUser = (s: AuthState) => s.user;
 const selectClearSession = (s: AuthState) => s.clearSession;
+const selectSetSession = (s: AuthState) => s.setSession;
 
 export default function SettingsFeaturePage({ history }: RouteComponentProps) {
   const { t } = useTranslation();
   const appInfo = useAppStore(selectAppInfo);
   const user = useAuthStore(selectUser);
   const clearSession = useAuthStore(selectClearSession);
+  const setSession = useAuthStore(selectSetSession);
   const colorMode = useAppStore(selectColorMode);
   const setColorModeState = useAppStore(selectSetColorMode);
   const language = useAppStore(selectLanguage);
   const setLanguage = useAppStore(selectSetLanguage);
   const [presentActionSheet] = useIonActionSheet();
   const [presentAlert] = useIonAlert();
+  const [presentToast] = useIonToast();
+
+  const [showCropModal, setShowCropModal] = useState(false);
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
+  const [avatarSubmitting, setAvatarSubmitting] = useState(false);
+
+  const onCropComplete = useCallback((_croppedArea: Area, croppedAreaPx: Area) => {
+    setCroppedAreaPixels(croppedAreaPx);
+  }, []);
+
+  const handleAvatarClick = () => {
+    presentActionSheet({
+      header: t("settings.changeAvatar"),
+      buttons: [
+        {
+          text: t("settings.selectFromAlbum"),
+          handler: () => void pickAndCrop(),
+        },
+        { text: t("settings.cancel"), role: "cancel" },
+      ],
+    });
+  };
+
+  const pickAndCrop = async () => {
+    try {
+      const asset = await deviceBridge.pickPhoto();
+      if (!asset?.localUrl) return;
+      const response = await fetch(asset.localUrl);
+      const blob = await response.blob();
+      const base64 = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.readAsDataURL(blob);
+      });
+      setCropSrc(base64);
+      setCrop({ x: 0, y: 0 });
+      setZoom(1);
+      setShowCropModal(true);
+    } catch (e) {
+      void presentToast({ message: e instanceof Error ? e.message : String(e), duration: 3000, position: "bottom", color: "warning" });
+    }
+  };
+
+  const handleCropConfirm = async () => {
+    if (!cropSrc || !croppedAreaPixels) return;
+    setAvatarSubmitting(true);
+    try {
+      const base64 = await cropImage(cropSrc, croppedAreaPixels);
+      const result = await authBridge.updateAvatar(base64);
+      if (result.success && result.avatarUrl) {
+        if (user) setSession({ ...user, avatarUrl: result.avatarUrl }, "");
+        void presentToast({ message: t("settings.avatarUpdated"), duration: 2000, position: "bottom", color: "success" });
+      }
+      setShowCropModal(false);
+      setCropSrc(null);
+    } catch (e) {
+      void presentToast({ message: e instanceof Error ? e.message : String(e), duration: 3000, position: "bottom", color: "warning" });
+    } finally {
+      setAvatarSubmitting(false);
+    }
+  };
+
+  const handleCropCancel = () => {
+    setShowCropModal(false);
+    setCropSrc(null);
+  };
 
   const logout = async () => {
     try {
@@ -155,17 +235,33 @@ export default function SettingsFeaturePage({ history }: RouteComponentProps) {
     <IonPage>
       <PageHeader title={t("settings.title")} defaultHref="/sessions" />
       <IonContent fullscreen>
-        <IonList inset>
-          <IonItemDivider>
-            <IonLabel className="py-2">{t("settings.userSection")}</IonLabel>
-          </IonItemDivider>
-          <IonItem lines="none">
-            <UserAvatar username={user?.username} slot="start" />
-            <IonLabel>
-              <h2>{user?.username ?? "..."}</h2>
-            </IonLabel>
-          </IonItem>
-        </IonList>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "24px 0 8px" }}>
+          <div
+            onClick={avatarSubmitting ? undefined : handleAvatarClick}
+            style={{ position: "relative", cursor: "pointer" }}
+          >
+            <UserAvatar username={user?.username} avatarUrl={user?.avatarUrl} style={{ width: 80, height: 80, fontSize: 32 }} />
+            {avatarSubmitting && (
+              <IonIcon
+                icon={cameraOutline}
+                className="ion-spin"
+                style={{
+                  position: "absolute",
+                  bottom: 0,
+                  right: 0,
+                  background: "var(--ion-color-primary)",
+                  color: "#fff",
+                  borderRadius: "50%",
+                  padding: 4,
+                  fontSize: 16,
+                }}
+              />
+            )}
+          </div>
+          <IonLabel style={{ marginTop: 8, fontSize: 18, fontWeight: 600 }}>
+            {user?.username ?? "..."}
+          </IonLabel>
+        </div>
 
         <IonList inset>
           <IonItemDivider>
@@ -301,6 +397,34 @@ export default function SettingsFeaturePage({ history }: RouteComponentProps) {
           v{appInfo?.appVersion ?? "..."}
         </div>
       </IonContent>
+
+      {/* Avatar Crop Modal */}
+      <IonModal isOpen={showCropModal} onDidDismiss={handleCropCancel}>
+        <IonContent fullscreen style={{ "--background": "#000" }}>
+          {cropSrc && (
+            <div style={{ position: "relative", width: "100%", height: "100%" }}>
+              <Cropper
+                image={cropSrc}
+                crop={crop}
+                zoom={zoom}
+                aspect={1}
+                cropShape="round"
+                onCropChange={setCrop}
+                onZoomChange={setZoom}
+                onCropComplete={onCropComplete}
+              />
+            </div>
+          )}
+          <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: 16, background: "rgba(0,0,0,0.6)" }}>
+            <IonButton expand="block" onClick={handleCropConfirm} disabled={avatarSubmitting}>
+              {avatarSubmitting ? t("settings.cancel") : t("settings.cropConfirm")}
+            </IonButton>
+            <IonButton expand="block" fill="outline" color="light" onClick={handleCropCancel} disabled={avatarSubmitting}>
+              {t("settings.cancel")}
+            </IonButton>
+          </div>
+        </IonContent>
+      </IonModal>
     </IonPage>
   );
 }

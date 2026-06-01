@@ -20,6 +20,7 @@
     "ionicons": "^7.4.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "react-easy-crop": "^5.5.7",
     "react-i18next": "^17.0.6",
     "react-router": "^5.3.4",
     "react-router-dom": "^5.3.4",

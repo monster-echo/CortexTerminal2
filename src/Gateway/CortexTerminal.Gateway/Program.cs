@@ -471,6 +471,9 @@ app.MapGet("/api/me/profile", async (ClaimsPrincipal userPrincipal, IServiceProv
             role = user.Role,
             displayName = user.DisplayName,
             hasPassword = !string.IsNullOrEmpty(user.PasswordHash),
+            avatarUrl = user.AvatarData != null
+                ? $"/api/users/{user.Id}/avatar"
+                : user.AvatarUrl,
         });
     }
     catch (InvalidOperationException)
@@ -512,6 +515,67 @@ app.MapPut("/api/me/password", async (ChangePasswordRequest request, ClaimsPrinc
         return Results.StatusCode(500);
     }
 }).RequireAuthorization();
+
+app.MapPut("/api/me/avatar", async (HttpContext httpContext, ClaimsPrincipal userPrincipal, IServiceProvider serviceProvider) =>
+{
+    var userId = GetUserId(userPrincipal);
+    try
+    {
+        using var reader = new StreamReader(httpContext.Request.Body);
+        var base64 = await reader.ReadToEndAsync();
+
+        if (string.IsNullOrEmpty(base64))
+            return Results.BadRequest(new { error = "Avatar data is required" });
+
+        var commaIndex = base64.IndexOf(',');
+        var data = commaIndex >= 0 ? base64[(commaIndex + 1)..] : base64;
+        var contentType = commaIndex >= 0 ? base64[..commaIndex].Replace("data:", "").Replace(";base64", "") : "image/png";
+
+        var imageBytes = Convert.FromBase64String(data);
+        if (imageBytes.Length > 2 * 1024 * 1024)
+            return Results.BadRequest(new { error = "Avatar must be under 2MB" });
+
+        var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
+        using var scope = scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var user = await db.Users.FindAsync(userId);
+        if (user is null)
+            user = await db.Users.FirstOrDefaultAsync(u => u.Username == userId);
+        if (user is null)
+            return Results.NotFound(new { error = "User not found" });
+
+        user.AvatarData = imageBytes;
+        user.AvatarContentType = contentType;
+        user.AvatarUrl = $"/api/users/{user.Id}/avatar";
+        user.UpdatedAtUtc = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync();
+
+        return Results.Ok(new { success = true, avatarUrl = user.AvatarUrl });
+    }
+    catch (FormatException)
+    {
+        return Results.BadRequest(new { error = "Invalid base64 image data" });
+    }
+}).RequireAuthorization();
+
+app.MapGet("/api/users/{id}/avatar", async (string id, IServiceProvider serviceProvider) =>
+{
+    try
+    {
+        var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
+        using var scope = scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var user = await db.Users.FindAsync(id);
+        if (user?.AvatarData is null || user.AvatarData.Length == 0)
+            return Results.NotFound();
+
+        return Results.File(user.AvatarData, user.AvatarContentType ?? "image/png");
+    }
+    catch
+    {
+        return Results.NotFound();
+    }
+}).AllowAnonymous();
 
 // --- OAuth Login Endpoints ---
 

@@ -52,7 +52,9 @@ export default function AccountSecurityPage({ history }: RouteComponentProps) {
 
   useEffect(() => {
     authBridge.getProfile().then((profile) => {
-      if (profile) setHasPassword(profile.hasPassword);
+      if (profile) {
+        setHasPassword(profile.hasPassword);
+      }
     }).catch(() => {});
   }, []);
 

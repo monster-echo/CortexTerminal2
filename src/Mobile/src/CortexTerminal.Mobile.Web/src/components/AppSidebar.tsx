@@ -143,7 +143,7 @@ export default function AppSidebar() {
             routerDirection="root"
             onClick={closeMenu}
           >
-            <UserAvatar username={user?.username} slot="start" />
+            <UserAvatar username={user?.username} avatarUrl={user?.avatarUrl} slot="start" />
             <IonLabel>
               <h3>{user?.username ?? t("sidebar.notSignedIn")}</h3>
             </IonLabel>

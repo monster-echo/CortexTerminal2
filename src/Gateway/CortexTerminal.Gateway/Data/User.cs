@@ -22,6 +22,12 @@ public class User
     [Column("avatar_url")]
     public string? AvatarUrl { get; set; }
 
+    [Column("avatar_data")]
+    public byte[]? AvatarData { get; set; }
+
+    [Column("avatar_content_type")]
+    public string? AvatarContentType { get; set; }
+
     [Required]
     [Column("role")]
     public string Role { get; set; } = "user";

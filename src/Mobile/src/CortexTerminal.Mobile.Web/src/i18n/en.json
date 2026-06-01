@@ -452,7 +452,11 @@
     "deleteAccountUsernameHint": "Type your username or email to confirm",
     "deleteAccountWrongPassword": "Incorrect password",
     "deleteAccountUsernameMismatch": "Username does not match",
-    "deleteAccountIdentityLabel": "Current account"
+    "deleteAccountIdentityLabel": "Current account",
+    "changeAvatar": "Change Avatar",
+    "avatarUpdated": "Avatar updated",
+    "selectFromAlbum": "Select from Album",
+    "cropConfirm": "Confirm"
   },
   "sessions": {
     "title": "Sessions",

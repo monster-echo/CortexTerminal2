@@ -2,6 +2,7 @@ import { create } from "zustand";
 
 export interface AuthUser {
   username: string;
+  avatarUrl?: string;
 }
 
 export interface AuthState {

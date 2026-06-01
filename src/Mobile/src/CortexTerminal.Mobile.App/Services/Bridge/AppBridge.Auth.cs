@@ -153,7 +153,19 @@ public sealed partial class AppBridge
             if (_authService is null) return (object?)null;
             var profile = await _authService.GetProfileAsync(default);
             if (profile is null) return (object?)null;
-            return new { profile.Username, profile.HasPassword };
+            return new { profile.Username, profile.HasPassword, profile.AvatarUrl };
+        });
+    }
+
+    [BridgeMethod]
+    public Task<string> UpdateAvatarAsync(string base64Image)
+    {
+        return ExecuteSafeAsync(async () =>
+        {
+            if (_authService is null) throw new InvalidOperationException("AuthService not configured");
+            var result = await _authService.UpdateAvatarAsync(base64Image, default);
+            if (!result.Success) throw new InvalidOperationException(result.Error);
+            return new { success = true, avatarUrl = result.AvatarUrl };
         });
     }
 }

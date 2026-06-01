@@ -204,8 +204,30 @@ public sealed class AuthService
         var json = JsonSerializer.Deserialize<JsonElement>(body);
         var username = json.TryGetProperty("username", out var u) ? u.GetString() : null;
         var hasPassword = json.TryGetProperty("hasPassword", out var hp) && hp.GetBoolean();
+        var avatarUrl = json.TryGetProperty("avatarUrl", out var av) ? av.GetString() : null;
 
-        return new UserProfile(username ?? "user", hasPassword);
+        return new UserProfile(username ?? "user", hasPassword, avatarUrl);
+    }
+
+    public async Task<AvatarUpdateResult> UpdateAvatarAsync(string base64Image, CancellationToken ct)
+    {
+        if (string.IsNullOrEmpty(_accessToken))
+            return new AvatarUpdateResult(false, null, "Not authenticated");
+
+        var request = new HttpRequestMessage(HttpMethod.Put, "/api/me/avatar")
+        {
+            Content = new StringContent(base64Image, Encoding.UTF8, "text/plain")
+        };
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _accessToken);
+
+        var response = await _httpClient.SendAsync(request, ct);
+        var body = await response.Content.ReadAsStringAsync(ct);
+        if (!response.IsSuccessStatusCode)
+            return new AvatarUpdateResult(false, null, ExtractError(body));
+
+        var json = JsonSerializer.Deserialize<JsonElement>(body);
+        var avatarUrl = json.TryGetProperty("avatarUrl", out var av) ? av.GetString() : null;
+        return new AvatarUpdateResult(true, avatarUrl, null);
     }
 
     private async Task SetTokenAsync(string token, string username, CancellationToken ct)
@@ -254,7 +276,8 @@ public sealed class AuthService
 
 public sealed record AuthResult(bool Success, string? Error);
 public sealed record AuthSession(string Token, string Username);
-public sealed record UserProfile(string Username, bool HasPassword);
+public sealed record UserProfile(string Username, bool HasPassword, string? AvatarUrl);
+public sealed record AvatarUpdateResult(bool Success, string? AvatarUrl, string? Error);
 
 internal static class AuthDiag
 {

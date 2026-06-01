@@ -452,7 +452,11 @@
     "deleteAccountUsernameHint": "请输入用户名或邮箱以确认注销",
     "deleteAccountWrongPassword": "密码错误",
     "deleteAccountUsernameMismatch": "用户名不匹配",
-    "deleteAccountIdentityLabel": "当前账号"
+    "deleteAccountIdentityLabel": "当前账号",
+    "changeAvatar": "修改头像",
+    "avatarUpdated": "头像已更新",
+    "selectFromAlbum": "从相册选择",
+    "cropConfirm": "确认"
   },
   "sessions": {
     "title": "会话",
