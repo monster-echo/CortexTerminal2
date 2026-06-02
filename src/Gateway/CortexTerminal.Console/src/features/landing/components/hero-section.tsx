@@ -24,7 +24,7 @@ export function HeroSection() {
       <p className="text-[13px] text-[#71717a] mb-2">
         {t('landing.installHint')}
       </p>
-      <div className="flex justify-center gap-2 flex-wrap">
+      <div className="flex justify-center gap-2 flex-wrap mb-12">
         {['linux/amd64', 'linux/arm64', 'macOS (Apple Silicon)', 'Windows x64', 'Docker'].map(
           (tag) => (
             <span
@@ -35,6 +35,29 @@ export function HeroSection() {
             </span>
           )
         )}
+      </div>
+
+      <div className="flex justify-center items-center gap-8 border-t border-[#2e2e36] pt-10 mt-10">
+        <div className="flex flex-col items-center">
+          <div className="w-[120px] h-[120px] bg-white p-2 rounded-xl mb-3">
+            <img 
+              src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://play.google.com/store/apps/details?id=top.rwecho.cortexterminal" 
+              alt="Google Play" 
+              className="w-full h-full object-contain"
+            />
+          </div>
+          <span className="text-sm text-[#a1a1aa]">Android / Google Play</span>
+        </div>
+        <div className="flex flex-col items-center">
+          <div className="w-[120px] h-[120px] bg-white p-2 rounded-xl mb-3">
+            <img 
+              src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://apps.apple.com/app/top.rwecho.cortexterminal" 
+              alt="App Store" 
+              className="w-full h-full object-contain"
+            />
+          </div>
+          <span className="text-sm text-[#a1a1aa]">iOS / App Store</span>
+        </div>
       </div>
     </section>
   )
