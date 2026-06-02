@@ -66,6 +66,13 @@ powershell -Command "irm https://corterm.rwecho.top/install.ps1 | iex"
 
 **客户端：** 任意现代浏览器 · iOS · Android
 
+### 移动端下载
+
+<a href="https://play.google.com/store/apps/details?id=top.rwecho.cortexterminal">
+  <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://play.google.com/store/apps/details?id=top.rwecho.cortexterminal" width="120" height="120" alt="Get it on Google Play" /><br/>
+  Google Play 获取
+</a>
+
 ## 技术栈
 
 .NET 10 (Gateway / Worker) · React 19 + xterm.js (Console) · .NET MAUI + Ionic (Mobile) · SignalR + MessagePack

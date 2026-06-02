@@ -65,7 +65,12 @@ Navigate to `http://localhost:5045`, log in, and start a terminal session.
 **Worker:** Linux (amd64 / arm64) · macOS (Apple Silicon) · Windows x64 · Docker
 
 **Client:** Any modern browser · iOS · Android
+### Mobile App Download
 
+<a href="https://play.google.com/store/apps/details?id=top.rwecho.cortexterminal">
+  <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://play.google.com/store/apps/details?id=top.rwecho.cortexterminal" width="120" height="120" alt="Get it on Google Play" /><br/>
+  Get it on Google Play
+</a>
 ## Tech Stack
 
 .NET 10 (Gateway / Worker) · React 19 + xterm.js (Console) · .NET MAUI + Ionic (Mobile) · SignalR + MessagePack
