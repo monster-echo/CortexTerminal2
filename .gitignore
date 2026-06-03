@@ -18,8 +18,10 @@ artifacts/
 **/wwwroot/assets/
 **/wwwroot/index.html
 .playwright-cli
-docs
+docs/*
 .git1
+!docs/corterm_appstore_qr.png
+!docs/corterm_googleplay_qr.png
 
 # HarmonyOS build artifacts
 src/Harmony/**/build/

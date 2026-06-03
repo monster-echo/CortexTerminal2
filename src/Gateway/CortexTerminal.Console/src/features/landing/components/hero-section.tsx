@@ -5,58 +5,62 @@ export function HeroSection() {
   const { t } = useTranslation()
 
   return (
-    <section className="text-center pt-24 pb-16">
-      <div className="inline-flex items-center gap-1.5 bg-emerald-500/15 border border-emerald-500/20 text-emerald-500 text-[13px] font-medium px-3 py-1 rounded-full mb-7">
-        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+    <section className='pt-24 pb-16 text-center'>
+      <div className='mb-7 inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/15 px-3 py-1 text-[13px] font-medium text-emerald-500'>
+        <span className='h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500' />
         {t('landing.heroBadge')}
       </div>
-      <h1 className="text-[clamp(36px,5.5vw,56px)] font-extrabold tracking-tight leading-[1.1] mb-4">
+      <h1 className='mb-4 text-[clamp(36px,5.5vw,56px)] leading-[1.1] font-extrabold tracking-tight'>
         {t('landing.heroTitle')}
         <br />
-        <span className="text-emerald-500">{t('landing.heroTitleAccent')}</span>
+        <span className='text-emerald-500'>{t('landing.heroTitleAccent')}</span>
       </h1>
-      <p className="text-lg text-[#a1a1aa] max-w-[560px] mx-auto mb-10 leading-relaxed">
+      <p className='mx-auto mb-10 max-w-[560px] text-lg leading-relaxed text-[#a1a1aa]'>
         {t('landing.heroDesc')}
       </p>
 
-      <InstallCommand className="mb-4" />
+      <InstallCommand className='mb-4' />
 
-      <p className="text-[13px] text-[#71717a] mb-2">
+      <p className='mb-2 text-[13px] text-[#71717a]'>
         {t('landing.installHint')}
       </p>
-      <div className="flex justify-center gap-2 flex-wrap mb-12">
-        {['linux/amd64', 'linux/arm64', 'macOS (Apple Silicon)', 'Windows x64', 'Docker'].map(
-          (tag) => (
-            <span
-              key={tag}
-              className="text-xs text-[#71717a] px-2.5 py-[3px] border border-[#2e2e36] rounded-full font-mono"
-            >
-              {tag}
-            </span>
-          )
-        )}
+      <div className='mb-12 flex flex-wrap justify-center gap-2'>
+        {[
+          'linux/amd64',
+          'linux/arm64',
+          'macOS (Apple Silicon)',
+          'Windows x64',
+          'Docker',
+        ].map((tag) => (
+          <span
+            key={tag}
+            className='rounded-full border border-[#2e2e36] px-2.5 py-[3px] font-mono text-xs text-[#71717a]'
+          >
+            {tag}
+          </span>
+        ))}
       </div>
 
-      <div className="flex justify-center items-center gap-8 border-t border-[#2e2e36] pt-10 mt-10">
-        <div className="flex flex-col items-center">
-          <div className="w-[120px] h-[120px] bg-white p-2 rounded-xl mb-3">
-            <img 
-              src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://play.google.com/store/apps/details?id=top.rwecho.cortexterminal" 
-              alt="Google Play" 
-              className="w-full h-full object-contain"
+      <div className='mt-10 flex items-center justify-center gap-8 border-t border-[#2e2e36] pt-10'>
+        <div className='flex flex-col items-center'>
+          <div className='mb-3 h-[120px] w-[120px] rounded-xl bg-white p-2'>
+            <img
+              src='/corterm_googleplay_qr.png'
+              alt='Google Play'
+              className='h-full w-full object-contain'
             />
           </div>
-          <span className="text-sm text-[#a1a1aa]">Android / Google Play</span>
+          <span className='text-sm text-[#a1a1aa]'>Android / Google Play</span>
         </div>
-        <div className="flex flex-col items-center">
-          <div className="w-[120px] h-[120px] bg-white p-2 rounded-xl mb-3">
-            <img 
-              src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://apps.apple.com/app/top.rwecho.cortexterminal" 
-              alt="App Store" 
-              className="w-full h-full object-contain"
+        <div className='flex flex-col items-center'>
+          <div className='mb-3 h-[120px] w-[120px] rounded-xl bg-white p-2'>
+            <img
+              src='/corterm_appstore_qr.png'
+              alt='App Store'
+              className='h-full w-full object-contain'
             />
           </div>
-          <span className="text-sm text-[#a1a1aa]">iOS / App Store</span>
+          <span className='text-sm text-[#a1a1aa]'>iOS / App Store</span>
         </div>
       </div>
     </section>

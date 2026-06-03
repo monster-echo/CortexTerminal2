@@ -68,10 +68,22 @@ Navigate to `http://localhost:5045`, log in, and start a terminal session.
 
 ### Mobile App Download
 
-<a href="https://play.google.com/store/apps/details?id=top.rwecho.cortexterminal">
-  <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://play.google.com/store/apps/details?id=top.rwecho.cortexterminal" width="120" height="120" alt="Get it on Google Play" /><br/>
-  Get it on Google Play
-</a>
+<table>
+  <tr>
+    <td align="center">
+      <a href="https://apps.apple.com/us/app/corterm/id6767838640">
+        <img src="docs/corterm_appstore_qr.png" width="120" height="120" alt="Download on the App Store" />
+      </a>
+      <br/>App Store
+    </td>
+    <td align="center">
+      <a href="https://play.google.com/store/apps/details?id=top.rwecho.cortexterminal">
+        <img src="docs/corterm_googleplay_qr.png" width="120" height="120" alt="Get it on Google Play" />
+      </a>
+      <br/>Google Play
+    </td>
+  </tr>
+</table>
 
 ## Tech Stack
 
