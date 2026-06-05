@@ -1,1 +1,1 @@
-Fix text duplication in terminal when using iOS dictation
+Fix iOS Firebase initialization crash; Fix text duplication in terminal when using iOS dictation; Add dictation event diagnostic logging
