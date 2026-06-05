@@ -129,7 +129,7 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.CORTEX_ANDROID_KEYSTORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.CORTEX_ANDROID_KEY_PASSWORD }}
         run: |
-          BUNDLETOOL_URL="https://github.com/google/bundletool/releases/latest/download/bundletool-all.jar"
+          BUNDLETOOL_URL="https://github.com/google/bundletool/releases/download/1.18.3/bundletool-all-1.18.3.jar"
           curl -sL "$BUNDLETOOL_URL" -o bundletool-all.jar
           java -jar bundletool-all.jar build-apks \
             --bundle "src/Mobile/src/CortexTerminal.Mobile.App/bin/Release/net10.0-android/top.rwecho.cortexterminal-Signed.aab" \
