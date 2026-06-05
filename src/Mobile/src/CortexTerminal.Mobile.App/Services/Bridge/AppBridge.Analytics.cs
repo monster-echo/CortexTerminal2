@@ -31,6 +31,22 @@ public sealed partial class AppBridge
     }
 
     [BridgeMethod]
+    public Task<string> SetAnalyticsScreenAsync(string screenName, string screenClass = "")
+    {
+        return ExecuteSafeVoidAsync(() =>
+        {
+#if IOS || ANDROID
+            CrossFirebaseAnalytics.Current.LogEvent("screen_view", new Dictionary<string, object>
+            {
+                { "firebase_screen_name", screenName },
+                { "firebase_screen_class", string.IsNullOrEmpty(screenClass) ? screenName : screenClass },
+            });
+#endif
+            return Task.CompletedTask;
+        });
+    }
+
+    [BridgeMethod]
     public Task<string> SetAnalyticsUserIdAsync(string userId)
     {
         return ExecuteSafeVoidAsync(() =>

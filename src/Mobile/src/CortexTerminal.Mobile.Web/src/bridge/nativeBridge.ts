@@ -10,6 +10,7 @@ import {
   type SystemInfo,
   type TextInteropResult,
 } from "../schemas/bridgeSchema";
+import { analyticsBridge } from "./modules/analyticsBridge";
 import { authBridge } from "./modules/authBridge";
 import { deviceBridge } from "./modules/deviceBridge";
 import { feedbackBridge } from "./modules/feedbackBridge";
@@ -35,6 +36,7 @@ export type {
 
 export const nativeBridge = {
   sendRaw,
+  ...analyticsBridge,
   ...authBridge,
   ...infoBridge,
   ...preferencesBridge,

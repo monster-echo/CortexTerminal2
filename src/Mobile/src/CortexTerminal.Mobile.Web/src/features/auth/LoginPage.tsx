@@ -55,6 +55,7 @@ export default function LoginPage() {
     setErrorMessage(null);
     setLoadingProvider(provider);
     try {
+      nativeBridge.trackEvent("login", { method: provider });
       await authBridge.startOAuth(provider);
     } catch (error) {
       setErrorMessage((error instanceof Error ? error.message : "") || t("login.errorBrowser"));
@@ -73,6 +74,7 @@ export default function LoginPage() {
       const result = await authBridge.loginWithPassword(username, password);
       if (result.username) {
         setSession({ username: result.username }, "password-token");
+        nativeBridge.trackEvent("login", { method: "password" });
       }
     } catch (error) {
       setErrorMessage((error instanceof Error ? error.message : "") || t("login.errorPasswordLogin"));

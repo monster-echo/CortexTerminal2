@@ -15,6 +15,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import PageHeader from "../../components/PageHeader";
 import { authBridge } from "../../bridge/modules/authBridge";
+import { nativeBridge } from "../../bridge/nativeBridge";
 
 type ActivateState = "input" | "submitting" | "success" | "error";
 
@@ -38,8 +39,10 @@ export default function ActivatePage() {
     try {
       await authBridge.verifyActivationCode(trimmed);
       setState("success");
+      nativeBridge.trackEvent("activate_worker", { success: true });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
+      nativeBridge.trackEvent("activate_worker", { success: false });
       if (message.includes("token_expired") || message.includes("401")) {
         setErrorMsg(t("activate.tokenExpired"));
       } else if (message.includes("invalid_code") || message.includes("400")) {

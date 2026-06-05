@@ -24,6 +24,7 @@ import { RouteComponentProps } from "react-router-dom";
 import PageHeader from "../../components/PageHeader";
 import { useAuthStore, type AuthState } from "../../store/authStore";
 import { authBridge } from "../../bridge/modules/authBridge";
+import { nativeBridge } from "../../bridge/nativeBridge";
 
 const selectUser = (s: AuthState) => s.user;
 const selectClearSession = (s: AuthState) => s.clearSession;
@@ -82,6 +83,7 @@ export default function AccountSecurityPage({ history }: RouteComponentProps) {
     setPasswordSubmitting(true);
     try {
       await authBridge.setPassword(hasPassword ? currentPassword || null : null, newPassword);
+      nativeBridge.trackEvent("password_set");
       setHasPassword(true);
       void presentToast({ message: hasPassword ? t("settings.passwordChanged") : t("settings.passwordSet"), duration: 2000, position: "bottom", color: "success" });
       passwordModalRef.current?.dismiss();
@@ -119,6 +121,8 @@ export default function AccountSecurityPage({ history }: RouteComponentProps) {
     setDeleteSubmitting(true);
     try {
       await authBridge.deleteAccount();
+      nativeBridge.trackEvent("account_delete");
+      nativeBridge.setUserId("");
       deleteModalRef.current?.dismiss();
       resetDeleteForm();
       void presentToast({ message: t("settings.deleteAccountSuccess"), duration: 2000, position: "bottom", color: "success" });

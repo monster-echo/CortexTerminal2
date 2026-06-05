@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useHistory } from "react-router-dom";
 import { useSessionStore, type SessionState } from "../../store/sessionStore";
 import { terminalBridge } from "../../bridge/modules/terminalBridge";
+import { nativeBridge } from "../../bridge/nativeBridge";
 
 const selectWorkers = (s: SessionState) => s.workers;
 
@@ -57,6 +58,7 @@ export function useCreateSession() {
         rows,
         selectedWorkerId ?? undefined,
       );
+      nativeBridge.trackEvent("session_create", { worker_id: selectedWorkerId ?? "" });
       closeModal();
       history.replace(`/sessions/${session.id}`);
       return session;

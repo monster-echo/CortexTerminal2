@@ -42,6 +42,7 @@ function formatRelativeTime(
 }
 import { useSessionStore, type SessionState } from "../../store/sessionStore";
 import { terminalBridge } from "../../bridge/modules/terminalBridge";
+import { nativeBridge } from "../../bridge/nativeBridge";
 import SessionInstallPrompt from "./SessionInstallPrompt";
 import { useCreateSession } from "./useCreateSession";
 import CreateSessionModal from "./CreateSessionModal";
@@ -206,6 +207,7 @@ export default function SessionsPage({ history }: RouteComponentProps) {
                         try {
                           await terminalBridge.deleteSession(session.id);
                           removeSession(session.id);
+                          nativeBridge.trackEvent("session_delete");
                         } catch (e) {
                           presentToast({
                             message: e instanceof Error ? e.message : String(e),

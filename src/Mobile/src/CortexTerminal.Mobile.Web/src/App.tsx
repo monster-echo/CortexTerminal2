@@ -63,6 +63,16 @@ setupIonicReact({
 
 const history = createHashHistory();
 
+function pathToScreenName(pathname: string): string {
+  if (pathname === "/sessions") return "sessions";
+  if (pathname.startsWith("/sessions/")) return "terminal_session";
+  if (pathname === "/workers") return "workers";
+  if (pathname === "/activate") return "activate";
+  if (pathname === "/settings/security") return "account_security";
+  if (pathname === "/settings") return "settings";
+  return "unknown";
+}
+
 export default function App({
   initialData,
 }: {
@@ -103,11 +113,14 @@ export default function App({
         const session = await authBridge.getSession();
         if (session) {
           setSession({ username: session.username }, session.token);
+          nativeBridge.setUserId(session.username);
         } else {
           clearSession();
+          nativeBridge.setUserId("");
         }
       } catch {
         clearSession();
+        nativeBridge.setUserId("");
       }
     };
     checkSession();
@@ -167,7 +180,10 @@ export default function App({
 
         if (typed.type === "auth.oauth.success") {
           const username = (data as any).username;
-          if (username) setSession({ username }, "");
+          if (username) {
+            setSession({ username }, "");
+            nativeBridge.setUserId(username);
+          }
           return;
         }
         if (typed.type === "auth.oauth.error") {
@@ -207,6 +223,12 @@ export default function App({
       setOffline(!navigator.onLine);
     };
 
+    const unsubscribeHistory = history.listen((location) => {
+      const screenName = pathToScreenName(location.pathname);
+      nativeBridge.setScreen(screenName);
+    });
+    nativeBridge.setScreen(pathToScreenName(history.location.pathname));
+
     const unsubscribeNative = transport.onMessage(onNativeMessage);
     registerSessionInvalidatedHandler(() => clearSession());
     window.addEventListener("online", updateOnlineStatus);
@@ -217,6 +239,7 @@ export default function App({
 
     return () => {
       delete (window as any).checkWebViewHealth;
+      unsubscribeHistory();
       unsubscribeNative();
       window.removeEventListener("online", updateOnlineStatus);
       window.removeEventListener("offline", updateOnlineStatus);

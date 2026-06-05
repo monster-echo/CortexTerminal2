@@ -141,6 +141,8 @@ export default function SettingsFeaturePage({ history }: RouteComponentProps) {
         e,
       );
     }
+    nativeBridge.trackEvent("logout");
+    nativeBridge.setUserId("");
     clearSession();
     history.replace("/sessions");
   };
@@ -164,6 +166,7 @@ export default function SettingsFeaturePage({ history }: RouteComponentProps) {
     setStoredMode(mode);
     applyColorMode(mode);
     setColorModeState(mode);
+    nativeBridge.trackEvent("theme_change", { mode });
   };
 
   const handleThemeSelect = () => {
@@ -196,11 +199,17 @@ export default function SettingsFeaturePage({ history }: RouteComponentProps) {
       buttons: [
         {
           text: t("settings.languageZh"),
-          handler: () => setLanguage("zh"),
+          handler: () => {
+            setLanguage("zh");
+            nativeBridge.trackEvent("language_change", { language: "zh" });
+          },
         },
         {
           text: t("settings.languageEn"),
-          handler: () => setLanguage("en"),
+          handler: () => {
+            setLanguage("en");
+            nativeBridge.trackEvent("language_change", { language: "en" });
+          },
         },
         {
           text: t("settings.cancel"),
