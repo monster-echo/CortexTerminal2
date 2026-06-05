@@ -1,1 +1,1 @@
-Fix iOS Firebase initialization crash; Fix text duplication in terminal when using iOS dictation; Add dictation event diagnostic logging
+Add Firebase Analytics screen tracking for Ionic pages and key user event logging (login, session, settings)
