@@ -154,8 +154,6 @@ export default function TerminalSessionPage({
   const connectedRef = useRef(false);
   const containerHeightRef = useRef<number>(0);
   const cellHeightRef = useRef<number>(0);
-  const inputBufferRef = useRef("");
-  const inputFlushTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const [ctrlActive, setCtrlActive] = useState(false);
   const [altActive, setAltActive] = useState(false);
@@ -285,43 +283,28 @@ export default function TerminalSessionPage({
     xtermRef.current = term;
     fitAddonRef.current = fitAddon;
 
-    // iOS dictation only fires 'input' events (no beforeinput, no composition).
-    // Each event contains accumulated text: "h" → "he" → "hel" → ...
-    // Buffer all 'insertText' events and flush when we can distinguish
-    // dictation (cumulative growth) from normal typing (single chars).
-    const flushInputBuffer = () => {
-      const text = inputBufferRef.current;
-      inputBufferRef.current = "";
-      if (text && connectedRef.current) {
-        sendInput(text);
-      }
-    };
-    const onInput = (ev: Event) => {
+    // === DICTATION DIAGNOSTIC ===
+    // Temporary: log ALL events to understand what iOS dictation fires
+    const logEvent = (label: string, ev: Event) => {
       const ie = ev as InputEvent;
-      if (ie.inputType !== "insertText" || !ie.data) return;
-
-      const text = ie.data;
-      const prev = inputBufferRef.current;
-
-      if (prev && text.length > prev.length && text.startsWith(prev)) {
-        inputBufferRef.current = text;
-        ev.stopImmediatePropagation();
-        clearTimeout(inputFlushTimerRef.current);
-        inputFlushTimerRef.current = setTimeout(flushInputBuffer, 600);
-        return;
-      }
-
-      if (prev) {
-        clearTimeout(inputFlushTimerRef.current);
-        flushInputBuffer();
-      }
-
-      inputBufferRef.current = text;
-      ev.stopImmediatePropagation();
-      clearTimeout(inputFlushTimerRef.current);
-      inputFlushTimerRef.current = setTimeout(flushInputBuffer, 50);
+      console.log(`[DICT] ${label}`, {
+        type: ev.type,
+        inputType: (ie as any).inputType ?? "N/A",
+        data: (ie as any).data ?? "N/A",
+        composed: (ie as any).composed ?? "N/A",
+        eventPhase: ev.eventPhase,
+        target: (ev.target as HTMLElement)?.tagName,
+      });
     };
-    terminalRef.current.addEventListener("input", onInput, true);
+    terminalRef.current.addEventListener("beforeinput", (ev) => logEvent("beforeinput(cap)", ev), true);
+    terminalRef.current.addEventListener("input", (ev) => logEvent("input(cap)", ev), true);
+    terminalRef.current.addEventListener("compositionstart", (ev) => logEvent("compStart(cap)", ev), true);
+    terminalRef.current.addEventListener("compositionupdate", (ev) => logEvent("compUpdate(cap)", ev), true);
+    terminalRef.current.addEventListener("compositionend", (ev) => logEvent("compEnd(cap)", ev), true);
+    terminalRef.current.addEventListener("input", (ev) => logEvent("input(bub)", ev), false);
+    terminalRef.current.addEventListener("keydown", (ev) => logEvent("keydown(cap)", ev), true);
+    terminalRef.current.addEventListener("keypress", (ev) => logEvent("keypress(cap)", ev), true);
+    // === END DICTATION DIAGNOSTIC ===
 
     term.open(terminalRef.current);
 
@@ -365,6 +348,7 @@ export default function TerminalSessionPage({
     });
 
     const inputDataDisposable = term.onData((data) => {
+      console.log("[DICT] onData:", JSON.stringify(data));
       handleKeyRef.current?.(data);
     });
 
@@ -418,9 +402,6 @@ export default function TerminalSessionPage({
       if (resizeTimeoutRef.current) clearTimeout(resizeTimeoutRef.current);
       if (resizeSyncTimeoutRef.current)
         clearTimeout(resizeSyncTimeoutRef.current);
-      if (inputFlushTimerRef.current)
-        clearTimeout(inputFlushTimerRef.current);
-      inputBufferRef.current = "";
       xtermRef.current = null;
       fitAddonRef.current = null;
     };
