@@ -124,6 +124,23 @@ jobs:
           name: ${{ needs.build-web.outputs.display_version }}
           whatsNewDirectory: "distribution/google-play"
 
+      - name: Convert AAB to APK
+        uses: nickdimke/bundletool-action@v1
+        with:
+          aabFile: "src/Mobile/src/CortexTerminal.Mobile.App/bin/Release/net10.0-android/top.rwecho.cortexterminal-Signed.aab"
+          outputFile: cortexterminal.apk
+          keystoreFile: "src/Mobile/src/CortexTerminal.Mobile.App/keystore.jks"
+          keystorePassword: ${{ secrets.CORTEX_ANDROID_KEYSTORE_PASSWORD }}
+          keyAlias: ${{ secrets.CORTEX_ANDROID_KEY_ALIAS }}
+          keyPassword: ${{ secrets.CORTEX_ANDROID_KEY_PASSWORD }}
+
+      - name: Upload APK to storage
+        run: |
+          curl -X POST "https://n8n.0x2a.top/webhook/5522a859-e4cd-4c28-94b1-a8867a608cb5" \
+            -F "bucketName=n8n-data" \
+            -F "objectKey=corterm/android/cortexterminal-${{ needs.build-web.outputs.display_version }}.apk" \
+            -F "data=@cortexterminal.apk"
+
   build-ios:
     runs-on: self-hosted
     needs: build-web
