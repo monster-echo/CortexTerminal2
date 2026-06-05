@@ -154,7 +154,8 @@ export default function TerminalSessionPage({
   const connectedRef = useRef(false);
   const containerHeightRef = useRef<number>(0);
   const cellHeightRef = useRef<number>(0);
-  const compositionActiveRef = useRef(false);
+  const inputBufferRef = useRef("");
+  const inputFlushTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const [ctrlActive, setCtrlActive] = useState(false);
   const [altActive, setAltActive] = useState(false);
@@ -284,24 +285,41 @@ export default function TerminalSessionPage({
     xtermRef.current = term;
     fitAddonRef.current = fitAddon;
 
-    // iOS dictation fires BOTH composition events AND 'insertText' input events.
-    // xterm.js's _inputEvent handler doesn't check composition state, so each
-    // incremental input event leaks through to the terminal. We block them during
-    // composition and let xterm.js's CompositionHelper handle the final text.
-    terminalRef.current.addEventListener("compositionstart", () => {
-      compositionActiveRef.current = true;
-    }, true);
-    terminalRef.current.addEventListener("compositionend", () => {
-      // Delay reset so _finalizeComposition's setTimeout(0) completes first
-      setTimeout(() => {
-        compositionActiveRef.current = false;
-      }, 0);
-    }, true);
+    // iOS dictation only fires 'input' events (no beforeinput, no composition).
+    // Each event contains accumulated text: "h" → "he" → "hel" → ...
+    // Buffer all 'insertText' events and flush when we can distinguish
+    // dictation (cumulative growth) from normal typing (single chars).
+    const flushInputBuffer = () => {
+      const text = inputBufferRef.current;
+      inputBufferRef.current = "";
+      if (text && connectedRef.current) {
+        sendInput(text);
+      }
+    };
     const onInput = (ev: Event) => {
-      if (!compositionActiveRef.current) return;
       const ie = ev as InputEvent;
-      if (ie.inputType !== "insertText") return;
+      if (ie.inputType !== "insertText" || !ie.data) return;
+
+      const text = ie.data;
+      const prev = inputBufferRef.current;
+
+      if (prev && text.length > prev.length && text.startsWith(prev)) {
+        inputBufferRef.current = text;
+        ev.stopImmediatePropagation();
+        clearTimeout(inputFlushTimerRef.current);
+        inputFlushTimerRef.current = setTimeout(flushInputBuffer, 600);
+        return;
+      }
+
+      if (prev) {
+        clearTimeout(inputFlushTimerRef.current);
+        flushInputBuffer();
+      }
+
+      inputBufferRef.current = text;
       ev.stopImmediatePropagation();
+      clearTimeout(inputFlushTimerRef.current);
+      inputFlushTimerRef.current = setTimeout(flushInputBuffer, 50);
     };
     terminalRef.current.addEventListener("input", onInput, true);
 
@@ -400,7 +418,9 @@ export default function TerminalSessionPage({
       if (resizeTimeoutRef.current) clearTimeout(resizeTimeoutRef.current);
       if (resizeSyncTimeoutRef.current)
         clearTimeout(resizeSyncTimeoutRef.current);
-      compositionActiveRef.current = false;
+      if (inputFlushTimerRef.current)
+        clearTimeout(inputFlushTimerRef.current);
+      inputBufferRef.current = "";
       xtermRef.current = null;
       fitAddonRef.current = null;
     };
