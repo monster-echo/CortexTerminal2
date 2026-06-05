@@ -125,14 +125,22 @@ jobs:
           whatsNewDirectory: "distribution/google-play"
 
       - name: Convert AAB to APK
-        uses: nickdimke/bundletool-action@v1
-        with:
-          aabFile: "src/Mobile/src/CortexTerminal.Mobile.App/bin/Release/net10.0-android/top.rwecho.cortexterminal-Signed.aab"
-          outputFile: cortexterminal.apk
-          keystoreFile: "src/Mobile/src/CortexTerminal.Mobile.App/keystore.jks"
-          keystorePassword: ${{ secrets.CORTEX_ANDROID_KEYSTORE_PASSWORD }}
-          keyAlias: ${{ secrets.CORTEX_ANDROID_KEY_ALIAS }}
-          keyPassword: ${{ secrets.CORTEX_ANDROID_KEY_PASSWORD }}
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.CORTEX_ANDROID_KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.CORTEX_ANDROID_KEY_PASSWORD }}
+        run: |
+          BUNDLETOOL_URL="https://github.com/google/bundletool/releases/latest/download/bundletool-all.jar"
+          curl -sL "$BUNDLETOOL_URL" -o bundletool-all.jar
+          java -jar bundletool-all.jar build-apks \
+            --bundle "src/Mobile/src/CortexTerminal.Mobile.App/bin/Release/net10.0-android/top.rwecho.cortexterminal-Signed.aab" \
+            --output universal.apks \
+            --mode universal \
+            --ks "src/Mobile/src/CortexTerminal.Mobile.App/keystore.jks" \
+            --ks-pass "pass:$KEYSTORE_PASSWORD" \
+            --ks-key-alias "${{ secrets.CORTEX_ANDROID_KEY_ALIAS }}" \
+            --key-pass "pass:$KEY_PASSWORD"
+          unzip -o universal.apks -d universal_apks
+          mv universal_apks/universal.apk cortexterminal.apk
 
       - name: Upload APK to storage
         run: |
