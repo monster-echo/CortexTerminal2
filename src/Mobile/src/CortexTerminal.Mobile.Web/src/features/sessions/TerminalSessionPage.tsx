@@ -154,6 +154,9 @@ export default function TerminalSessionPage({
   const connectedRef = useRef(false);
   const containerHeightRef = useRef<number>(0);
   const cellHeightRef = useRef<number>(0);
+  const dictationActiveRef = useRef(false);
+  const dictationTextRef = useRef("");
+  const dictationFlushTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const [ctrlActive, setCtrlActive] = useState(false);
   const [altActive, setAltActive] = useState(false);
@@ -283,6 +286,52 @@ export default function TerminalSessionPage({
     xtermRef.current = term;
     fitAddonRef.current = fitAddon;
 
+    // Register beforeinput interceptor (capture phase) BEFORE term.open()
+    // to prevent iOS dictation cumulative events from reaching xterm.js.
+    // When iOS dictation is active, each 'insertText' event contains the full
+    // accumulated transcription so far. We detect this cumulative growth pattern
+    // and call preventDefault() to block the subsequent 'input' event, preventing
+    // xterm.js from processing incremental results.
+    const onBeforeInput = (ev: Event) => {
+      const ie = ev as InputEvent;
+      // Only handle 'insertText' (iOS dictation). IME uses 'insertCompositionText'
+      // which xterm.js's CompositionHelper handles correctly.
+      if (ie.inputType !== "insertText" || !ie.data) return;
+
+      const text = ie.data;
+      const prevText = dictationTextRef.current;
+
+      if (prevText && text.length > prevText.length && text.startsWith(prevText)) {
+        // Cumulative growth → iOS dictation, intercept and buffer
+        dictationActiveRef.current = true;
+        dictationTextRef.current = text;
+        ev.preventDefault();
+        clearTimeout(dictationFlushTimerRef.current);
+        dictationFlushTimerRef.current = setTimeout(() => {
+          const final = dictationTextRef.current;
+          dictationActiveRef.current = false;
+          dictationTextRef.current = "";
+          if (final && connectedRef.current) {
+            sendInput(final);
+          }
+        }, 600);
+        return;
+      }
+
+      if (dictationActiveRef.current) {
+        // Dictation just ended — first non-cumulative event
+        dictationActiveRef.current = false;
+        const final = dictationTextRef.current;
+        dictationTextRef.current = "";
+        clearTimeout(dictationFlushTimerRef.current);
+        if (final && connectedRef.current) {
+          sendInput(final);
+        }
+        return;
+      }
+    };
+    terminalRef.current.addEventListener("beforeinput", onBeforeInput, true);
+
     term.open(terminalRef.current);
 
     // xterm.js creates a hidden textarea (.xterm-helper-textarea) for keyboard input.
@@ -295,6 +344,9 @@ export default function TerminalSessionPage({
             node.classList.contains("xterm-helper-textarea")
           ) {
             node.setAttribute("autocomplete", "off");
+            node.setAttribute("autocorrect", "off");
+            node.setAttribute("autocapitalize", "off");
+            node.setAttribute("spellcheck", "false");
           }
         }
       }
@@ -375,6 +427,10 @@ export default function TerminalSessionPage({
       if (resizeTimeoutRef.current) clearTimeout(resizeTimeoutRef.current);
       if (resizeSyncTimeoutRef.current)
         clearTimeout(resizeSyncTimeoutRef.current);
+      if (dictationFlushTimerRef.current)
+        clearTimeout(dictationFlushTimerRef.current);
+      dictationActiveRef.current = false;
+      dictationTextRef.current = "";
       xtermRef.current = null;
       fitAddonRef.current = null;
     };
