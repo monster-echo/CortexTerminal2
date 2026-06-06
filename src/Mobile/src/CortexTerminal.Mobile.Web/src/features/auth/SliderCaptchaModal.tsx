@@ -63,20 +63,13 @@ export function SliderCaptchaModal({ isOpen, onClose, onSuccess }: SliderCaptcha
     if (isOpen) loadChallenge();
   }, [isOpen, loadChallenge]);
 
-  // Auto-clear feedback after animation
+  // Auto-clear failed feedback after animation
   useEffect(() => {
-    if (feedback === "success") {
-      const timer = setTimeout(() => {
-        onSuccess("");
-        onClose();
-      }, 600);
-      return () => clearTimeout(timer);
-    }
     if (feedback === "failed") {
       const timer = setTimeout(() => setFeedback("idle"), 1500);
       return () => clearTimeout(timer);
     }
-  }, [feedback, onSuccess, onClose]);
+  }, [feedback]);
 
   const handleDragStart = useCallback(
     (e: React.MouseEvent | React.TouchEvent) => {

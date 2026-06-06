@@ -141,10 +141,12 @@ export default function LoginPage() {
         handleCaptchaRequired((token) => handlePasswordLogin(token));
         return;
       }
-      if (result.username) {
-        setSession({ username: result.username }, "password-token");
-        nativeBridge.trackEvent("login", { method: "password" });
+      if (!result.success || !result.username) {
+        setErrorMessage(t("login.errorPasswordLogin"));
+        return;
       }
+      setSession({ username: result.username }, "password-token");
+      nativeBridge.trackEvent("login", { method: "password" });
     } catch (error) {
       setErrorMessage((error instanceof Error ? error.message : "") || t("login.errorPasswordLogin"));
     } finally {
@@ -164,6 +166,10 @@ export default function LoginPage() {
       if (result.captchaRequired) {
         setLoadingProvider(null);
         handleCaptchaRequired((token) => handleSendCode(token));
+        return;
+      }
+      if (!result.success) {
+        setErrorMessage(t("login.errorSendCode"));
         return;
       }
       setCodeCountdown(60);
