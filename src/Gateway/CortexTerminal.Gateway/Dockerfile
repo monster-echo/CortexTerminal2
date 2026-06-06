@@ -1,11 +1,10 @@
 # ===== Stage 1: Build Frontend =====
 FROM node:22-slim AS frontend
-RUN corepack enable && corepack prepare pnpm@10 --activate
 WORKDIR /build
-COPY src/Gateway/CortexTerminal.Console/package.json src/Gateway/CortexTerminal.Console/pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+COPY src/Gateway/CortexTerminal.Console/package.json src/Gateway/CortexTerminal.Console/package-lock.json ./
+RUN npm ci
 COPY src/Gateway/CortexTerminal.Console/ ./
-RUN pnpm build --outDir /build/dist
+RUN npm run build
 
 # ===== Stage 2: Build .NET =====
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
