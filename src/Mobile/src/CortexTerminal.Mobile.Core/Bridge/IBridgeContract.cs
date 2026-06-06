@@ -134,10 +134,13 @@ public interface IBridgeContract
 
     // 认证
     [BridgeMethod]
-    Task<string> GetAltchaChallengeAsync();
+    Task<string> GetCaptchaChallengeAsync();
 
     [BridgeMethod]
-    Task<string> SendPhoneCodeAsync(string phone, string altchaPayload);
+    Task<string> VerifyCaptchaAsync(string id, int x);
+
+    [BridgeMethod]
+    Task<string> SendPhoneCodeAsync(string phone, string? captchaToken);
 
     [BridgeMethod]
     Task<string> VerifyPhoneCodeAsync(string phone, string code);
