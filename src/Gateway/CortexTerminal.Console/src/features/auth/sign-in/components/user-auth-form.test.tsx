@@ -3,7 +3,6 @@ import { render, type RenderResult } from 'vitest-browser-react'
 import { type Locator, userEvent } from 'vitest/browser'
 import { UserAuthForm } from './user-auth-form'
 
-// Mock i18next so t() returns the key (matches how the component renders without a real i18n instance)
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, params?: Record<string, string>) => {
@@ -22,9 +21,9 @@ const FORM_MESSAGES = {
 const navigate = vi.fn()
 const setUserMock = vi.fn()
 const setAccessTokenMock = vi.fn()
-const authMocks = vi.hoisted(() => ({
-  loginMock: vi.fn(),
-}))
+const mockFetch = vi.hoisted(() => vi.fn())
+
+vi.stubGlobal('fetch', mockFetch)
 
 vi.mock('@/stores/auth-store', () => ({
   useAuthStore: () => ({
@@ -32,12 +31,6 @@ vi.mock('@/stores/auth-store', () => ({
       setUser: setUserMock,
       setAccessToken: setAccessTokenMock,
     },
-  }),
-}))
-
-vi.mock('@/services/console-api', () => ({
-  createConsoleApi: () => ({
-    login: authMocks.loginMock,
   }),
 }))
 
@@ -63,23 +56,29 @@ vi.mock('@tanstack/react-router', async (importOriginal) => {
   }
 })
 
+function jsonResponse(data: unknown, status = 200): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  })
+}
+
 describe('UserAuthForm', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.stubEnv('VITE_AUTH_MODE', 'dev')
-    authMocks.loginMock.mockResolvedValue({
-      token: 'gateway-token',
-      username: 'echo',
-    })
+    mockFetch.mockReset()
   })
 
-  describe('Rendering without redirectTo', () => {
+  describe('Password login', () => {
     let screen: RenderResult
     let usernameInput: Locator
     let passwordInput: Locator
     let signInButton: Locator
 
     beforeEach(async () => {
+      mockFetch.mockResolvedValue(
+        jsonResponse({ accessToken: 'gateway-token', username: 'echo' })
+      )
       screen = await render(<UserAuthForm />)
       usernameInput = screen.getByPlaceholder('auth.username')
       passwordInput = screen.getByPlaceholder('auth.password')
@@ -111,10 +110,12 @@ describe('UserAuthForm', () => {
 
       await userEvent.click(signInButton)
 
-      await vi.waitFor(() => expect(authMocks.loginMock).toHaveBeenCalledOnce())
-      expect(authMocks.loginMock).toHaveBeenCalledWith('echo', 'any-password')
+      await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledOnce())
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/auth/password/login',
+        expect.objectContaining({ method: 'POST' })
+      )
       expect(setUserMock).toHaveBeenCalledWith({ username: 'echo' })
-      expect(setAccessTokenMock).toHaveBeenCalledOnce()
       expect(setAccessTokenMock).toHaveBeenCalledWith('gateway-token')
 
       await vi.waitFor(() =>
@@ -124,9 +125,39 @@ describe('UserAuthForm', () => {
         })
       )
     })
+
+    it('opens captcha dialog on CAPTCHA_REQUIRED', async () => {
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({ error: 'CAPTCHA_REQUIRED' }, 403)
+      )
+      // Challenge call for the captcha dialog
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({
+          id: 'captcha-id',
+          backgroundImage: btoa('bg'),
+          sliderImage: btoa('slider'),
+          y: 80,
+        })
+      )
+
+      await userEvent.fill(usernameInput, 'echo')
+      await userEvent.fill(passwordInput, 'any-password')
+
+      await userEvent.click(signInButton)
+
+      // Wait for login call and then captcha challenge call
+      await vi.waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledTimes(2)
+        expect(mockFetch).toHaveBeenCalledWith('/api/auth/captcha/challenge')
+      })
+    })
   })
 
   it('navigates to redirectTo when provided', async () => {
+    mockFetch.mockResolvedValue(
+      jsonResponse({ accessToken: 'gateway-token', username: 'echo' })
+    )
+
     const screen = await render(<UserAuthForm redirectTo='/settings' />)
 
     await userEvent.fill(screen.getByPlaceholder('auth.username'), 'echo')
@@ -134,8 +165,7 @@ describe('UserAuthForm', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'auth.signIn' }))
 
-    await vi.waitFor(() => expect(authMocks.loginMock).toHaveBeenCalledOnce())
-    expect(setAccessTokenMock).toHaveBeenCalledOnce()
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledOnce())
 
     await vi.waitFor(() =>
       expect(navigate).toHaveBeenCalledWith({
@@ -146,15 +176,17 @@ describe('UserAuthForm', () => {
   })
 
   it('does not navigate when login fails', async () => {
-    authMocks.loginMock.mockRejectedValue(new Error('Login failed.'))
+    mockFetch.mockResolvedValue(
+      jsonResponse({ error: 'Invalid username or password' }, 401)
+    )
 
     const screen = await render(<UserAuthForm />)
 
     await userEvent.fill(screen.getByPlaceholder('auth.username'), 'echo')
-    await userEvent.fill(screen.getByPlaceholder('auth.password'), 'any-password')
+    await userEvent.fill(screen.getByPlaceholder('auth.password'), 'wrong')
     await userEvent.click(screen.getByRole('button', { name: 'auth.signIn' }))
 
-    await vi.waitFor(() => expect(authMocks.loginMock).toHaveBeenCalledOnce())
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledOnce())
     expect(setUserMock).not.toHaveBeenCalled()
     expect(setAccessTokenMock).not.toHaveBeenCalled()
     expect(navigate).not.toHaveBeenCalled()

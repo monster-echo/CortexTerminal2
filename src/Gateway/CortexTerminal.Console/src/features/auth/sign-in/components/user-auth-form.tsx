@@ -17,8 +17,7 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { createConsoleApi } from '@/services/console-api'
-import 'altcha'
+import { SliderCaptchaDialog } from '@/components/slider-captcha-dialog'
 
 interface UserAuthFormProps extends React.HTMLAttributes<HTMLDivElement> {
   redirectTo?: string
@@ -30,12 +29,13 @@ export function UserAuthForm({
   const [isLoading, setIsLoading] = useState(false)
   const [codeCountdown, setCodeCountdown] = useState(0)
   const [codeSending, setCodeSending] = useState(false)
-  const [altchaPayload, setAltchaPayload] = useState<string | null>(null)
-  const altchaRef = useRef<HTMLElement & { reset: () => void }>(null)
+  const [captchaOpen, setCaptchaOpen] = useState(false)
+  const captchaTokenRef = useRef<string | null>(null)
+  // Store pending action to retry after captcha
+  const pendingActionRef = useRef<((token: string) => void) | null>(null)
   const navigate = useNavigate()
   const { auth } = useAuthStore()
   const { t } = useTranslation()
-  const consoleApi = createConsoleApi()
 
   useEffect(() => {
     if (codeCountdown <= 0) return
@@ -43,19 +43,21 @@ export function UserAuthForm({
     return () => clearTimeout(timer)
   }, [codeCountdown])
 
-  // Listen for Altcha v3 verified event
-  useEffect(() => {
-    const widget = altchaRef.current
-    if (!widget) return
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail
-      if (detail?.payload) {
-        setAltchaPayload(detail.payload)
-      }
+  const handleCaptchaSuccess = useCallback((token: string) => {
+    captchaTokenRef.current = token
+    if (pendingActionRef.current) {
+      pendingActionRef.current(token)
+      pendingActionRef.current = null
     }
-    widget.addEventListener('verified', handler)
-    return () => widget.removeEventListener('verified', handler)
   }, [])
+
+  const handleCaptchaRequired = useCallback(
+    (action: (token: string) => void) => {
+      pendingActionRef.current = action
+      setCaptchaOpen(true)
+    },
+    []
+  )
 
   const passwordSchema = z.object({
     username: z.string().min(1, t('auth.validation.usernameRequired')),
@@ -83,6 +85,39 @@ export function UserAuthForm({
     },
   })
 
+  const sendCodeWithToken = useCallback(
+    async (phone: string, captchaToken: string) => {
+      setCodeSending(true)
+      try {
+        const res = await fetch('/api/auth/phone/send-code', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone, captchaToken }),
+        })
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}))
+          if (res.status === 403 && data.error === 'CAPTCHA_REQUIRED') {
+            handleCaptchaRequired((token) => sendCodeWithToken(phone, token))
+            return
+          }
+          if (res.status === 429) {
+            toast.error(t('auth.error.codeRateLimited'))
+          } else {
+            toast.error(data.error || t('auth.error.codeSendFailed'))
+          }
+          return
+        }
+        setCodeCountdown(60)
+        toast.success(t('auth.codeSent'))
+      } catch {
+        toast.error(t('auth.error.codeSendFailed'))
+      } finally {
+        setCodeSending(false)
+      }
+    },
+    [t, handleCaptchaRequired]
+  )
+
   const handleSendCode = useCallback(async () => {
     const phone = phoneForm.getValues('phone')
     if (!/^1\d{10}$/.test(phone)) {
@@ -90,37 +125,15 @@ export function UserAuthForm({
       return
     }
 
-    if (!altchaPayload) {
-      toast.error(t('auth.error.verificationRequired'))
+    if (captchaTokenRef.current) {
+      await sendCodeWithToken(phone, captchaTokenRef.current)
+      captchaTokenRef.current = null
       return
     }
 
-    setCodeSending(true)
-    try {
-      const res = await fetch('/api/auth/phone/send-code', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, altcha: altchaPayload }),
-      })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        if (res.status === 429) {
-          toast.error(t('auth.error.codeRateLimited'))
-        } else {
-          toast.error(data.error || t('auth.error.codeSendFailed'))
-        }
-        return
-      }
-      setCodeCountdown(60)
-      toast.success(t('auth.codeSent'))
-    } catch {
-      toast.error(t('auth.error.codeSendFailed'))
-    } finally {
-      setCodeSending(false)
-      setAltchaPayload(null)
-      altchaRef.current?.reset()
-    }
-  }, [phoneForm, altchaPayload, t])
+    // Try without captcha first
+    await sendCodeWithToken(phone, '')
+  }, [phoneForm, t, sendCodeWithToken])
 
   async function onPhoneSubmit(data: z.infer<typeof phoneSchema>) {
     setIsLoading(true)
@@ -150,14 +163,73 @@ export function UserAuthForm({
   async function onPasswordSubmit(data: z.infer<typeof passwordSchema>) {
     setIsLoading(true)
     try {
-      const result = await consoleApi.login(data.username, data.password)
+      const body: Record<string, string> = {
+        username: data.username,
+        password: data.password,
+      }
+      if (captchaTokenRef.current) {
+        body.captchaToken = captchaTokenRef.current
+        captchaTokenRef.current = null
+      }
+      const res = await fetch('/api/auth/password/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        if (res.status === 403 && err.error === 'CAPTCHA_REQUIRED') {
+          handleCaptchaRequired((token) => {
+            retryPasswordLogin(data.username, data.password, token)
+          })
+          setIsLoading(false)
+          return
+        }
+        toast.error(err.error || t('auth.loginFailed', { error: '' }))
+        return
+      }
+      const result = await res.json()
       auth.setUser({ username: result.username })
-      auth.setAccessToken(result.token)
+      auth.setAccessToken(result.accessToken)
       toast.success(t('auth.signedInAs', { username: result.username }))
       navigate({ to: redirectTo || '/dashboard', replace: true })
-    } catch (err) {
-      const message = err instanceof Error ? err.message : ''
-      toast.error(t('auth.loginFailed', { error: message }))
+    } catch {
+      toast.error(t('auth.loginFailed', { error: '' }))
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  async function retryPasswordLogin(
+    username: string,
+    password: string,
+    captchaToken: string
+  ) {
+    setIsLoading(true)
+    try {
+      const res = await fetch('/api/auth/password/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password, captchaToken }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        if (res.status === 403 && err.error === 'CAPTCHA_REQUIRED') {
+          handleCaptchaRequired((token) =>
+            retryPasswordLogin(username, password, token)
+          )
+          return
+        }
+        toast.error(err.error || t('auth.loginFailed', { error: '' }))
+        return
+      }
+      const result = await res.json()
+      auth.setUser({ username: result.username })
+      auth.setAccessToken(result.accessToken)
+      toast.success(t('auth.signedInAs', { username: result.username }))
+      navigate({ to: redirectTo || '/dashboard', replace: true })
+    } catch {
+      toast.error(t('auth.loginFailed', { error: '' }))
     } finally {
       setIsLoading(false)
     }
@@ -249,16 +321,6 @@ export function UserAuthForm({
                   </FormItem>
                 )}
               />
-              {/* Altcha PoW verification widget */}
-              {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-              <altcha-widget
-                ref={altchaRef as any}
-                challenge="/api/auth/altcha/challenge"
-                name="altcha"
-                hidelogo
-                hidefooter
-                style={{ width: '100%' }}
-              />
               <div className="flex gap-2">
                 <FormField
                   control={phoneForm.control}
@@ -337,6 +399,12 @@ export function UserAuthForm({
           {t('auth.signInWith', { provider: 'Apple' })}
         </Button>
       </div>
+
+      <SliderCaptchaDialog
+        open={captchaOpen}
+        onOpenChange={setCaptchaOpen}
+        onSuccess={handleCaptchaSuccess}
+      />
     </div>
   )
 }

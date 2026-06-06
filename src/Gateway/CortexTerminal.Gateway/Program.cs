@@ -12,6 +12,7 @@ using CortexTerminal.Gateway.Data;
 using CortexTerminal.Gateway.Hubs;
 using CortexTerminal.Gateway.Sessions;
 using CortexTerminal.Gateway.WebSockets;
+using CortexTerminal.Gateway.Tts;
 using CortexTerminal.Gateway.Workers;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using System.IdentityModel.Tokens.Jwt;
@@ -227,17 +228,8 @@ builder.Services.AddHttpClient();
 builder.Services.AddSingleton<OAuthStateService>();
 builder.Services.AddSingleton<PhoneCodeStore>();
 builder.Services.AddSingleton<TerminalWebSocketHandler>();
-builder.Services.AddSingleton<Ixnas.AltchaNet.AltchaService>(sp =>
-{
-    var altchaStore = new AltchaChallengeStore();
-    var keyBase64 = builder.Configuration["Altcha:HmacKey"]
-        ?? throw new InvalidOperationException("Altcha:HmacKey is not configured.");
-    var key = Convert.FromBase64String(keyBase64);
-    return Ixnas.AltchaNet.Altcha.CreateServiceBuilder()
-        .UseSha256(key)
-        .UseStore(altchaStore)
-        .Build();
-});
+builder.Services.AddSingleton<CaptchaService>();
+builder.Services.AddSingleton<FailedAttemptTracker>();
 var phoneAuthOptions = new PhoneAuthOptions();
 builder.Configuration.GetSection("PhoneAuth").Bind(phoneAuthOptions);
 var appleOAuthOptions = new AppleOAuthOptions();
@@ -245,6 +237,8 @@ builder.Configuration.GetSection("AppleOAuth").Bind(appleOAuthOptions);
 builder.Services.AddSingleton(appleOAuthOptions);
 var huaweiOAuthOptions = new HuaweiOAuthOptions();
 builder.Configuration.GetSection("HuaweiOAuth").Bind(huaweiOAuthOptions);
+var ttsOptions = new TtsOptions();
+builder.Configuration.GetSection("Tts").Bind(ttsOptions);
 
 var connectionString = builder.Configuration["GATEWAY_POSTGRES_CONNECTION_STRING"]
     ?? builder.Configuration.GetConnectionString("DefaultConnection");
@@ -725,10 +719,19 @@ app.MapGet("/api/auth/callback/google", async (string? code, string? state, OAut
 
 // --- Password Auth Endpoints ---
 
-app.MapPost("/api/auth/password/login", async (PasswordLoginRequest request, IServiceProvider serviceProvider) =>
+app.MapPost("/api/auth/password/login", async (PasswordLoginRequest request, IServiceProvider serviceProvider, HttpContext httpCtx, CaptchaService captchaService, FailedAttemptTracker attemptTracker) =>
 {
     if (string.IsNullOrEmpty(request.Username) || string.IsNullOrEmpty(request.Password))
         return Results.BadRequest(new { error = "Username and password are required" });
+
+    var clientIp = httpCtx.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+
+    // Check if captcha is required due to too many failed attempts
+    if (attemptTracker.IsCaptchaRequired(clientIp))
+    {
+        if (string.IsNullOrEmpty(request.CaptchaToken) || !captchaService.ValidateToken(request.CaptchaToken))
+            return Results.Json(new { error = "CAPTCHA_REQUIRED" }, statusCode: 403);
+    }
 
     try
     {
@@ -738,13 +741,18 @@ app.MapPost("/api/auth/password/login", async (PasswordLoginRequest request, ISe
 
         var user = await db.Users.FirstOrDefaultAsync(u => u.Username == request.Username);
         if (user is null || user.Status == "disabled" || user.Status == "deleted" || string.IsNullOrEmpty(user.PasswordHash) || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
+        {
+            attemptTracker.RecordFailure(clientIp);
             return Results.Json(new { error = "Invalid username or password" }, statusCode: 401);
+        }
 
+        attemptTracker.RecordSuccess(clientIp);
         var jwt = CreateAccessToken(user.Username, user.Email, user.Role);
         return Results.Ok(new { accessToken = jwt, username = user.Username });
     }
     catch (InvalidOperationException)
     {
+        attemptTracker.RecordFailure(clientIp);
         return Results.Json(new { error = "Invalid username or password" }, statusCode: 401);
     }
 }).AllowAnonymous();
@@ -785,27 +793,41 @@ app.MapPost("/api/auth/password/register", async (PasswordRegisterRequest reques
     }
 }).RequireAuthorization();
 
-// --- Phone Auth Endpoints ---
+// --- Captcha Endpoints ---
 
-app.MapGet("/api/auth/altcha/challenge", (Ixnas.AltchaNet.AltchaService altchaService) =>
+app.MapGet("/api/auth/captcha/challenge", (CaptchaService captchaService) =>
 {
-    var challenge = altchaService.Generate();
+    var challenge = captchaService.Generate();
     return Results.Ok(challenge);
 }).AllowAnonymous();
 
-app.MapPost("/api/auth/phone/send-code", async (SendCodeRequest request, PhoneCodeStore codeStore, IAuditLogStore auditLog, IServiceProvider serviceProvider, IWebHostEnvironment env, Ixnas.AltchaNet.AltchaService altchaService) =>
+app.MapPost("/api/auth/captcha/verify", (CaptchaVerifyRequest request, CaptchaService captchaService) =>
+{
+    if (string.IsNullOrEmpty(request.Id) || request.X <= 0)
+        return Results.BadRequest(new { error = "Invalid captcha data" });
+
+    var token = captchaService.Verify(request.Id, request.X);
+    if (token is null)
+        return Results.BadRequest(new { error = "Captcha verification failed" });
+
+    return Results.Ok(new { captchaToken = token });
+}).AllowAnonymous();
+
+// --- Phone Auth Endpoints ---
+
+app.MapPost("/api/auth/phone/send-code", async (SendCodeRequest request, PhoneCodeStore codeStore, IAuditLogStore auditLog, IServiceProvider serviceProvider, IWebHostEnvironment env, HttpContext httpCtx, CaptchaService captchaService, FailedAttemptTracker attemptTracker) =>
 {
     // Validate phone format: 11 digits
     if (string.IsNullOrEmpty(request.Phone) || request.Phone.Length != 11 || !request.Phone.All(char.IsDigit))
         return Results.BadRequest(new { error = "Invalid phone number" });
 
-    // Verify Altcha PoW challenge
-    if (string.IsNullOrEmpty(request.Altcha))
-        return Results.BadRequest(new { error = "Verification required" });
-
-    var altchaResult = await altchaService.Validate(request.Altcha);
-    if (!altchaResult.IsValid)
-        return Results.BadRequest(new { error = "Verification failed" });
+    // Check if captcha is required due to too many failed attempts
+    var clientIp = httpCtx.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+    if (attemptTracker.IsCaptchaRequired(clientIp))
+    {
+        if (string.IsNullOrEmpty(request.CaptchaToken) || !captchaService.ValidateToken(request.CaptchaToken))
+            return Results.Json(new { error = "CAPTCHA_REQUIRED" }, statusCode: 403);
+    }
 
     string code;
     try
@@ -855,16 +877,22 @@ app.MapPost("/api/auth/phone/send-code", async (SendCodeRequest request, PhoneCo
         }
     }
 
+    attemptTracker.RecordSuccess(clientIp);
     return Results.Ok(new { ok = true });
 }).AllowAnonymous();
 
-app.MapPost("/api/auth/phone/verify", async (VerifyCodeRequest request, PhoneCodeStore codeStore, IAuditLogStore auditLog, IServiceProvider serviceProvider) =>
+app.MapPost("/api/auth/phone/verify", async (VerifyCodeRequest request, PhoneCodeStore codeStore, IAuditLogStore auditLog, IServiceProvider serviceProvider, HttpContext httpCtx, FailedAttemptTracker attemptTracker) =>
 {
     if (string.IsNullOrEmpty(request.Phone) || string.IsNullOrEmpty(request.Code))
         return Results.BadRequest(new { error = "Phone and code are required" });
 
+    var clientIp = httpCtx.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+
     if (!codeStore.Verify(request.Phone, request.Code))
+    {
+        attemptTracker.RecordFailure(clientIp);
         return Results.BadRequest(new { error = "Invalid or expired verification code" });
+    }
 
     var providerId = $"+86{request.Phone}";
     var last4 = request.Phone[^4..];
@@ -875,6 +903,7 @@ app.MapPost("/api/auth/phone/verify", async (VerifyCodeRequest request, PhoneCod
     if (dbUser is null || dbUser.Status == "disabled" || dbUser.Status == "deleted")
         return Results.BadRequest(new { error = "Account disabled" });
 
+    attemptTracker.RecordSuccess(clientIp);
     var jwt = CreateAccessToken(dbUser.Username, dbUser.Email, dbUser.Role);
     auditLog.Record(new AuditLogEntry(
         Id: Guid.NewGuid().ToString("N"),
@@ -1624,6 +1653,7 @@ app.MapDelete("/api/users/{userId}", async (string userId, ClaimsPrincipal user,
 }).RequireAuthorization();
 
 // Fallback to index.html for client-side routing
+TtsEndpoints.Map(app, ttsOptions);
 app.MapFallbackToFile("index.html");
 
 app.Run();
@@ -1723,10 +1753,11 @@ static async Task<bool> IsAdmin(IServiceProvider serviceProvider, string userId)
 
 public record InviteUserRequest(string Email, string? Role);
 public record UpdateUserRequest(string? Role, string? Status);
-record SendCodeRequest(string Phone, string? Altcha);
+record SendCodeRequest(string Phone, string? CaptchaToken);
 record VerifyCodeRequest(string Phone, string Code);
+record CaptchaVerifyRequest(string Id, int X);
 record HuaweiQuickLoginRequest(string AuthCode, string UnionID, string OpenID);
-record PasswordLoginRequest(string Username, string Password);
+record PasswordLoginRequest(string Username, string Password, string? CaptchaToken);
 record PasswordRegisterRequest(string Username, string Password, string? DisplayName);
 record ChangePasswordRequest(string? CurrentPassword, string NewPassword);
 
