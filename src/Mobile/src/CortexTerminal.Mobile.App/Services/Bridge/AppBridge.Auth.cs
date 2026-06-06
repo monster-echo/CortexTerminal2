@@ -52,7 +52,7 @@ public sealed partial class AppBridge
     [BridgeMethod]
     public Task<string> SendPhoneCodeAsync(string phone, string? captchaToken)
     {
-        return ExecuteSafeAsync(async () =>
+        return ExecuteSafeAsync<object>(async () =>
         {
             if (_authService is null) throw new InvalidOperationException("AuthService not configured");
             var result = await _authService.SendPhoneCodeAsync(phone, captchaToken, default);
@@ -78,7 +78,7 @@ public sealed partial class AppBridge
     [BridgeMethod]
     public Task<string> LoginWithPasswordAsync(string username, string password, string? captchaToken)
     {
-        return ExecuteSafeAsync(async () =>
+        return ExecuteSafeAsync<object>(async () =>
         {
             if (_authService is null) throw new InvalidOperationException("AuthService not configured");
             var result = await _authService.LoginWithPasswordAsync(username, password, captchaToken, default);
