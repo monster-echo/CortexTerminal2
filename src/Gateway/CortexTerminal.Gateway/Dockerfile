@@ -4,7 +4,7 @@ WORKDIR /build
 COPY src/Gateway/CortexTerminal.Console/package.json src/Gateway/CortexTerminal.Console/package-lock.json ./
 RUN npm ci
 COPY src/Gateway/CortexTerminal.Console/ ./
-RUN npm run build
+RUN npm run build -- --outDir /build/dist
 
 # ===== Stage 2: Build .NET =====
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
