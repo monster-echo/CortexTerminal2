@@ -793,6 +793,25 @@ app.MapPost("/api/auth/password/register", async (PasswordRegisterRequest reques
     }
 }).RequireAuthorization();
 
+// --- Auth Methods ---
+
+app.MapGet("/api/auth/methods", (IConfiguration configuration) =>
+{
+    var methods = new List<string>();
+    if (!string.IsNullOrEmpty(configuration["PhoneAuth:AccessKeyId"]))
+        methods.Add("phone");
+    methods.Add("password");
+    if (!string.IsNullOrEmpty(configuration["Auth:GitHub:ClientId"]))
+        methods.Add("github");
+    if (!string.IsNullOrEmpty(configuration["Auth:Google:ClientId"]))
+        methods.Add("google");
+    if (!string.IsNullOrEmpty(configuration["AppleOAuth:ClientId"]))
+        methods.Add("apple");
+    if (!string.IsNullOrEmpty(configuration["HuaweiOAuth:ClientSecret"]))
+        methods.Add("huawei");
+    return Results.Ok(new { methods });
+}).AllowAnonymous();
+
 // --- Captcha Endpoints ---
 
 app.MapGet("/api/auth/captcha/challenge", (CaptchaService captchaService) =>
