@@ -45,6 +45,11 @@
     "errorPasswordLogin": "Invalid username or password",
     "phoneLogin": "Phone Login",
     "verificationRequired": "Please complete verification first",
+    "captchaFailed": "Verification failed, please try again",
+    "captchaSuccess": "Verification successful",
+    "captchaVerifying": "Verifying...",
+    "captchaLoading": "Loading...",
+    "captchaRetry": "Tap to retry",
     "agreementPrefix": "By signing in you agree to the ",
     "agreementAnd": " and ",
     "agreementSuffix": "."

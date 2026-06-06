@@ -32,20 +32,54 @@ public sealed class AuthService
         }
     }
 
-    public async Task<string> GetAltchaChallengeAsync(CancellationToken ct)
+    public async Task<string[]> GetAvailableAuthMethodsAsync(CancellationToken ct)
     {
-        var response = await _httpClient.GetAsync("/api/auth/altcha/challenge", ct);
+        var response = await _httpClient.GetAsync("/api/auth/methods", ct);
         response.EnsureSuccessStatusCode();
-        return await response.Content.ReadAsStringAsync(ct);
+        var body = await response.Content.ReadAsStringAsync(ct);
+        var json = JsonSerializer.Deserialize<JsonElement>(body);
+        if (!json.TryGetProperty("methods", out var methodsArr))
+            return ["password"];
+        var result = new List<string>();
+        foreach (var item in methodsArr.EnumerateArray())
+            result.Add(item.GetString() ?? "");
+        return result.Count > 0 ? result.ToArray() : ["password"];
     }
 
-    public async Task<AuthResult> SendPhoneCodeAsync(string phone, string altchaPayload, CancellationToken ct)
+    public async Task<CaptchaChallenge> GetCaptchaChallengeAsync(CancellationToken ct)
     {
-        var response = await _httpClient.PostAsJsonAsync("/api/auth/phone/send-code", new { phone, altcha = altchaPayload }, ct);
+        var response = await _httpClient.GetAsync("/api/auth/captcha/challenge", ct);
+        response.EnsureSuccessStatusCode();
+        var body = await response.Content.ReadAsStringAsync(ct);
+        var json = JsonSerializer.Deserialize<JsonElement>(body);
+        return new CaptchaChallenge(
+            json.GetProperty("id").GetString()!,
+            json.GetProperty("backgroundImage").GetString()!,
+            json.GetProperty("sliderImage").GetString()!,
+            json.GetProperty("y").GetInt32()
+        );
+    }
+
+    public async Task<CaptchaVerifyResult> VerifyCaptchaAsync(string id, int x, CancellationToken ct)
+    {
+        var response = await _httpClient.PostAsJsonAsync("/api/auth/captcha/verify", new { id, x }, ct);
+        var body = await response.Content.ReadAsStringAsync(ct);
+        if (!response.IsSuccessStatusCode)
+            return new CaptchaVerifyResult(false, null);
+        var json = JsonSerializer.Deserialize<JsonElement>(body);
+        var token = json.TryGetProperty("captchaToken", out var t) ? t.GetString() : null;
+        return new CaptchaVerifyResult(true, token);
+    }
+
+    public async Task<AuthResult> SendPhoneCodeAsync(string phone, string? captchaToken, CancellationToken ct)
+    {
+        var response = await _httpClient.PostAsJsonAsync("/api/auth/phone/send-code", new { phone, captchaToken }, ct);
         var body = await response.Content.ReadAsStringAsync(ct);
         if (!response.IsSuccessStatusCode)
         {
             var error = ExtractError(body);
+            if (error == "CAPTCHA_REQUIRED")
+                return new AuthResult(false, error, CaptchaRequired: true);
             try
             {
                 var json = JsonSerializer.Deserialize<JsonElement>(body);
@@ -75,12 +109,17 @@ public sealed class AuthService
         return new AuthResult(true, null);
     }
 
-    public async Task<AuthResult> LoginWithPasswordAsync(string username, string password, CancellationToken ct)
+    public async Task<AuthResult> LoginWithPasswordAsync(string username, string password, string? captchaToken, CancellationToken ct)
     {
-        var response = await _httpClient.PostAsJsonAsync("/api/auth/password/login", new { username, password }, ct);
+        var response = await _httpClient.PostAsJsonAsync("/api/auth/password/login", new { username, password, captchaToken }, ct);
         var body = await response.Content.ReadAsStringAsync(ct);
         if (!response.IsSuccessStatusCode)
-            return new AuthResult(false, FormatError(response, ExtractError(body)));
+        {
+            var error = ExtractError(body);
+            if (error == "CAPTCHA_REQUIRED")
+                return new AuthResult(false, error, CaptchaRequired: true);
+            return new AuthResult(false, FormatError(response, error));
+        }
 
         var result = JsonSerializer.Deserialize<JsonElement>(body);
         var token = result.TryGetProperty("accessToken", out var t) ? t.GetString() : null;
@@ -282,10 +321,12 @@ public sealed class AuthService
     }
 }
 
-public sealed record AuthResult(bool Success, string? Error);
+public sealed record AuthResult(bool Success, string? Error, bool CaptchaRequired = false);
 public sealed record AuthSession(string Token, string Username);
 public sealed record UserProfile(string Username, bool HasPassword, string? AvatarUrl);
 public sealed record AvatarUpdateResult(bool Success, string? AvatarUrl, string? Error);
+public sealed record CaptchaChallenge(string Id, string BackgroundImage, string SliderImage, int Y);
+public sealed record CaptchaVerifyResult(bool Success, string? CaptchaToken);
 
 internal static class AuthDiag
 {

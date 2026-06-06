@@ -3,6 +3,7 @@ import {
   AuthSessionSchema,
   type AuthSession,
   PhoneSendCodeResponseSchema,
+  type PhoneSendCodeResponse,
   PhoneVerifyResponseSchema,
   type PhoneVerifyResponse,
   OAuthStartResponseSchema,
@@ -11,7 +12,12 @@ import {
   VerifyActivationCodeResponseSchema,
   PasswordLoginResponseSchema,
   type PasswordLoginResponse,
-  AltchaChallengeResponseSchema,
+  CaptchaChallengeResponseSchema,
+  type CaptchaChallengeResponse,
+  CaptchaVerifyResponseSchema,
+  type CaptchaVerifyResponse,
+  AuthMethodsResponseSchema,
+  type AuthMethodsResponse,
   DeleteAccountResponseSchema,
   ChangePasswordResponseSchema,
   UserProfileResponseSchema,
@@ -20,11 +26,17 @@ import {
 } from "../../schemas/bridgeSchema";
 
 export const authBridge = {
-  getAltchaChallenge: (): Promise<{ json: string }> =>
-    invoke("GetAltchaChallengeAsync", AltchaChallengeResponseSchema),
+  getAvailableAuthMethods: (): Promise<AuthMethodsResponse> =>
+    invoke("GetAvailableAuthMethodsAsync", AuthMethodsResponseSchema),
 
-  sendPhoneCode: (phone: string, altchaPayload: string): Promise<{ success: boolean }> =>
-    invoke("SendPhoneCodeAsync", PhoneSendCodeResponseSchema, [phone, altchaPayload]),
+  getCaptchaChallenge: (): Promise<CaptchaChallengeResponse> =>
+    invoke("GetCaptchaChallengeAsync", CaptchaChallengeResponseSchema),
+
+  verifyCaptcha: (id: string, x: number): Promise<CaptchaVerifyResponse> =>
+    invoke("VerifyCaptchaAsync", CaptchaVerifyResponseSchema, [id, x]),
+
+  sendPhoneCode: (phone: string, captchaToken?: string | null): Promise<PhoneSendCodeResponse> =>
+    invoke("SendPhoneCodeAsync", PhoneSendCodeResponseSchema, [phone, captchaToken ?? null]),
 
   verifyPhoneCode: (phone: string, code: string): Promise<PhoneVerifyResponse> =>
     invoke("VerifyPhoneCodeAsync", PhoneVerifyResponseSchema, [phone, code]),
@@ -44,8 +56,8 @@ export const authBridge = {
   verifyActivationCode: (userCode: string): Promise<{ confirmed: boolean }> =>
     invoke("VerifyActivationCodeAsync", VerifyActivationCodeResponseSchema, [userCode]),
 
-  loginWithPassword: (username: string, password: string): Promise<PasswordLoginResponse> =>
-    invoke("LoginWithPasswordAsync", PasswordLoginResponseSchema, [username, password]),
+  loginWithPassword: (username: string, password: string, captchaToken?: string | null): Promise<PasswordLoginResponse> =>
+    invoke("LoginWithPasswordAsync", PasswordLoginResponseSchema, [username, password, captchaToken ?? null]),
 
   deleteAccount: (): Promise<{ success: boolean }> =>
     invoke("DeleteAccountAsync", DeleteAccountResponseSchema),

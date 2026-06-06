@@ -16,23 +16,47 @@ public sealed partial class AppBridge
     }
 
     [BridgeMethod]
-    public Task<string> GetAltchaChallengeAsync()
+    public Task<string> GetAvailableAuthMethodsAsync()
     {
         return ExecuteSafeAsync(async () =>
         {
             if (_authService is null) throw new InvalidOperationException("AuthService not configured");
-            var json = await _authService.GetAltchaChallengeAsync(default);
-            return new { json };
+            var methods = await _authService.GetAvailableAuthMethodsAsync(default);
+            return new { methods };
         });
     }
 
     [BridgeMethod]
-    public Task<string> SendPhoneCodeAsync(string phone, string altchaPayload)
+    public Task<string> GetCaptchaChallengeAsync()
     {
         return ExecuteSafeAsync(async () =>
         {
             if (_authService is null) throw new InvalidOperationException("AuthService not configured");
-            var result = await _authService.SendPhoneCodeAsync(phone, altchaPayload, default);
+            var challenge = await _authService.GetCaptchaChallengeAsync(default);
+            return new { challenge.Id, challenge.BackgroundImage, challenge.SliderImage, challenge.Y };
+        });
+    }
+
+    [BridgeMethod]
+    public Task<string> VerifyCaptchaAsync(string id, int x)
+    {
+        return ExecuteSafeAsync(async () =>
+        {
+            if (_authService is null) throw new InvalidOperationException("AuthService not configured");
+            var result = await _authService.VerifyCaptchaAsync(id, x, default);
+            if (!result.Success) throw new InvalidOperationException("Captcha verification failed");
+            return new { captchaToken = result.CaptchaToken };
+        });
+    }
+
+    [BridgeMethod]
+    public Task<string> SendPhoneCodeAsync(string phone, string? captchaToken)
+    {
+        return ExecuteSafeAsync(async () =>
+        {
+            if (_authService is null) throw new InvalidOperationException("AuthService not configured");
+            var result = await _authService.SendPhoneCodeAsync(phone, captchaToken, default);
+            if (result.CaptchaRequired) return new { success = false, captchaRequired = true };
             if (!result.Success) throw new InvalidOperationException(result.Error);
             return new { success = true };
         });
@@ -52,12 +76,13 @@ public sealed partial class AppBridge
     }
 
     [BridgeMethod]
-    public Task<string> LoginWithPasswordAsync(string username, string password)
+    public Task<string> LoginWithPasswordAsync(string username, string password, string? captchaToken)
     {
         return ExecuteSafeAsync(async () =>
         {
             if (_authService is null) throw new InvalidOperationException("AuthService not configured");
-            var result = await _authService.LoginWithPasswordAsync(username, password, default);
+            var result = await _authService.LoginWithPasswordAsync(username, password, captchaToken, default);
+            if (result.CaptchaRequired) return new { success = false, captchaRequired = true };
             if (!result.Success) throw new InvalidOperationException(result.Error);
             var session = await _authService.GetSessionAsync(default);
             return new { success = true, username = session?.Username };

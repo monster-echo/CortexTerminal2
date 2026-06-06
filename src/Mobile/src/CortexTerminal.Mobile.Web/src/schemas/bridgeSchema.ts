@@ -103,6 +103,7 @@ export const AuthSessionSchema = z.object({
 
 export const PhoneSendCodeResponseSchema = z.object({
   success: z.boolean(),
+  captchaRequired: z.boolean().optional(),
 });
 
 export const PhoneVerifyResponseSchema = z.object({
@@ -126,10 +127,26 @@ export const VerifyActivationCodeResponseSchema = z.object({
 export const PasswordLoginResponseSchema = z.object({
   success: z.boolean(),
   username: z.string().optional(),
+  captchaRequired: z.boolean().optional(),
 });
 
 export const AltchaChallengeResponseSchema = z.object({
   json: z.string(),
+});
+
+export const CaptchaChallengeResponseSchema = z.object({
+  id: z.string(),
+  backgroundImage: z.string(),
+  sliderImage: z.string(),
+  y: z.number(),
+});
+
+export const CaptchaVerifyResponseSchema = z.object({
+  captchaToken: z.string(),
+});
+
+export const AuthMethodsResponseSchema = z.object({
+  methods: z.array(z.string()),
 });
 
 export const DeleteAccountResponseSchema = z.object({
@@ -181,6 +198,9 @@ export type GuestLoginResponse = z.infer<typeof GuestLoginResponseSchema>;
 export type VerifyActivationCodeResponse = z.infer<typeof VerifyActivationCodeResponseSchema>;
 export type PasswordLoginResponse = z.infer<typeof PasswordLoginResponseSchema>;
 export type AltchaChallengeResponse = z.infer<typeof AltchaChallengeResponseSchema>;
+export type CaptchaChallengeResponse = z.infer<typeof CaptchaChallengeResponseSchema>;
+export type CaptchaVerifyResponse = z.infer<typeof CaptchaVerifyResponseSchema>;
+export type AuthMethodsResponse = z.infer<typeof AuthMethodsResponseSchema>;
 export type DeleteAccountResponse = z.infer<typeof DeleteAccountResponseSchema>;
 export type ChangePasswordResponse = z.infer<typeof ChangePasswordResponseSchema>;
 export type UserProfileResponse = z.infer<typeof UserProfileResponseSchema>;
