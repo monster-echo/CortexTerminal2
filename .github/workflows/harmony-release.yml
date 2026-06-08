@@ -51,6 +51,30 @@ jobs:
             -e "s/\"versionName\": \"[^\"]*\"/\"versionName\": \"${{ steps.version.outputs.version }}\"/" \
             AppScope/app.json5
 
+      - name: Setup oh_modules symlinks
+        run: |
+          cd src/Harmony
+
+          # entry module
+          mkdir -p product/entry/oh_modules/@rwecho
+          ln -sfn "$PWD/common/core" product/entry/oh_modules/@rwecho/core
+          ln -sfn "$PWD/feature/auth" product/entry/oh_modules/@rwecho/auth
+          ln -sfn "$PWD/feature/session" product/entry/oh_modules/@rwecho/session
+          ln -sfn "$PWD/feature/terminal" product/entry/oh_modules/@rwecho/terminal
+          ln -sfn "$PWD/feature/worker" product/entry/oh_modules/@rwecho/worker
+          ln -sfn "$PWD/feature/settings" product/entry/oh_modules/@rwecho/settings
+          ln -sfn "$PWD/common/routermodule" product/entry/oh_modules/routermodule
+
+          # feature modules
+          for mod in auth terminal worker settings session; do
+            mkdir -p feature/$mod/oh_modules/@rwecho
+            ln -sfn "$PWD/common/core" feature/$mod/oh_modules/@rwecho/core
+            ln -sfn "$PWD/common/routermodule" feature/$mod/oh_modules/routermodule
+          done
+
+          # terminal also needs signalr
+          ln -sfn "$PWD/common/signalr" feature/terminal/oh_modules/@rwecho/signalr
+
       - name: Build .app
         run: |
           cd src/Harmony
