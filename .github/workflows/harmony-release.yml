@@ -232,7 +232,7 @@ jobs:
         run: |
           cd src/Harmony
           chmod +x hvigorw
-          ./hvigorw assembleApp --mode module -p product=default -p buildMode=release --no-daemon
+          ./hvigorw assembleApp --mode module -p product=default -p buildMode=release --no-daemon --stacktrace
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
