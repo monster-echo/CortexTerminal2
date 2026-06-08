@@ -33,12 +33,6 @@ jobs:
           version: '6.1'
           cache: true
 
-      - name: Install ohpm
-        run: |
-          curl -fsSL "https://ohpm.openharmony.cn/ohpm/download/ohpm-cli-5.0.7.zip" -o /tmp/ohpm.zip
-          unzip -o -q /tmp/ohpm.zip -d "$HOME/cli-tools"
-          echo "$HOME/cli-tools/ohpm/bin" >> "$GITHUB_PATH"
-
       - name: Extract version
         id: version
         run: |
@@ -169,42 +163,56 @@ jobs:
             -e "s/\"versionName\": \"[^\"]*\"/\"versionName\": \"${{ steps.version.outputs.version }}\"/" \
             AppScope/app.json5
 
-      - name: Install dependencies & build
+      - name: Setup oh_modules symlinks
         run: |
           cd src/Harmony
 
-          ohpm install --all
+          # entry module
+          mkdir -p product/entry/oh_modules/@rwecho
+          ln -s "$PWD/common/core" product/entry/oh_modules/@rwecho/core
+          ln -s "$PWD/feature/auth" product/entry/oh_modules/@rwecho/auth
+          ln -s "$PWD/feature/session" product/entry/oh_modules/@rwecho/session
+          ln -s "$PWD/feature/terminal" product/entry/oh_modules/@rwecho/terminal
+          ln -s "$PWD/feature/worker" product/entry/oh_modules/@rwecho/worker
+          ln -s "$PWD/feature/settings" product/entry/oh_modules/@rwecho/settings
+          ln -s "$PWD/common/routermodule" product/entry/oh_modules/routermodule
 
-          # Create hvigorw wrapper
-          cat > hvigorw <<'WRAPPER'
-          #!/bin/sh
-          set -e
-          HVIGOR_DIR="$(cd "$(dirname "$0")" && pwd)"
-          NODE_PATH="$HVIGOR_DIR/oh_modules" exec node "$HVIGOR_DIR/hvigor/hvigor-wrapper.js" "$@"
-          WRAPPER
-          chmod +x hvigorw
+          # feature/auth
+          mkdir -p feature/auth/oh_modules/@rwecho
+          ln -s "$PWD/common/core" feature/auth/oh_modules/@rwecho/core
+          ln -s "$PWD/common/routermodule" feature/auth/oh_modules/routermodule
 
-          # Create hvigor wrapper entry point
-          cat > hvigor/hvigor-wrapper.js <<'ENTRY'
-          const path = require('path');
-          const projectRoot = path.join(__dirname, '..');
-          const hvigorPkg = path.join(projectRoot, 'oh_modules', '@ohos', 'hvigor');
-          try {
-            const hvigor = require(hvigorPkg);
-            if (hvigor && typeof hvigor.run === 'function') {
-              hvigor.run();
-            } else {
-              const entry = path.join(hvigorPkg, 'bin', 'hvigor.js');
-              require(entry);
-            }
-          } catch (e) {
-            console.error('Failed to load hvigor:', e.message);
-            console.error('Make sure @ohos/hvigor is installed in oh_modules/');
-            process.exit(1);
-          }
-          ENTRY
+          # feature/terminal
+          mkdir -p feature/terminal/oh_modules/@rwecho
+          ln -s "$PWD/common/core" feature/terminal/oh_modules/@rwecho/core
+          ln -s "$PWD/common/signalr" feature/terminal/oh_modules/@rwecho/signalr
+          ln -s "$PWD/common/routermodule" feature/terminal/oh_modules/routermodule
 
-          ./hvigorw assembleApp --mode module -p product=default -p buildMode=release --no-daemon
+          # feature/worker
+          mkdir -p feature/worker/oh_modules/@rwecho
+          ln -s "$PWD/common/core" feature/worker/oh_modules/@rwecho/core
+          ln -s "$PWD/common/routermodule" feature/worker/oh_modules/routermodule
+
+          # feature/settings
+          mkdir -p feature/settings/oh_modules/@rwecho
+          ln -s "$PWD/common/core" feature/settings/oh_modules/@rwecho/core
+          ln -s "$PWD/common/routermodule" feature/settings/oh_modules/routermodule
+
+          # feature/session
+          mkdir -p feature/session/oh_modules/@rwecho
+          ln -s "$PWD/common/core" feature/session/oh_modules/@rwecho/core
+          ln -s "$PWD/common/routermodule" feature/session/oh_modules/routermodule
+
+      - name: Install hvigor
+        run: |
+          npm config set @ohos:registry=https://repo.harmonyos.com/npm/
+          cd src/Harmony
+          npm install @ohos/hvigor @ohos/hvigor-ohos-plugin
+
+      - name: Build .app
+        run: |
+          cd src/Harmony
+          npx hvigor assembleApp --mode module -p product=default -p buildMode=release --no-daemon
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
