@@ -6,7 +6,7 @@
  * active sessions, and provides actions like creating new sessions
  * or connecting to existing ones.
  */
-import { ApiService, I18n, WorkerInfo, WorkerSessionInfo, SessionCreateRequest } from '@rwecho/core'
+import { ApiService, I18n, WorkerInfo, WorkerSessionInfo, SessionCreateRequest, showI18nToast, showToast } from '@rwecho/core'
 
 @Component
 export struct WorkerDetailPage {
@@ -24,31 +24,6 @@ export struct WorkerDetailPage {
 
   build() {
     Column() {
-      // Header
-      Row() {
-        Button() {
-          SymbolGlyph($r('sys.symbol.chevron_left'))
-            .fontSize(20)
-            .fontColor([$r('app.color.terminal_primary')])
-        }
-        .width(40)
-        .height(40)
-        .borderRadius(20)
-        .backgroundColor(Color.Transparent)
-        .onClick(() => {
-          this.pageStack.pop()
-        })
-
-        Text(this.workerName)
-          .fontSize(20)
-          .fontWeight(FontWeight.Bold)
-          .fontColor($r('app.color.terminal_primary'))
-          .layoutWeight(1)
-          .margin({ left: 8 })
-      }
-      .width('100%')
-      .padding({ left: 8, right: 16, top: 8, bottom: 8 })
-
       Scroll() {
         Column() {
           if (this.isLoading) {
@@ -57,6 +32,28 @@ export struct WorkerDetailPage {
               .height(40)
               .color($r('app.color.terminal_secondary'))
               .margin({ top: 40 })
+          } else if (this.errorMessage.length > 0) {
+            Column() {
+              Text(this.errorMessage)
+                .fontSize(14)
+                .fontColor($r('app.color.terminal_error'))
+                .textAlign(TextAlign.Center)
+
+              Button(I18n.get('common.retry'))
+                .height(36)
+                .borderRadius(8)
+                .backgroundColor($r('app.color.terminal_secondary_container'))
+                .fontColor($r('app.color.terminal_on_secondary_container'))
+                .fontSize(13)
+                .margin({ top: 16 })
+                .onClick(() => {
+                  this.errorMessage = ''
+                  this.loadWorkerDetail()
+                })
+            }
+            .width('100%')
+            .alignItems(HorizontalAlign.Center)
+            .margin({ top: 40 })
           }
 
           // Worker info card
@@ -107,7 +104,7 @@ export struct WorkerDetailPage {
       .layoutWeight(1)
     }
     .width('100%')
-    .height('100%')
+    .layoutWeight(1)
     .backgroundColor($r('app.color.terminal_surface'))
   }
 
@@ -283,7 +280,7 @@ export struct WorkerDetailPage {
       AppStorage.setOrCreate('navSessionName', response.name)
       this.pageStack.pushPath({ name: 'TerminalSession' })
     } catch (e) {
-      console.error('Failed to create session: ' + (e as Error).message)
+      showToast((e as Error).message || I18n.get('session.create_failed'))
     }
   }
 }

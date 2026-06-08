@@ -1,17 +1,19 @@
 /**
  * @file AppBar.ets
- * @brief Top app bar component extracted from ShellScaffold.
+ * @brief Shared top app bar component.
+ *
+ * Top-level pages: hamburger (sidebar toggle) + title + optional action.
+ * Sub-pages: back arrow (pop) + title.
  */
-import { I18n } from '@rwecho/core'
 
 @Component
 export struct AppBar {
   title: string = ''
   showHamburger: boolean = true
+  onToggleSidebar?: (() => void) | null = null
+  onNavigateBack?: (() => void) | null = null
+  onCreateSession?: (() => void) | null = null
   showCreateButton: boolean = false
-  onToggleSidebar?: () => void
-  onNavigateBack?: () => void
-  onCreateSession?: () => void
 
   build() {
     Row() {

@@ -40,7 +40,7 @@ export const enStrings: Record<string, string> = {
   'auth.activate.skip': 'Skip',
 
   // ── Session ───────────────────────────────────────────────────────
-  'session.home.title': 'CortexTerminal',
+  'session.home.title': 'Sessions',
   'session.home.tab_active': 'Active',
   'session.home.tab_history': 'History',
   'session.home.tab_workers': 'Workers',
@@ -135,6 +135,8 @@ export const enStrings: Record<string, string> = {
   'settings.privacy': 'Privacy Policy',
   'settings.huawei_agreement': 'Huawei Account Authorization Agreement',
   'settings.version': 'Version',
+  'settings.footer_terms': 'Terms of Service',
+  'settings.footer_privacy': 'Privacy Policy',
   'security.title': 'Account Security',
   'security.change_password': 'Change Password',
   'security.current_password': 'Current Password',
@@ -143,6 +145,12 @@ export const enStrings: Record<string, string> = {
   'security.submit': 'Change Password',
   'security.password_min_length': 'Password must be at least 8 characters',
   'security.password_mismatch': 'Passwords do not match',
+  'security.delete_account': 'Delete Account',
+  'security.delete_desc': 'This will permanently delete your account and all associated data. This cannot be undone.',
+  'security.enter_username_confirm': 'Enter your username to confirm',
+  'security.type_username_confirm': 'Type {n} to confirm',
+  'security.delete_button': 'Delete Account',
+  'security.deleting': 'Deleting...',
 
   // ── Sidebar ───────────────────────────────────────────────────────
   'sidebar.sessions': 'Terminal Sessions',
@@ -154,4 +162,16 @@ export const enStrings: Record<string, string> = {
   'time.minutes_ago': '{n}m ago',
   'time.hours_ago': '{n}h ago',
   'time.days_ago': '{n}d ago',
+
+  // ── Toast ──────────────────────────────────────────────────────────
+  'session.deleted': 'Session deleted',
+  'session.create_failed': 'Failed to create session',
+  'worker.update_sent': 'Updating {v}...',
+  'common.link_open_failed': 'Failed to open link',
+  'settings.theme_changed': 'Switched to {v}',
+  'settings.language_changed': 'Switched to {v}',
+  'settings.logout_success': 'Logged out',
+  'security.password_changed': 'Password changed',
+  'security.account_deleted': 'Account deleted',
+  'auth.activate_success': 'Worker activated',
 }

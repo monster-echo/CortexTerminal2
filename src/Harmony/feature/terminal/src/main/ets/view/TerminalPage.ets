@@ -2,7 +2,7 @@
  * @file TerminalPage.ets
  * @brief Main terminal screen with xterm webview, status strip, and key bar
  *
- * Layout: Top bar -> StatusStrip -> XtermWebview -> VirtualKeyBar
+ * Layout: Top bar -> XtermWebview -> VirtualKeyBar
  * Manages the terminal session lifecycle via TerminalStateManager.
  * Handles background/foreground session recovery and keyboard resize.
  */
@@ -14,7 +14,6 @@ import { TerminalStateManager } from '../service/TerminalStateManager'
 import { TerminalTransport } from '../service/TerminalTransport'
 import { TransportFrame } from '../model/TerminalTransportModels'
 import { TerminalState } from '../model/TerminalState'
-import { StatusStrip } from './StatusStrip'
 import { XtermWebview } from './XtermWebview'
 import { VirtualKeyBar } from './VirtualKeyBar'
 
@@ -29,6 +28,7 @@ struct SessionDetailDialog {
   latencyMs: number = -1
 
   build() {
+    WithTheme({ colorMode: ThemeColorMode.DARK }) {
     Column() {
       Text(I18n.get('terminal.detail.title'))
         .fontSize(18)
@@ -110,6 +110,7 @@ struct SessionDetailDialog {
     .backgroundColor($r('app.color.terminal_surface_container_high'))
     .width('80%')
     .constraintSize({ maxWidth: 320 })
+    }
   }
 }
 
@@ -120,12 +121,15 @@ export struct TerminalPage {
   @State currentState: TerminalState = TerminalState.Disconnected
   @StorageLink('gatewayUrl') gatewayUrl: string = ''
   @StorageLink('authToken') authToken: string = ''
+  @StorageLink('language') currentLang: string = 'en'
   @Consume('pageStack') pageStack: NavPathStack
   @StorageLink('isKeyboardVisible') isKeyboardVisible: boolean = false
   @StorageLink('keyboardHeight') @Watch('onKeyboardHeightChange') keyboardHeight: number = 0
   @State connectionError: string = ''
   @State latencyMs: number = -1
   @State lastPingTime: number = 0
+  @State ctrlActive: boolean = false
+  @State altActive: boolean = false
   private detailDialog: CustomDialogController = new CustomDialogController({
     builder: SessionDetailDialog({ status: '', cols: 0, rows: 0, latencyMs: -1 }),
     autoCancel: true,
@@ -178,8 +182,9 @@ export struct TerminalPage {
   }
 
   build() {
+    WithTheme({ colorMode: ThemeColorMode.DARK }) {
     Column() {
-      // Top bar with session name and back button
+      // Custom AppBar with status badge
       Row() {
         Button() {
           SymbolGlyph($r('sys.symbol.chevron_left'))
@@ -228,9 +233,6 @@ export struct TerminalPage {
       .padding({ left: 8, right: 8 })
       .alignItems(VerticalAlign.Center)
 
-      // Status strip
-      StatusStrip({ currentState: this.currentState })
-
       if (this.currentState === TerminalState.Error && this.connectionError.length > 0) {
         Row() {
           Column() {
@@ -267,7 +269,13 @@ export struct TerminalPage {
           this.doInitialFit()
         },
         onInput: (data: string) => {
-          this.sendInput(data)
+          if (this.ctrlActive) {
+            this.sendInput(this.applyCtrl(data))
+          } else if (this.altActive) {
+            this.sendInput('\x1b' + data)
+          } else {
+            this.sendInput(data)
+          }
         },
         onResize: (cols: number, rows: number) => {
           if (cols > 0 && rows > 0 && (cols !== this.lastCols || rows !== this.lastRows)) {
@@ -287,11 +295,12 @@ export struct TerminalPage {
           onKeyPress: (key: string) => {
             this.handleVirtualKey(key)
           },
-          onCopy: () => {
-            this.handleCopy()
-          },
           onDismiss: () => {
             this.dismissKeyboard()
+          },
+          onModifierChange: (ctrl: boolean, alt: boolean) => {
+            this.ctrlActive = ctrl
+            this.altActive = alt
           }
         })
       }
@@ -299,6 +308,7 @@ export struct TerminalPage {
     .width('100%')
     .height('100%')
     .backgroundColor($r('app.color.terminal_surface'))
+    }
   }
 
   private async connectSession() {
@@ -528,6 +538,14 @@ export struct TerminalPage {
     }
   }
 
+  private applyCtrl(sequence: string): string {
+    const code = sequence.charCodeAt(0)
+    if (code === 0x1b) return '\x03'
+    if (code >= 0x41 && code <= 0x5a) return String.fromCharCode(code - 64)
+    if (code >= 0x61 && code <= 0x7a) return String.fromCharCode(code - 96)
+    return sequence
+  }
+
   private sendInput(data: string) {
     console.info(`[TerminalPage] sendInput: data="${data}" (len=${data.length})`)
     const base64 = this.stringToBase64(data)
@@ -601,20 +619,6 @@ export struct TerminalPage {
     } catch (_e) {}
   }
 
-  private handleCopy() {
-    try {
-      this.webviewController.runJavaScript('getSelection()')
-        .then((selection: string) => {
-          if (selection && selection.length > 0) {
-            const systemPasteboard = pasteboard.getSystemPasteboard()
-            const pasteData = pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, selection)
-            systemPasteboard.setData(pasteData)
-            this.webviewController.runJavaScript('clearSelection()')
-          }
-        })
-        .catch((_e: Error) => {})
-    } catch (_e) {}
-  }
 
   private showSessionDetail() {
     this.detailDialog = new CustomDialogController({

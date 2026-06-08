@@ -8,7 +8,7 @@ import { AuthService, RouteName } from '@rwecho/core'
 import { LoginPage, ActivateWorkerPage } from '@rwecho/auth'
 import { TerminalPage } from '@rwecho/terminal'
 import { ShellScaffold } from '../shell/ShellScaffold'
-import { AccountSecurityPage } from '@rwecho/settings'
+import { AccountSecurityPage, ChangePasswordPage } from '@rwecho/settings'
 
 @Entry
 @Component
@@ -16,7 +16,6 @@ struct Index {
   @Provide('pageStack') pageStack: NavPathStack = DynamicsRouter.navPathStack
   @StorageLink('authToken') @Watch('onAuthChanged') authToken: string = ''
   @StorageLink('isLoggedIn') @Watch('onAuthChanged') isLoggedIn: boolean = false
-  @StorageLink('topSafeArea') topSafeArea: number = 0
   private isInitialized: boolean = false
 
   aboutToAppear() {
@@ -47,7 +46,6 @@ struct Index {
         .width('100%')
         .height('100%')
     }
-    .padding({ top: this.topSafeArea })
     .navDestination(this.pageMap)
     .mode(NavigationMode.Stack)
     .hideTitleBar(true)
@@ -75,7 +73,7 @@ struct Index {
         TerminalPage()
       }
       .hideTitleBar(true)
-      .backgroundColor($r('app.color.terminal_surface'))
+      .backgroundColor('#0f1419')
       .onBackPressed(() => true)
     } else if (name === RouteName.WORKER_LIST) {
       NavDestination() {
@@ -97,7 +95,20 @@ struct Index {
       }
       .hideTitleBar(true)
       .backgroundColor($r('app.color.terminal_surface'))
-      .onBackPressed(() => true)
+      .onBackPressed(() => {
+        this.pageStack.pop()
+        return true
+      })
+    } else if (name === RouteName.CHANGE_PASSWORD) {
+      NavDestination() {
+        ChangePasswordPage()
+      }
+      .hideTitleBar(true)
+      .backgroundColor($r('app.color.terminal_surface'))
+      .onBackPressed(() => {
+        this.pageStack.pop()
+        return true
+      })
     } else if (name === RouteName.SETTINGS) {
       NavDestination() {
         ShellScaffold({ activeRoute: RouteName.SETTINGS })
@@ -111,7 +122,10 @@ struct Index {
       }
       .hideTitleBar(true)
       .backgroundColor($r('app.color.terminal_surface'))
-      .onBackPressed(() => true)
+      .onBackPressed(() => {
+        this.pageStack.pop()
+        return true
+      })
     }
   }
 }

@@ -1,11 +1,12 @@
 /**
  * @file FeatureComponent.ets
- * @brief Auth feature route entry with @AppRouter registration.
+ * @brief Auth feature route entry.
  */
-import { AppRouter } from 'routermodule'
+import { registerRoute } from 'routermodule'
 import { LoginPage } from './view/LoginPage'
 
-@AppRouter({ name: 'auth/Login' })
+registerRoute({ name: 'auth/Login' })
+
 @Component
 export struct AuthLogin {
   build() {

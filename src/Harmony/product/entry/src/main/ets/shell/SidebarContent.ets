@@ -9,7 +9,6 @@ export struct SidebarContent {
   activeRoute: string = RouteName.SESSION_HOME
   onNavigate?: (() => void) | null = null
   @Consume('pageStack') pageStack: NavPathStack
-  @StorageLink('topSafeArea') topSafeArea: number = 0
   @State recentSessions: SessionInfo[] = []
   @State sessionError: string = ''
 
@@ -33,7 +32,7 @@ export struct SidebarContent {
             .fontColor($r('app.color.terminal_primary'))
             .maxLines(1)
 
-          Text('CortexTerminal')
+          Text('云枢终端')
             .fontSize(11)
             .fontColor($r('app.color.terminal_on_surface_variant'))
             .margin({ top: 2 })
@@ -127,7 +126,6 @@ export struct SidebarContent {
     }
     .width('100%')
     .height('100%')
-    .padding({ top: this.topSafeArea })
     .backgroundColor($r('app.color.terminal_surface_container_high'))
     .borderColor($r('app.color.terminal_outline_variant'))
     .borderWidth({ right: 1 })

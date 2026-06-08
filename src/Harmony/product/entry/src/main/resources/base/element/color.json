@@ -15,6 +15,7 @@
     { "name": "terminal_outline", "value": "#536471" },
     { "name": "terminal_outline_variant", "value": "#2f3336" },
     { "name": "terminal_inverse_surface", "value": "#e7e9ea" },
-    { "name": "terminal_inverse_on_surface", "value": "#0f1419" }
+    { "name": "terminal_inverse_on_surface", "value": "#0f1419" },
+    { "name": "splash_background", "value": "#0f1419" }
   ]
 }

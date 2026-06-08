@@ -1,9 +1,9 @@
 /**
  * @file AppRouter.ets
- * @brief @AppRouter decorator for declaring route entries in FeatureComponent files.
+ * @brief Route registration for FeatureComponent files.
  *
  * Usage:
- *   @AppRouter({ name: "auth/Login" })
+ *   registerRoute({ name: "auth/Login" })
  *   @Component
  *   export struct AuthLogin { ... }
  */
@@ -15,8 +15,6 @@ export function getAppRouterMap(): Record<string, AppRouterInfo> {
   return APP_ROUTER_MAP
 }
 
-export function AppRouter(info: AppRouterInfo): ClassDecorator {
-  return (target: ESObject) => {
-    APP_ROUTER_MAP[info.name] = info
-  }
+export function registerRoute(info: AppRouterInfo): void {
+  APP_ROUTER_MAP[info.name] = info
 }

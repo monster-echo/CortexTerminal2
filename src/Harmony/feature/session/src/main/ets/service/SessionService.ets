@@ -42,9 +42,16 @@ export class SessionService {
   }
 
   private static calculateTerminalSize(): TerminalSize {
-    const disp = display.getDefaultDisplaySync()
-    const vpWidth = px2vp(disp.width)
-    const vpHeight = px2vp(disp.height)
+    let disp: display.Display
+    try {
+      disp = display.getDefaultDisplaySync()
+    } catch (_e) {
+      const result: TerminalSize = { cols: 80, rows: 24 }
+      return result
+    }
+    const density = disp.densityDPI / 160
+    const vpWidth = disp.width / density
+    const vpHeight = disp.height / density
     const fontSize = 14
     const charWidth = fontSize * 0.602
     const charHeight = fontSize * 1.2

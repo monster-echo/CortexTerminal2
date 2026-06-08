@@ -7,7 +7,7 @@
  */
 import { http } from '@kit.NetworkKit'
 import { SessionInfo, SessionCreateRequest, SessionCreateResponse } from '../model/SessionModels'
-import { WorkerInfo } from '../model/SharedModels'
+import { WorkerInfo, GatewayInfo } from '../model/SharedModels'
 
 export class ApiService {
   private static isRefreshing: boolean = false
@@ -68,6 +68,20 @@ export class ApiService {
     )
   }
 
+  static async getGatewayInfo(): Promise<GatewayInfo> {
+    const response = await ApiService.get('/api/gateway/info') as Record<string, Object>
+    const info = new GatewayInfo()
+    info.version = (response['version'] as string) ?? ''
+    info.latestWorkerVersion = (response['latestWorkerVersion'] as string) ?? ''
+    info.latestGatewayVersion = (response['latestGatewayVersion'] as string) ?? ''
+    return info
+  }
+
+  static async upgradeWorker(workerId: string): Promise<void> {
+    const body: Record<string, string> = {}
+    await ApiService.post(`/api/me/workers/${encodeURIComponent(workerId)}/upgrade`, body)
+  }
+
   // ── User APIs ─────────────────────────────────────────────────────
 
   static async getProfile(): Promise<Record<string, Object>> {
@@ -80,6 +94,10 @@ export class ApiService {
       'newPassword': newPassword
     }
     await ApiService.post('/api/me/password/change', body as Object)
+  }
+
+  static async deleteAccount(): Promise<void> {
+    await ApiService.del('/api/me/account')
   }
 
   // ── Auth APIs (called by AuthService) ─────────────────────────────

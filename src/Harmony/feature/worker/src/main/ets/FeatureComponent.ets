@@ -1,11 +1,12 @@
 /**
  * @file FeatureComponent.ets
- * @brief Worker feature route entry with @AppRouter registration.
+ * @brief Worker feature route entry.
  */
-import { AppRouter } from 'routermodule'
+import { registerRoute } from 'routermodule'
 import { WorkerListPage } from './view/WorkerListPage'
 
-@AppRouter({ name: 'worker/List' })
+registerRoute({ name: 'worker/List' })
+
 @Component
 export struct WorkerListRoute {
   build() {

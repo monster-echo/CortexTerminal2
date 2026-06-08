@@ -23,6 +23,24 @@ const DOMAIN = 0x0001
 export default class EntryAbility extends UIAbility {
   private mainWindow: window.Window | null = null
 
+  private syncColorMode(): void {
+    const themeMode = AppStorage.get<string>('themeMode') ?? 'system'
+    const colorMode = themeMode === 'system'
+      ? this.context.config.colorMode ?? ConfigurationConstant.ColorMode.COLOR_MODE_DARK
+      : (themeMode === 'dark' ? ConfigurationConstant.ColorMode.COLOR_MODE_DARK : ConfigurationConstant.ColorMode.COLOR_MODE_LIGHT)
+    const isDark = colorMode !== ConfigurationConstant.ColorMode.COLOR_MODE_LIGHT
+    AppStorage.setOrCreate('colorMode', isDark ? 'dark' : 'light')
+    this.applyStatusBar(isDark)
+  }
+
+  private applyStatusBar(isDark: boolean): void {
+    if (this.mainWindow) {
+      this.mainWindow.setWindowSystemBarProperties({
+        statusBarContentColor: isDark ? '#ffffff' : '#000000'
+      })
+    }
+  }
+
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
     hilog.info(DOMAIN, TAG, 'onCreate')
 
@@ -33,6 +51,8 @@ export default class EntryAbility extends UIAbility {
     PersistentStorage.persistProp('themeMode', 'system')
     PersistentStorage.persistProp('language', 'en')
 
+    this.syncColorMode()
+
     // Initialize AppStorage with default values
     AppStorage.setOrCreate('authCompleted', false)
     AppStorage.setOrCreate('appVersion', '1.0.0')
@@ -42,7 +62,6 @@ export default class EntryAbility extends UIAbility {
     AppStorage.setOrCreate('keyboardHeight', 0)
     AppStorage.setOrCreate('isKeyboardVisible', false)
     AppStorage.setOrCreate('bottomSafeArea', 0)
-    AppStorage.setOrCreate('colorMode', 'light')
     AppStorage.setOrCreate('isNetworkAvailable', true)
     AppStorage.setOrCreate('networkType', 'unknown')
     AppStorage.setOrCreate('terminalState', 'Disconnected')
@@ -70,10 +89,12 @@ export default class EntryAbility extends UIAbility {
 
     DynamicsRouter.routerInit({ libPrefix: '', mapPath: 'routerMap' }, this.context)
 
-    // Set main window to full screen immersive mode
+    // Set main window properties
     windowStage.getMainWindow().then((win: window.Window) => {
       this.mainWindow = win
-      win.setWindowLayoutFullScreen(true)
+      // Apply status bar color based on current theme
+      const isDark = AppStorage.get<string>('colorMode') !== 'light'
+      this.applyStatusBar(isDark)
 
       // Get initial window dimensions
       const properties = win.getWindowProperties()
@@ -113,14 +134,6 @@ export default class EntryAbility extends UIAbility {
         AppStorage.setOrCreate('bottomSafeArea', 0)
       }
 
-      // Get status bar (top avoid area) height for safe area padding
-      try {
-        const topAvoidArea = win.getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM)
-        AppStorage.setOrCreate('topSafeArea', px2vp(topAvoidArea.topRect.height))
-      } catch (e) {
-        AppStorage.setOrCreate('topSafeArea', 0)
-      }
-
       // Color mode changes are tracked via onConfigurationUpdate
     }).catch((err: Error) => {
       hilog.error(DOMAIN, TAG, `Failed to get main window: ${err.message}`)
@@ -156,16 +169,6 @@ export default class EntryAbility extends UIAbility {
    */
   onConfigurationUpdate(newConfig: Configuration): void {
     hilog.info(DOMAIN, TAG, `onConfigurationUpdate: ${JSON.stringify(newConfig)}`)
-
-    if (newConfig.colorMode !== undefined) {
-      const systemColorMode = newConfig.colorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK ? 'dark' : 'light'
-      AppStorage.setOrCreate('colorMode', systemColorMode)
-    }
-
-    // Respect user theme preference override
-    const themeMode = AppStorage.get<string>('themeMode') ?? 'system'
-    if (themeMode !== 'system') {
-      AppStorage.setOrCreate('colorMode', themeMode)
-    }
+    this.syncColorMode()
   }
 }

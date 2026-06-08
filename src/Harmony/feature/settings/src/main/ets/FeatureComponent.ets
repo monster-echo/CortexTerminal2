@@ -1,11 +1,12 @@
 /**
  * @file FeatureComponent.ets
- * @brief Settings feature route entry with @AppRouter registration.
+ * @brief Settings feature route entry.
  */
-import { AppRouter } from 'routermodule'
+import { registerRoute } from 'routermodule'
 import { SettingsPage } from './view/SettingsPage'
 
-@AppRouter({ name: 'settings/Page' })
+registerRoute({ name: 'settings/Page' })
+
 @Component
 export struct SettingsPageRoute {
   build() {

@@ -1,12 +1,4 @@
-/**
- * @file WorkerListPage.ets
- * @brief Worker list display page
- *
- * Displays available workers as a list showing
- * name, status, OS, and session count. Allows navigation
- * to worker detail and session creation.
- */
-import { ApiService, I18n, WorkerInfo } from '@rwecho/core'
+import { ApiService, I18n, WorkerInfo, GatewayInfo, showI18nToast, showToast } from '@rwecho/core'
 
 @Component
 export struct WorkerListPage {
@@ -14,15 +6,18 @@ export struct WorkerListPage {
   @State isLoading: boolean = false
   @State errorMessage: string = ''
   @State isRefreshing: boolean = false
+  @State selectedWorker: WorkerInfo | null = null
+  @State showWorkerSheet: boolean = false
+  @State latestWorkerVersion: string = ''
   @Consume('pageStack') pageStack: NavPathStack
 
   aboutToAppear() {
     this.loadWorkers()
+    this.loadGatewayInfo()
   }
 
   build() {
     Column() {
-      // Loading state
       if (this.isLoading) {
         Column() {
           LoadingProgress()
@@ -39,7 +34,6 @@ export struct WorkerListPage {
         .alignItems(HorizontalAlign.Center)
       }
 
-      // Error state
       if (this.errorMessage.length > 0) {
         Column() {
           Text(this.errorMessage)
@@ -50,117 +44,257 @@ export struct WorkerListPage {
 
           Button(I18n.get('common.retry'))
             .margin({ top: 12 })
-            .onClick(() => {
-              this.loadWorkers()
-            })
+            .onClick(() => { this.loadWorkers() })
         }
         .width('100%')
         .alignItems(HorizontalAlign.Center)
       }
 
-      // Worker list
       if (!this.isLoading && this.workers.length > 0) {
         Refresh({ refreshing: $$this.isRefreshing }) {
           List() {
-          ForEach(this.workers, (worker: WorkerInfo) => {
-            ListItem() {
-              this.WorkerRow(worker)
-            }
-          }, (worker: WorkerInfo) => worker.id)
-        }
-        .layoutWeight(1)
-        .width('100%')
-        .padding({ left: 16, right: 16 })
+            ForEach(this.workers, (worker: WorkerInfo) => {
+              ListItem() {
+                Row() {
+                  Circle()
+                    .width(10)
+                    .height(10)
+                    .fill(worker.isOnline ?
+                      $r('app.color.terminal_tertiary') :
+                      $r('app.color.terminal_outline_variant'))
+                    .margin({ right: 12 })
+
+                  Column() {
+                    Text(worker.name || worker.hostname || 'Unknown Worker')
+                      .fontSize(15)
+                      .fontWeight(FontWeight.Medium)
+                      .fontColor($r('app.color.terminal_primary'))
+                      .maxLines(1)
+                      .textOverflow({ overflow: TextOverflow.Ellipsis })
+
+                    Row() {
+                      Text(worker.os || worker.operatingSystem || 'Unknown OS')
+                        .fontSize(13)
+                        .fontColor($r('app.color.terminal_on_surface_variant'))
+
+                      if (worker.version.length > 0) {
+                        Text(' · ')
+                          .fontSize(13)
+                          .fontColor($r('app.color.terminal_on_surface_variant'))
+
+                        Text(`v${worker.version}`)
+                          .fontSize(13)
+                          .fontColor($r('app.color.terminal_on_surface_variant'))
+                          .fontFamily('monospace')
+                      }
+
+                      // Upgrade indicator
+                      if (this.canUpgrade(worker)) {
+                        SymbolGlyph($r('sys.symbol.arrow_up_circle'))
+                          .fontSize(14)
+                          .fontColor([$r('app.color.terminal_secondary')])
+                          .margin({ left: 4 })
+                      }
+                    }
+                    .margin({ top: 2 })
+                  }
+                  .alignItems(HorizontalAlign.Start)
+                  .layoutWeight(1)
+
+                  SymbolGlyph($r('sys.symbol.chevron_right'))
+                    .fontSize(16)
+                    .fontColor([$r('app.color.terminal_on_surface_variant')])
+                }
+                .width('100%')
+                .height(64)
+                .alignItems(VerticalAlign.Center)
+                .padding({ left: 16, right: 16 })
+                .onClick(() => {
+                  this.selectedWorker = worker
+                  this.showWorkerSheet = true
+                })
+              }
+            }, (worker: WorkerInfo) => worker.id)
+          }
+          .layoutWeight(1)
+          .width('100%')
           .divider({ strokeWidth: 1, color: $r('app.color.terminal_outline_variant'), startMargin: 0, endMargin: 0 })
         }
-        .onRefreshing(() => {
-          this.loadWorkers()
-        })
+        .onRefreshing(() => { this.loadWorkers() })
+        .layoutWeight(1)
+        .width('100%')
       }
 
-      // Empty state
       if (!this.isLoading && this.workers.length === 0 && this.errorMessage.length === 0) {
         Column() {
           Text(I18n.get('worker.list.empty'))
             .fontSize(16)
             .fontColor($r('app.color.terminal_on_surface_variant'))
             .margin({ top: 60 })
-
-          Text(I18n.get('session.home.empty_active_no_worker'))
-            .fontSize(14)
-            .fontColor($r('app.color.terminal_on_surface_variant'))
-            .textAlign(TextAlign.Center)
-            .margin({ top: 8 })
-
-          Button(I18n.get('session.home.create_button'))
-            .height(44)
-            .borderRadius(12)
-            .backgroundColor($r('app.color.terminal_secondary_container'))
-            .fontColor($r('app.color.terminal_on_secondary_container'))
-            .margin({ top: 18 })
-            .onClick(() => {
-              this.pageStack.pushPath({ name: 'auth/Login' })
-            })
         }
         .width('100%')
         .alignItems(HorizontalAlign.Center)
       }
     }
     .width('100%')
-    .height('100%')
+    .layoutWeight(1)
+    .backgroundColor($r('app.color.terminal_surface'))
+    .bindSheet($$this.showWorkerSheet, this.WorkerSheetContent(), {
+      height: SheetSize.FIT_CONTENT,
+      showClose: true,
+      onDisappear: () => { this.showWorkerSheet = false }
+    })
+  }
+
+  @Builder
+  WorkerSheetContent() {
+    Column() {
+      if (this.selectedWorker) {
+        Row() {
+          Circle()
+            .width(12)
+            .height(12)
+            .fill(this.selectedWorker!.isOnline ?
+              $r('app.color.terminal_tertiary') :
+              $r('app.color.terminal_outline_variant'))
+
+          Text(this.selectedWorker!.isOnline ?
+            I18n.get('worker.detail.status_online') :
+            I18n.get('worker.detail.status_offline'))
+            .fontSize(14)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(this.selectedWorker!.isOnline ?
+              $r('app.color.terminal_tertiary') :
+              $r('app.color.terminal_on_surface_variant'))
+            .margin({ left: 8 })
+        }
+
+        Grid() {
+          GridItem() {
+            this.StatItem(I18n.get('worker.detail.hostname'), this.selectedWorker!.hostname || '-')
+          }
+          GridItem() {
+            this.StatItem(I18n.get('worker.detail.os'), this.selectedWorker!.os || '-')
+          }
+          GridItem() {
+            this.StatItem(I18n.get('worker.detail.cpu'), `${this.selectedWorker!.cpuUsage ?? 0}%`)
+          }
+          GridItem() {
+            this.StatItem(I18n.get('worker.detail.memory'), `${this.selectedWorker!.memoryUsage ?? 0}%`)
+          }
+        }
+        .columnsTemplate('1fr 1fr')
+        .rowsGap(12)
+        .columnsGap(12)
+        .width('100%')
+        .margin({ top: 16 })
+
+        if (this.selectedWorker!.version.length > 0) {
+          Text(`Version: ${this.selectedWorker!.version}`)
+            .fontSize(12)
+            .fontColor($r('app.color.terminal_on_surface_variant'))
+            .margin({ top: 12 })
+        }
+
+        if (this.selectedWorker!.lastSeenAt.length > 0) {
+          Text(`${I18n.get('worker.detail.last_seen')}：${this.formatTime(this.selectedWorker!.lastSeenAt)}`)
+            .fontSize(12)
+            .fontColor($r('app.color.terminal_on_surface_variant'))
+            .margin({ top: 4 })
+        }
+
+        // Upgrade button
+        if (this.canUpgrade(this.selectedWorker!)) {
+          Button(`Update to v${this.latestWorkerVersion}`)
+            .width('100%')
+            .height(48)
+            .borderRadius(24)
+            .backgroundColor($r('app.color.terminal_secondary_container'))
+            .fontColor($r('app.color.terminal_on_secondary_container'))
+            .fontSize(16)
+            .fontWeight(FontWeight.Medium)
+            .margin({ top: 20 })
+            .onClick(() => { this.confirmUpgrade(this.selectedWorker!) })
+        }
+      }
+    }
+    .width('100%')
+    .padding(24)
     .backgroundColor($r('app.color.terminal_surface'))
   }
 
   @Builder
-  WorkerRow(worker: WorkerInfo) {
-    Row() {
-      // Status indicator
-      Circle()
-        .width(10)
-        .height(10)
-        .fill(worker.isOnline ?
-          $r('app.color.terminal_tertiary') :
-          $r('app.color.terminal_outline_variant'))
-        .margin({ right: 12 })
-
-      // Worker info
-      Column() {
-        Text(worker.name || worker.hostname || 'Unknown Worker')
-          .fontSize(15)
-          .fontWeight(FontWeight.Medium)
-          .fontColor($r('app.color.terminal_primary'))
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-
-        Text(worker.os || worker.operatingSystem || 'Unknown OS')
-          .fontSize(13)
-          .fontColor($r('app.color.terminal_on_surface_variant'))
-          .margin({ top: 2 })
-      }
-      .alignItems(HorizontalAlign.Start)
-      .layoutWeight(1)
-
-      // Action button
-      Button(worker.isOnline ? I18n.get('session.card.new_terminal') : I18n.get('session.card.view_detail'))
-        .height(32)
-        .borderRadius(8)
-        .backgroundColor(worker.isOnline ?
-          $r('app.color.terminal_secondary_container') :
-          $r('app.color.terminal_surface_container_high'))
-        .fontColor(worker.isOnline ?
-          $r('app.color.terminal_on_secondary_container') :
-          $r('app.color.terminal_primary'))
-        .fontSize(13)
-        .margin({ left: 8 })
-        .onClick(() => {
-          AppStorage.setOrCreate('navWorkerId', worker.id)
-          AppStorage.setOrCreate('navWorkerName', worker.name || worker.hostname || 'Worker')
-          this.pageStack.pushPath({ name: 'WorkerDetail' })
-        })
+  StatItem(label: string, value: string) {
+    Column() {
+      Text(label)
+        .fontSize(12)
+        .fontColor($r('app.color.terminal_on_surface_variant'))
+      Text(value)
+        .fontSize(14)
+        .fontWeight(FontWeight.Medium)
+        .fontColor($r('app.color.terminal_primary'))
+        .margin({ top: 2 })
     }
-    .width('100%')
-    .height(64)
-    .alignItems(VerticalAlign.Center)
+    .alignItems(HorizontalAlign.Start)
+  }
+
+  private canUpgrade(worker: WorkerInfo): boolean {
+    if (!worker.isOnline || worker.version.length === 0 || this.latestWorkerVersion.length === 0) {
+      return false
+    }
+    return worker.version.replace(/(\.0)+$/, '') !== this.latestWorkerVersion.replace(/(\.0)+$/, '')
+  }
+
+  private confirmUpgrade(worker: WorkerInfo) {
+    this.getUIContext()?.showAlertDialog({
+      title: 'Update Worker',
+      message: `Update ${worker.name || worker.hostname} from v${worker.version} to v${this.latestWorkerVersion}? The worker will restart.`,
+      primaryButton: {
+        value: I18n.get('common.cancel'),
+        action: () => {}
+      },
+      secondaryButton: {
+        value: 'Update',
+        fontColor: $r('app.color.terminal_secondary_container'),
+        action: () => { this.upgradeWorker(worker) }
+      }
+    })
+  }
+
+  private async upgradeWorker(worker: WorkerInfo) {
+    try {
+      await ApiService.upgradeWorker(worker.id)
+      this.showWorkerSheet = false
+      showToast(I18n.get('worker.update_sent').replace('{v}', worker.hostname || worker.id))
+      // Reload workers after a short delay to pick up version change
+      setTimeout(() => { this.loadWorkers() }, 3000)
+    } catch (e) {
+      this.getUIContext()?.showAlertDialog({
+        title: I18n.get('common.error'),
+        message: (e as Error).message,
+        confirm: { value: I18n.get('common.confirm'), action: () => {} }
+      })
+    }
+  }
+
+  private formatTime(dateStr: string): string {
+    if (!dateStr) {
+      return 'Never'
+    }
+    const date = new Date(dateStr)
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffMins = Math.floor(diffMs / 60000)
+
+    if (diffMins < 1) {
+      return 'Just now'
+    } else if (diffMins < 60) {
+      return `${diffMins}m ago`
+    } else if (diffMins < 1440) {
+      return `${Math.floor(diffMins / 60)}h ago`
+    } else {
+      return date.toLocaleDateString()
+    }
   }
 
   private async loadWorkers() {
@@ -174,6 +308,15 @@ export struct WorkerListPage {
     } finally {
       this.isLoading = false
       this.isRefreshing = false
+    }
+  }
+
+  private async loadGatewayInfo() {
+    try {
+      const info = await ApiService.getGatewayInfo()
+      this.latestWorkerVersion = info.latestWorkerVersion
+    } catch (_e) {
+      // Non-critical, version comparison silently disabled
     }
   }
 }

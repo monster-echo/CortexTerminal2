@@ -3,7 +3,7 @@
  * @brief Single-row horizontally scrollable virtual keyboard bar
  *
  * Provides modifier keys and special keys in a single scrollable row.
- * All touch targets meet the 44px minimum accessibility requirement.
+ * Ctrl/Alt are sticky toggle — stay latched until manually toggled off.
  */
 import { pasteboard } from '@kit.BasicServicesKit'
 import { I18n } from '@rwecho/core'
@@ -11,10 +11,36 @@ import { I18n } from '@rwecho/core'
 type OnKeyPressCallback = (key: string) => void
 
 @Component
+struct LatchButton {
+  label: string = ''
+  @Prop latched: boolean = false
+  onToggle: () => void = () => {}
+
+  build() {
+    Button(this.label)
+      .height(36)
+      .constraintSize({ minWidth: 36 })
+      .borderRadius(8)
+      .backgroundColor(this.latched ?
+        $r('app.color.terminal_secondary_container') :
+        $r('app.color.terminal_surface_container_high'))
+      .fontColor(this.latched ?
+        $r('app.color.terminal_on_secondary_container') :
+        $r('app.color.terminal_primary'))
+      .fontSize(12)
+      .fontWeight(FontWeight.Medium)
+      .margin({ left: 2, right: 2 })
+      .onClick(() => {
+        this.onToggle()
+      })
+  }
+}
+
+@Component
 export struct VirtualKeyBar {
   onKeyPress: OnKeyPressCallback = (_key: string) => {}
-  onCopy: (() => void) | null = null
   onDismiss: (() => void) | null = null
+  onModifierChange: ((ctrl: boolean, alt: boolean) => void) | null = null
   @State ctrlLatched: boolean = false
   @State altLatched: boolean = false
 
@@ -27,12 +53,22 @@ export struct VirtualKeyBar {
             this.onKeyPress('Escape')
           })
 
-          this.LatchButton('Ctrl', this.ctrlLatched, () => {
-            this.ctrlLatched = !this.ctrlLatched
+          LatchButton({
+            label: 'Ctrl',
+            latched: this.ctrlLatched,
+            onToggle: () => {
+              this.ctrlLatched = !this.ctrlLatched
+              this.notifyModifierChange()
+            }
           })
 
-          this.LatchButton('Alt', this.altLatched, () => {
-            this.altLatched = !this.altLatched
+          LatchButton({
+            label: 'Alt',
+            latched: this.altLatched,
+            onToggle: () => {
+              this.altLatched = !this.altLatched
+              this.notifyModifierChange()
+            }
           })
 
           this.KeyButton('Tab', () => {
@@ -59,25 +95,11 @@ export struct VirtualKeyBar {
             this.onKeyPress('ArrowRight')
           })
 
-          this.KeyButton('Home', () => {
-            this.onKeyPress('\x1b[H')
-          })
-
-          this.KeyButton('End', () => {
-            this.onKeyPress('\x1b[F')
-          })
-
-          this.KeyButton('Copy', () => {
-            if (this.onCopy) {
-              this.onCopy()
-            }
-          })
-
           this.KeyButton('Paste', () => {
             this.handlePaste()
           })
         }
-        .height(52)
+        .height(44)
         .alignItems(VerticalAlign.Center)
       }
       .scrollable(ScrollDirection.Horizontal)
@@ -86,12 +108,12 @@ export struct VirtualKeyBar {
 
       // Done button - fixed to the right
       Button(I18n.get('common.done'))
-        .height(44)
-        .constraintSize({ minWidth: 60 })
+        .height(36)
+        .constraintSize({ minWidth: 52 })
         .borderRadius(8)
         .backgroundColor($r('app.color.terminal_secondary_container'))
         .fontColor($r('app.color.terminal_on_secondary_container'))
-        .fontSize(14)
+        .fontSize(12)
         .fontWeight(FontWeight.Medium)
         .margin({ left: 4, right: 4 })
         .onClick(() => {
@@ -101,52 +123,36 @@ export struct VirtualKeyBar {
         })
     }
     .width('100%')
-    .height(52)
+    .height(44)
     .padding({ left: 4, right: 4 })
     .backgroundColor($r('app.color.terminal_surface_container'))
+  }
+
+  private notifyModifierChange() {
+    if (this.onModifierChange) {
+      this.onModifierChange(this.ctrlLatched, this.altLatched)
+    }
   }
 
   @Builder
   KeyButton(label: string, action: () => void) {
     Button(label)
-      .height(44)
-      .constraintSize({ minWidth: 44 })
+      .height(36)
+      .constraintSize({ minWidth: 36 })
       .borderRadius(8)
       .backgroundColor($r('app.color.terminal_surface_container_high'))
       .fontColor($r('app.color.terminal_primary'))
-      .fontSize(14)
+      .fontSize(12)
       .fontWeight(FontWeight.Medium)
       .margin({ left: 2, right: 2 })
       .onClick(() => {
         if (this.ctrlLatched) {
           this.onKeyPress(`Ctrl+${label}`)
-          this.ctrlLatched = false
         } else if (this.altLatched) {
           this.onKeyPress(`Alt+${label}`)
-          this.altLatched = false
         } else {
           action()
         }
-      })
-  }
-
-  @Builder
-  LatchButton(label: string, latched: boolean, toggle: () => void) {
-    Button(label)
-      .height(44)
-      .constraintSize({ minWidth: 44 })
-      .borderRadius(8)
-      .backgroundColor(latched ?
-        $r('app.color.terminal_secondary_container') :
-        $r('app.color.terminal_surface_container_high'))
-      .fontColor(latched ?
-        $r('app.color.terminal_on_secondary_container') :
-        $r('app.color.terminal_primary'))
-      .fontSize(14)
-      .fontWeight(FontWeight.Medium)
-      .margin({ left: 2, right: 2 })
-      .onClick(() => {
-        toggle()
       })
   }
 
@@ -158,10 +164,8 @@ export struct VirtualKeyBar {
       if (text) {
         if (this.ctrlLatched) {
           this.onKeyPress(`Ctrl+${text}`)
-          this.ctrlLatched = false
         } else if (this.altLatched) {
           this.onKeyPress(`Alt+${text}`)
-          this.altLatched = false
         } else {
           this.onKeyPress(text)
         }

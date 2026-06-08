@@ -78,7 +78,11 @@ export class HttpConnection {
     if (this.state !== ConnectionState.Connected || this.ws === null) {
       throw new Error('Cannot send when not connected');
     }
-    await this.ws.send(data);
+    try {
+      await this.ws.send(data);
+    } catch (e) {
+      throw new Error((e as Error).message);
+    }
   }
 
   async stop(error?: Error): Promise<void> {
@@ -228,9 +232,13 @@ export class HttpConnection {
       connectHeaders['Authorization'] = `Bearer ${accessToken}`;
     }
 
-    await ws.connect(fullUrl, {
-      header: connectHeaders,
-    });
+    try {
+      await ws.connect(fullUrl, {
+        header: connectHeaders,
+      });
+    } catch (e) {
+      throw new Error((e as Error).message);
+    }
 
     await openPromise;
   }

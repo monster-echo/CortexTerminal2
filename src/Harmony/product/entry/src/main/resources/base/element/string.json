@@ -1,6 +1,6 @@
 {
   "string": [
-    { "name": "app_name", "value": "CortexTerminal" },
+    { "name": "app_name", "value": "Corterm" },
     { "name": "mainability_description", "value": "CortexTerminal Entry Ability" },
 
     { "name": "menu_terminal", "value": "Terminal" },
@@ -62,7 +62,7 @@
 
     { "name": "pasteboard_reason", "value": "Used to paste text from clipboard into the terminal" },
 
-    { "name": "login_tagline", "value": "Connect to your cloud terminal anytime" },
+    { "name": "login_tagline", "value": "云枢终端" },
     { "name": "login_other_method", "value": "Other login methods" },
     { "name": "login_agreement_prefix", "value": "By logging in you agree to the " },
     { "name": "login_agreement_terms", "value": "Terms of Service" },

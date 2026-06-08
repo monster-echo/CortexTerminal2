@@ -1,119 +1,60 @@
-import { common, Want } from '@kit.AbilityKit'
-import { ApiService, AuthService, AuthState, I18n, RouteName } from '@rwecho/core'
+import { common, Want, ConfigurationConstant } from '@kit.AbilityKit'
+import { ApiService, AuthService, AuthState, I18n, RouteName, AppConstants, showI18nToast, showToast } from '@rwecho/core'
 
 @Component
 export struct SettingsPage {
-  @State currentTheme: string = 'system'
+  @StorageLink('themeMode') currentTheme: string = 'system'
   @StorageLink('language') currentLanguage: string = 'en'
-  @StorageLink('gatewayUrl') gatewayUrl: string = ''
-  @State editedGatewayUrl: string = ''
-  @State showGatewayEditor: boolean = false
   @State displayName: string = ''
   @Consume('pageStack') pageStack: NavPathStack
   private appVersion: string = '1.0.0'
-  private appBuild: string = '1'
 
   aboutToAppear() {
-    this.editedGatewayUrl = this.gatewayUrl
     this.loadProfile()
+  }
+
+  private get gatewayUrl(): string {
+    return AppStorage.get<string>('gatewayUrl') || AppConstants.DEFAULT_GATEWAY_URL
   }
 
   build() {
     Scroll() {
       Column() {
-        this.SectionHeader(I18n.get('settings.appearance'))
-
-        Row() {
-          Text(I18n.get('settings.theme'))
-            .fontSize(14)
-            .fontColor($r('app.color.terminal_primary'))
-            .layoutWeight(1)
-
-          Row() {
-            this.ThemeOption(I18n.get('settings.theme_light'), this.currentTheme === 'light', 'light')
-            this.ThemeOption(I18n.get('settings.theme_dark'), this.currentTheme === 'dark', 'dark')
-            this.ThemeOption(I18n.get('settings.theme_system'), this.currentTheme === 'system', 'system')
-          }
-        }
-        .width('calc(100% - 40vp)')
-        .padding(14)
-        .borderRadius(12)
-        .backgroundColor($r('app.color.terminal_surface_container'))
-        .margin({ bottom: 8 })
-
-        Row() {
-          Text(I18n.get('settings.language'))
-            .fontSize(14)
-            .fontColor($r('app.color.terminal_primary'))
-            .layoutWeight(1)
-
-          Row() {
-            this.LanguageOption(I18n.get('settings.language_zh'), 'zh')
-            this.LanguageOption(I18n.get('settings.language_en'), 'en')
-          }
-        }
-        .width('calc(100% - 40vp)')
-        .padding(14)
-        .borderRadius(12)
-        .backgroundColor($r('app.color.terminal_surface_container'))
-        .margin({ bottom: 8 })
-
-        this.SectionHeader(I18n.get('settings.connection'))
-
+        // Avatar + Username header
         Column() {
-          Row() {
-            Text(I18n.get('settings.gateway_url'))
-              .fontSize(14)
-              .fontColor($r('app.color.terminal_primary'))
-              .layoutWeight(1)
+          Text(this.displayName.length > 0 ? this.displayName.substring(0, 1).toUpperCase() : 'U')
+            .fontSize(24)
+            .fontWeight(FontWeight.Bold)
+            .fontColor($r('app.color.terminal_on_secondary_container'))
+            .width(56)
+            .height(56)
+            .textAlign(TextAlign.Center)
+            .backgroundColor($r('app.color.terminal_secondary_container'))
+            .borderRadius(28)
 
-            Text(this.showGatewayEditor ? I18n.get('common.done') : I18n.get('settings.gateway_url'))
-              .fontSize(14)
-              .fontColor($r('app.color.terminal_secondary'))
-              .onClick(() => {
-                if (this.showGatewayEditor) {
-                  this.gatewayUrl = this.editedGatewayUrl
-                }
-                this.showGatewayEditor = !this.showGatewayEditor
-              })
-          }
-          .width('100%')
-
-          Text(this.gatewayUrl)
-            .fontSize(13)
-            .fontColor($r('app.color.terminal_on_surface_variant'))
-            .margin({ top: 4 })
-
-          if (this.showGatewayEditor) {
-            TextInput({ text: this.editedGatewayUrl, placeholder: 'https://...' })
-              .width('100%')
-              .height(44)
-              .borderRadius(8)
-              .backgroundColor($r('app.color.terminal_surface_container'))
-              .fontColor($r('app.color.terminal_primary'))
-              .margin({ top: 8 })
-              .onChange((value: string) => {
-                this.editedGatewayUrl = value
-              })
-          }
+          Text(this.displayName || (I18n.get('settings.profile') + (this.currentLanguage ? '' : '')))
+            .fontSize(18)
+            .fontWeight(FontWeight.Bold)
+            .fontColor($r('app.color.terminal_primary'))
+            .margin({ top: 12 })
         }
-        .width('calc(100% - 40vp)')
-        .padding(14)
-        .borderRadius(12)
-        .backgroundColor($r('app.color.terminal_surface_container'))
-        .margin({ bottom: 8 })
+        .width('100%')
+        .alignItems(HorizontalAlign.Center)
+        .padding({ top: 16, bottom: 8 })
 
-        this.SectionHeader(I18n.get('settings.account'))
+        this.SectionHeader('settings.appearance')
 
         Row() {
-          Column() {
-            Text(this.displayName || I18n.get('settings.profile'))
-              .fontSize(15)
-              .fontWeight(FontWeight.Medium)
-              .fontColor($r('app.color.terminal_primary'))
+          Text(I18n.get('settings.theme') + (this.currentLanguage ? '' : ''))
+            .fontSize(14)
+            .fontColor($r('app.color.terminal_primary'))
+            .layoutWeight(1)
+
+          Row() {
+            this.ThemeOption('settings.theme_light', 'light')
+            this.ThemeOption('settings.theme_dark', 'dark')
+            this.ThemeOption('settings.theme_system', 'system')
           }
-          .alignItems(HorizontalAlign.Start)
-          .layoutWeight(1)
         }
         .width('calc(100% - 40vp)')
         .padding(14)
@@ -121,15 +62,34 @@ export struct SettingsPage {
         .backgroundColor($r('app.color.terminal_surface_container'))
         .margin({ bottom: 8 })
 
-        this.NavRow(I18n.get('settings.account_security'), () => {
+        Row() {
+          Text(I18n.get('settings.language') + (this.currentLanguage ? '' : ''))
+            .fontSize(14)
+            .fontColor($r('app.color.terminal_primary'))
+            .layoutWeight(1)
+
+          Row() {
+            this.LanguageOption('settings.language_zh', 'zh')
+            this.LanguageOption('settings.language_en', 'en')
+          }
+        }
+        .width('calc(100% - 40vp)')
+        .padding(14)
+        .borderRadius(12)
+        .backgroundColor($r('app.color.terminal_surface_container'))
+        .margin({ bottom: 8 })
+
+        this.SectionHeader('settings.account')
+
+        this.NavRow('settings.account_security', () => {
           this.pageStack.pushPath({ name: RouteName.ACCOUNT_SECURITY })
         })
 
-        this.NavRow(I18n.get('settings.activate_worker'), () => {
+        this.NavRow('settings.activate_worker', () => {
           this.pageStack.pushPath({ name: RouteName.ACTIVATE_WORKER })
         })
 
-        Button(I18n.get('settings.logout'))
+        Button(I18n.get('settings.logout') + (this.currentLanguage ? '' : ''))
           .width('calc(100% - 40vp)')
           .height(48)
           .borderRadius(12)
@@ -142,64 +102,49 @@ export struct SettingsPage {
             this.confirmLogout()
           })
 
-        this.SectionHeader(I18n.get('settings.about'))
-
-        this.LinkRow(I18n.get('settings.terms'), this.gatewayUrl + '/terms', () => {
-          this.openExternal(this.gatewayUrl + '/terms')
-        })
-
-        this.LinkRow(I18n.get('settings.privacy'), this.gatewayUrl + '/privacy', () => {
-          this.openExternal(this.gatewayUrl + '/privacy')
-        })
-
-        this.LinkRow(I18n.get('settings.huawei_agreement'), 'consumer.huawei.com', () => {
-          this.openExternal('https://consumer.huawei.com/minisite/cloudservice/hiapp/terms.htm')
-        })
-
+        // Watermark footer
         Column() {
           Row() {
-            Text(I18n.get('settings.version'))
-              .fontSize(14)
-              .fontColor($r('app.color.terminal_primary'))
-              .layoutWeight(1)
+            Text(I18n.get('settings.footer_terms') + (this.currentLanguage ? '' : ''))
+              .fontSize(13)
+              .fontColor($r('app.color.terminal_secondary'))
+              .onClick(() => {
+                this.openExternal(this.gatewayUrl + '/terms')
+              })
 
-            Text(`${this.appVersion} (${this.appBuild})`)
-              .fontSize(14)
+            Text(' | ')
+              .fontSize(13)
               .fontColor($r('app.color.terminal_on_surface_variant'))
+
+            Text(I18n.get('settings.footer_privacy') + (this.currentLanguage ? '' : ''))
+              .fontSize(13)
+              .fontColor($r('app.color.terminal_secondary'))
+              .onClick(() => {
+                this.openExternal(this.gatewayUrl + '/privacy')
+              })
           }
-          .width('100%')
 
-          Row() {
-            Text($r('app.string.app_name'))
-              .fontSize(12)
-              .fontColor($r('app.color.terminal_on_surface_variant'))
-              .layoutWeight(1)
-
-            Text('HarmonyOS NEXT')
-              .fontSize(12)
-              .fontColor($r('app.color.terminal_on_surface_variant'))
-          }
-          .width('100%')
-          .margin({ top: 4 })
+          Text(`v${this.appVersion} · CortexTerminal`)
+            .fontSize(11)
+            .fontColor($r('app.color.terminal_on_surface_variant'))
+            .margin({ top: 6 })
         }
-        .width('calc(100% - 40vp)')
-        .padding(14)
-        .borderRadius(12)
-        .backgroundColor($r('app.color.terminal_surface_container'))
-        .margin({ bottom: 8 })
+        .width('100%')
+        .alignItems(HorizontalAlign.Center)
+        .margin({ top: 32, bottom: 24 })
 
         Blank().height(40)
       }
       .width('100%')
     }
     .width('100%')
-    .height('100%')
+    .layoutWeight(1)
     .backgroundColor($r('app.color.terminal_surface'))
   }
 
   @Builder
-  SectionHeader(title: string) {
-    Text(title)
+  SectionHeader(key: string) {
+    Text(I18n.get(key) + (this.currentLanguage ? '' : ''))
       .fontSize(13)
       .fontWeight(FontWeight.Medium)
       .fontColor($r('app.color.terminal_secondary'))
@@ -209,27 +154,28 @@ export struct SettingsPage {
   }
 
   @Builder
-  ThemeOption(label: string, selected: boolean, value: string) {
-    Text(label)
+  ThemeOption(key: string, value: string) {
+    Text(I18n.get(key) + (this.currentLanguage ? '' : ''))
       .fontSize(13)
-      .fontWeight(selected ? FontWeight.Medium : FontWeight.Normal)
-      .fontColor(selected ?
+      .fontWeight(this.currentTheme === value ? FontWeight.Medium : FontWeight.Normal)
+      .fontColor(this.currentTheme === value ?
         $r('app.color.terminal_on_secondary_container') :
         $r('app.color.terminal_on_surface_variant'))
       .padding({ left: 12, right: 12, top: 6, bottom: 6 })
       .borderRadius(8)
-      .backgroundColor(selected ?
+      .backgroundColor(this.currentTheme === value ?
         $r('app.color.terminal_secondary_container') :
         Color.Transparent)
       .onClick(() => {
         this.currentTheme = value
         this.applyTheme(this.currentTheme)
+        showToast(I18n.get('settings.theme_changed').replace('{v}', I18n.get(`settings.theme_${value}`)))
       })
   }
 
   @Builder
-  LanguageOption(label: string, code: string) {
-    Text(label)
+  LanguageOption(key: string, code: string) {
+    Text(I18n.get(key) + (this.currentLanguage ? '' : ''))
       .fontSize(13)
       .fontWeight(this.currentLanguage === code ? FontWeight.Medium : FontWeight.Normal)
       .fontColor(this.currentLanguage === code ?
@@ -242,14 +188,14 @@ export struct SettingsPage {
         Color.Transparent)
       .onClick(() => {
         this.currentLanguage = code
-        AppStorage.setOrCreate('language', code)
+        showToast(I18n.get('settings.language_changed').replace('{v}', I18n.get(`settings.language_${code}`)))
       })
   }
 
   @Builder
-  NavRow(title: string, action: () => void) {
+  NavRow(key: string, action: () => void) {
     Row() {
-      Text(title)
+      Text(I18n.get(key) + (this.currentLanguage ? '' : ''))
         .fontSize(14)
         .fontColor($r('app.color.terminal_primary'))
         .layoutWeight(1)
@@ -268,38 +214,16 @@ export struct SettingsPage {
     })
   }
 
-  @Builder
-  LinkRow(title: string, value: string, action: () => void) {
-    Row() {
-      Column() {
-        Text(title)
-          .fontSize(14)
-          .fontColor($r('app.color.terminal_primary'))
-
-        Text(value)
-          .fontSize(12)
-          .fontColor($r('app.color.terminal_on_surface_variant'))
-          .margin({ top: 2 })
-      }
-      .alignItems(HorizontalAlign.Start)
-      .layoutWeight(1)
-
-      Text(I18n.get('common.confirm'))
-        .fontSize(14)
-        .fontColor($r('app.color.terminal_secondary'))
-    }
-    .width('calc(100% - 40vp)')
-    .padding(14)
-    .borderRadius(12)
-    .backgroundColor($r('app.color.terminal_surface_container'))
-    .margin({ bottom: 8 })
-    .onClick(() => {
-      action()
-    })
-  }
-
   private applyTheme(theme: string) {
     AppStorage.setOrCreate('themeMode', theme)
+    const context = this.getUIContext()?.getHostContext() as common.UIAbilityContext
+    const colorMode = theme === 'dark'
+      ? ConfigurationConstant.ColorMode.COLOR_MODE_DARK
+      : (theme === 'light' ? ConfigurationConstant.ColorMode.COLOR_MODE_LIGHT
+        : context.config.colorMode ?? ConfigurationConstant.ColorMode.COLOR_MODE_DARK)
+    try {
+      context.getApplicationContext().setColorMode(colorMode)
+    } catch (_e) {}
   }
 
   private async loadProfile() {
@@ -317,7 +241,7 @@ export struct SettingsPage {
   }
 
   private confirmLogout() {
-    AlertDialog.show({
+    this.getUIContext()?.showAlertDialog({
       title: I18n.get('settings.logout_confirm_title'),
       message: I18n.get('settings.logout_confirm_message'),
       primaryButton: {
@@ -329,6 +253,7 @@ export struct SettingsPage {
         action: () => {
           AuthService.logout()
           this.pageStack.replacePath({ name: RouteName.AUTH_LOGIN })
+          showI18nToast('settings.logout_success')
         }
       }
     })
@@ -336,13 +261,13 @@ export struct SettingsPage {
 
   private async openExternal(url: string) {
     try {
-      const context = getContext(this) as common.UIAbilityContext
+      const context = this.getUIContext()?.getHostContext() as common.UIAbilityContext
       const want = new Want()
       want.action = 'ohos.want.action.viewData'
       want.uri = url
       await context.startAbility(want)
     } catch (e) {
-      console.warn('Failed to open link: ' + (e as Error).message)
+      showI18nToast('common.link_open_failed')
     }
   }
 }

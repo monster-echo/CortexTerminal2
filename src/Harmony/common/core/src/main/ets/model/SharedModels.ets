@@ -76,3 +76,10 @@ export class WorkerSessionInfo {
   lastActivityAt: string = ''
   lastActiveAt: string = ''
 }
+
+@Observed
+export class GatewayInfo {
+  version: string = ''
+  latestWorkerVersion: string = ''
+  latestGatewayVersion: string = ''
+}

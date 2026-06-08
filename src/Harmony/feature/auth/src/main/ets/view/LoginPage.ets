@@ -1,28 +1,21 @@
 /**
  * @file LoginPage.ets
- * @brief Unified login page with Huawei one-click login and username/password login.
- *
- * Two modes via conditional rendering (if/else):
- * - Default: Huawei one-click login (LoginWithHuaweiIDButton)
- * - Alternate: username + password form
- * Switch with TransitionEffect slide animation.
+ * @brief Login page with Huawei one-click login and username/password login via bindSheet.
  */
-import { AuthService, I18n } from '@rwecho/core'
+import { AuthService, I18n, AppConstants, showI18nToast } from '@rwecho/core'
 import { loginComponentManager, LoginWithHuaweiIDButton } from '@kit.AccountKit'
 import { BusinessError } from '@kit.BasicServicesKit'
 import { common, Want } from '@kit.AbilityKit'
-import { AppConstants } from '@rwecho/core'
-
-const TRANSITION_DURATION = 300
 
 @Component
 export struct LoginPage {
-  @State showPasswordLogin: boolean = false
+  @State showPasswordSheet: boolean = false
   @State isHuaweiLoading: boolean = false
   @State isPasswordLoading: boolean = false
   @State errorMessage: string = ''
   @State username: string = ''
   @State password: string = ''
+  @StorageLink('language') currentLang: string = 'en'
   @Consume('pageStack') pageStack: NavPathStack
 
   private huaweiButtonController: loginComponentManager.LoginWithHuaweiIDButtonController =
@@ -41,6 +34,7 @@ export struct LoginPage {
             const authCode = response.authorizationCode ?? ''
             const unionID = response.unionID ?? ''
             const openID = response.openID ?? ''
+            console.info(`[HuaweiLogin] authCode=${authCode.substring(0, 20)}... unionID=${unionID} openID=${openID}`)
             if (authCode.length === 0) {
               this.errorMessage = I18n.get('auth.login.no_auth_code')
               return
@@ -58,18 +52,13 @@ export struct LoginPage {
 
         this.DividerSection()
 
-        if (this.showPasswordLogin) {
-          this.PasswordLoginForm()
-        } else {
-          this.PasswordLoginEntry()
-        }
+        this.PasswordLoginEntry()
 
         if (this.errorMessage.length > 0) {
           this.ErrorBanner()
         }
 
         Blank()
-          .height(24)
 
         this.BottomSection()
       }
@@ -80,6 +69,12 @@ export struct LoginPage {
     .height('100%')
     .backgroundColor($r('app.color.terminal_surface'))
     .scrollBar(BarState.Off)
+    .bindSheet($$this.showPasswordSheet, this.PasswordSheetContent(), {
+      height: SheetSize.LARGE,
+      showClose: true,
+      backgroundColor: $r('app.color.terminal_surface'),
+      onDisappear: () => { this.showPasswordSheet = false }
+    })
   }
 
   // ── Brand Area ──────────────────────────────────────────────────
@@ -171,27 +166,31 @@ export struct LoginPage {
 
   @Builder
   PasswordLoginEntry() {
-    Button(I18n.get('auth.login.username_password_button'))
-      .width('100%')
-      .height(48)
-      .borderRadius(24)
-      .backgroundColor(Color.Transparent)
-      .border({ width: 1, color: $r('app.color.terminal_outline_variant') })
-      .fontColor($r('app.color.terminal_primary'))
-      .fontSize(14)
-      .fontWeight(FontWeight.Medium)
-      .margin({ top: 24 })
-      .padding({ left: 24, right: 24 })
-      .onClick(() => {
-        this.showPasswordLogin = true
-        this.errorMessage = ''
-      })
+    Column() {
+      Button(I18n.get('auth.login.username_password_button'))
+        .width('100%')
+        .height(48)
+        .borderRadius(24)
+        .backgroundColor(Color.Transparent)
+        .border({ width: 1, color: $r('app.color.terminal_outline_variant') })
+        .fontColor($r('app.color.terminal_primary'))
+        .fontSize(14)
+        .fontWeight(FontWeight.Medium)
+        .onClick(() => {
+          this.showPasswordSheet = true
+          this.errorMessage = ''
+        })
+    }
+    .width('100%')
+    .constraintSize({ maxWidth: 400 })
+    .padding({ left: 24, right: 24 })
+    .margin({ top: 24 })
   }
 
-  // ── Password Login Form ─────────────────────────────────────────
+  // ── Password Login Sheet ────────────────────────────────────────
 
   @Builder
-  PasswordLoginForm() {
+  PasswordSheetContent() {
     Column() {
       Column() {
         Text(I18n.get('auth.login.username_placeholder'))
@@ -231,6 +230,22 @@ export struct LoginPage {
             this.errorMessage = ''
           })
 
+        if (this.errorMessage.length > 0) {
+          Row() {
+            Text('⚠')
+              .fontSize(14)
+              .fontColor($r('app.color.terminal_error'))
+              .margin({ right: 8 })
+            Text(this.errorMessage)
+              .fontSize(14)
+              .fontWeight(FontWeight.Medium)
+              .fontColor($r('app.color.terminal_error'))
+              .layoutWeight(1)
+          }
+          .width('100%')
+          .margin({ top: 16 })
+        }
+
         Button() {
           if (this.isPasswordLoading) {
             LoadingProgress()
@@ -259,24 +274,11 @@ export struct LoginPage {
       .padding(20)
       .borderRadius(12)
       .backgroundColor($r('app.color.terminal_surface_container'))
-
-      Text(I18n.get('auth.login.back_to_quick'))
-        .fontSize(14)
-        .fontColor($r('app.color.terminal_secondary'))
-        .margin({ top: 16 })
-        .textAlign(TextAlign.Center)
-        .width('100%')
-        .onClick(() => {
-          this.showPasswordLogin = false
-          this.errorMessage = ''
-        })
+      .margin({ left: 24, right: 24 })
     }
     .width('100%')
-    .margin({ top: 24 })
-    .transition(
-      TransitionEffect.move(TransitionEdge.BOTTOM)
-        .animation({ duration: TRANSITION_DURATION, curve: Curve.EaseOut })
-    )
+    .padding({ top: 24 })
+    .backgroundColor($r('app.color.terminal_surface'))
   }
 
   // ── Error Banner ────────────────────────────────────────────────
@@ -303,15 +305,12 @@ export struct LoginPage {
   @Builder
   BottomSection() {
     Column() {
-      Text(I18n.get('auth.login.activate_worker'))
+      Text($r('app.string.login_tagline'))
         .fontSize(13)
         .fontColor($r('app.color.terminal_on_surface_variant'))
         .textAlign(TextAlign.Center)
         .width('100%')
         .margin({ bottom: 8 })
-        .onClick(() => {
-          this.pageStack.pushPath({ name: 'ActivateWorker' })
-        })
 
       Text() {
         Span(I18n.get('auth.login.agree_prefix'))
@@ -333,6 +332,7 @@ export struct LoginPage {
       .textAlign(TextAlign.Center)
     }
     .width('100%')
+    .padding({ bottom: 24 })
   }
 
   // ── Handlers ────────────────────────────────────────────────────
@@ -345,6 +345,7 @@ export struct LoginPage {
       this.isHuaweiLoading = false
       AuthService.navigateHome(this.pageStack)
     } catch (err) {
+      console.warn(`[HuaweiLogin] Backend error: ${(err as Error).message}`)
       this.errorMessage = (err as Error).message || I18n.get('auth.login.huawei_failed')
       this.isHuaweiLoading = false
     }
@@ -370,13 +371,13 @@ export struct LoginPage {
 
   private async openExternal(url: string) {
     try {
-      const context = getContext(this) as common.UIAbilityContext
+      const context = this.getUIContext()?.getHostContext() as common.UIAbilityContext
       const want = new Want()
       want.action = 'ohos.want.action.viewData'
       want.uri = url
       await context.startAbility(want)
     } catch (e) {
-      console.warn('Failed to open link: ' + (e as Error).message)
+      showI18nToast('common.link_open_failed')
     }
   }
 }

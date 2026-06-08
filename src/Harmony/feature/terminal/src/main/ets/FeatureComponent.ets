@@ -1,11 +1,12 @@
 /**
  * @file FeatureComponent.ets
- * @brief Terminal feature route entry with @AppRouter registration.
+ * @brief Terminal feature route entry.
  */
-import { AppRouter } from 'routermodule'
+import { registerRoute } from 'routermodule'
 import { TerminalPage } from './view/TerminalPage'
 
-@AppRouter({ name: 'terminal/Session' })
+registerRoute({ name: 'terminal/Session' })
+
 @Component
 export struct TerminalSessionRoute {
   build() {
@@ -13,6 +14,6 @@ export struct TerminalSessionRoute {
       TerminalPage()
     }
     .hideTitleBar(true)
-    .backgroundColor($r('app.color.terminal_surface'))
+    .backgroundColor('#0f1419')
   }
 }
