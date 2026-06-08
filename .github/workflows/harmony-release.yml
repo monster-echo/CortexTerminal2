@@ -121,24 +121,25 @@ jobs:
 
           SDK_PATH="${{ steps.sdk.outputs.ohos-base-sdk-home }}"
 
-          # Reconstruct HarmonyOS SDK directory structure:
-          # hwsdk.dir expects hms/ and openharmony/ subdirectories.
-          # Each component under hms/ needs uni-package.json.
-          # OpenHarmony SDK components already have oh-uni-package.json.
-          mkdir -p "$SDK_PATH/hms" "$SDK_PATH/openharmony"
+          # Reconstruct HarmonyOS SDK directory structure.
+          # DevEco SDK layout: hwsdk.dir points to a dir containing hms/ + openharmony/.
+          # Under hms/, each component has sdk-pkg.json (HarmonyOS format).
+          # HosLocalComponentLoader checks _isComponentInRightPlace: passes if
+          # the location dir basename is "default", OR matches sdkRoot + component path.
+          # Strategy: create a "default" dir as hwsdk.dir with components at top level.
+          SDK_DEFAULT="$SDK_PATH/default"
+          mkdir -p "$SDK_DEFAULT/hms" "$SDK_DEFAULT/openharmony"
           for d in ets js native previewer toolchains; do
             if [ -d "$SDK_PATH/$d" ]; then
-              # OpenHarmony: symlink is fine, they have oh-uni-package.json
-              ln -s "$SDK_PATH/$d" "$SDK_PATH/openharmony/$d" 2>/dev/null || true
-              # HarmonyOS (hms): must copy and add uni-package.json
-              cp -a "$SDK_PATH/$d" "$SDK_PATH/hms/$d"
+              ln -s "$SDK_PATH/$d" "$SDK_DEFAULT/openharmony/$d" 2>/dev/null || true
+              cp -a "$SDK_PATH/$d" "$SDK_DEFAULT/hms/$d"
               DISPLAY_NAME="$(echo "$d" | sed 's/ets/Ets/;s/js/Js/;s/native/Native/;s/previewer/Previewer/;s/toolchains/Toolchains/')"
-              cat > "$SDK_PATH/hms/$d/uni-package.json" <<COMPONENTEOF
-          {"apiVersion":"23","displayName":"$DISPLAY_NAME","meta":{"metaVersion":"3.0.0"},"path":"$d","platformVersion":"6.1.0","releaseType":"Release","version":"6.1.0.31"}
+              cat > "$SDK_DEFAULT/hms/$d/sdk-pkg.json" <<COMPONENTEOF
+          {"meta":{"version":"1.0.0"},"data":{"apiVersion":"23","displayName":"$DISPLAY_NAME","path":"$d","platformVersion":"6.1.0","releaseType":"Release","version":"6.1.0.31","stage":"Release"}}
           COMPONENTEOF
             fi
           done
-          cat > "$SDK_PATH/sdk-pkg.json" <<'PKGEOF'
+          cat > "$SDK_DEFAULT/sdk-pkg.json" <<'PKGEOF'
           {"meta":{"version":"1.0.0"},"data":{"apiVersion":"23","displayName":"HarmonyOS 6.1.0","path":"HarmonyOS-6.1.0","platformVersion":"6.1.0","releaseType":"Release","version":"6.1.0.31","stage":"Release"}}
           PKGEOF
 
@@ -146,7 +147,7 @@ jobs:
           sdk.dir=$SDK_PATH
           nodejs.dir=$(dirname $(which node))
           ohos.sdk.dir=$SDK_PATH
-          hwsdk.dir=$SDK_PATH
+          hwsdk.dir=$SDK_DEFAULT
           EOF
 
           cat > hvigorfile.ts <<'EOF'
@@ -228,20 +229,10 @@ jobs:
       - name: Build .app
         env:
           npm_config_@ohos:registry: https://repo.harmonyos.com/npm/
-          DEVECO_SDK_HOME: ${{ steps.sdk.outputs.ohos-base-sdk-home }}
+          DEVECO_SDK_HOME: ${{ steps.sdk.outputs.ohos-base-sdk-home }}/default
         run: |
           cd src/Harmony
           chmod +x hvigorw
-          echo "=== SDK structure ==="
-          ls -la "$DEVECO_SDK_HOME/" || true
-          ls -la "$DEVECO_SDK_HOME/hms/" || true
-          for d in ets js native previewer toolchains; do
-            echo "--- hms/$d ---"
-            ls "$DEVECO_SDK_HOME/hms/$d/uni-package.json" 2>/dev/null || echo "NO uni-package.json"
-            cat "$DEVECO_SDK_HOME/hms/$d/uni-package.json" 2>/dev/null || true
-          done
-          echo "=== local.properties ==="
-          cat local.properties
           ./hvigorw assembleApp --mode module -p product=default -p buildMode=release --no-daemon
 
       - name: Upload to GitHub Release
