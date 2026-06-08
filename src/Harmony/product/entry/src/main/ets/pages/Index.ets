@@ -46,6 +46,8 @@ struct Index {
         .width('100%')
         .height('100%')
     }
+    .width('100%')
+    .height('100%')
     .navDestination(this.pageMap)
     .mode(NavigationMode.Stack)
     .hideTitleBar(true)

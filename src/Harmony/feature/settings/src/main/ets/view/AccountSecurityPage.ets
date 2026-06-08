@@ -25,7 +25,6 @@ export struct AccountSecurityPage {
 
   build() {
     PageLayout({ title: I18n.get('security.title') }) {
-      Scroll() {
         Column() {
           // Change Password
           Row() {
@@ -69,17 +68,13 @@ export struct AccountSecurityPage {
           })
         }
         .width('100%')
-      }
-      .width('100%')
-      .layoutWeight(1)
-      .scrollBar(BarState.Off)
-      .padding({ left: 24, right: 24, top: 8 })
-      .bindSheet(this.showDeleteSheet, this.DeleteSheetContent(), {
-        height: SheetSize.FIT_CONTENT,
-        showClose: true,
-        backgroundColor: $r('app.color.terminal_surface'),
-        onDisappear: () => { this.showDeleteSheet = false }
-      })
+        .padding({ left: 24, right: 24, top: 8 })
+        .bindSheet(this.showDeleteSheet, this.DeleteSheetContent(), {
+          height: SheetSize.FIT_CONTENT,
+          showClose: true,
+          backgroundColor: $r('app.color.terminal_surface'),
+          onDisappear: () => { this.showDeleteSheet = false }
+        })
     }
   }
 

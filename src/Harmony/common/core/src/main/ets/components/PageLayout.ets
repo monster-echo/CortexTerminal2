@@ -49,11 +49,13 @@ export struct PageLayout {
       .padding({ left: 8, right: 8 })
       .alignItems(VerticalAlign.Center)
 
-      Column() {
+      Scroll() {
         this.content()
       }
       .layoutWeight(1)
       .width('100%')
+      .scrollBar(BarState.Off)
+      .align(Alignment.Top)
     }
     .width('100%')
     .height('100%')

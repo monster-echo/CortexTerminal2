@@ -12,7 +12,6 @@ export struct ChangePasswordPage {
 
   build() {
     PageLayout({ title: I18n.get('security.change_password') }) {
-      Scroll() {
         Column() {
           Column() {
             Text(I18n.get('security.current_password'))
@@ -120,11 +119,7 @@ export struct ChangePasswordPage {
             })
         }
         .width('100%')
-      }
-      .width('100%')
-      .layoutWeight(1)
-      .scrollBar(BarState.Off)
-      .padding({ left: 24, right: 24, top: 8 })
+        .padding({ left: 24, right: 24, top: 8 })
     }
   }
 

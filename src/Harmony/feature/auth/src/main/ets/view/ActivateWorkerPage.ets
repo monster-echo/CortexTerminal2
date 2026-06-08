@@ -14,7 +14,6 @@ export struct ActivateWorkerPage {
 
   build() {
     PageLayout({ title: I18n.get('auth.activate.title') }) {
-      Scroll() {
         Column() {
           // Brand
           Column() {
@@ -117,12 +116,8 @@ export struct ActivateWorkerPage {
           }
         }
         .width('100%')
+        .padding({ left: 24, right: 24 })
       }
-      .width('100%')
-      .layoutWeight(1)
-      .scrollBar(BarState.Off)
-      .padding({ left: 24, right: 24 })
-    }
   }
 
   private activate() {
