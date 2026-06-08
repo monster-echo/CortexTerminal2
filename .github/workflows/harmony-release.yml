@@ -81,18 +81,23 @@ jobs:
           ./hvigorw assembleHap --mode module -p product=default --no-daemon
 
       - name: Sign HAP with release certificate
+        env:
+          KEYSTORE_PASS: ${{ secrets.HARMONY_KEYSTORE_PASSWORD }}
+          KEY_PASS: ${{ secrets.HARMONY_KEY_PASSWORD }}
         run: |
+          printf '%s' "$KEYSTORE_PASS" > /tmp/store-pass.txt
+          printf '%s' "$KEY_PASS" > /tmp/key-pass.txt
           HAP_FILE=$(ls src/Harmony/product/entry/build/default/outputs/default/entry-default-unsigned.hap | head -1)
           java -jar "/Applications/DevEco-Studio.app/Contents/sdk/default/openharmony/toolchains/lib/hap-sign-tool.jar" sign-app \
             -mode localSign \
             -keyAlias "${{ secrets.HARMONY_KEY_ALIAS }}" \
-            -keyPwd "${{ secrets.HARMONY_KEY_PASSWORD }}" \
+            -keyPwd "$(cat /tmp/key-pass.txt)" \
             -appCertFile /tmp/cortex-release.cer \
             -profileFile /tmp/cortex-release.p7b \
             -inFile "$HAP_FILE" \
             -signAlg SHA256withECDSA \
             -keystoreFile /tmp/cortex-release.p12 \
-            -keystorePwd "${{ secrets.HARMONY_KEYSTORE_PASSWORD }}" \
+            -keystorePwd "$(cat /tmp/store-pass.txt)" \
             -outFile /tmp/entry-release-signed.hap \
             -compatibleVersion 12 \
             -signCode 1
