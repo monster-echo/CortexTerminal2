@@ -101,9 +101,6 @@ importers:
       '@xterm/xterm':
         specifier: ^5.5.0
         version: 5.5.0
-      altcha:
-        specifier: ^3.0.9
-        version: 3.0.9
       axios:
         specifier: ^1.15.0
         version: 1.16.1
