@@ -62,20 +62,20 @@ public sealed class UnixPtyHost : IPtyHost
         var shellPath = Environment.GetEnvironmentVariable("SHELL");
         if (!string.IsNullOrWhiteSpace(shellPath))
         {
-            return (shellPath, Array.Empty<string>());
+            return (shellPath, new[] { "-l" });
         }
 
         if (OperatingSystem.IsMacOS())
         {
-            return ("/bin/zsh", Array.Empty<string>());
+            return ("/bin/zsh", new[] { "-l" });
         }
 
         if (OperatingSystem.IsLinux())
         {
-            return ("/bin/bash", Array.Empty<string>());
+            return ("/bin/bash", new[] { "-l" });
         }
 
-        return ("/bin/sh", Array.Empty<string>());
+        return ("/bin/sh", new[] { "-l" });
     }
 
     private static string? FindOnPath(string fileName)
