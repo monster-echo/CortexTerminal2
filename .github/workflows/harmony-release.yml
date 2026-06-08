@@ -122,24 +122,24 @@ jobs:
           SDK_PATH="${{ steps.sdk.outputs.ohos-base-sdk-home }}"
 
           # Reconstruct HarmonyOS SDK directory structure:
-          # hwsdk.dir expects hms/ + openharmony/ + sdk-pkg.json
+          # hwsdk.dir expects hms/ and openharmony/ subdirectories.
+          # Each component under hms/ needs uni-package.json.
+          # OpenHarmony SDK components already have oh-uni-package.json.
           mkdir -p "$SDK_PATH/hms" "$SDK_PATH/openharmony"
           for d in ets js native previewer toolchains; do
-            [ -d "$SDK_PATH/$d" ] && { ln -s "$SDK_PATH/$d" "$SDK_PATH/hms/$d" 2>/dev/null || true; ln -s "$SDK_PATH/$d" "$SDK_PATH/openharmony/$d" 2>/dev/null || true; }
+            if [ -d "$SDK_PATH/$d" ]; then
+              # OpenHarmony: symlink is fine, they have oh-uni-package.json
+              ln -s "$SDK_PATH/$d" "$SDK_PATH/openharmony/$d" 2>/dev/null || true
+              # HarmonyOS (hms): must copy and add uni-package.json
+              cp -a "$SDK_PATH/$d" "$SDK_PATH/hms/$d"
+              DISPLAY_NAME="$(echo "$d" | sed 's/ets/Ets/;s/js/Js/;s/native/Native/;s/previewer/Previewer/;s/toolchains/Toolchains/')"
+              cat > "$SDK_PATH/hms/$d/uni-package.json" <<COMPONENTEOF
+          {"apiVersion":"23","displayName":"$DISPLAY_NAME","meta":{"metaVersion":"3.0.0"},"path":"$d","platformVersion":"6.1.0","releaseType":"Release","version":"6.1.0.31"}
+          COMPONENTEOF
+            fi
           done
           cat > "$SDK_PATH/sdk-pkg.json" <<'PKGEOF'
-          {
-            "meta": { "version": "1.0.0" },
-            "data": {
-              "apiVersion": "23",
-              "displayName": "HarmonyOS 6.1.0",
-              "path": "HarmonyOS-6.1.0",
-              "platformVersion": "6.1.0",
-              "releaseType": "Release",
-              "version": "6.1.0.31",
-              "stage": "Release"
-            }
-          }
+          {"meta":{"version":"1.0.0"},"data":{"apiVersion":"23","displayName":"HarmonyOS 6.1.0","path":"HarmonyOS-6.1.0","platformVersion":"6.1.0","releaseType":"Release","version":"6.1.0.31","stage":"Release"}}
           PKGEOF
 
           cat > local.properties <<EOF
@@ -232,7 +232,7 @@ jobs:
         run: |
           cd src/Harmony
           chmod +x hvigorw
-          ./hvigorw assembleApp --mode module -p product=default -p buildMode=release --no-daemon --stacktrace
+          ./hvigorw assembleApp --mode module -p product=default -p buildMode=release --no-daemon
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
