@@ -81,9 +81,8 @@ jobs:
           chmod +x hvigorw
           ./hvigorw assembleApp --mode project -p product=default -p buildMode=release --no-daemon
 
-      - name: Upload to GitHub Release
-        uses: softprops/action-gh-release@v2
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
         with:
-          files: src/Harmony/product/entry/build/default/outputs/default/*-signed.*
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: harmony-app
+          path: src/Harmony/product/entry/build/default/outputs/default/*-signed.*
