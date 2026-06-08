@@ -6,6 +6,7 @@
  * All touch targets meet the 44px minimum accessibility requirement.
  */
 import { pasteboard } from '@kit.BasicServicesKit'
+import { I18n } from '@rwecho/core'
 
 type OnKeyPressCallback = (key: string) => void
 
@@ -84,7 +85,7 @@ export struct VirtualKeyBar {
       .layoutWeight(1)
 
       // Done button - fixed to the right
-      Button('完成')
+      Button(I18n.get('common.done'))
         .height(44)
         .constraintSize({ minWidth: 60 })
         .borderRadius(8)

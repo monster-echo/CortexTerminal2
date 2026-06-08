@@ -1,0 +1,9 @@
+{
+  "name": "routermodule",
+  "version": "1.0.0",
+  "description": "Dynamic routing framework for HarmonyOS",
+  "main": "Index.ets",
+  "author": "",
+  "license": "Apache-2.0",
+  "dependencies": {}
+}

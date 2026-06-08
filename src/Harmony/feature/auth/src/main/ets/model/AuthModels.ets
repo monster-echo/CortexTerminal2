@@ -74,11 +74,3 @@ export class OAuthCallbackRequest {
 export class WorkerActivateRequest {
   code: string = ''
 }
-
-/**
- * Request for refreshing an authentication token.
- */
-@Observed
-export class TokenRefreshRequest {
-  refreshToken: string = ''
-}

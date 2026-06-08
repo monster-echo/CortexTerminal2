@@ -2,28 +2,15 @@
  * @file Index.ets
  * @brief Terminal feature HAR export barrel
  *
- * Exports the main TerminalComponent and all public types
- * from the terminal feature module.
+ * Exports public types from the terminal feature module.
+ * Session models and RestApiClient moved to @rwecho/core / session module.
  */
-export { TerminalComponent } from './src/main/ets/TerminalComponent'
-export { TerminalHome } from './src/main/ets/view/TerminalHome'
 export { TerminalPage } from './src/main/ets/view/TerminalPage'
+export { TerminalSessionRoute } from './src/main/ets/FeatureComponent'
+export { XtermWebview } from './src/main/ets/view/XtermWebview'
+export { VirtualKeyBar } from './src/main/ets/view/VirtualKeyBar'
+export { StatusStrip } from './src/main/ets/view/StatusStrip'
 export { TerminalTransport } from './src/main/ets/service/TerminalTransport'
 export { TerminalStateManager } from './src/main/ets/service/TerminalStateManager'
-export { RestApiClient } from './src/main/ets/service/RestApiClient'
 export { NetworkMonitor } from './src/main/ets/service/NetworkMonitor'
 export type { TerminalStateEnum } from './src/main/ets/model/TerminalState'
-export {
-  SessionInfo,
-  SessionListResponse,
-  SessionCreateRequest,
-  SessionCreateResponse
-} from './src/main/ets/model/SessionModels'
-export type {
-  WebSocketFrame,
-  OutputFrame,
-  InputAckFrame,
-  StatusFrame,
-  ErrorFrame,
-  ResizeFrame
-} from './src/main/ets/model/WebSocketFrames'

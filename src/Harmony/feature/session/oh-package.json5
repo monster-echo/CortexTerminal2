@@ -1,0 +1,12 @@
+{
+  "name": "@rwecho/session",
+  "version": "1.0.0",
+  "description": "Session management feature",
+  "main": "Index.ets",
+  "author": "",
+  "license": "",
+  "dependencies": {
+    "@rwecho/core": "file:../../common/core",
+    "routermodule": "file:../../common/routermodule"
+  }
+}

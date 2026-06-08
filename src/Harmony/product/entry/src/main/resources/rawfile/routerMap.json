@@ -1,0 +1,7 @@
+[
+  { "name": "auth/Login" },
+  { "name": "session/Home" },
+  { "name": "terminal/Session" },
+  { "name": "worker/List" },
+  { "name": "settings/Page" }
+]

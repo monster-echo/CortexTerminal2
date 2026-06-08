@@ -69,8 +69,16 @@
       "srcPath": "./feature/settings"
     },
     {
+      "name": "session",
+      "srcPath": "./feature/session"
+    },
+    {
       "name": "signalr",
       "srcPath": "./common/signalr"
+    },
+    {
+      "name": "routermodule",
+      "srcPath": "./common/routermodule"
     }
   ]
 }

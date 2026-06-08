@@ -1,13 +1,10 @@
 /**
  * @file SessionModels.ets
- * @brief Data transfer objects for terminal sessions
+ * @brief Data transfer objects for terminal sessions.
  *
- * Defines request and response models for the session management API.
+ * Shared across session, terminal, worker, and settings modules.
  */
 
-/**
- * Information about a terminal session.
- */
 @Observed
 export class SessionInfo {
   id: string = ''
@@ -25,17 +22,11 @@ export class SessionInfo {
   ttl: number = 0
 }
 
-/**
- * Response from listing sessions.
- */
 @Observed
 export class SessionListResponse {
   sessions: SessionInfo[] = []
 }
 
-/**
- * Request to create a new session.
- */
 @Observed
 export class SessionCreateRequest {
   runtime: string = 'shell'
@@ -46,9 +37,6 @@ export class SessionCreateRequest {
   clientRequestId: string = ''
 }
 
-/**
- * Response from creating a session.
- */
 @Observed
 export class SessionCreateResponse {
   id: string = ''

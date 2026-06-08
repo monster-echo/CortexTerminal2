@@ -8,8 +8,10 @@
   "dependencies": {
     "@rwecho/core": "file:../../common/core",
     "@rwecho/auth": "file:../../feature/auth",
+    "@rwecho/session": "file:../../feature/session",
     "@rwecho/terminal": "file:../../feature/terminal",
     "@rwecho/worker": "file:../../feature/worker",
-    "@rwecho/settings": "file:../../feature/settings"
+    "@rwecho/settings": "file:../../feature/settings",
+    "routermodule": "file:../../common/routermodule"
   }
 }

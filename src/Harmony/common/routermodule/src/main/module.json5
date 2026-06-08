@@ -1,0 +1,11 @@
+{
+  "module": {
+    "name": "routermodule",
+    "type": "har",
+    "deviceTypes": [
+      "default",
+      "tablet",
+      "2in1"
+    ]
+  }
+}

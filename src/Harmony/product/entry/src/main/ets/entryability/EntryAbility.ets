@@ -7,10 +7,11 @@
  * lifecycle, color mode changes, and pre-warms the Web engine for xterm.js.
  */
 import { UIAbility, AbilityConstant, Want, Configuration, ConfigurationConstant } from '@kit.AbilityKit'
-import { window } from '@kit.ArkUI'
+import { window, KeyboardAvoidMode } from '@kit.ArkUI'
 import { webview } from '@kit.ArkWeb'
 import { hilog } from '@kit.PerformanceAnalysisKit'
 import { AppConstants } from '@rwecho/core'
+import { DynamicsRouter } from 'routermodule'
 
 const TAG = 'EntryAbility'
 const DOMAIN = 0x0001
@@ -26,7 +27,6 @@ export default class EntryAbility extends UIAbility {
     hilog.info(DOMAIN, TAG, 'onCreate')
 
     PersistentStorage.persistProp('authToken', '')
-    PersistentStorage.persistProp('refreshToken', '')
     PersistentStorage.persistProp('isLoggedIn', false)
     PersistentStorage.persistProp('userInfo', '')
     PersistentStorage.persistProp('gatewayUrl', AppConstants.DEFAULT_GATEWAY_URL)
@@ -68,9 +68,12 @@ export default class EntryAbility extends UIAbility {
   onWindowStageCreate(windowStage: window.WindowStage): void {
     hilog.info(DOMAIN, TAG, 'onWindowStageCreate')
 
+    DynamicsRouter.routerInit({ libPrefix: '', mapPath: 'routerMap' }, this.context)
+
     // Set main window to full screen immersive mode
     windowStage.getMainWindow().then((win: window.Window) => {
       this.mainWindow = win
+      win.setWindowLayoutFullScreen(true)
 
       // Get initial window dimensions
       const properties = win.getWindowProperties()
@@ -110,6 +113,14 @@ export default class EntryAbility extends UIAbility {
         AppStorage.setOrCreate('bottomSafeArea', 0)
       }
 
+      // Get status bar (top avoid area) height for safe area padding
+      try {
+        const topAvoidArea = win.getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM)
+        AppStorage.setOrCreate('topSafeArea', px2vp(topAvoidArea.topRect.height))
+      } catch (e) {
+        AppStorage.setOrCreate('topSafeArea', 0)
+      }
+
       // Color mode changes are tracked via onConfigurationUpdate
     }).catch((err: Error) => {
       hilog.error(DOMAIN, TAG, `Failed to get main window: ${err.message}`)
@@ -122,6 +133,9 @@ export default class EntryAbility extends UIAbility {
         return
       }
       hilog.info(DOMAIN, TAG, 'Loaded pages/Index')
+
+      // RESIZE: compress page height when keyboard appears (like Android adjustResize)
+      windowStage.getMainWindowSync().getUIContext().setKeyboardAvoidMode(KeyboardAvoidMode.RESIZE)
     })
   }
 

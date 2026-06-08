@@ -6,8 +6,7 @@
  * name, status, OS, and session count. Allows navigation
  * to worker detail and session creation.
  */
-import { http } from '@kit.NetworkKit'
-import { WorkerInfo } from '../model/WorkerModels'
+import { ApiService, I18n, WorkerInfo } from '@rwecho/core'
 
 @Component
 export struct WorkerListPage {
@@ -16,8 +15,6 @@ export struct WorkerListPage {
   @State errorMessage: string = ''
   @State isRefreshing: boolean = false
   @Consume('pageStack') pageStack: NavPathStack
-  @StorageLink('gatewayUrl') gatewayUrl: string = ''
-  @StorageLink('authToken') authToken: string = ''
 
   aboutToAppear() {
     this.loadWorkers()
@@ -33,7 +30,7 @@ export struct WorkerListPage {
             .height(40)
             .color($r('app.color.terminal_secondary'))
             .margin({ top: 60 })
-          Text('正在加载 Workers...')
+          Text(I18n.get('worker.list.loading'))
             .fontSize(14)
             .fontColor($r('app.color.terminal_on_surface_variant'))
             .margin({ top: 12 })
@@ -51,7 +48,7 @@ export struct WorkerListPage {
             .margin({ top: 40 })
             .padding({ left: 20, right: 20 })
 
-          Button('重试')
+          Button(I18n.get('common.retry'))
             .margin({ top: 12 })
             .onClick(() => {
               this.loadWorkers()
@@ -84,25 +81,25 @@ export struct WorkerListPage {
       // Empty state
       if (!this.isLoading && this.workers.length === 0 && this.errorMessage.length === 0) {
         Column() {
-          Text('还没有绑定 Worker')
+          Text(I18n.get('worker.list.empty'))
             .fontSize(16)
             .fontColor($r('app.color.terminal_on_surface_variant'))
             .margin({ top: 60 })
 
-          Text('在电脑端启动 Worker 后，输入激活码完成绑定。')
+          Text(I18n.get('session.home.empty_active_no_worker'))
             .fontSize(14)
             .fontColor($r('app.color.terminal_on_surface_variant'))
             .textAlign(TextAlign.Center)
             .margin({ top: 8 })
 
-          Button('激活 Worker')
+          Button(I18n.get('session.home.create_button'))
             .height(44)
             .borderRadius(12)
             .backgroundColor($r('app.color.terminal_secondary_container'))
             .fontColor($r('app.color.terminal_on_secondary_container'))
             .margin({ top: 18 })
             .onClick(() => {
-              this.pageStack.pushPath({ name: 'Auth' })
+              this.pageStack.pushPath({ name: 'auth/Login' })
             })
         }
         .width('100%')
@@ -144,7 +141,7 @@ export struct WorkerListPage {
       .layoutWeight(1)
 
       // Action button
-      Button(worker.isOnline ? '新建终端' : '查看')
+      Button(worker.isOnline ? I18n.get('session.card.new_terminal') : I18n.get('session.card.view_detail'))
         .height(32)
         .borderRadius(8)
         .backgroundColor(worker.isOnline ?
@@ -170,55 +167,8 @@ export struct WorkerListPage {
     this.isLoading = true
     this.errorMessage = ''
 
-    const baseUrl = this.gatewayUrl
-    const url = `${baseUrl}/api/me/workers`
-
     try {
-      const httpRequest = http.createHttp()
-      const headers: Record<string, string> = { 'Accept': 'application/json' }
-      if (this.authToken.length > 0) {
-        headers['Authorization'] = `Bearer ${this.authToken}`
-      }
-
-      const response = await httpRequest.request(url, {
-        method: http.RequestMethod.GET,
-        header: headers,
-        expectDataType: http.HttpDataType.OBJECT,
-        connectTimeout: 15000,
-        readTimeout: 15000
-      })
-
-      if (response.responseCode === 200) {
-        const workerList = response.result as Object[]
-        this.workers = workerList.map((w: Object) => {
-          const data = w as Record<string, Object>
-          const worker = new WorkerInfo()
-          const workerId = (data['workerId'] as string) ?? ''
-          const isOnline = (data['isOnline'] as boolean) ?? false
-          const sessionCount = (data['sessionCount'] as number) ?? 0
-          worker.id = workerId
-          worker.workerId = workerId
-          worker.name = (data['name'] as string) ?? ''
-          worker.hostname = (data['hostname'] as string) ?? ''
-          worker.isOnline = isOnline
-          worker.status = isOnline ? 'online' : 'offline'
-          worker.operatingSystem = (data['operatingSystem'] as string) ?? ''
-          worker.os = worker.operatingSystem
-          worker.architecture = (data['architecture'] as string) ?? ''
-          worker.arch = worker.architecture
-          worker.version = (data['version'] as string) ?? ''
-          worker.address = (data['address'] as string) ?? ''
-          worker.activeSessions = sessionCount
-          worker.sessionCount = sessionCount
-          worker.maxSessions = Math.max(sessionCount, 1)
-          worker.lastSeenAt = (data['lastSeenAtUtc'] as string) ?? ''
-          return worker
-        })
-      } else {
-        this.errorMessage = `Failed to load workers (${response.responseCode})`
-      }
-
-      httpRequest.destroy()
+      this.workers = await ApiService.listWorkers()
     } catch (e) {
       this.errorMessage = (e as Error).message || 'Network error'
     } finally {

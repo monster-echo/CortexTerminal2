@@ -9,6 +9,7 @@
 import { buffer } from '@kit.ArkTS'
 import { webview } from '@kit.ArkWeb'
 import { pasteboard } from '@kit.BasicServicesKit'
+import { TerminalNavParam, RouteName, I18n } from '@rwecho/core'
 import { TerminalStateManager } from '../service/TerminalStateManager'
 import { TerminalTransport } from '../service/TerminalTransport'
 import { TransportFrame } from '../model/TerminalTransportModels'
@@ -29,7 +30,7 @@ struct SessionDetailDialog {
 
   build() {
     Column() {
-      Text('会话详情')
+      Text(I18n.get('terminal.detail.title'))
         .fontSize(18)
         .fontWeight(FontWeight.Bold)
         .fontColor($r('app.color.terminal_primary'))
@@ -38,7 +39,7 @@ struct SessionDetailDialog {
         .margin({ bottom: 12 })
 
       Row() {
-        Text('状态')
+        Text(I18n.get('terminal.detail.status'))
           .fontSize(14)
           .fontColor($r('app.color.terminal_on_surface_variant'))
           .layoutWeight(1)
@@ -52,7 +53,7 @@ struct SessionDetailDialog {
       .border({ width: { bottom: 0.5 }, color: $r('app.color.terminal_outline_variant') })
 
       Row() {
-        Text('列')
+        Text(I18n.get('terminal.detail.cols'))
           .fontSize(14)
           .fontColor($r('app.color.terminal_on_surface_variant'))
           .layoutWeight(1)
@@ -66,7 +67,7 @@ struct SessionDetailDialog {
       .border({ width: { bottom: 0.5 }, color: $r('app.color.terminal_outline_variant') })
 
       Row() {
-        Text('行')
+        Text(I18n.get('terminal.detail.rows'))
           .fontSize(14)
           .fontColor($r('app.color.terminal_on_surface_variant'))
           .layoutWeight(1)
@@ -80,7 +81,7 @@ struct SessionDetailDialog {
       .border({ width: { bottom: 0.5 }, color: $r('app.color.terminal_outline_variant') })
 
       Row() {
-        Text('延迟')
+        Text(I18n.get('terminal.detail.latency'))
           .fontSize(14)
           .fontColor($r('app.color.terminal_on_surface_variant'))
           .layoutWeight(1)
@@ -92,7 +93,7 @@ struct SessionDetailDialog {
       .width('100%')
       .height(36)
 
-      Button('确定')
+      Button(I18n.get('terminal.detail.confirm'))
         .width('100%')
         .height(40)
         .margin({ top: 16 })
@@ -114,8 +115,8 @@ struct SessionDetailDialog {
 
 @Component
 export struct TerminalPage {
-  @StorageLink('navSessionId') sessionId: string = ''
-  @StorageLink('navSessionName') sessionName: string = 'Terminal'
+  @State sessionId: string = ''
+  @State sessionName: string = 'Terminal'
   @State currentState: TerminalState = TerminalState.Disconnected
   @StorageLink('gatewayUrl') gatewayUrl: string = ''
   @StorageLink('authToken') authToken: string = ''
@@ -151,6 +152,13 @@ export struct TerminalPage {
 
   aboutToAppear() {
     this.pageVisible = true
+    // Read session params from NavPathStack navigation parameter
+    const param = this.pageStack.getParamByName('terminal/Session') as TerminalNavParam[]
+    if (param && param.length > 0) {
+      const lastParam = param[param.length - 1]
+      this.sessionId = lastParam.sessionId
+      this.sessionName = lastParam.sessionName || 'Terminal'
+    }
     this.stateManager.onStateChanged = (state: TerminalState) => {
       this.currentState = state
     }
@@ -232,7 +240,7 @@ export struct TerminalPage {
               .maxLines(2)
               .textOverflow({ overflow: TextOverflow.Ellipsis })
 
-            Button('重试连接')
+            Button(I18n.get('terminal.error.retry_connection'))
               .height(32)
               .borderRadius(8)
               .backgroundColor($r('app.color.terminal_secondary_container'))
@@ -273,7 +281,7 @@ export struct TerminalPage {
       })
       .layoutWeight(1)
 
-      // Virtual key bar (visible only when keyboard is shown)
+      // Virtual key bar (visible when keyboard is shown)
       if (this.isKeyboardVisible) {
         VirtualKeyBar({
           onKeyPress: (key: string) => {
@@ -300,7 +308,7 @@ export struct TerminalPage {
 
     this.connectTimer = setTimeout(() => {
       if (this.currentState === TerminalState.Connecting) {
-        this.connectionError = '连接超时，请重试'
+        this.connectionError = I18n.get('terminal.error.timeout')
         this.stateManager.setState(TerminalState.Error)
         this.transport.disconnect()
       }
@@ -315,7 +323,7 @@ export struct TerminalPage {
         if (this.currentState !== TerminalState.Detached &&
           this.currentState !== TerminalState.Exited &&
           this.currentState !== TerminalState.Error) {
-          this.connectionError = '连接已断开，正在重新连接'
+          this.connectionError = I18n.get('terminal.error.disconnected')
           this.stateManager.setState(TerminalState.Reconnecting)
         }
       }
@@ -327,7 +335,7 @@ export struct TerminalPage {
         clearTimeout(this.connectTimer)
         this.connectTimer = -1
       }
-      this.connectionError = (e as Error).message || '连接网关失败'
+      this.connectionError = (e as Error).message || I18n.get('terminal.error.gateway_failed')
       this.stateManager.setState(TerminalState.Error)
       console.error('Failed to connect terminal session: ' + this.connectionError)
     }
@@ -380,18 +388,18 @@ export struct TerminalPage {
         break
 
       case 'expired':
-        this.connectionError = frame.reason || '会话已过期'
+        this.connectionError = frame.reason || I18n.get('terminal.status.expired')
         this.stateManager.setState(TerminalState.Expired)
         setTimeout(() => {
-          this.pageStack.replacePath({ name: 'TerminalHome' })
+          this.pageStack.replacePath({ name: RouteName.SESSION_HOME })
         }, 2000)
         break
 
       case 'exited':
-        this.connectionError = frame.reason || '终端进程已退出'
+        this.connectionError = frame.reason || I18n.get('terminal.error.process_exited')
         this.stateManager.setState(TerminalState.Exited)
         setTimeout(() => {
-          this.pageStack.replacePath({ name: 'TerminalHome' })
+          this.pageStack.replacePath({ name: RouteName.SESSION_HOME })
         }, 2000)
         break
     }
@@ -528,22 +536,8 @@ export struct TerminalPage {
   }
 
   private stringToBase64(str: string): string {
-    const bytes: number[] = []
-    for (let i = 0; i < str.length; i++) {
-      bytes.push(str.charCodeAt(i) & 0xFF)
-    }
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
-    let result = ''
-    for (let i = 0; i < bytes.length; i += 3) {
-      const b0 = bytes[i]
-      const b1 = i + 1 < bytes.length ? bytes[i + 1] : 0
-      const b2 = i + 2 < bytes.length ? bytes[i + 2] : 0
-      result += chars.charAt(b0 >> 2)
-      result += chars.charAt(((b0 & 3) << 4) | (b1 >> 4))
-      result += i + 1 < bytes.length ? chars.charAt(((b1 & 15) << 2) | (b2 >> 6)) : '='
-      result += i + 2 < bytes.length ? chars.charAt(b2 & 63) : '='
-    }
-    return result
+    const buf = buffer.from(str, 'utf-8')
+    return buf.toString('base64')
   }
 
   private getStatusDotColor(): ResourceColor {
@@ -640,6 +634,6 @@ export struct TerminalPage {
   private handleBack() {
     this.transport.sendDetach()
     this.stateManager.setState(TerminalState.Detached)
-    this.pageStack.replacePath({ name: 'TerminalHome' })
+    this.pageStack.replacePath({ name: RouteName.SESSION_HOME })
   }
 }

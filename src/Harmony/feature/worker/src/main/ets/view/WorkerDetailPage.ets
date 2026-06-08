@@ -6,8 +6,7 @@
  * active sessions, and provides actions like creating new sessions
  * or connecting to existing ones.
  */
-import { http } from '@kit.NetworkKit'
-import { WorkerInfo, WorkerSessionInfo } from '../model/WorkerModels'
+import { ApiService, I18n, WorkerInfo, WorkerSessionInfo, SessionCreateRequest } from '@rwecho/core'
 
 @Component
 export struct WorkerDetailPage {
@@ -18,8 +17,6 @@ export struct WorkerDetailPage {
   @State isLoading: boolean = false
   @State errorMessage: string = ''
   @Consume('pageStack') pageStack: NavPathStack
-  @StorageLink('gatewayUrl') gatewayUrl: string = ''
-  @StorageLink('authToken') authToken: string = ''
 
   aboutToAppear() {
     this.loadWorkerDetail()
@@ -69,7 +66,7 @@ export struct WorkerDetailPage {
 
           // Active sessions section
           Column() {
-            Text('会话')
+            Text(I18n.get('worker.detail.sessions'))
               .fontSize(16)
               .fontWeight(FontWeight.Medium)
               .fontColor($r('app.color.terminal_primary'))
@@ -77,7 +74,7 @@ export struct WorkerDetailPage {
               .margin({ bottom: 12 })
 
             if (this.sessions.length === 0) {
-              Text('暂无活跃会话')
+              Text(I18n.get('session.home.empty_history'))
                 .fontSize(14)
                 .fontColor($r('app.color.terminal_on_surface_variant'))
             } else {
@@ -91,7 +88,7 @@ export struct WorkerDetailPage {
 
           // New Session button
           if (this.worker && this.worker.isOnline) {
-            Button('在此 Worker 新建终端')
+            Button(I18n.get('worker.detail.new_terminal'))
               .width('calc(100% - 40vp)')
               .height(48)
               .borderRadius(12)
@@ -126,7 +123,7 @@ export struct WorkerDetailPage {
             $r('app.color.terminal_tertiary') :
             $r('app.color.terminal_outline_variant'))
 
-        Text(this.worker!.isOnline ? '在线' : '离线')
+        Text(this.worker!.isOnline ? I18n.get('worker.detail.status_online') : I18n.get('worker.detail.status_offline'))
           .fontSize(14)
           .fontWeight(FontWeight.Medium)
           .fontColor(this.worker!.isOnline ?
@@ -138,16 +135,16 @@ export struct WorkerDetailPage {
       // Worker details grid
       Grid() {
         GridItem() {
-          this.StatItem('主机名', this.worker!.hostname || '-')
+          this.StatItem(I18n.get('worker.detail.hostname'), this.worker!.hostname || '-')
         }
         GridItem() {
-          this.StatItem('系统', this.worker!.os || '-')
+          this.StatItem(I18n.get('worker.detail.os'), this.worker!.os || '-')
         }
         GridItem() {
-          this.StatItem('CPU', `${this.worker!.cpuUsage ?? 0}%`)
+          this.StatItem(I18n.get('worker.detail.cpu'), `${this.worker!.cpuUsage ?? 0}%`)
         }
         GridItem() {
-          this.StatItem('内存', `${this.worker!.memoryUsage ?? 0}%`)
+          this.StatItem(I18n.get('worker.detail.memory'), `${this.worker!.memoryUsage ?? 0}%`)
         }
       }
       .columnsTemplate('1fr 1fr')
@@ -158,7 +155,7 @@ export struct WorkerDetailPage {
 
       // Last seen
       if (this.worker!.lastSeenAt.length > 0) {
-        Text(`最后在线：${this.formatTime(this.worker!.lastSeenAt)}`)
+        Text(`${I18n.get('worker.detail.last_seen')}：${this.formatTime(this.worker!.lastSeenAt)}`)
           .fontSize(12)
           .fontColor($r('app.color.terminal_on_surface_variant'))
           .margin({ top: 12 })
@@ -204,7 +201,7 @@ export struct WorkerDetailPage {
       .alignItems(HorizontalAlign.Start)
       .layoutWeight(1)
 
-      Button('恢复')
+      Button(I18n.get('session.card.resume'))
         .height(32)
         .borderRadius(8)
         .backgroundColor($r('app.color.terminal_secondary_container'))
@@ -243,80 +240,29 @@ export struct WorkerDetailPage {
     }
   }
 
-  private mapSessionStatus(status: string): string {
-    switch (status) {
-      case 'Attached':
-        return 'running'
-      case 'DetachedGracePeriod':
-        return 'idle'
-      case 'Exited':
-      case 'Expired':
-        return 'failed'
-      default:
-        return status.length > 0 ? status.toLowerCase() : 'idle'
-    }
-  }
-
   private async loadWorkerDetail() {
     this.isLoading = true
 
-    const baseUrl = this.gatewayUrl
-
     try {
-      const httpRequest = http.createHttp()
-      const headers: Record<string, string> = { 'Accept': 'application/json' }
-      if (this.authToken.length > 0) {
-        headers['Authorization'] = `Bearer ${this.authToken}`
-      }
+      const worker = await ApiService.getWorker(this.workerId)
+      this.worker = worker
 
-      // Load worker info
-      const response = await httpRequest.request(`${baseUrl}/api/me/workers/${encodeURIComponent(this.workerId)}`, {
-        method: http.RequestMethod.GET,
-        header: headers,
-        expectDataType: http.HttpDataType.OBJECT,
-        connectTimeout: 15000,
-        readTimeout: 15000
-      })
-
-      if (response.responseCode === 200) {
-        const data = response.result as Record<string, Object>
-        const worker = new WorkerInfo()
-        const workerId = (data['workerId'] as string) ?? this.workerId
-        const isOnline = (data['isOnline'] as boolean) ?? false
-        worker.id = workerId
-        worker.workerId = workerId
-        worker.name = (data['name'] as string) ?? ''
-        worker.hostname = (data['hostname'] as string) ?? ''
-        worker.isOnline = isOnline
-        worker.status = isOnline ? 'online' : 'offline'
-        worker.operatingSystem = (data['operatingSystem'] as string) ?? ''
-        worker.os = worker.operatingSystem
-        worker.architecture = (data['architecture'] as string) ?? ''
-        worker.arch = worker.architecture
-        worker.version = (data['version'] as string) ?? ''
-        worker.lastSeenAt = (data['lastSeenAtUtc'] as string) ?? ''
-        worker.sessionCount = (data['sessionCount'] as number) ?? 0
-        worker.activeSessions = worker.sessionCount
-        this.worker = worker
-
-        const sessionList = (data['sessions'] as Object[]) ?? []
-        this.sessions = sessionList.map((s: Object) => {
-          const d = s as Record<string, Object>
-          const session = new WorkerSessionInfo()
-          const sessionId = (d['sessionId'] as string) ?? ''
-          session.id = sessionId
-          session.sessionId = sessionId
-          session.workerId = (d['workerId'] as string) ?? this.workerId
-          session.name = sessionId.length > 8 ? `session ${sessionId.substring(0, 8)}` : sessionId
-          session.status = this.mapSessionStatus((d['status'] as string) ?? '')
-          session.createdAt = (d['createdAt'] as string) ?? ''
-          session.lastActivityAt = (d['lastActivityAt'] as string) ?? ''
-          session.lastActiveAt = session.lastActivityAt
-          return session
+      const allSessions = await ApiService.listSessions()
+      this.sessions = allSessions
+        .filter(s => s.workerId === this.workerId)
+        .map(s => {
+          const wsi = new WorkerSessionInfo()
+          wsi.id = s.sessionId
+          wsi.sessionId = s.sessionId
+          wsi.workerId = s.workerId
+          wsi.name = s.name
+          wsi.status = s.status
+          wsi.createdAt = s.createdAt
+          wsi.updatedAt = s.updatedAt
+          wsi.lastActivityAt = s.lastActivityAt
+          wsi.lastActiveAt = s.lastActiveAt
+          return wsi
         })
-      }
-
-      httpRequest.destroy()
     } catch (e) {
       this.errorMessage = (e as Error).message || 'Failed to load worker details'
     } finally {
@@ -325,56 +271,19 @@ export struct WorkerDetailPage {
   }
 
   private async createNewSession() {
-    const baseUrl = this.gatewayUrl
-
     try {
-      const httpRequest = http.createHttp()
-      const headers: Record<string, string> = {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
-      }
-      if (this.authToken.length > 0) {
-        headers['Authorization'] = `Bearer ${this.authToken}`
-      }
+      const request = new SessionCreateRequest()
+      request.workerId = this.workerId
+      request.columns = 120
+      request.rows = 40
 
-      const response = await httpRequest.request(`${baseUrl}/api/sessions`, {
-        method: http.RequestMethod.POST,
-        header: headers,
-        extraData: JSON.stringify(new SessionCreateBody(this.workerId, `Terminal on ${this.workerName}`)),
-        expectDataType: http.HttpDataType.OBJECT,
-        connectTimeout: 15000,
-        readTimeout: 15000
-      })
+      const response = await ApiService.createSession(request)
 
-      if (response.responseCode === 200 || response.responseCode === 201) {
-        const data = response.result as Record<string, string>
-        const sessionId = data['sessionId'] ?? ''
-        const sessionName = sessionId.length > 8 ? `session ${sessionId.substring(0, 8)}` : 'Terminal'
-
-        AppStorage.setOrCreate('navSessionId', sessionId)
-        AppStorage.setOrCreate('navSessionName', sessionName)
-        this.pageStack.pushPath({ name: 'TerminalSession' })
-      }
-
-      httpRequest.destroy()
+      AppStorage.setOrCreate('navSessionId', response.sessionId)
+      AppStorage.setOrCreate('navSessionName', response.name)
+      this.pageStack.pushPath({ name: 'TerminalSession' })
     } catch (e) {
       console.error('Failed to create session: ' + (e as Error).message)
     }
-  }
-}
-
-/**
- * Request body for creating a session on a worker.
- */
-class SessionCreateBody {
-  runtime: string = 'shell'
-  workerId: string = ''
-  columns: number = 120
-  rows: number = 40
-  clientRequestId: string = ''
-
-  constructor(workerId: string, _name: string) {
-    this.workerId = workerId
-    this.clientRequestId = `harmony-worker-${Date.now()}-${Math.floor(Math.random() * 100000)}`
   }
 }

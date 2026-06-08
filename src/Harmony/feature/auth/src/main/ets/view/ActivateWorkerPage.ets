@@ -2,7 +2,7 @@
  * @file ActivateWorkerPage.ets
  * @brief Worker activation page with card layout and success state.
  */
-import { AuthService } from '../service/AuthService'
+import { AuthService, I18n } from '@rwecho/core'
 
 @Component
 export struct ActivateWorkerPage {
@@ -11,7 +11,6 @@ export struct ActivateWorkerPage {
   @State errorMessage: string = ''
   @State successMessage: string = ''
   @Consume('pageStack') pageStack: NavPathStack
-  private authService: AuthService = new AuthService()
 
   build() {
     Scroll() {
@@ -148,9 +147,9 @@ export struct ActivateWorkerPage {
     this.isLoading = true
     this.errorMessage = ''
 
-    this.authService.activateWorker(this.activationCode).then(() => {
+    AuthService.activateWorker(this.activationCode).then(() => {
       this.isLoading = false
-      this.successMessage = '激活成功'
+      this.successMessage = I18n.get('auth.activate.success')
       setTimeout(() => {
         AuthService.navigateHome(this.pageStack)
       }, 1000)

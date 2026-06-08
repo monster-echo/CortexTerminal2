@@ -1,0 +1,7 @@
+{
+  "module": {
+    "name": "session",
+    "type": "har",
+    "deviceTypes": ["default"]
+  }
+}

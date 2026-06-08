@@ -1,0 +1,58 @@
+import { ApiService, SessionInfo, SessionCreateRequest, SessionCreateResponse, WorkerInfo } from '@rwecho/core'
+import { display } from '@kit.ArkUI'
+
+interface TerminalSize { cols: number; rows: number }
+
+interface HomeData {
+  activeSessions: SessionInfo[]
+  historySessions: SessionInfo[]
+  workers: WorkerInfo[]
+}
+
+export class SessionService {
+  static isSessionActive(session: SessionInfo): boolean {
+    const status = session.status.toLowerCase()
+    return status === 'running' || status === 'idle' || status === 'live' || status === 'connected'
+  }
+
+  static async loadHomeData(): Promise<HomeData> {
+    const sessions = await ApiService.listSessions()
+    const workers = await ApiService.listWorkers()
+    const activeSessions = sessions.filter(s => SessionService.isSessionActive(s))
+    const historySessions = sessions.filter(s => !SessionService.isSessionActive(s))
+    const result: HomeData = {
+      activeSessions: activeSessions,
+      historySessions: historySessions,
+      workers: workers
+    }
+    return result
+  }
+
+  static async createSessionOnWorker(workerId: string): Promise<SessionCreateResponse> {
+    const size = SessionService.calculateTerminalSize()
+    const request = new SessionCreateRequest()
+    request.columns = size.cols
+    request.rows = size.rows
+    request.workerId = workerId
+    return await ApiService.createSession(request)
+  }
+
+  static async deleteSession(sessionId: string): Promise<void> {
+    await ApiService.deleteSession(sessionId)
+  }
+
+  private static calculateTerminalSize(): TerminalSize {
+    const disp = display.getDefaultDisplaySync()
+    const vpWidth = px2vp(disp.width)
+    const vpHeight = px2vp(disp.height)
+    const fontSize = 14
+    const charWidth = fontSize * 0.602
+    const charHeight = fontSize * 1.2
+    const topBarHeight = 52 + 28
+    const keyBarHeight = 52
+    const cols = Math.floor(vpWidth / charWidth)
+    const rows = Math.floor((vpHeight - topBarHeight - keyBarHeight) / charHeight)
+    const result: TerminalSize = { cols: Math.max(cols, 20), rows: Math.max(rows, 6) }
+    return result
+  }
+}

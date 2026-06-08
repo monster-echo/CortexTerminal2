@@ -1,5 +1,6 @@
 import { buffer } from '@kit.ArkTS'
 import { HubConnectionBuilder, HubConnection, HubConnectionState, LogLevel } from '@rwecho/signalr'
+import { I18n } from '@rwecho/core'
 import {
   TransportFrame,
   ReattachSessionParams,
@@ -280,11 +281,11 @@ export class TerminalTransport {
   private translateErrorCode(code: string): string {
     switch (code) {
       case 'session-not-found':
-        return '会话不存在或无权访问'
+        return I18n.get('terminal.error.session_not_found')
       case 'session-expired':
-        return '会话已过期，请创建新会话'
+        return I18n.get('terminal.error.session_expired_create')
       case 'session-detached-without-lease':
-        return '会话状态异常，请重试'
+        return I18n.get('terminal.error.session_state_error')
       default:
         return code
     }

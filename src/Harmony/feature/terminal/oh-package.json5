@@ -4,6 +4,7 @@
   "main": "Index.ets",
   "dependencies": {
     "@rwecho/core": "file:../../common/core",
-    "@rwecho/signalr": "file:../../common/signalr"
+    "@rwecho/signalr": "file:../../common/signalr",
+    "routermodule": "file:../../common/routermodule"
   }
 }

@@ -1,8 +1,4 @@
-/**
- * @file AccountSecurityPage.ets
- * @brief Account security page — change password
- */
-import { RestApiClient } from '@rwecho/terminal'
+import { ApiService, I18n } from '@rwecho/core'
 
 @Component
 export struct AccountSecurityPage {
@@ -13,11 +9,9 @@ export struct AccountSecurityPage {
   @State isLoading: boolean = false
   @State errorMessage: string = ''
   @State successMessage: string = ''
-  private apiClient: RestApiClient = new RestApiClient()
 
   build() {
     Column() {
-      // Top bar
       Row() {
         Button() {
           SymbolGlyph($r('sys.symbol.chevron_left'))
@@ -32,7 +26,7 @@ export struct AccountSecurityPage {
           this.pageStack.pop()
         })
 
-        Text('账号安全')
+        Text(I18n.get('security.title'))
           .fontSize(17)
           .fontWeight(FontWeight.Medium)
           .fontColor($r('app.color.terminal_primary'))
@@ -46,8 +40,7 @@ export struct AccountSecurityPage {
 
       Scroll() {
         Column() {
-          // Password change section
-          Text('修改密码')
+          Text(I18n.get('security.change_password'))
             .fontSize(13)
             .fontWeight(FontWeight.Medium)
             .fontColor($r('app.color.terminal_secondary'))
@@ -55,13 +48,13 @@ export struct AccountSecurityPage {
             .margin({ top: 20, bottom: 8 })
 
           Column() {
-            Text('当前密码')
+            Text(I18n.get('security.current_password'))
               .fontSize(14)
               .fontColor($r('app.color.terminal_on_surface_variant'))
               .width('100%')
               .margin({ bottom: 6 })
 
-            TextInput({ text: this.currentPassword, placeholder: '输入当前密码' })
+            TextInput({ text: this.currentPassword, placeholder: I18n.get('security.current_password') })
               .type(InputType.Password)
               .width('100%')
               .height(44)
@@ -79,13 +72,13 @@ export struct AccountSecurityPage {
           .margin({ bottom: 8 })
 
           Column() {
-            Text('新密码')
+            Text(I18n.get('security.new_password'))
               .fontSize(14)
               .fontColor($r('app.color.terminal_on_surface_variant'))
               .width('100%')
               .margin({ bottom: 6 })
 
-            TextInput({ text: this.newPassword, placeholder: '输入新密码 (最少 8 位)' })
+            TextInput({ text: this.newPassword, placeholder: I18n.get('security.password_min_length') })
               .type(InputType.Password)
               .width('100%')
               .height(44)
@@ -103,13 +96,13 @@ export struct AccountSecurityPage {
           .margin({ bottom: 8 })
 
           Column() {
-            Text('确认新密码')
+            Text(I18n.get('security.confirm_password'))
               .fontSize(14)
               .fontColor($r('app.color.terminal_on_surface_variant'))
               .width('100%')
               .margin({ bottom: 6 })
 
-            TextInput({ text: this.confirmPassword, placeholder: '再次输入新密码' })
+            TextInput({ text: this.confirmPassword, placeholder: I18n.get('security.confirm_password') })
               .type(InputType.Password)
               .width('100%')
               .height(44)
@@ -126,7 +119,6 @@ export struct AccountSecurityPage {
           .backgroundColor($r('app.color.terminal_surface_container'))
           .margin({ bottom: 8 })
 
-          // Error message
           if (this.errorMessage.length > 0) {
             Text(this.errorMessage)
               .fontSize(13)
@@ -135,7 +127,6 @@ export struct AccountSecurityPage {
               .margin({ bottom: 8 })
           }
 
-          // Success message
           if (this.successMessage.length > 0) {
             Text(this.successMessage)
               .fontSize(13)
@@ -144,8 +135,7 @@ export struct AccountSecurityPage {
               .margin({ bottom: 8 })
           }
 
-          // Submit button
-          Button(this.isLoading ? '提交中...' : '修改密码')
+          Button(I18n.get('security.submit'))
             .width('calc(100% - 40vp)')
             .height(48)
             .borderRadius(12)
@@ -176,27 +166,27 @@ export struct AccountSecurityPage {
     this.successMessage = ''
 
     if (this.currentPassword.length === 0) {
-      this.errorMessage = '请输入当前密码'
+      this.errorMessage = I18n.get('security.current_password')
       return
     }
     if (this.newPassword.length < 8) {
-      this.errorMessage = '新密码至少 8 个字符'
+      this.errorMessage = I18n.get('security.password_min_length')
       return
     }
     if (this.newPassword !== this.confirmPassword) {
-      this.errorMessage = '两次输入的新密码不一致'
+      this.errorMessage = I18n.get('security.password_mismatch')
       return
     }
 
     this.isLoading = true
     try {
-      await this.apiClient.changePassword(this.currentPassword, this.newPassword)
-      this.successMessage = '密码修改成功'
+      await ApiService.changePassword(this.currentPassword, this.newPassword)
+      this.successMessage = I18n.get('security.change_password') + ' ✓'
       this.currentPassword = ''
       this.newPassword = ''
       this.confirmPassword = ''
     } catch (e) {
-      this.errorMessage = (e as Error).message || '修改失败，请重试'
+      this.errorMessage = (e as Error).message || I18n.get('common.error')
     } finally {
       this.isLoading = false
     }

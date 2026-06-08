@@ -1,27 +1,17 @@
-/**
- * @file SettingsPage.ets
- * @brief Settings page with theme, language, and version info
- *
- * Provides user-configurable settings including dark/light theme toggle,
- * language selection, gateway URL configuration, and app version display.
- */
 import { common, Want } from '@kit.AbilityKit'
-import { RestApiClient } from '@rwecho/terminal'
+import { ApiService, AuthService, AuthState, I18n, RouteName } from '@rwecho/core'
 
 @Component
 export struct SettingsPage {
   @State currentTheme: string = 'system'
   @StorageLink('language') currentLanguage: string = 'en'
   @StorageLink('gatewayUrl') gatewayUrl: string = ''
-  @StorageLink('authToken') authToken: string = ''
-  @StorageLink('userInfo') userInfoStr: string = ''
-  @Consume('pageStack') pageStack: NavPathStack
   @State editedGatewayUrl: string = ''
   @State showGatewayEditor: boolean = false
   @State displayName: string = ''
+  @Consume('pageStack') pageStack: NavPathStack
   private appVersion: string = '1.0.0'
   private appBuild: string = '1'
-  private apiClient: RestApiClient = new RestApiClient()
 
   aboutToAppear() {
     this.editedGatewayUrl = this.gatewayUrl
@@ -31,20 +21,18 @@ export struct SettingsPage {
   build() {
     Scroll() {
       Column() {
-        // Appearance section
-        this.SectionHeader('外观')
+        this.SectionHeader(I18n.get('settings.appearance'))
 
-        // Theme selector
         Row() {
-          Text('主题')
+          Text(I18n.get('settings.theme'))
             .fontSize(14)
             .fontColor($r('app.color.terminal_primary'))
             .layoutWeight(1)
 
           Row() {
-            this.ThemeOption('浅色', this.currentTheme === 'light', 'light')
-            this.ThemeOption('深色', this.currentTheme === 'dark', 'dark')
-            this.ThemeOption('系统', this.currentTheme === 'system', 'system')
+            this.ThemeOption(I18n.get('settings.theme_light'), this.currentTheme === 'light', 'light')
+            this.ThemeOption(I18n.get('settings.theme_dark'), this.currentTheme === 'dark', 'dark')
+            this.ThemeOption(I18n.get('settings.theme_system'), this.currentTheme === 'system', 'system')
           }
         }
         .width('calc(100% - 40vp)')
@@ -53,16 +41,15 @@ export struct SettingsPage {
         .backgroundColor($r('app.color.terminal_surface_container'))
         .margin({ bottom: 8 })
 
-        // Language selector
         Row() {
-          Text('语言')
+          Text(I18n.get('settings.language'))
             .fontSize(14)
             .fontColor($r('app.color.terminal_primary'))
             .layoutWeight(1)
 
           Row() {
-            this.LanguageOption('中文', 'zh')
-            this.LanguageOption('English', 'en')
+            this.LanguageOption(I18n.get('settings.language_zh'), 'zh')
+            this.LanguageOption(I18n.get('settings.language_en'), 'en')
           }
         }
         .width('calc(100% - 40vp)')
@@ -71,18 +58,16 @@ export struct SettingsPage {
         .backgroundColor($r('app.color.terminal_surface_container'))
         .margin({ bottom: 8 })
 
-        // Connection section
-        this.SectionHeader('连接')
+        this.SectionHeader(I18n.get('settings.connection'))
 
-        // Gateway URL
         Column() {
           Row() {
-            Text('网关地址')
+            Text(I18n.get('settings.gateway_url'))
               .fontSize(14)
               .fontColor($r('app.color.terminal_primary'))
               .layoutWeight(1)
 
-            Text(this.showGatewayEditor ? '完成' : '编辑')
+            Text(this.showGatewayEditor ? I18n.get('common.done') : I18n.get('settings.gateway_url'))
               .fontSize(14)
               .fontColor($r('app.color.terminal_secondary'))
               .onClick(() => {
@@ -118,13 +103,11 @@ export struct SettingsPage {
         .backgroundColor($r('app.color.terminal_surface_container'))
         .margin({ bottom: 8 })
 
-        // Account section
-        this.SectionHeader('账号')
+        this.SectionHeader(I18n.get('settings.account'))
 
-        // User profile
         Row() {
           Column() {
-            Text(this.displayName || '已登录用户')
+            Text(this.displayName || I18n.get('settings.profile'))
               .fontSize(15)
               .fontWeight(FontWeight.Medium)
               .fontColor($r('app.color.terminal_primary'))
@@ -138,18 +121,15 @@ export struct SettingsPage {
         .backgroundColor($r('app.color.terminal_surface_container'))
         .margin({ bottom: 8 })
 
-        // Account security
-        this.NavRow('账号安全', () => {
-          this.pageStack.pushPath({ name: 'AccountSecurity' })
+        this.NavRow(I18n.get('settings.account_security'), () => {
+          this.pageStack.pushPath({ name: RouteName.ACCOUNT_SECURITY })
         })
 
-        // Activate worker
-        this.NavRow('激活 Worker', () => {
-          this.pageStack.pushPathByName('Auth', undefined)
+        this.NavRow(I18n.get('settings.activate_worker'), () => {
+          this.pageStack.pushPath({ name: RouteName.ACTIVATE_WORKER })
         })
 
-        // Logout button
-        Button('退出登录')
+        Button(I18n.get('settings.logout'))
           .width('calc(100% - 40vp)')
           .height(48)
           .borderRadius(12)
@@ -162,25 +142,23 @@ export struct SettingsPage {
             this.confirmLogout()
           })
 
-        // About section
-        this.SectionHeader('关于')
+        this.SectionHeader(I18n.get('settings.about'))
 
-        this.LinkRow('用户协议', this.gatewayUrl + '/terms', () => {
+        this.LinkRow(I18n.get('settings.terms'), this.gatewayUrl + '/terms', () => {
           this.openExternal(this.gatewayUrl + '/terms')
         })
 
-        this.LinkRow('隐私协议', this.gatewayUrl + '/privacy', () => {
+        this.LinkRow(I18n.get('settings.privacy'), this.gatewayUrl + '/privacy', () => {
           this.openExternal(this.gatewayUrl + '/privacy')
         })
 
-        this.LinkRow('华为账号用户认证协议', 'consumer.huawei.com', () => {
+        this.LinkRow(I18n.get('settings.huawei_agreement'), 'consumer.huawei.com', () => {
           this.openExternal('https://consumer.huawei.com/minisite/cloudservice/hiapp/terms.htm')
         })
 
-        // Version info
         Column() {
           Row() {
-            Text('版本')
+            Text(I18n.get('settings.version'))
               .fontSize(14)
               .fontColor($r('app.color.terminal_primary'))
               .layoutWeight(1)
@@ -306,7 +284,7 @@ export struct SettingsPage {
       .alignItems(HorizontalAlign.Start)
       .layoutWeight(1)
 
-      Text('打开')
+      Text(I18n.get('common.confirm'))
         .fontSize(14)
         .fontColor($r('app.color.terminal_secondary'))
     }
@@ -322,54 +300,38 @@ export struct SettingsPage {
 
   private applyTheme(theme: string) {
     AppStorage.setOrCreate('themeMode', theme)
-    // The EntryAbility will pick up the change via Configuration
   }
 
   private async loadProfile() {
-    // Load display name from stored user info or from API
-    if (this.userInfoStr.length > 0) {
-      try {
-        const user = JSON.parse(this.userInfoStr) as Record<string, string>
-        this.displayName = user['displayName'] || user['username'] || ''
-      } catch (_e) {}
+    const name = AuthState.getDisplayName()
+    if (name.length > 0) {
+      this.displayName = name
+      return
     }
-    if (this.displayName.length === 0) {
-      try {
-        const profile: Record<string, Object> = await this.apiClient.getProfile()
-        const dn: string = (profile['displayName'] as string) ?? ''
-        const un: string = (profile['username'] as string) ?? ''
-        this.displayName = dn.length > 0 ? dn : un
-        if (this.displayName.length > 0) {
-          AppStorage.setOrCreate('userInfo', JSON.stringify(profile))
-        }
-      } catch (_e) {}
-    }
+    try {
+      const profile = await ApiService.getProfile()
+      const dn = (profile['displayName'] as string) ?? ''
+      const un = (profile['username'] as string) ?? ''
+      this.displayName = dn.length > 0 ? dn : un
+    } catch (_e) {}
   }
 
   private confirmLogout() {
     AlertDialog.show({
-      title: '退出登录',
-      message: '确定要退出当前账号吗？',
+      title: I18n.get('settings.logout_confirm_title'),
+      message: I18n.get('settings.logout_confirm_message'),
       primaryButton: {
-        value: '取消',
+        value: I18n.get('common.cancel'),
         action: () => {}
       },
       secondaryButton: {
-        value: '退出登录',
+        value: I18n.get('settings.logout'),
         action: () => {
-          this.logout()
+          AuthService.logout()
+          this.pageStack.replacePath({ name: RouteName.AUTH_LOGIN })
         }
       }
     })
-  }
-
-  private logout() {
-    this.authToken = ''
-    AppStorage.setOrCreate('isLoggedIn', false)
-    AppStorage.setOrCreate('authCompleted', false)
-    AppStorage.setOrCreate('userInfo', '')
-    AppStorage.setOrCreate('refreshToken', '')
-    this.pageStack.replacePath({ name: 'Auth' })
   }
 
   private async openExternal(url: string) {

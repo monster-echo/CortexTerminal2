@@ -1,13 +1,11 @@
 /**
  * @file Index.ets
  * @brief Auth feature HAR export barrel
- *
- * Exports the main AuthComponent and registers it with the
- * navigation router using the wrapBuilder pattern.
  */
 export { AuthComponent } from './src/main/ets/AuthComponent'
-export { PasswordLoginPage } from './src/main/ets/view/PasswordLoginPage'
-export { AuthService } from './src/main/ets/service/AuthService'
+export { AuthLogin } from './src/main/ets/FeatureComponent'
+export { LoginPage } from './src/main/ets/view/LoginPage'
+export { ActivateWorkerPage } from './src/main/ets/view/ActivateWorkerPage'
 export type {
   PhoneSendCodeRequest,
   PhoneVerifyRequest,
