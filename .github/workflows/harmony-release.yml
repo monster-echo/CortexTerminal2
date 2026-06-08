@@ -16,7 +16,7 @@ permissions:
 jobs:
   build-harmony:
     name: Build HarmonyOS App
-    runs-on: macos-latest
+    runs-on: self-hosted
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -25,13 +25,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '18'
-
-      - name: Setup OpenHarmony SDK
-        uses: openharmony-rs/setup-ohos-sdk@v1.0.0
-        id: sdk
-        with:
-          version: '6.1'
-          cache: true
 
       - name: Extract version
         id: version
@@ -50,128 +43,6 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "version_code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
 
-      - name: Decode release signing certificates
-        id: signing
-        env:
-          CERT_CER: ${{ secrets.CORTEX_HARMONY_CERT_CER }}
-        run: |
-          if [ -z "$CERT_CER" ]; then
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::No CORTEX_HARMONY_CERT_CER secret found — using debug signing"
-            exit 0
-          fi
-
-          SIGN_DIR=$(mktemp -d)
-          printf '%s' "$CERT_CER" | base64 -D > "$SIGN_DIR/release.cer"
-          printf '%s' "${{ secrets.CORTEX_HARMONY_PROFILE_P7B }}" | base64 -D > "$SIGN_DIR/release.p7b"
-          printf '%s' "${{ secrets.CORTEX_HARMONY_KEYSTORE_P12 }}" | base64 -D > "$SIGN_DIR/release.p12"
-          echo "dir=$SIGN_DIR" >> "$GITHUB_OUTPUT"
-          echo "enabled=true" >> "$GITHUB_OUTPUT"
-
-      - name: Inject release signing config
-        if: steps.signing.outputs.enabled == 'true'
-        env:
-          SIGN_DIR: ${{ steps.signing.outputs.dir }}
-          KEY_ALIAS: ${{ secrets.CORTEX_HARMONY_KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.CORTEX_HARMONY_KEY_PASSWORD }}
-          KEYSTORE_PASSWORD: ${{ secrets.CORTEX_HARMONY_KEYSTORE_PASSWORD }}
-        run: |
-          python3 << 'PYEOF'
-          import re, os
-
-          sign_dir = os.environ['SIGN_DIR']
-          key_alias = os.environ['KEY_ALIAS']
-          key_pwd = os.environ['KEY_PASSWORD']
-          ks_pwd = os.environ['KEYSTORE_PASSWORD']
-
-          with open('src/Harmony/build-profile.json5', 'r') as f:
-              content = f.read()
-
-          new_signing = f'''  "signingConfigs": [
-            {{
-              "name": "default",
-              "type": "HarmonyOS",
-              "material": {{
-                "certpath": "{sign_dir}/release.cer",
-                "keyAlias": "{key_alias}",
-                "keyPassword": "{key_pwd}",
-                "profile": "{sign_dir}/release.p7b",
-                "signAlg": "SHA256withECDSA",
-                "storeFile": "{sign_dir}/release.p12",
-                "storePassword": "{ks_pwd}"
-              }}
-            }}
-          ],'''
-
-          content = re.sub(
-              r'"signingConfigs"\s*:\s*\[.*?\],',
-              new_signing,
-              content,
-              count=1,
-              flags=re.DOTALL,
-          )
-
-          with open('src/Harmony/build-profile.json5', 'w') as f:
-              f.write(content)
-          PYEOF
-
-      - name: Generate build files
-        run: |
-          cd src/Harmony
-
-          SDK_PATH="${{ steps.sdk.outputs.ohos-base-sdk-home }}"
-
-          # Reconstruct HarmonyOS SDK directory structure.
-          # HosLocalComponentLoader scans hwsdk.dir recursively for sdk-pkg.json files.
-          # _isComponentInRightPlace checks that location dir basename is "default".
-          # Strategy: create default/ dir with components directly, each having sdk-pkg.json.
-          SDK_DEFAULT="$SDK_PATH/default"
-          mkdir -p "$SDK_DEFAULT"
-          for d in ets js native previewer toolchains; do
-            if [ -d "$SDK_PATH/$d" ]; then
-              cp -a "$SDK_PATH/$d" "$SDK_DEFAULT/$d"
-              DISPLAY_NAME="$(echo "$d" | sed 's/ets/Ets/;s/js/Js/;s/native/Native/;s/previewer/Previewer/;s/toolchains/Toolchains/')"
-              cat > "$SDK_DEFAULT/$d/sdk-pkg.json" <<COMPONENTEOF
-          {"meta":{"version":"1.0.0"},"data":{"apiVersion":"23","displayName":"$DISPLAY_NAME","path":"$d","platformVersion":"6.1.0","releaseType":"Release","version":"6.1.0.31","stage":"Release"}}
-          COMPONENTEOF
-            fi
-          done
-
-          cat > local.properties <<EOF
-          sdk.dir=$SDK_PATH
-          nodejs.dir=$(dirname $(which node))
-          ohos.sdk.dir=$SDK_PATH
-          hwsdk.dir=$SDK_DEFAULT
-          EOF
-
-          cat > hvigorfile.ts <<'EOF'
-          import { appTasks } from '@ohos/hvigor-ohos-plugin';
-          export default {
-              system: appTasks,
-              plugins:[]
-          }
-          EOF
-
-          cat > product/entry/hvigorfile.ts <<'EOF'
-          import { hapTasks } from '@ohos/hvigor-ohos-plugin';
-          export default {
-              system: hapTasks,
-              plugins:[]
-          }
-          EOF
-
-          for dir in common/core common/signalr common/routermodule \
-                     feature/auth feature/terminal feature/worker \
-                     feature/settings feature/session; do
-            cat > "$dir/hvigorfile.ts" <<'EOF'
-          import { harTasks } from '@ohos/hvigor-ohos-plugin';
-          export default {
-              system: harTasks,
-              plugins:[]
-          }
-          EOF
-          done
-
       - name: Update version in app.json5
         run: |
           cd src/Harmony
@@ -180,50 +51,7 @@ jobs:
             -e "s/\"versionName\": \"[^\"]*\"/\"versionName\": \"${{ steps.version.outputs.version }}\"/" \
             AppScope/app.json5
 
-      - name: Setup oh_modules symlinks
-        run: |
-          cd src/Harmony
-
-          # entry module
-          mkdir -p product/entry/oh_modules/@rwecho
-          ln -s "$PWD/common/core" product/entry/oh_modules/@rwecho/core
-          ln -s "$PWD/feature/auth" product/entry/oh_modules/@rwecho/auth
-          ln -s "$PWD/feature/session" product/entry/oh_modules/@rwecho/session
-          ln -s "$PWD/feature/terminal" product/entry/oh_modules/@rwecho/terminal
-          ln -s "$PWD/feature/worker" product/entry/oh_modules/@rwecho/worker
-          ln -s "$PWD/feature/settings" product/entry/oh_modules/@rwecho/settings
-          ln -s "$PWD/common/routermodule" product/entry/oh_modules/routermodule
-
-          # feature/auth
-          mkdir -p feature/auth/oh_modules/@rwecho
-          ln -s "$PWD/common/core" feature/auth/oh_modules/@rwecho/core
-          ln -s "$PWD/common/routermodule" feature/auth/oh_modules/routermodule
-
-          # feature/terminal
-          mkdir -p feature/terminal/oh_modules/@rwecho
-          ln -s "$PWD/common/core" feature/terminal/oh_modules/@rwecho/core
-          ln -s "$PWD/common/signalr" feature/terminal/oh_modules/@rwecho/signalr
-          ln -s "$PWD/common/routermodule" feature/terminal/oh_modules/routermodule
-
-          # feature/worker
-          mkdir -p feature/worker/oh_modules/@rwecho
-          ln -s "$PWD/common/core" feature/worker/oh_modules/@rwecho/core
-          ln -s "$PWD/common/routermodule" feature/worker/oh_modules/routermodule
-
-          # feature/settings
-          mkdir -p feature/settings/oh_modules/@rwecho
-          ln -s "$PWD/common/core" feature/settings/oh_modules/@rwecho/core
-          ln -s "$PWD/common/routermodule" feature/settings/oh_modules/routermodule
-
-          # feature/session
-          mkdir -p feature/session/oh_modules/@rwecho
-          ln -s "$PWD/common/core" feature/session/oh_modules/@rwecho/core
-          ln -s "$PWD/common/routermodule" feature/session/oh_modules/routermodule
-
       - name: Build .app
-        env:
-          npm_config_@ohos:registry: https://repo.harmonyos.com/npm/
-          DEVECO_SDK_HOME: ${{ steps.sdk.outputs.ohos-base-sdk-home }}/default
         run: |
           cd src/Harmony
           chmod +x hvigorw
@@ -235,7 +63,3 @@ jobs:
           files: src/Harmony/product/entry/build/default/outputs/default/*-signed.*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Cleanup signing files
-        if: always() && steps.signing.outputs.enabled == 'true'
-        run: rm -rf "${{ steps.signing.outputs.dir }}"
