@@ -122,26 +122,20 @@ jobs:
           SDK_PATH="${{ steps.sdk.outputs.ohos-base-sdk-home }}"
 
           # Reconstruct HarmonyOS SDK directory structure.
-          # DevEco SDK layout: hwsdk.dir points to a dir containing hms/ + openharmony/.
-          # Under hms/, each component has sdk-pkg.json (HarmonyOS format).
-          # HosLocalComponentLoader checks _isComponentInRightPlace: passes if
-          # the location dir basename is "default", OR matches sdkRoot + component path.
-          # Strategy: create a "default" dir as hwsdk.dir with components at top level.
+          # HosLocalComponentLoader scans hwsdk.dir recursively for sdk-pkg.json files.
+          # _isComponentInRightPlace checks that location dir basename is "default".
+          # Strategy: create default/ dir with components directly, each having sdk-pkg.json.
           SDK_DEFAULT="$SDK_PATH/default"
-          mkdir -p "$SDK_DEFAULT/hms" "$SDK_DEFAULT/openharmony"
+          mkdir -p "$SDK_DEFAULT"
           for d in ets js native previewer toolchains; do
             if [ -d "$SDK_PATH/$d" ]; then
-              ln -s "$SDK_PATH/$d" "$SDK_DEFAULT/openharmony/$d" 2>/dev/null || true
-              cp -a "$SDK_PATH/$d" "$SDK_DEFAULT/hms/$d"
+              cp -a "$SDK_PATH/$d" "$SDK_DEFAULT/$d"
               DISPLAY_NAME="$(echo "$d" | sed 's/ets/Ets/;s/js/Js/;s/native/Native/;s/previewer/Previewer/;s/toolchains/Toolchains/')"
-              cat > "$SDK_DEFAULT/hms/$d/sdk-pkg.json" <<COMPONENTEOF
+              cat > "$SDK_DEFAULT/$d/sdk-pkg.json" <<COMPONENTEOF
           {"meta":{"version":"1.0.0"},"data":{"apiVersion":"23","displayName":"$DISPLAY_NAME","path":"$d","platformVersion":"6.1.0","releaseType":"Release","version":"6.1.0.31","stage":"Release"}}
           COMPONENTEOF
             fi
           done
-          cat > "$SDK_DEFAULT/sdk-pkg.json" <<'PKGEOF'
-          {"meta":{"version":"1.0.0"},"data":{"apiVersion":"23","displayName":"HarmonyOS 6.1.0","path":"HarmonyOS-6.1.0","platformVersion":"6.1.0","releaseType":"Release","version":"6.1.0.31","stage":"Release"}}
-          PKGEOF
 
           cat > local.properties <<EOF
           sdk.dir=$SDK_PATH
