@@ -207,6 +207,7 @@ jobs:
       - name: Build .app
         env:
           npm_config_@ohos:registry: https://repo.harmonyos.com/npm/
+          DEVECO_SDK_HOME: ${{ steps.sdk.outputs.ohos-base-sdk-home }}
         run: |
           cd src/Harmony
           chmod +x hvigorw
