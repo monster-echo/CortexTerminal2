@@ -232,6 +232,16 @@ jobs:
         run: |
           cd src/Harmony
           chmod +x hvigorw
+          echo "=== SDK structure ==="
+          ls -la "$DEVECO_SDK_HOME/" || true
+          ls -la "$DEVECO_SDK_HOME/hms/" || true
+          for d in ets js native previewer toolchains; do
+            echo "--- hms/$d ---"
+            ls "$DEVECO_SDK_HOME/hms/$d/uni-package.json" 2>/dev/null || echo "NO uni-package.json"
+            cat "$DEVECO_SDK_HOME/hms/$d/uni-package.json" 2>/dev/null || true
+          done
+          echo "=== local.properties ==="
+          cat local.properties
           ./hvigorw assembleApp --mode module -p product=default -p buildMode=release --no-daemon
 
       - name: Upload to GitHub Release
