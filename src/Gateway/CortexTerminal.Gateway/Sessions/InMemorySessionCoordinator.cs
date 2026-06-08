@@ -18,6 +18,8 @@ public sealed class InMemorySessionCoordinator : ISessionCoordinator
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
+    public Task RecoverActiveSessionsAsync() => Task.CompletedTask;
+
     public Task<CreateSessionResult> CreateSessionAsync(string userId, CreateSessionRequest request, string? clientConnectionId, CancellationToken cancellationToken)
     {
         RegisteredWorker worker;
@@ -339,6 +341,37 @@ public sealed class InMemorySessionCoordinator : ISessionCoordinator
                     ExitReason = "expired",
                     ReplayPending = false,
                     LastActivityAtUtc = nowUtc
+                };
+                expiredSessionIds.Add(session.SessionId);
+            }
+        }
+
+        return expiredSessionIds;
+    }
+
+    public IReadOnlyList<string> ExpireRecoveringSessions(DateTimeOffset cutoffUtc)
+    {
+        var expiredSessionIds = new List<string>();
+
+        lock (_sync)
+        {
+            foreach (var session in _sessions.Values)
+            {
+                if (session.AttachmentState != SessionAttachmentState.Recovering ||
+                    session.LastActivityAtUtc > cutoffUtc)
+                {
+                    continue;
+                }
+
+                _sessions[session.SessionId] = session with
+                {
+                    AttachmentState = SessionAttachmentState.Expired,
+                    AttachedClientConnectionId = null,
+                    LeaseExpiresAtUtc = null,
+                    ExitCode = null,
+                    ExitReason = "recovery-timeout",
+                    ReplayPending = false,
+                    LastActivityAtUtc = _timeProvider.GetUtcNow()
                 };
                 expiredSessionIds.Add(session.SessionId);
             }

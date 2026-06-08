@@ -5,5 +5,6 @@ public enum SessionAttachmentState
     Attached = 0,
     DetachedGracePeriod = 1,
     Expired = 2,
-    Exited = 3
+    Exited = 3,
+    Recovering = 4
 }

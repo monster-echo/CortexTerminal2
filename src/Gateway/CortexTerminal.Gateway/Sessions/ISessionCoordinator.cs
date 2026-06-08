@@ -4,6 +4,7 @@ namespace CortexTerminal.Gateway.Sessions;
 
 public interface ISessionCoordinator
 {
+    Task RecoverActiveSessionsAsync();
     Task<CreateSessionResult> CreateSessionAsync(string userId, CreateSessionRequest request, string? clientConnectionId, CancellationToken cancellationToken);
     Task DetachSessionAsync(string userId, string sessionId, DateTimeOffset detachedAtUtc, CancellationToken cancellationToken);
     Task<DeleteSessionResult> DeleteSessionAsync(string userId, string sessionId, CancellationToken cancellationToken);
@@ -16,6 +17,7 @@ public interface ISessionCoordinator
     int RebindActiveSessions(string userId, string workerId, string workerConnectionId);
     IReadOnlyList<SessionRecord> ExpireSessionsForWorkerConnection(string workerId, string workerConnectionId);
     IReadOnlyList<string> ExpireDetachedSessions(DateTimeOffset nowUtc);
+    IReadOnlyList<string> ExpireRecoveringSessions(DateTimeOffset cutoffUtc);
     bool TryGetSession(string sessionId, out SessionRecord session);
     bool TouchSessionActivity(string sessionId, DateTimeOffset nowUtc);
 }

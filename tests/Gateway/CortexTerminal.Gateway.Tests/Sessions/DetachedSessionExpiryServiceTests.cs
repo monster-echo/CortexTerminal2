@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using CortexTerminal.Contracts.Sessions;
 using CortexTerminal.Contracts.Streaming;
 using CortexTerminal.Gateway.Sessions;
@@ -56,6 +57,37 @@ public sealed class DetachedSessionExpiryServiceTests
         Func<Task> act = async () => await executeTask;
 
         await act.Should().NotThrowAsync();
+    }
+
+    [Fact]
+    public async Task BackgroundService_ExpiresRecoveringSessionsAfterTimeout()
+    {
+        var workers = new InMemoryWorkerRegistry();
+        workers.Register("worker-1", "worker-conn-1");
+        var sessions = new InMemorySessionCoordinator(workers);
+        var replayCache = new ReplayCache(1024);
+
+        // Manually inject a Recovering session via reflection
+        var createResult = await sessions.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), clientConnectionId: null, CancellationToken.None);
+        var sessionId = createResult.Response!.SessionId;
+        var sessionsDict = (ConcurrentDictionary<string, SessionRecord>)typeof(InMemorySessionCoordinator)
+            .GetField("_sessions", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .GetValue(sessions)!;
+        sessionsDict[sessionId] = sessionsDict[sessionId] with
+        {
+            AttachmentState = SessionAttachmentState.Recovering,
+            LastActivityAtUtc = new DateTimeOffset(2025, 1, 1, 12, 0, 0, TimeSpan.Zero)
+        };
+
+        var service = CreateService(sessions, replayCache, new FixedTimeProvider(new DateTimeOffset(2025, 1, 1, 12, 2, 0, TimeSpan.Zero)));
+
+        await service.StartAsync(CancellationToken.None);
+        await Task.Delay(100);
+        await service.StopAsync(CancellationToken.None);
+
+        sessions.TryGetSession(sessionId, out var expiredSession).Should().BeTrue();
+        expiredSession.AttachmentState.Should().Be(SessionAttachmentState.Expired);
+        expiredSession.ExitReason.Should().Be("recovery-timeout");
     }
 
     private static IHostedService CreateService(ISessionCoordinator sessions, IReplayCache replayCache, TimeProvider timeProvider)

@@ -7,11 +7,20 @@ public sealed class DetachedSessionExpiryService(
     IReplayCache replayCache,
     TimeProvider timeProvider) : BackgroundService
 {
+    private static readonly TimeSpan RecoveryTimeout = TimeSpan.FromSeconds(60);
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         while (!stoppingToken.IsCancellationRequested)
         {
-            foreach (var sessionId in sessions.ExpireDetachedSessions(timeProvider.GetUtcNow()))
+            var now = timeProvider.GetUtcNow();
+
+            foreach (var sessionId in sessions.ExpireDetachedSessions(now))
+            {
+                replayCache.Clear(sessionId);
+            }
+
+            foreach (var sessionId in sessions.ExpireRecoveringSessions(now - RecoveryTimeout))
             {
                 replayCache.Clear(sessionId);
             }

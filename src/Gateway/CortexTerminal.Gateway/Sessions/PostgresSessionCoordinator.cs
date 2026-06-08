@@ -16,14 +16,76 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
     private readonly TimeProvider _timeProvider;
     private readonly IServiceScopeFactory _scopeFactory;
 
+    private readonly ILogger<PostgresSessionCoordinator> _logger;
+
     public PostgresSessionCoordinator(
         IWorkerRegistry workers,
         IServiceScopeFactory scopeFactory,
+        ILogger<PostgresSessionCoordinator> logger,
         TimeProvider? timeProvider = null)
     {
         _workers = workers;
         _scopeFactory = scopeFactory;
+        _logger = logger;
         _timeProvider = timeProvider ?? TimeProvider.System;
+    }
+
+    public async Task RecoverActiveSessionsAsync()
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+            var recoverableStates = new[] { "Attached", "DetachedGracePeriod" };
+            var entities = await db.Sessions
+                .Where(e => recoverableStates.Contains(e.AttachmentState))
+                .ToListAsync();
+
+            if (entities.Count == 0) return;
+
+            var now = _timeProvider.GetUtcNow();
+
+            lock (_sync)
+            {
+                foreach (var entity in entities)
+                {
+                    var record = new SessionRecord(
+                        entity.SessionId,
+                        entity.UserId,
+                        entity.WorkerId,
+                        WorkerConnectionId: "",
+                        entity.Columns,
+                        entity.Rows,
+                        entity.CreatedAtUtc,
+                        entity.LastActivityAtUtc,
+                        AttachmentState: SessionAttachmentState.Recovering,
+                        AttachedClientConnectionId: null,
+                        LeaseExpiresAtUtc: null);
+
+                    _sessions[entity.SessionId] = record;
+                }
+            }
+
+            _ = PersistAsync(async db =>
+            {
+                foreach (var entity in entities)
+                {
+                    var tracked = await db.Sessions.FindAsync(entity.SessionId);
+                    if (tracked is not null)
+                    {
+                        tracked.AttachmentState = "Recovering";
+                        tracked.AttachedClientConnectionId = null;
+                    }
+                }
+            });
+
+            _logger.LogInformation("Recovered {Count} active sessions from database", entities.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to recover sessions from database");
+        }
     }
 
     public Task<CreateSessionResult> CreateSessionAsync(string userId, CreateSessionRequest request, string? clientConnectionId, CancellationToken cancellationToken)
@@ -170,6 +232,25 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
                 PersistSessionState(request.SessionId, "Attached",
                     attachedClientConnectionId: clientConnectionId,
                     replayPending: true);
+
+                return Task.FromResult(ReattachSessionResult.Success());
+            }
+
+            if (session.AttachmentState == SessionAttachmentState.Recovering)
+            {
+                _sessions[request.SessionId] = session with
+                {
+                    AttachmentState = SessionAttachmentState.Attached,
+                    AttachedClientConnectionId = clientConnectionId,
+                    LeaseExpiresAtUtc = null,
+                    ReplayPending = false,
+                    LastActivityAtUtc = nowUtc
+                };
+
+                PersistSessionState(request.SessionId, "Attached",
+                    attachedClientConnectionId: clientConnectionId);
+
+                _logger.LogInformation("Reattach: {SessionId} Recovering → Attached (client={ClientConnectionId})", request.SessionId, clientConnectionId);
 
                 return Task.FromResult(ReattachSessionResult.Success());
             }
@@ -324,9 +405,26 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
         {
             foreach (var (sessionId, session) in _sessions)
             {
-                if (session.UserId != userId ||
-                    session.WorkerId != workerId ||
-                    session.AttachmentState is not (SessionAttachmentState.Attached or SessionAttachmentState.DetachedGracePeriod) ||
+                if (session.UserId != userId || session.WorkerId != workerId)
+                {
+                    continue;
+                }
+
+                if (session.AttachmentState == SessionAttachmentState.Recovering)
+                {
+                    _sessions[sessionId] = session with
+                    {
+                        WorkerConnectionId = workerConnectionId,
+                        AttachmentState = SessionAttachmentState.Attached,
+                        LastActivityAtUtc = _timeProvider.GetUtcNow()
+                    };
+                    reboundSessionIds.Add(sessionId);
+                    PersistSessionState(sessionId, "Attached");
+                    _logger.LogInformation("Rebind: {SessionId} Recovering → Attached (worker={WorkerId})", sessionId, workerId);
+                    continue;
+                }
+
+                if (session.AttachmentState is not (SessionAttachmentState.Attached or SessionAttachmentState.DetachedGracePeriod) ||
                     session.WorkerConnectionId == workerConnectionId)
                 {
                     continue;
@@ -404,6 +502,45 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
 
                 PersistSessionState(session.SessionId, "Expired", exitReason: "expired");
             }
+        }
+
+        return expiredSessionIds;
+    }
+
+    public IReadOnlyList<string> ExpireRecoveringSessions(DateTimeOffset cutoffUtc)
+    {
+        var expiredSessionIds = new List<string>();
+
+        lock (_sync)
+        {
+            foreach (var session in _sessions.Values)
+            {
+                if (session.AttachmentState != SessionAttachmentState.Recovering ||
+                    session.LastActivityAtUtc > cutoffUtc)
+                {
+                    continue;
+                }
+
+                _sessions[session.SessionId] = session with
+                {
+                    AttachmentState = SessionAttachmentState.Expired,
+                    AttachedClientConnectionId = null,
+                    LeaseExpiresAtUtc = null,
+                    ExitCode = null,
+                    ExitReason = "recovery-timeout",
+                    ReplayPending = false,
+                    LastActivityAtUtc = _timeProvider.GetUtcNow()
+                };
+                expiredSessionIds.Add(session.SessionId);
+
+                PersistSessionState(session.SessionId, "Expired", exitReason: "recovery-timeout");
+                _logger.LogWarning("Recovery timeout: {SessionId} Recovering → Expired (worker={WorkerId})", session.SessionId, session.WorkerId);
+            }
+        }
+
+        if (expiredSessionIds.Count > 0)
+        {
+            _logger.LogInformation("Expired {Count} recovering sessions due to recovery timeout", expiredSessionIds.Count);
         }
 
         return expiredSessionIds;

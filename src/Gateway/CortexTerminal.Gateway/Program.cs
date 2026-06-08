@@ -338,6 +338,14 @@ if (!string.IsNullOrEmpty(connectionString))
     }
 }
 
+// Recover active sessions from database after restart
+{
+    var sessionCoordinator = app.Services.GetRequiredService<ISessionCoordinator>();
+    await sessionCoordinator.RecoverActiveSessionsAsync();
+    var recoveryLogger = app.Services.GetRequiredService<ILogger<Program>>();
+    recoveryLogger.LogInformation("Session recovery completed");
+}
+
 // Serve static files for the gateway console
 app.UseDefaultFiles();
 app.UseStaticFiles(new StaticFileOptions
