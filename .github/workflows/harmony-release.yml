@@ -213,7 +213,15 @@ jobs:
       - name: Build .app
         run: |
           cd src/Harmony
-          npx hvigor assembleApp --mode module -p product=default -p buildMode=release --no-daemon
+          # Use the hvigor binary installed by npm from Huawei registry
+          HVIGOR_BIN=$(find node_modules/.bin -name 'hvigor*' | head -1)
+          if [ -z "$HVIGOR_BIN" ]; then
+            echo "::error::hvigor binary not found in node_modules/.bin"
+            ls node_modules/.bin/ 2>/dev/null || echo "no .bin directory"
+            exit 1
+          fi
+          echo "Using hvigor: $HVIGOR_BIN"
+          NODE_PATH="$PWD/node_modules" "$HVIGOR_BIN" assembleApp --mode module -p product=default -p buildMode=release --no-daemon
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
