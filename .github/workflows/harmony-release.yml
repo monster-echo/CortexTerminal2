@@ -96,7 +96,7 @@ jobs:
         run: |
           HAP_FILE=$(ls src/Harmony/product/entry/build/default/outputs/default/entry-default-unsigned.hap | head -1)
 
-          java -jar "$DEVECO_SDK_HOME/default/openharmony/toolchains/lib/hap-sign-tool.jar" sign-app \
+          java -jar "/Applications/DevEco-Studio.app/Contents/sdk/default/openharmony/toolchains/lib/hap-sign-tool.jar" sign-app \
             -mode localSign \
             -keyAlias "$KEY_ALIAS" \
             -keyPwd "$KEY_PASS" \
