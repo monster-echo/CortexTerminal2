@@ -80,7 +80,7 @@ jobs:
           cd src/Harmony
           chmod +x hvigorw
           rm -rf .hvigor ~/.hvigor/project_caches
-          ./hvigorw assembleApp --mode module -p product=default -p buildMode=release --no-daemon
+          ./hvigorw assembleApp --mode project -p product=default -p buildMode=release --no-daemon
 
       - name: List output files
         run: find src/Harmony -path "*/build/*" \( -name "*.app" -o -name "*.hap" -o -name "*.hsp" \) 2>/dev/null || echo "No output found"
