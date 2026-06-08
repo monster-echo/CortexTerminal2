@@ -79,9 +79,11 @@ jobs:
         run: |
           cd src/Harmony
           chmod +x hvigorw
-          # clean caches in case hvigorfile.ts changes are not detected
           rm -rf .hvigor ~/.hvigor/project_caches
-          ./hvigorw assembleApp --mode module -p product=default -p buildMode=release --no-daemon --debug 2>&1 | grep -E "(ERROR|error|assemble|appTask|harTask|project name|component|plugin.*register|hvigorfile.*root|Hvigorfile|app-plugin|BuildModeManager|Module|module)" | head -60
+          ./hvigorw assembleApp --mode module -p product=default -p buildMode=release --no-daemon
+
+      - name: List output files
+        run: find src/Harmony -path "*/build/*" \( -name "*.app" -o -name "*.hap" -o -name "*.hsp" \) 2>/dev/null || echo "No output found"
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
