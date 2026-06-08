@@ -6,7 +6,7 @@
  * active sessions, and provides actions like creating new sessions
  * or connecting to existing ones.
  */
-import { ApiService, I18n, WorkerInfo, WorkerSessionInfo, SessionCreateRequest, showI18nToast, showToast } from '@rwecho/core'
+import { ApiService, I18n, WorkerInfo, WorkerSessionInfo, SessionCreateRequest, showI18nToast, showToast, AnalyticsService, lightHaptic, clickHaptic } from '@rwecho/core'
 
 @Component
 export struct WorkerDetailPage {
@@ -19,6 +19,7 @@ export struct WorkerDetailPage {
   @Consume('pageStack') pageStack: NavPathStack
 
   aboutToAppear() {
+    AnalyticsService.onPageStart('worker/Detail')
     this.loadWorkerDetail()
   }
 
@@ -47,6 +48,7 @@ export struct WorkerDetailPage {
                 .fontSize(13)
                 .margin({ top: 16 })
                 .onClick(() => {
+                  clickHaptic()
                   this.errorMessage = ''
                   this.loadWorkerDetail()
                 })
@@ -95,6 +97,7 @@ export struct WorkerDetailPage {
               .fontWeight(FontWeight.Medium)
               .margin({ top: 24 })
               .onClick(() => {
+                clickHaptic()
                 this.createNewSession()
               })
           }
@@ -205,6 +208,7 @@ export struct WorkerDetailPage {
         .fontColor($r('app.color.terminal_on_secondary_container'))
         .fontSize(13)
         .onClick(() => {
+          clickHaptic()
           AppStorage.setOrCreate('navSessionId', session.id)
           AppStorage.setOrCreate('navSessionName', session.name || 'Terminal')
           this.pageStack.pushPath({ name: 'TerminalSession' })

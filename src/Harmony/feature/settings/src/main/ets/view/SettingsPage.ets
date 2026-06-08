@@ -1,5 +1,5 @@
 import { common, Want, ConfigurationConstant } from '@kit.AbilityKit'
-import { ApiService, AuthService, AuthState, I18n, RouteName, AppConstants, showI18nToast, showToast } from '@rwecho/core'
+import { ApiService, AuthService, AuthState, I18n, RouteName, AppConstants, showI18nToast, showToast, AnalyticsService, AnalyticsEvent, lightHaptic, clickHaptic, heavyHaptic } from '@rwecho/core'
 
 @Component
 export struct SettingsPage {
@@ -10,6 +10,7 @@ export struct SettingsPage {
   private appVersion: string = '1.0.0'
 
   aboutToAppear() {
+    AnalyticsService.onPageStart('settings/Page')
     this.loadProfile()
   }
 
@@ -99,6 +100,7 @@ export struct SettingsPage {
           .fontWeight(FontWeight.Medium)
           .margin({ top: 8 })
           .onClick(() => {
+            heavyHaptic()
             this.confirmLogout()
           })
 
@@ -109,6 +111,7 @@ export struct SettingsPage {
               .fontSize(13)
               .fontColor($r('app.color.terminal_secondary'))
               .onClick(() => {
+                lightHaptic()
                 this.openExternal(this.gatewayUrl + '/terms')
               })
 
@@ -120,6 +123,7 @@ export struct SettingsPage {
               .fontSize(13)
               .fontColor($r('app.color.terminal_secondary'))
               .onClick(() => {
+                lightHaptic()
                 this.openExternal(this.gatewayUrl + '/privacy')
               })
           }
@@ -167,8 +171,10 @@ export struct SettingsPage {
         $r('app.color.terminal_secondary_container') :
         Color.Transparent)
       .onClick(() => {
+        clickHaptic()
         this.currentTheme = value
         this.applyTheme(this.currentTheme)
+        AnalyticsService.onEvent(AnalyticsEvent.THEME_CHANGE)
         showToast(I18n.get('settings.theme_changed').replace('{v}', I18n.get(`settings.theme_${value}`)))
       })
   }
@@ -187,7 +193,9 @@ export struct SettingsPage {
         $r('app.color.terminal_secondary_container') :
         Color.Transparent)
       .onClick(() => {
+        clickHaptic()
         this.currentLanguage = code
+        AnalyticsService.onEvent(AnalyticsEvent.LANGUAGE_CHANGE)
         showToast(I18n.get('settings.language_changed').replace('{v}', I18n.get(`settings.language_${code}`)))
       })
   }
@@ -210,6 +218,7 @@ export struct SettingsPage {
     .backgroundColor($r('app.color.terminal_surface_container'))
     .margin({ bottom: 8 })
     .onClick(() => {
+      lightHaptic()
       action()
     })
   }
@@ -262,12 +271,14 @@ export struct SettingsPage {
   private async openExternal(url: string) {
     try {
       const context = this.getUIContext()?.getHostContext() as common.UIAbilityContext
-      const want = new Want()
-      want.action = 'ohos.want.action.viewData'
-      want.uri = url
+      const want: Want = {
+        action: 'ohos.want.action.viewData',
+        entities: ['entity.system.browsable'],
+        uri: url
+      }
       await context.startAbility(want)
     } catch (e) {
-      showI18nToast('common.link_open_failed')
+      showToast(`${(e as Error).message}`)
     }
   }
 }

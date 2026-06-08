@@ -1,8 +1,13 @@
-import { ApiService, I18n, PageLayout, showI18nToast } from '@rwecho/core'
+import { ApiService, I18n, PageLayout, showI18nToast, AnalyticsService, AnalyticsEvent } from '@rwecho/core'
 
 @Component
 export struct ChangePasswordPage {
   @Consume('pageStack') pageStack: NavPathStack
+
+  aboutToAppear() {
+    AnalyticsService.onPageStart('ChangePassword')
+  }
+
   @State currentPassword: string = ''
   @State newPassword: string = ''
   @State confirmPassword: string = ''
@@ -144,6 +149,7 @@ export struct ChangePasswordPage {
     try {
       await ApiService.changePassword(this.currentPassword, this.newPassword)
       this.successMessage = I18n.get('security.change_password') + ' ✓'
+      AnalyticsService.onEvent(AnalyticsEvent.PASSWORD_CHANGE)
       showI18nToast('security.password_changed')
       this.currentPassword = ''
       this.newPassword = ''

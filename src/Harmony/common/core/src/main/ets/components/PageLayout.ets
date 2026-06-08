@@ -7,6 +7,8 @@
  * TerminalPage manages its own AppBar due to custom toolbar needs.
  */
 
+import { clickHaptic } from '../utils/HapticUtils'
+
 @Component
 export struct PageLayout {
   title: string = ''
@@ -28,6 +30,7 @@ export struct PageLayout {
         .borderRadius(20)
         .backgroundColor(Color.Transparent)
         .onClick(() => {
+          clickHaptic()
           if (this.onBack) {
             this.onBack()
           } else {

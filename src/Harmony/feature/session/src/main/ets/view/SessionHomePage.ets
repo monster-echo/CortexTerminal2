@@ -1,4 +1,4 @@
-import { SessionInfo, I18n, RouteName, TerminalNavParam, showI18nToast } from '@rwecho/core'
+import { SessionInfo, I18n, RouteName, TerminalNavParam, showI18nToast, AnalyticsService, AnalyticsEvent, lightHaptic, clickHaptic } from '@rwecho/core'
 import { SessionCard } from './SessionCard'
 import { CreateSessionSheet } from './CreateSessionSheet'
 import { SessionService } from '../service/SessionService'
@@ -21,6 +21,7 @@ export struct SessionHomePage {
   }
 
   aboutToAppear() {
+    AnalyticsService.onPageStart('session/Home')
     this.loadData()
   }
 
@@ -78,7 +79,7 @@ export struct SessionHomePage {
               .backgroundColor($r('app.color.terminal_secondary_container'))
               .fontColor($r('app.color.terminal_on_secondary_container'))
               .margin({ top: 16 })
-              .onClick(() => { this.loadData() })
+              .onClick(() => { clickHaptic(); this.loadData() })
           }
           .width('100%')
           .alignItems(HorizontalAlign.Center)
@@ -100,7 +101,7 @@ export struct SessionHomePage {
                 SessionCard({ session: session })
               }
               .swipeAction({ end: this.DeleteSwipeButton(session) })
-              .onClick(() => { this.resumeSession(session) })
+              .onClick(() => { lightHaptic(); this.resumeSession(session) })
             }, (session: SessionInfo) => session.id)
           }
           .width('100%')
@@ -133,7 +134,7 @@ export struct SessionHomePage {
     .height('100%')
     .borderRadius(12)
     .backgroundColor($r('app.color.terminal_surface_container_high'))
-    .onClick(() => { this.confirmDelete(session) })
+    .onClick(() => { clickHaptic(); this.confirmDelete(session) })
   }
 
   @Builder
@@ -150,6 +151,7 @@ export struct SessionHomePage {
   }
 
   private resumeSession(session: SessionInfo) {
+    AnalyticsService.onEvent(AnalyticsEvent.SESSION_RESUME)
     const param = new TerminalNavParam()
     param.sessionId = session.id
     param.sessionName = session.name || 'Terminal'
@@ -176,6 +178,7 @@ export struct SessionHomePage {
     try {
       await SessionService.deleteSession(session.id)
       this.allSessions = this.allSessions.filter(s => s.id !== session.id)
+      AnalyticsService.onEvent(AnalyticsEvent.SESSION_DELETE)
       showI18nToast('session.deleted')
     } catch (e) {
       this.getUIContext()?.showAlertDialog({

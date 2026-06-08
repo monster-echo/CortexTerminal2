@@ -2,7 +2,7 @@
  * @file LoginPage.ets
  * @brief Login page with Huawei one-click login and username/password login via bindSheet.
  */
-import { AuthService, I18n, AppConstants, showI18nToast } from '@rwecho/core'
+import { AuthService, I18n, AppConstants, showI18nToast, showToast, AnalyticsService, lightHaptic, clickHaptic } from '@rwecho/core'
 import { loginComponentManager, LoginWithHuaweiIDButton } from '@kit.AccountKit'
 import { BusinessError } from '@kit.BasicServicesKit'
 import { common, Want } from '@kit.AbilityKit'
@@ -18,6 +18,10 @@ export struct LoginPage {
   @StorageLink('language') currentLang: string = 'en'
   @Consume('pageStack') pageStack: NavPathStack
 
+  aboutToAppear() {
+    AnalyticsService.onPageStart('auth/Login')
+  }
+
   private huaweiButtonController: loginComponentManager.LoginWithHuaweiIDButtonController =
     new loginComponentManager.LoginWithHuaweiIDButtonController()
       .setAgreementStatus(loginComponentManager.AgreementStatus.ACCEPTED)
@@ -25,8 +29,9 @@ export struct LoginPage {
         (error: BusinessError | undefined,
          response: loginComponentManager.HuaweiIDCredential) => {
           if (error) {
+            console.warn(`[HuaweiLogin] SDK error: code=${error.code} msg=${error.message}`)
             if (error.code !== 1001502012 && error.code !== 1001502001) {
-              this.errorMessage = I18n.get('auth.login.huawei_failed')
+              this.errorMessage = I18n.get('auth.login.huawei_failed') + ` (${error.code})`
             }
             return
           }
@@ -177,6 +182,7 @@ export struct LoginPage {
         .fontSize(14)
         .fontWeight(FontWeight.Medium)
         .onClick(() => {
+          clickHaptic()
           this.showPasswordSheet = true
           this.errorMessage = ''
         })
@@ -267,6 +273,7 @@ export struct LoginPage {
         .enabled(this.username.length > 0 && this.password.length > 0 && !this.isPasswordLoading)
         .opacity(this.username.length > 0 && this.password.length > 0 ? 1 : 0.5)
         .onClick(() => {
+          clickHaptic()
           this.handlePasswordLogin()
         })
       }
@@ -318,6 +325,7 @@ export struct LoginPage {
         Span(I18n.get('auth.login.terms'))
           .fontColor($r('app.color.terminal_secondary'))
           .onClick(() => {
+            lightHaptic()
             this.openExternal((AppStorage.get<string>('gatewayUrl') || AppConstants.DEFAULT_GATEWAY_URL) + '/terms')
           })
         Span(I18n.get('auth.login.agree_and'))
@@ -325,6 +333,7 @@ export struct LoginPage {
         Span(I18n.get('auth.login.privacy'))
           .fontColor($r('app.color.terminal_secondary'))
           .onClick(() => {
+            lightHaptic()
             this.openExternal((AppStorage.get<string>('gatewayUrl') || AppConstants.DEFAULT_GATEWAY_URL) + '/privacy')
           })
       }
@@ -372,12 +381,14 @@ export struct LoginPage {
   private async openExternal(url: string) {
     try {
       const context = this.getUIContext()?.getHostContext() as common.UIAbilityContext
-      const want = new Want()
-      want.action = 'ohos.want.action.viewData'
-      want.uri = url
+      const want: Want = {
+        action: 'ohos.want.action.viewData',
+        entities: ['entity.system.browsable'],
+        uri: url
+      }
       await context.startAbility(want)
     } catch (e) {
-      showI18nToast('common.link_open_failed')
+      showToast(`${(e as Error).message}`)
     }
   }
 }

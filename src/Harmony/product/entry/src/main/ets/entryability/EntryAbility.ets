@@ -10,7 +10,7 @@ import { UIAbility, AbilityConstant, Want, Configuration, ConfigurationConstant 
 import { window, KeyboardAvoidMode } from '@kit.ArkUI'
 import { webview } from '@kit.ArkWeb'
 import { hilog } from '@kit.PerformanceAnalysisKit'
-import { AppConstants } from '@rwecho/core'
+import { AppConstants, AnalyticsService, AnalyticsEvent, CrashService } from '@rwecho/core'
 import { DynamicsRouter } from 'routermodule'
 
 const TAG = 'EntryAbility'
@@ -44,16 +44,9 @@ export default class EntryAbility extends UIAbility {
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
     hilog.info(DOMAIN, TAG, 'onCreate')
 
-    PersistentStorage.persistProp('authToken', '')
-    PersistentStorage.persistProp('isLoggedIn', false)
-    PersistentStorage.persistProp('userInfo', '')
-    PersistentStorage.persistProp('gatewayUrl', AppConstants.DEFAULT_GATEWAY_URL)
-    PersistentStorage.persistProp('themeMode', 'system')
-    PersistentStorage.persistProp('language', 'en')
-
     this.syncColorMode()
 
-    // Initialize AppStorage with default values
+    // Initialize AppStorage with default values (non-persistent)
     AppStorage.setOrCreate('authCompleted', false)
     AppStorage.setOrCreate('appVersion', '1.0.0')
     AppStorage.setOrCreate('currentBreakpoint', 'sm')
@@ -78,6 +71,10 @@ export default class EntryAbility extends UIAbility {
     } catch (e) {
       hilog.warn(DOMAIN, TAG, `Failed to pre-warm WebView engine: ${(e as Error).message}`)
     }
+
+    // Initialize Analytics Kit and Crash Kit
+    AnalyticsService.init()
+    CrashService.init(this.context)
   }
 
   onDestroy(): void {
@@ -147,8 +144,28 @@ export default class EntryAbility extends UIAbility {
       }
       hilog.info(DOMAIN, TAG, 'Loaded pages/Index')
 
+      const uiContext = windowStage.getMainWindowSync().getUIContext()
+      uiContext.runScopedTask(() => {
+        // PersistentStorage must be called inside runScopedTask with UIContext to work
+        PersistentStorage.persistProp('authToken', '')
+        PersistentStorage.persistProp('isLoggedIn', false)
+        PersistentStorage.persistProp('userInfo', '')
+        PersistentStorage.persistProp('gatewayUrl', AppConstants.DEFAULT_GATEWAY_URL)
+        PersistentStorage.persistProp('themeMode', 'system')
+        PersistentStorage.persistProp('language', 'en')
+        PersistentStorage.persistProp('firstLaunchDone', false)
+
+        hilog.info(DOMAIN, TAG, `[STARTUP] token=${AppStorage.get<string>('authToken') || '(empty)'} isLoggedIn=${AppStorage.get<boolean>('isLoggedIn') ?? false} language=${AppStorage.get<string>('language') || 'en'}`)
+
+        // Fire APP_FIRST_LAUNCH on first-ever launch
+        if (!AppStorage.get<boolean>('firstLaunchDone')) {
+          AnalyticsService.onEvent(AnalyticsEvent.APP_FIRST_LAUNCH)
+          AppStorage.setOrCreate<boolean>('firstLaunchDone', true)
+        }
+      })
+
       // RESIZE: compress page height when keyboard appears (like Android adjustResize)
-      windowStage.getMainWindowSync().getUIContext().setKeyboardAvoidMode(KeyboardAvoidMode.RESIZE)
+      uiContext.setKeyboardAvoidMode(KeyboardAvoidMode.RESIZE)
     })
   }
 

@@ -1,4 +1,4 @@
-import { WorkerInfo, ApiService, I18n } from '@rwecho/core'
+import { WorkerInfo, ApiService, I18n, AnalyticsService, AnalyticsEvent } from '@rwecho/core'
 import { SessionService } from '../service/SessionService'
 
 @Component
@@ -121,6 +121,7 @@ export struct CreateSessionSheet {
     this.isCreating = true
     try {
       const session = await SessionService.createSessionOnWorker(workerId)
+      AnalyticsService.onEvent(AnalyticsEvent.SESSION_CREATE)
       if (this.onSessionCreated) {
         this.onSessionCreated(session.id, session.name)
       }

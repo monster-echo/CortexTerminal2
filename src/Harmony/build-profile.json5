@@ -13,6 +13,19 @@
           "storeFile": "/Volumes/MacMiniDisk/Users/echo/.ohos/config/default_Harmony_HnF8a7Uyvrc5G0yM8GOeZcJ-u6-OowP91NxpDiMSmZM=.p12",
           "storePassword": "0000001BBB29414C653B5B09703BE43D11639FC20695E04C48333882F6AB4241053E6B1B2D225B28A42676"
         }
+      },
+      {
+        "name": "release",
+        "type": "HarmonyOS",
+        "material": {
+          "certpath": "signing/release/cortexterminal-release.cer",
+          "keyAlias": "cortex-release",
+          "keyPassword": "rw2005@soft",
+          "profile": "signing/release/Corterm-ProfileRelease.p7b",
+          "signAlg": "SHA256withECDSA",
+          "storeFile": "signing/release/cortexterminal-release.p12",
+          "storePassword": "rw2005@soft"
+        }
       }
     ],
     "products": [

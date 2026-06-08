@@ -25,17 +25,17 @@ export class AuthService {
 
   static async ensureAuthenticated(): Promise<boolean> {
     const token = AuthState.getToken()
+    console.info(`[AuthService] ensureAuthenticated: token=${token.length > 0 ? 'yes' : 'no'}`)
     if (token.length === 0) {
       return false
     }
     try {
       const newToken = await ApiService.refreshToken(token)
-      AppStorage.setOrCreate('authToken', newToken)
+      AppStorage.set<string>('authToken', newToken)
       console.info('[AuthService] Token refreshed, new 7-day validity')
       return true
     } catch (e) {
       console.warn('[AuthService] Token refresh failed: ' + (e as Error).message)
-      AuthService.logout()
       return false
     }
   }

@@ -2,7 +2,7 @@
  * @file SidebarContent.ets
  * @brief Navigation sidebar extracted from Index.ets.
  */
-import { ApiService, I18n, AuthState, SessionInfo, RouteName, TerminalNavParam } from '@rwecho/core'
+import { ApiService, I18n, AuthState, SessionInfo, RouteName, TerminalNavParam, lightHaptic } from '@rwecho/core'
 
 @Component
 export struct SidebarContent {
@@ -121,6 +121,7 @@ export struct SidebarContent {
       .alignItems(VerticalAlign.Center)
       .backgroundColor($r('app.color.terminal_surface_container'))
       .onClick(() => {
+        lightHaptic()
         this.navigate(RouteName.SETTINGS)
       })
     }
@@ -156,6 +157,7 @@ export struct SidebarContent {
     .backgroundColor(selected ? $r('app.color.terminal_secondary_container') : Color.Transparent)
     .alignItems(VerticalAlign.Center)
     .onClick(() => {
+      lightHaptic()
       this.navigate(route)
     })
   }
@@ -190,6 +192,7 @@ export struct SidebarContent {
     .borderRadius(8)
     .alignItems(VerticalAlign.Center)
     .onClick(() => {
+      lightHaptic()
       const param = new TerminalNavParam()
       param.sessionId = session.id
       param.sessionName = session.name || 'Terminal'

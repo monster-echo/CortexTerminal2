@@ -1,4 +1,4 @@
-import { ApiService, I18n, WorkerInfo, GatewayInfo, showI18nToast, showToast } from '@rwecho/core'
+import { ApiService, I18n, WorkerInfo, GatewayInfo, showI18nToast, showToast, AnalyticsService, AnalyticsEvent, lightHaptic, clickHaptic } from '@rwecho/core'
 
 @Component
 export struct WorkerListPage {
@@ -12,6 +12,7 @@ export struct WorkerListPage {
   @Consume('pageStack') pageStack: NavPathStack
 
   aboutToAppear() {
+    AnalyticsService.onPageStart('worker/List')
     this.loadWorkers()
     this.loadGatewayInfo()
   }
@@ -44,7 +45,7 @@ export struct WorkerListPage {
 
           Button(I18n.get('common.retry'))
             .margin({ top: 12 })
-            .onClick(() => { this.loadWorkers() })
+            .onClick(() => { clickHaptic(); this.loadWorkers() })
         }
         .width('100%')
         .alignItems(HorizontalAlign.Center)
@@ -110,6 +111,7 @@ export struct WorkerListPage {
                 .alignItems(VerticalAlign.Center)
                 .padding({ left: 16, right: 16 })
                 .onClick(() => {
+                  lightHaptic()
                   this.selectedWorker = worker
                   this.showWorkerSheet = true
                 })
@@ -214,7 +216,7 @@ export struct WorkerListPage {
             .fontSize(16)
             .fontWeight(FontWeight.Medium)
             .margin({ top: 20 })
-            .onClick(() => { this.confirmUpgrade(this.selectedWorker!) })
+            .onClick(() => { clickHaptic(); this.confirmUpgrade(this.selectedWorker!) })
         }
       }
     }
@@ -265,6 +267,7 @@ export struct WorkerListPage {
     try {
       await ApiService.upgradeWorker(worker.id)
       this.showWorkerSheet = false
+      AnalyticsService.onEvent(AnalyticsEvent.WORKER_UPGRADE)
       showToast(I18n.get('worker.update_sent').replace('{v}', worker.hostname || worker.id))
       // Reload workers after a short delay to pick up version change
       setTimeout(() => { this.loadWorkers() }, 3000)

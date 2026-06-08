@@ -6,6 +6,8 @@
  * Sub-pages: back arrow (pop) + title.
  */
 
+import { clickHaptic } from '../utils/HapticUtils'
+
 @Component
 export struct AppBar {
   title: string = ''
@@ -28,6 +30,7 @@ export struct AppBar {
         .borderRadius(22)
         .backgroundColor(Color.Transparent)
         .onClick(() => {
+          clickHaptic()
           if (this.onToggleSidebar) this.onToggleSidebar()
         })
       } else {
@@ -41,6 +44,7 @@ export struct AppBar {
         .borderRadius(22)
         .backgroundColor(Color.Transparent)
         .onClick(() => {
+          clickHaptic()
           if (this.onNavigateBack) this.onNavigateBack()
         })
       }
@@ -65,6 +69,7 @@ export struct AppBar {
         .borderRadius(22)
         .backgroundColor(Color.Transparent)
         .onClick(() => {
+          clickHaptic()
           if (this.onCreateSession) this.onCreateSession()
         })
       }

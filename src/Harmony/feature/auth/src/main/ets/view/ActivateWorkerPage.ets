@@ -2,7 +2,7 @@
  * @file ActivateWorkerPage.ets
  * @brief Worker activation page with card layout and success state.
  */
-import { AuthService, I18n, PageLayout, showI18nToast } from '@rwecho/core'
+import { AuthService, I18n, PageLayout, showI18nToast, AnalyticsService, AnalyticsEvent } from '@rwecho/core'
 
 @Component
 export struct ActivateWorkerPage {
@@ -11,6 +11,10 @@ export struct ActivateWorkerPage {
   @State errorMessage: string = ''
   @State successMessage: string = ''
   @Consume('pageStack') pageStack: NavPathStack
+
+  aboutToAppear() {
+    AnalyticsService.onPageStart('ActivateWorker')
+  }
 
   build() {
     PageLayout({ title: I18n.get('auth.activate.title') }) {
@@ -65,7 +69,15 @@ export struct ActivateWorkerPage {
                 .fontColor($r('app.color.terminal_primary'))
                 .placeholderColor($r('app.color.terminal_on_surface_variant'))
                 .onChange((value: string) => {
-                  this.activationCode = value.toUpperCase().replace(/[^A-Z0-9-]/g, '')
+                  const cleaned = value.toUpperCase().replace(/[^A-Z0-9]/g, '')
+                  let formatted = ''
+                  for (let i = 0; i < cleaned.length && i < 8; i++) {
+                    if (i > 0 && i % 4 === 0) {
+                      formatted += '-'
+                    }
+                    formatted += cleaned[i]
+                  }
+                  this.activationCode = formatted
                   this.errorMessage = ''
                 })
 
@@ -130,6 +142,7 @@ export struct ActivateWorkerPage {
     AuthService.activateWorker(this.activationCode).then(() => {
       this.isLoading = false
       this.successMessage = I18n.get('auth.activate.success')
+      AnalyticsService.onEvent(AnalyticsEvent.WORKER_ACTIVATE)
       showI18nToast('auth.activate_success')
       setTimeout(() => {
         AuthService.navigateHome(this.pageStack)

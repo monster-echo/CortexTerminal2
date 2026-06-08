@@ -5,6 +5,8 @@
  * All components read auth state through this class.
  * Logout goes through AuthState.clear() — no scattered AppStorage calls.
  */
+import { AnalyticsService, AnalyticsEvent } from './AnalyticsService'
+import { CrashService } from './CrashService'
 
 interface StoredUserInfo {
   displayName: string
@@ -37,16 +39,23 @@ export class AuthState {
     if (token.length === 0) {
       throw new Error('No token received')
     }
-    AppStorage.setOrCreate('authToken', token)
-    AppStorage.setOrCreate('isLoggedIn', true)
-    AppStorage.setOrCreate('userInfo', JSON.stringify({ displayName: username }))
+    AppStorage.set<boolean>('isLoggedIn', true)
+    AppStorage.set<string>('authToken', token)
+    AppStorage.set<string>('userInfo', JSON.stringify({ displayName: username }))
     console.info(`[AuthState] Session saved: token length=${token.length}, username=${username}`)
+
+    AnalyticsService.onEvent(AnalyticsEvent.USER_LOGIN)
+    AnalyticsService.setUserId(username)
+    CrashService.setUserId(username)
+    CrashService.logInfo('User logged in')
   }
 
   static clear(): void {
-    AppStorage.setOrCreate('authToken', '')
-    AppStorage.setOrCreate('isLoggedIn', false)
-    AppStorage.setOrCreate('userInfo', '')
-    AppStorage.setOrCreate('authCompleted', false)
+    AnalyticsService.onEvent(AnalyticsEvent.USER_LOGOUT)
+
+    AppStorage.set<string>('authToken', '')
+    AppStorage.set<boolean>('isLoggedIn', false)
+    AppStorage.set<string>('userInfo', '')
+    AppStorage.set<boolean>('authCompleted', false)
   }
 }

@@ -6,7 +6,7 @@
  * Ctrl/Alt are sticky toggle — stay latched until manually toggled off.
  */
 import { pasteboard } from '@kit.BasicServicesKit'
-import { I18n } from '@rwecho/core'
+import { I18n, lightHaptic, clickHaptic } from '@rwecho/core'
 
 type OnKeyPressCallback = (key: string) => void
 
@@ -31,6 +31,7 @@ struct LatchButton {
       .fontWeight(FontWeight.Medium)
       .margin({ left: 2, right: 2 })
       .onClick(() => {
+        clickHaptic()
         this.onToggle()
       })
   }
@@ -117,6 +118,7 @@ export struct VirtualKeyBar {
         .fontWeight(FontWeight.Medium)
         .margin({ left: 4, right: 4 })
         .onClick(() => {
+          clickHaptic()
           if (this.onDismiss) {
             this.onDismiss()
           }
@@ -146,6 +148,7 @@ export struct VirtualKeyBar {
       .fontWeight(FontWeight.Medium)
       .margin({ left: 2, right: 2 })
       .onClick(() => {
+        lightHaptic()
         if (this.ctrlLatched) {
           this.onKeyPress(`Ctrl+${label}`)
         } else if (this.altLatched) {

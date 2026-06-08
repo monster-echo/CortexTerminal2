@@ -21,20 +21,25 @@ struct Index {
   aboutToAppear() {
     Interceptor.registerInterceptorPage(new AuthInterceptorExecute())
 
+    console.info(`[Index] Startup: isLoggedIn=${this.isLoggedIn} token=${this.authToken.length > 0 ? 'yes' : 'no'}`)
     if (this.isLoggedIn && this.authToken.length > 0) {
+      console.info('[Index] Routing to HOME + ensureAuthenticated')
       this.pageStack.replacePath({ name: RouteName.SESSION_HOME })
       AuthService.ensureAuthenticated()
     } else {
+      console.info('[Index] Routing to LOGIN')
       this.pageStack.replacePath({ name: RouteName.AUTH_LOGIN })
     }
     this.isInitialized = true
   }
 
   onAuthChanged() {
+    console.info(`[Index] onAuthChanged: isLoggedIn=${this.isLoggedIn} token=${this.authToken.length > 0 ? 'yes' : 'no'} initialized=${this.isInitialized}`)
     if (!this.isInitialized) {
       return
     }
-    if (!this.isLoggedIn || this.authToken.length === 0) {
+    if (!this.isLoggedIn && this.authToken.length === 0) {
+      console.info('[Index] onAuthChanged: clearing stack -> LOGIN')
       this.pageStack.clear()
       this.pageStack.replacePath({ name: RouteName.AUTH_LOGIN })
     }

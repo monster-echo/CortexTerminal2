@@ -1,4 +1,4 @@
-import { ApiService, AuthService, AuthState, I18n, PageLayout, RouteName, showI18nToast } from '@rwecho/core'
+import { ApiService, AuthService, AuthState, I18n, PageLayout, RouteName, showI18nToast, AnalyticsService, AnalyticsEvent, lightHaptic, clickHaptic, heavyHaptic } from '@rwecho/core'
 
 @Component
 export struct AccountSecurityPage {
@@ -10,6 +10,7 @@ export struct AccountSecurityPage {
   @State currentUsername: string = ''
 
   aboutToAppear() {
+    AnalyticsService.onPageStart('AccountSecurity')
     this.currentUsername = AuthState.getDisplayName()
     if (this.currentUsername.length === 0) {
       this.loadProfile()
@@ -43,6 +44,7 @@ export struct AccountSecurityPage {
           .backgroundColor($r('app.color.terminal_surface_container'))
           .margin({ bottom: 8 })
           .onClick(() => {
+            lightHaptic()
             this.pageStack.pushPath({ name: RouteName.CHANGE_PASSWORD })
           })
 
@@ -62,6 +64,7 @@ export struct AccountSecurityPage {
           .borderRadius(12)
           .backgroundColor($r('app.color.terminal_surface_container'))
           .onClick(() => {
+            clickHaptic()
             this.confirmUsername = ''
             this.deleteError = ''
             this.showDeleteSheet = true
@@ -136,6 +139,7 @@ export struct AccountSecurityPage {
         .enabled(this.confirmUsername === this.currentUsername && !this.isDeleting)
         .opacity(this.confirmUsername === this.currentUsername ? 1 : 0.5)
         .onClick(() => {
+          heavyHaptic()
           this.deleteAccount()
         })
       }
@@ -154,6 +158,7 @@ export struct AccountSecurityPage {
       await ApiService.deleteAccount()
       this.isDeleting = false
       this.showDeleteSheet = false
+      AnalyticsService.onEvent(AnalyticsEvent.ACCOUNT_DELETE)
       showI18nToast('security.account_deleted')
       AuthService.logout()
       this.pageStack.clear()

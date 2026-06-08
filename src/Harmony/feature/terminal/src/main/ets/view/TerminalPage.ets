@@ -9,7 +9,7 @@
 import { buffer } from '@kit.ArkTS'
 import { webview } from '@kit.ArkWeb'
 import { pasteboard } from '@kit.BasicServicesKit'
-import { TerminalNavParam, RouteName, I18n } from '@rwecho/core'
+import { TerminalNavParam, RouteName, I18n, AnalyticsService, lightHaptic, clickHaptic } from '@rwecho/core'
 import { TerminalStateManager } from '../service/TerminalStateManager'
 import { TerminalTransport } from '../service/TerminalTransport'
 import { TransportFrame } from '../model/TerminalTransportModels'
@@ -102,6 +102,7 @@ struct SessionDetailDialog {
         .backgroundColor($r('app.color.terminal_secondary_container'))
         .borderRadius(10)
         .onClick(() => {
+          clickHaptic()
           this.controller.close()
         })
     }
@@ -155,6 +156,7 @@ export struct TerminalPage {
   }
 
   aboutToAppear() {
+    AnalyticsService.onPageStart('terminal/Session')
     this.pageVisible = true
     // Read session params from NavPathStack navigation parameter
     const param = this.pageStack.getParamByName('terminal/Session') as TerminalNavParam[]
@@ -196,6 +198,7 @@ export struct TerminalPage {
         .borderRadius(20)
         .backgroundColor(Color.Transparent)
         .onClick(() => {
+          clickHaptic()
           this.handleBack()
         })
 
@@ -225,6 +228,7 @@ export struct TerminalPage {
         .borderRadius(14)
         .backgroundColor(this.getStatusBadgeBg())
         .onClick(() => {
+          lightHaptic()
           this.showSessionDetail()
         })
       }
@@ -250,6 +254,7 @@ export struct TerminalPage {
               .fontSize(12)
               .margin({ top: 8 })
               .onClick(() => {
+                clickHaptic()
                 this.retryConnection()
               })
           }

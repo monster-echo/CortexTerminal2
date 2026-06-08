@@ -250,6 +250,7 @@ export class ApiService {
 
   private static async handle401AndRetry(method: string, path: string, body: Object | null,
     requiresAuth: boolean): Promise<Object> {
+    console.info(`[ApiService] handle401AndRetry: ${method} ${path}`)
     if (ApiService.isRefreshing) {
       throw new Error('Token refresh already in progress')
     }
@@ -257,11 +258,14 @@ export class ApiService {
     try {
       const currentToken = AppStorage.get<string>('authToken') || ''
       if (currentToken.length === 0) {
+        console.info('[ApiService] handle401AndRetry: no token -> forceLogout')
         ApiService.forceLogout()
         throw new Error('Session expired, please login again')
       }
+      console.info('[ApiService] handle401AndRetry: refreshing token...')
       const newToken = await ApiService.refreshToken(currentToken)
-      AppStorage.setOrCreate('authToken', newToken)
+      AppStorage.set<string>('authToken', newToken)
+      console.info('[ApiService] handle401AndRetry: token refreshed, retrying request')
 
       if (method === 'GET') {
         return await ApiService.get(path, requiresAuth, true)
@@ -271,6 +275,7 @@ export class ApiService {
         return await ApiService.post(path, body!, requiresAuth, undefined, true)
       }
     } catch (e) {
+      console.info(`[ApiService] handle401AndRetry: failed -> forceLogout: ${(e as Error).message}`)
       ApiService.forceLogout()
       throw new Error((e as Error).message)
     } finally {
@@ -279,8 +284,9 @@ export class ApiService {
   }
 
   static forceLogout(): void {
-    AppStorage.setOrCreate('authToken', '')
-    AppStorage.setOrCreate('isLoggedIn', false)
+    console.info('[ApiService] forceLogout: clearing auth state')
+    AppStorage.set<string>('authToken', '')
+    AppStorage.set<boolean>('isLoggedIn', false)
     AppStorage.setOrCreate('userInfo', '')
     AppStorage.setOrCreate('authCompleted', false)
   }
