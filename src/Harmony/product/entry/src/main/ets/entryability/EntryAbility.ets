@@ -35,8 +35,9 @@ export default class EntryAbility extends UIAbility {
 
   private applyStatusBar(isDark: boolean): void {
     if (this.mainWindow) {
+      const forceDark = AppStorage.get<boolean>('terminalPageActive')
       this.mainWindow.setWindowSystemBarProperties({
-        statusBarContentColor: isDark ? '#ffffff' : '#000000'
+        statusBarContentColor: (isDark || forceDark === true) ? '#ffffff' : '#000000'
       })
     }
   }

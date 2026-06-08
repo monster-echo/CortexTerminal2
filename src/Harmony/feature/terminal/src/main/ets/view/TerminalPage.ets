@@ -172,9 +172,12 @@ export struct TerminalPage {
     if (!this.transport.isConnected) {
       this.connectSession()
     }
+    // Terminal always uses dark theme — signal EntryAbility to set white status bar
+    AppStorage.setOrCreate('terminalPageActive', true)
   }
 
   aboutToDisappear() {
+    AppStorage.setOrCreate('terminalPageActive', false)
     this.pageVisible = false
     if (this.connectTimer !== -1) {
       clearTimeout(this.connectTimer)
