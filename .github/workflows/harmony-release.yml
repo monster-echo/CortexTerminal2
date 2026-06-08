@@ -41,6 +41,7 @@ jobs:
           else
             VERSION="${{ inputs.version }}"
           fi
+          VERSION="${VERSION%%-*}"
 
           IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
           BASE_BUILD=$(printf "%d%03d%03d" "$MAJOR" "$MINOR" "$PATCH")
