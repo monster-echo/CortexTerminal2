@@ -204,17 +204,13 @@ jobs:
           ln -s "$PWD/common/core" feature/session/oh_modules/@rwecho/core
           ln -s "$PWD/common/routermodule" feature/session/oh_modules/routermodule
 
-      - name: Install hvigor dependencies
-        run: |
-          npm config set @ohos:registry=https://repo.harmonyos.com/npm/
-          cd src/Harmony
-          npm install @ohos/hvigor-ohos-plugin
-
       - name: Build .app
+        env:
+          npm_config_@ohos:registry: https://repo.harmonyos.com/npm/
         run: |
           cd src/Harmony
           chmod +x hvigorw
-          NODE_PATH="$PWD/node_modules" ./hvigorw assembleApp --mode module -p product=default -p buildMode=release --no-daemon
+          ./hvigorw assembleApp --mode module -p product=default -p buildMode=release --no-daemon
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
