@@ -121,6 +121,27 @@ jobs:
 
           SDK_PATH="${{ steps.sdk.outputs.ohos-base-sdk-home }}"
 
+          # Reconstruct HarmonyOS SDK directory structure:
+          # hwsdk.dir expects hms/ + openharmony/ + sdk-pkg.json
+          mkdir -p "$SDK_PATH/hms" "$SDK_PATH/openharmony"
+          for d in ets js native previewer toolchains; do
+            [ -d "$SDK_PATH/$d" ] && { ln -s "$SDK_PATH/$d" "$SDK_PATH/hms/$d" 2>/dev/null || true; ln -s "$SDK_PATH/$d" "$SDK_PATH/openharmony/$d" 2>/dev/null || true; }
+          done
+          cat > "$SDK_PATH/sdk-pkg.json" <<'PKGEOF'
+          {
+            "meta": { "version": "1.0.0" },
+            "data": {
+              "apiVersion": "23",
+              "displayName": "HarmonyOS 6.1.0",
+              "path": "HarmonyOS-6.1.0",
+              "platformVersion": "6.1.0",
+              "releaseType": "Release",
+              "version": "6.1.0.31",
+              "stage": "Release"
+            }
+          }
+          PKGEOF
+
           cat > local.properties <<EOF
           sdk.dir=$SDK_PATH
           nodejs.dir=$(dirname $(which node))
