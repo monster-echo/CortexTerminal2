@@ -44,7 +44,7 @@ jobs:
           VERSION="${VERSION%%-*}"
 
           IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
-          BASE_BUILD=$(printf "%d%03d%03d" "$MAJOR" "$MINOR" "$PATCH")
+          BASE_BUILD=$(( MAJOR * 100000 + MINOR * 1000 + PATCH ))
           VERSION_CODE="${BASE_BUILD}${GITHUB_RUN_NUMBER}"
 
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
