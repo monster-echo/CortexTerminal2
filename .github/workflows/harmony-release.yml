@@ -35,11 +35,9 @@ jobs:
             VERSION="${{ inputs.version }}"
           fi
           VERSION="${VERSION%%-*}"
-
           IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
           BASE_BUILD=$(( MAJOR * 100000 + MINOR * 1000 + PATCH ))
           VERSION_CODE="${BASE_BUILD}${GITHUB_RUN_NUMBER}"
-
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "version_code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
 
@@ -54,7 +52,6 @@ jobs:
       - name: Setup oh_modules symlinks
         run: |
           cd src/Harmony
-
           mkdir -p product/entry/oh_modules/@rwecho
           ln -sfn "$PWD/common/core" product/entry/oh_modules/@rwecho/core
           ln -sfn "$PWD/feature/auth" product/entry/oh_modules/@rwecho/auth
@@ -63,24 +60,12 @@ jobs:
           ln -sfn "$PWD/feature/worker" product/entry/oh_modules/@rwecho/worker
           ln -sfn "$PWD/feature/settings" product/entry/oh_modules/@rwecho/settings
           ln -sfn "$PWD/common/routermodule" product/entry/oh_modules/routermodule
-
           for mod in auth terminal worker settings session; do
             mkdir -p feature/$mod/oh_modules/@rwecho
             ln -sfn "$PWD/common/core" feature/$mod/oh_modules/@rwecho/core
             ln -sfn "$PWD/common/routermodule" feature/$mod/oh_modules/routermodule
           done
-
           ln -sfn "$PWD/common/signalr" feature/terminal/oh_modules/@rwecho/signalr
-
-      - name: Setup signing materials
-        env:
-          KEYSTORE_BASE64: ${{ secrets.HARMONY_KEYSTORE_P12 }}
-          CERT_BASE64: ${{ secrets.HARMONY_CERTIFICATE_CER }}
-          PROFILE_BASE64: ${{ secrets.HARMONY_PROFILE_P7B }}
-        run: |
-          echo "$KEYSTORE_BASE64" | base64 -d > /tmp/cortex-release.p12
-          echo "$CERT_BASE64" | base64 -d > /tmp/cortex-release.cer
-          echo "$PROFILE_BASE64" | base64 -d > /tmp/cortex-release.p7b
 
       - name: Build unsigned HAP
         run: |
@@ -89,47 +74,19 @@ jobs:
           ./hvigorw clean --no-daemon
           ./hvigorw assembleHap --mode module -p product=default --no-daemon
 
-      - name: Sign HAP with release certificate
-        env:
-          KEYSTORE_PASS: ${{ secrets.HARMONY_KEYSTORE_PASSWORD }}
-          KEY_PASS: ${{ secrets.HARMONY_KEY_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.HARMONY_KEY_ALIAS }}
+      - name: Sign HAP
         run: |
           HAP_FILE=$(ls src/Harmony/product/entry/build/default/outputs/default/entry-default-unsigned.hap | head -1)
-          java -jar "/Applications/DevEco-Studio.app/Contents/sdk/default/openharmony/toolchains/lib/hap-sign-tool.jar" sign-app \
-            -mode localSign \
-            -keyAlias "$KEY_ALIAS" \
-            -keyPwd "$KEY_PASS" \
-            -appCertFile /tmp/cortex-release.cer \
-            -profileFile /tmp/cortex-release.p7b \
-            -inFile "$HAP_FILE" \
-            -signAlg SHA256withECDSA \
-            -keystoreFile /tmp/cortex-release.p12 \
-            -keystorePwd "$KEYSTORE_PASS" \
-            -outFile /tmp/entry-release-signed.hap \
-            -compatibleVersion 12 \
-            -signCode 1
-
-      - name: Package .app
-        run: |
-          cd src/Harmony
-          UNPACK_DIR=$(mktemp -d)
-          cp /tmp/entry-release-signed.hap "$UNPACK_DIR/entry-default.hap"
-          APP=$(ls build/outputs/*/Harmony-*.app build/outputs/*/*/Harmony-*.app 2>/dev/null | head -1) || true
-          if [ -f "$APP" ]; then
-            unzip -o "$APP" -d "$UNPACK_DIR"
-          fi
-          # Create pack.info if not found
-          if [ ! -f "$UNPACK_DIR/pack.info" ]; then
-            echo '{"packages":[{"name":"entry-default","type":"hap","moduleType":"entry","deviceType":["default","tablet"],"deliveryWithInstall":true}]}' > "$UNPACK_DIR/pack.info"
-            echo '{"app":{"bundleName":"top.rwecho.cortexterminal","version":{"code":${{ steps.version.outputs.version_code }},"name":"${{ steps.version.outputs.version }}"}}}' > "$UNPACK_DIR/pac.json"
-          fi
-          cd "$UNPACK_DIR"
-          zip -j /tmp/cortexterminal-release.app pac.json pack.info entry-default.hap
+          mkdir -p /tmp/signing
+          echo "${{ secrets.HARMONY_KEYSTORE_PASSWORD }}" > /tmp/signing/passwd
+          echo "$HAP_FILE" > /tmp/signing/hap-path
+          echo "HAP file: $HAP_FILE"
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: /tmp/cortexterminal-release.app
+          files: |
+            src/Harmony/product/entry/build/default/outputs/default/*-unsigned.*
+            src/Harmony/product/entry/build/default/outputs/default/*-signed.*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
