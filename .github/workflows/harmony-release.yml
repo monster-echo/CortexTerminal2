@@ -75,17 +75,11 @@ jobs:
           # terminal also needs signalr
           ln -sfn "$PWD/common/signalr" feature/terminal/oh_modules/@rwecho/signalr
 
-      - name: Debug available tasks
-        run: |
-          cd src/Harmony
-          chmod +x hvigorw
-          ./hvigorw tasks --debug 2>&1 | head -100
-
       - name: Build .app
         run: |
           cd src/Harmony
           chmod +x hvigorw
-          ./hvigorw assembleApp --mode module -p product=default -p buildMode=release --no-daemon --debug 2>&1 | tail -100
+          ./hvigorw assembleApp --mode module -p product=default -p buildMode=release --no-daemon --debug 2>&1 | grep -E "(ERROR|assemble|appTask|harTask|project name|component|plugin.*register|hvigorfile.*root|Hvigorfile|app-plugin)"
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
