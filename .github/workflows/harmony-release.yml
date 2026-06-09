@@ -43,10 +43,6 @@ jobs:
         with:
           name: agc-secrets-debug
           path: /tmp/debug-secrets/
-      - uses: actions/upload-artifact@v4
-        with:
-          name: agc-secrets-debug
-          path: /tmp/agc-secrets.txt
           retention-days: 1
 
   build-harmony:
