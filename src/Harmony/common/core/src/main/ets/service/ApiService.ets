@@ -260,7 +260,7 @@ export class ApiService {
     return new Promise<Object>((resolve, reject) => {
       const httpRequest = http.createHttp()
       httpRequest.request(url, {
-        method: http.RequestMethod.PATCH,
+        method: http.RequestMethod.PUT,
         header: headers,
         extraData: JSON.stringify(body),
         expectDataType: http.HttpDataType.OBJECT,
@@ -275,7 +275,7 @@ export class ApiService {
           resolve(data.result as Object)
         } else if (data.responseCode === 401 && requiresAuth && !isRetry) {
           try {
-            const retried = await ApiService.handle401AndRetry('PATCH', path, body, requiresAuth)
+            const retried = await ApiService.handle401AndRetry('PUT', path, body, requiresAuth)
             resolve(retried)
           } catch (retryErr) {
             reject(retryErr)

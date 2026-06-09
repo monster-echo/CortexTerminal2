@@ -125,10 +125,7 @@ export struct SessionHomePage {
       onDisappear: () => { this.showCreateSheet = false }
     })
     .bindContentCover($$this.showRenameDialog, this.RenameDialogContent(), {
-      modalTransition: ModalTransition.NONE,
-      alignment: DialogAlignment.CENTER,
-      backgroundColor: Color.Transparent,
-      showInSubWindow: true
+      modalTransition: ModalTransition.NONE
     })
   }
 
@@ -150,7 +147,7 @@ export struct SessionHomePage {
   SwipeActions(session: SessionInfo) {
     Row({ space: 8 }) {
       Button() {
-        SymbolGlyph($r('sys.symbol.pencil'))
+        SymbolGlyph($r('sys.symbol.pencil_circle'))
           .fontSize(18)
           .fontColor([$r('app.color.terminal_secondary')])
       }
@@ -190,7 +187,7 @@ export struct SessionHomePage {
           .fontColor($r('app.color.terminal_primary'))
           .placeholderColor($r('app.color.terminal_on_surface_variant'))
           .fontSize(16)
-          .select_all(true)
+          .selectAll(true)
 
         Row({ space: 12 }) {
           Button(I18n.get('common.cancel'))
@@ -219,6 +216,7 @@ export struct SessionHomePage {
     .width('100%')
     .height('100%')
     .justifyContent(FlexAlign.Center)
+    .backgroundColor('#80000000')
     .padding({ left: 32, right: 32 })
     .onClick(() => { this.showRenameDialog = false })
   }

@@ -1333,12 +1333,7 @@ app.MapDelete("/api/me/sessions/{sessionId}", async (
     return Results.NoContent();
 }).RequireAuthorization();
 
-app.MapPatch("/api/me/sessions/{sessionId}", (
-    string sessionId,
-    RenameSessionRequest request,
-    ClaimsPrincipal user,
-    ISessionCoordinator sessions,
-    IAuditLogStore auditLog) =>
+var renameSessionHandler = (string sessionId, RenameSessionRequest request, ClaimsPrincipal user, ISessionCoordinator sessions, IAuditLogStore auditLog) =>
 {
     var userId = GetUserId(user);
 
@@ -1364,7 +1359,9 @@ app.MapPatch("/api/me/sessions/{sessionId}", (
     ));
 
     return Results.Ok(new { sessionId, Name = request.Name });
-}).RequireAuthorization();
+};
+app.MapPut("/api/me/sessions/{sessionId}", renameSessionHandler).RequireAuthorization();
+app.MapPatch("/api/me/sessions/{sessionId}", renameSessionHandler).RequireAuthorization();
 
 // ---- Gateway Info ----
 var gatewayVersion = Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3) ?? "0.0.0";
