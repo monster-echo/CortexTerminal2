@@ -177,20 +177,22 @@ jobs:
       - name: Get Upload URL
         id: upload-url
         run: |
-          RESPONSE=$(curl -s -X GET \
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X GET \
             "https://connect-api.cloud.huawei.com/publish/v2/upload-url?appId=${{ secrets.AGC_APP_ID }}&suffix=app" \
             -H "Authorization: Bearer ${{ steps.auth.outputs.token }}" \
             -H "client_id: ${{ secrets.AGC_CLIENT_ID }}")
-          echo "::group::Upload URL response"
-          echo "$RESPONSE" | jq .
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+          echo "::group::Upload URL response (HTTP $HTTP_CODE)"
+          echo "$BODY"
           echo "::endgroup::"
-          UPLOAD_URL=$(echo "$RESPONSE" | jq -r '.url // .data.url')
+          UPLOAD_URL=$(echo "$BODY" | jq -r '.url // .data.url' 2>/dev/null || echo "")
           if [ -z "$UPLOAD_URL" ] || [ "$UPLOAD_URL" = "null" ]; then
-            echo "::error::Failed to get upload URL: $RESPONSE"
+            echo "::error::Failed to get upload URL (HTTP $HTTP_CODE): $BODY"
             exit 1
           fi
           echo "upload_url=$UPLOAD_URL" >> "$GITHUB_OUTPUT"
-          echo "$RESPONSE" > /tmp/upload-url-response.json
+          echo "$BODY" > /tmp/upload-url-response.json
 
       - name: Upload APP file to AppGallery
         id: upload-file
