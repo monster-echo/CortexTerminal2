@@ -99,55 +99,39 @@ jobs:
           done
           ln -sfn "$PWD/common/signalr" feature/terminal/oh_modules/@rwecho/signalr
 
-      - name: Build unsigned HAP
+      - name: Build unsigned HAP and APP
         run: |
           cd src/Harmony
           chmod +x hvigorw
           ./hvigorw clean --no-daemon
           ./hvigorw assembleHap --mode module -p product=default --no-daemon
+          ./hvigorw assembleApp --mode project -p product=default --no-daemon
 
-      - name: Sign HAP with release certificate
+      - name: Sign APP with release certificate
         env:
           KEYSTORE_PASS: ${{ secrets.HARMONY_KEYSTORE_PASSWORD }}
           KEY_PASS: ${{ secrets.HARMONY_KEY_PASSWORD }}
         run: |
-          HAP_FILE=$(ls src/Harmony/product/entry/build/default/outputs/default/entry-default-unsigned.hap | head -1)
+          UNSIGNED_APP=$(find src/Harmony/build/outputs -name '*-unsigned.app' -type f | head -1)
+          if [ -z "$UNSIGNED_APP" ]; then
+            echo "::error::No unsigned .app found"
+            find src/Harmony/build/outputs -name '*.app' -type f 2>/dev/null || true
+            exit 1
+          fi
+          echo "Signing: $UNSIGNED_APP"
           java -jar "/Applications/DevEco-Studio.app/Contents/sdk/default/openharmony/toolchains/lib/hap-sign-tool.jar" sign-app \
             -mode localSign \
             -keyAlias "${{ secrets.HARMONY_KEY_ALIAS }}" \
             -keyPwd "$KEY_PASS" \
             -appCertFile /tmp/cortex-release.cer \
             -profileFile /tmp/cortex-release.p7b \
-            -inFile "$HAP_FILE" \
+            -inFile "$UNSIGNED_APP" \
             -signAlg SHA256withECDSA \
             -keystoreFile /tmp/cortex-release.p12 \
             -keystorePwd "$KEYSTORE_PASS" \
-            -outFile /tmp/entry-release-signed.hap \
+            -outFile /tmp/cortexterminal-${{ steps.version.outputs.version }}.app \
             -compatibleVersion 12 \
             -signCode 1
-
-      - name: Build APP bundle structure
-        run: |
-          cd src/Harmony
-          ./hvigorw assembleApp --mode project -p product=default --no-daemon
-
-      - name: Repackage .app with release-signed HAP
-        run: |
-          APP_FILE=$(find src/Harmony/build/outputs -name '*.app' -type f | head -1)
-          if [ -z "$APP_FILE" ]; then
-            echo "::error::No .app file found in build outputs"
-            find src/Harmony/build/outputs -type f 2>/dev/null || true
-            exit 1
-          fi
-          echo "Found APP: $APP_FILE"
-          REPACK_DIR=$(mktemp -d)
-          unzip -o "$APP_FILE" -d "$REPACK_DIR"
-          ls -la "$REPACK_DIR"
-          SIGNED_HAP_NAME=$(ls "$REPACK_DIR"/*.hap | head -1 | xargs basename)
-          cp /tmp/entry-release-signed.hap "$REPACK_DIR/$SIGNED_HAP_NAME"
-          cd "$REPACK_DIR"
-          rm -f /tmp/cortexterminal-${{ steps.version.outputs.version }}.app
-          zip -r /tmp/cortexterminal-${{ steps.version.outputs.version }}.app .
           cp /tmp/cortexterminal-${{ steps.version.outputs.version }}.app /tmp/cortexterminal-${{ steps.version.outputs.version }}.zip
 
       - name: Upload artifact for publish job
