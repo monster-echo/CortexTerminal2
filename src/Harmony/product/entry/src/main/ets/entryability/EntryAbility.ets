@@ -90,6 +90,7 @@ export default class EntryAbility extends UIAbility {
     // Set main window properties
     windowStage.getMainWindow().then((win: window.Window) => {
       this.mainWindow = win
+      win.setPreferredOrientation(window.Orientation.AUTO_ROTATION_RESTRICTED)
       // Apply status bar color based on current theme
       const isDark = AppStorage.get<string>('colorMode') !== 'light'
       this.applyStatusBar(isDark)

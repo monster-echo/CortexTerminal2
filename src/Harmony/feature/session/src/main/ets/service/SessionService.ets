@@ -1,5 +1,4 @@
 import { ApiService, SessionInfo, SessionCreateRequest, SessionCreateResponse, WorkerInfo } from '@rwecho/core'
-import { display } from '@kit.ArkUI'
 
 interface TerminalSize { cols: number; rows: number }
 
@@ -42,16 +41,8 @@ export class SessionService {
   }
 
   private static calculateTerminalSize(): TerminalSize {
-    let disp: display.Display
-    try {
-      disp = display.getDefaultDisplaySync()
-    } catch (_e) {
-      const result: TerminalSize = { cols: 80, rows: 24 }
-      return result
-    }
-    const density = disp.densityDPI / 160
-    const vpWidth = disp.width / density
-    const vpHeight = disp.height / density
+    const vpWidth = AppStorage.get<number>('windowWidth') || 360
+    const vpHeight = AppStorage.get<number>('windowHeight') || 640
     const fontSize = 14
     const charWidth = fontSize * 0.602
     const charHeight = fontSize * 1.2
