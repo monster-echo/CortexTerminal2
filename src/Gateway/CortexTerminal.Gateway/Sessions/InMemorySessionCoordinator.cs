@@ -411,6 +411,21 @@ public sealed class InMemorySessionCoordinator : ISessionCoordinator
         return true;
     }
 
+    public RenameSessionResult RenameSessionAsync(string userId, string sessionId, string? name)
+    {
+        lock (_sync)
+        {
+            if (!_sessions.TryGetValue(sessionId, out var session) || session.UserId != userId)
+            {
+                return RenameSessionResult.Failure("session-not-found");
+            }
+
+            _sessions[sessionId] = session with { Name = name };
+        }
+
+        return RenameSessionResult.Success();
+    }
+
     public IReadOnlyList<SessionRecord> GetSessionsForUser(string userId)
     {
         lock (_sync)

@@ -481,7 +481,9 @@
     "statusIdle": "空闲",
     "statusRunning": "运行中",
     "statusWaiting": "等待中",
-    "statusFailed": "失败"
+    "statusFailed": "失败",
+    "rename": "重命名会话",
+    "namePlaceholder": "输入会话名称"
   },
   "workers": {
     "title": "工作节点",

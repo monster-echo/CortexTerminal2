@@ -61,7 +61,8 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
                         entity.LastActivityAtUtc,
                         AttachmentState: SessionAttachmentState.Recovering,
                         AttachedClientConnectionId: null,
-                        LeaseExpiresAtUtc: null);
+                        LeaseExpiresAtUtc: null,
+                        Name: entity.Name);
 
                     _sessions[entity.SessionId] = record;
                 }
@@ -584,6 +585,30 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
         });
 
         return true;
+    }
+
+    public RenameSessionResult RenameSessionAsync(string userId, string sessionId, string? name)
+    {
+        lock (_sync)
+        {
+            if (!_sessions.TryGetValue(sessionId, out var session) || session.UserId != userId)
+            {
+                return RenameSessionResult.Failure("session-not-found");
+            }
+
+            _sessions[sessionId] = session with { Name = name };
+        }
+
+        _ = PersistAsync(async db =>
+        {
+            var entity = await db.Sessions.FindAsync(sessionId);
+            if (entity is not null)
+            {
+                entity.Name = name;
+            }
+        });
+
+        return RenameSessionResult.Success();
     }
 
     public IReadOnlyList<SessionRecord> GetSessionsForUser(string userId)

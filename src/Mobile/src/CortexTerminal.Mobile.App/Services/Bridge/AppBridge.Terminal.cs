@@ -23,7 +23,7 @@ public sealed partial class AppBridge
             return sessions.Select(session => new
             {
                 id = session.SessionId,
-                title = ShortSessionTitle(session.SessionId),
+                title = session.Name ?? ShortSessionTitle(session.SessionId),
                 subtitle = session.WorkerId,
                 cwd = (string?)null,
                 status = MapSessionStatus(session.Status),
@@ -118,6 +118,12 @@ public sealed partial class AppBridge
     public Task<string> DeleteTerminalSessionAsync(string sessionId)
     {
         return ExecuteSafeVoidAsync(() => RequireTerminalGateway().DeleteSessionAsync(sessionId, default));
+    }
+
+    [BridgeMethod]
+    public Task<string> RenameTerminalSessionAsync(string sessionId, string name)
+    {
+        return ExecuteSafeVoidAsync(() => RequireTerminalGateway().RenameSessionAsync(sessionId, name, default));
     }
 
     [BridgeMethod]

@@ -18,9 +18,10 @@ import {
   IonSkeletonText,
   IonTitle,
   IonToolbar,
+  useIonAlert,
   useIonToast,
 } from "@ionic/react";
-import { addOutline, terminalOutline, trashOutline } from "ionicons/icons";
+import { addOutline, createOutline, terminalOutline, trashOutline } from "ionicons/icons";
 import { RouteComponentProps } from "react-router-dom";
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -53,6 +54,7 @@ const selectIsGatewayLoaded = (s: SessionState) => s.isGatewayLoaded;
 const selectSetSessions = (s: SessionState) => s.setSessions;
 const selectSetWorkers = (s: SessionState) => s.setWorkers;
 const selectRemoveSession = (s: SessionState) => s.removeSession;
+const selectRenameSession = (s: SessionState) => s.renameSession;
 
 export default function SessionsPage({ history }: RouteComponentProps) {
   const { t } = useTranslation();
@@ -64,7 +66,9 @@ export default function SessionsPage({ history }: RouteComponentProps) {
   const setSessions = useSessionStore(selectSetSessions);
   const setWorkers = useSessionStore(selectSetWorkers);
   const removeSession = useSessionStore(selectRemoveSession);
+  const renameSession = useSessionStore(selectRenameSession);
   const [presentToast] = useIonToast();
+  const [presentRenameAlert] = useIonAlert();
 
   const create = useCreateSession();
 
@@ -195,6 +199,50 @@ export default function SessionsPage({ history }: RouteComponentProps) {
                     side="end"
                     style={{ background: "transparent" }}
                   >
+                    <IonItemOption
+                      color="primary"
+                      style={{
+                        margin: "4px 4px 4px 0",
+                        borderRadius: "8px",
+                        padding: "0 16px",
+                      }}
+                      onClick={() => {
+                        presentRenameAlert({
+                          header: t("sessions.rename"),
+                          inputs: [
+                            {
+                              name: "name",
+                              value: session.title,
+                              placeholder: t("sessions.namePlaceholder"),
+                            },
+                          ],
+                          buttons: [
+                            { text: t("sessions.cancel"), role: "cancel" },
+                            {
+                              text: t("sessions.create"),
+                              handler: async (data: Record<string, string>) => {
+                                const newName = data.name?.trim();
+                                if (newName && newName !== session.title) {
+                                  try {
+                                    await terminalBridge.renameSession(session.id, newName);
+                                    renameSession(session.id, newName);
+                                  } catch (e) {
+                                    presentToast({
+                                      message: e instanceof Error ? e.message : String(e),
+                                      duration: 3000,
+                                      position: "bottom",
+                                      color: "danger",
+                                    });
+                                  }
+                                }
+                              },
+                            },
+                          ],
+                        });
+                      }}
+                    >
+                      <IonIcon icon={createOutline} slot="icon-only" />
+                    </IonItemOption>
                     <IonItemOption
                       color="danger"
                       expandable

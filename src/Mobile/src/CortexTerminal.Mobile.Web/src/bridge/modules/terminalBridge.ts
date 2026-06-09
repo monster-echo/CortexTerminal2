@@ -34,6 +34,8 @@ export const terminalBridge = {
     invoke("DisconnectTerminalSessionAsync", SuccessResponseSchema, [], { timeoutMs: 15000 }),
   deleteSession: (sessionId: string) =>
     invoke("DeleteTerminalSessionAsync", SuccessResponseSchema, [sessionId], { timeoutMs: 15000 }),
+  renameSession: (sessionId: string, name: string) =>
+    invoke("RenameTerminalSessionAsync", SuccessResponseSchema, [sessionId, name], { timeoutMs: 15000 }),
   hasClipboardText: () =>
     invoke("HasClipboardTextAsync", HasClipboardTextSchema, [], { timeoutMs: 3000 }),
   readClipboardText: () =>

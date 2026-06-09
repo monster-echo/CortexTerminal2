@@ -9,6 +9,7 @@ export interface SessionState {
   setWorkers: (workers: WorkerSummary[]) => void;
   setGatewayLoaded: (value: boolean) => void;
   removeSession: (sessionId: string) => void;
+  renameSession: (sessionId: string, name: string) => void;
 }
 
 export const useSessionStore = create<SessionState>((set) => ({
@@ -31,4 +32,11 @@ export const useSessionStore = create<SessionState>((set) => ({
         recentSessions: filtered,
       };
     }),
+
+  renameSession: (sessionId, name) =>
+    set((state) => ({
+      recentSessions: state.recentSessions.map((s) =>
+        s.id === sessionId ? { ...s, title: name } : s
+      ),
+    })),
 }));

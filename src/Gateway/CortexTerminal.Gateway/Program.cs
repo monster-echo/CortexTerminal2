@@ -125,6 +125,7 @@ static object ToSessionSummaryResponse(SessionRecord session)
     => new
     {
         session.SessionId,
+        session.Name,
         session.WorkerId,
         Status = session.AttachmentState.ToString(),
         CreatedAt = session.CreatedAtUtc,
@@ -150,6 +151,7 @@ static object ToSessionDetailResponse(
     return new
     {
         session.SessionId,
+        session.Name,
         session.WorkerId,
         Status = session.AttachmentState.ToString(),
         CreatedAt = session.CreatedAtUtc,
@@ -1331,6 +1333,39 @@ app.MapDelete("/api/me/sessions/{sessionId}", async (
     return Results.NoContent();
 }).RequireAuthorization();
 
+app.MapPatch("/api/me/sessions/{sessionId}", (
+    string sessionId,
+    RenameSessionRequest request,
+    ClaimsPrincipal user,
+    ISessionCoordinator sessions,
+    IAuditLogStore auditLog) =>
+{
+    var userId = GetUserId(user);
+
+    if (request.Name is not null && request.Name.Length > 100)
+    {
+        return Results.BadRequest(new { error = "Name must be 100 characters or less" });
+    }
+
+    var result = sessions.RenameSessionAsync(userId, sessionId, request.Name);
+    if (!result.IsSuccess)
+    {
+        return Results.NotFound();
+    }
+
+    auditLog.Record(new AuditLogEntry(
+        Id: Guid.NewGuid().ToString("N"),
+        Timestamp: DateTimeOffset.UtcNow,
+        UserId: userId,
+        UserName: userId,
+        Action: "session.rename",
+        TargetEntity: "session",
+        TargetId: sessionId
+    ));
+
+    return Results.Ok(new { sessionId, Name = request.Name });
+}).RequireAuthorization();
+
 // ---- Gateway Info ----
 var gatewayVersion = Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3) ?? "0.0.0";
 var githubRepo = builder.Configuration["GitHub:Repo"] ?? "monster-echo/CortexTerminal2";
@@ -1787,6 +1822,7 @@ record HuaweiQuickLoginRequest(string AuthCode, string UnionID, string OpenID);
 record PasswordLoginRequest(string Username, string Password, string? CaptchaToken);
 record PasswordRegisterRequest(string Username, string Password, string? DisplayName);
 record ChangePasswordRequest(string? CurrentPassword, string NewPassword);
+record RenameSessionRequest(string? Name);
 
 internal sealed class LatestVersionCache
 {

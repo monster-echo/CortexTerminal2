@@ -14,4 +14,5 @@ public sealed record SessionRecord(
     DateTimeOffset? LeaseExpiresAtUtc = null,
     int? ExitCode = null,
     string? ExitReason = null,
-    bool ReplayPending = false);
+    bool ReplayPending = false,
+    string? Name = null);

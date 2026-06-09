@@ -20,4 +20,5 @@ public interface ISessionCoordinator
     IReadOnlyList<string> ExpireRecoveringSessions(DateTimeOffset cutoffUtc);
     bool TryGetSession(string sessionId, out SessionRecord session);
     bool TouchSessionActivity(string sessionId, DateTimeOffset nowUtc);
+    RenameSessionResult RenameSessionAsync(string userId, string sessionId, string? name);
 }

@@ -481,7 +481,9 @@
     "statusIdle": "Idle",
     "statusRunning": "Running",
     "statusWaiting": "Waiting",
-    "statusFailed": "Failed"
+    "statusFailed": "Failed",
+    "rename": "Rename Session",
+    "namePlaceholder": "Enter session name"
   },
   "workers": {
     "title": "Workers",

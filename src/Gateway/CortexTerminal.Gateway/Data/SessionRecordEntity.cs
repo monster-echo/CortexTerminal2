@@ -51,4 +51,8 @@ public class SessionRecordEntity
 
     [Column("replay_pending")]
     public bool ReplayPending { get; set; }
+
+    [Column("name")]
+    [StringLength(100)]
+    public string? Name { get; set; }
 }

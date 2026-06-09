@@ -217,6 +217,15 @@ public sealed class TerminalGatewayService
         response.EnsureSuccessStatusCode();
     }
 
+    public async Task RenameSessionAsync(string sessionId, string? name, CancellationToken cancellationToken)
+    {
+        var token = await RequireTokenAsync(cancellationToken);
+        using var request = CreateRequest(HttpMethod.Patch, $"/api/me/sessions/{sessionId}", token);
+        request.Content = JsonContent.Create(new { Name = name });
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
     public async Task DisconnectAsync()
     {
         if (_connection is null)
@@ -434,6 +443,7 @@ public sealed class TerminalGatewayService
 
     public sealed record SessionSummaryDto(
         string SessionId,
+        string? Name,
         string WorkerId,
         string Status,
         DateTimeOffset CreatedAt,

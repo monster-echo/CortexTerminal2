@@ -132,6 +132,9 @@ public interface IBridgeContract
     [BridgeMethod]
     Task<string> DisconnectTerminalSessionAsync();
 
+    [BridgeMethod]
+    Task<string> RenameTerminalSessionAsync(string sessionId, string name);
+
     // 认证
     [BridgeMethod]
     Task<string> GetCaptchaChallengeAsync();
