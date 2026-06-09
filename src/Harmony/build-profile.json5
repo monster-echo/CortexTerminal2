@@ -18,13 +18,13 @@
         "name": "release",
         "type": "HarmonyOS",
         "material": {
-          "certpath": "signing/release/cortexterminal-release.cer",
-          "keyAlias": "cortex-release",
-          "keyPassword": "rw2005@soft",
-          "profile": "signing/release/Corterm-ProfileRelease.p7b",
+          "certpath": "HARMONY_CERT_PATH",
+          "keyAlias": "HARMONY_KEY_ALIAS",
+          "keyPassword": "HARMONY_KEY_PASSWORD",
+          "profile": "HARMONY_PROFILE_PATH",
           "signAlg": "SHA256withECDSA",
-          "storeFile": "signing/release/cortexterminal-release.p12",
-          "storePassword": "rw2005@soft"
+          "storeFile": "HARMONY_STORE_FILE",
+          "storePassword": "HARMONY_STORE_PASSWORD"
         }
       }
     ],
@@ -33,6 +33,15 @@
         "name": "default",
         "bundleName": "top.rwecho.cortexterminal",
         "signingConfig": "default",
+        "compileSdkVersion": "6.1.0(23)",
+        "compatibleSdkVersion": "5.0.0(12)",
+        "runtimeOS": "HarmonyOS",
+        "targetSdkVersion": "6.1.0(23)"
+      },
+      {
+        "name": "release",
+        "bundleName": "top.rwecho.cortexterminal",
+        "signingConfig": "release",
         "compileSdkVersion": "6.1.0(23)",
         "compatibleSdkVersion": "5.0.0(12)",
         "runtimeOS": "HarmonyOS",
@@ -56,7 +65,8 @@
         {
           "name": "default",
           "applyToProducts": [
-            "default"
+            "default",
+            "release"
           ]
         }
       ]

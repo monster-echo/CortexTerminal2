@@ -136,35 +136,16 @@ jobs:
           name: app-bundle
           path: /tmp
 
-      - name: Get AGConnect Access Token (Service Account JWT)
+      - name: Get AGConnect Access Token (API Client)
         id: auth
-        env:
-          AGC_SERVICE_ACCOUNT_KEY: ${{ secrets.AGC_SERVICE_ACCOUNT_KEY }}
         run: |
-          echo "$AGC_SERVICE_ACCOUNT_KEY" > /tmp/agc-key.json
-          jq -r '.private_key' /tmp/agc-key.json > /tmp/agc-private.pem
-
-          KEY_ID=$(jq -r '.key_id' /tmp/agc-key.json)
-          SUB_ACCOUNT=$(jq -r '.sub_account' /tmp/agc-key.json)
-          TOKEN_URI=$(jq -r '.token_uri' /tmp/agc-key.json)
-
-          NOW=$(date +%s)
-          EXP=$((NOW + 3600))
-
-          HEADER=$(printf '{"alg":"RS256","typ":"JWT","kid":"%s"}' "$KEY_ID" | base64 | tr '+/' '-_' | tr -d '=\n')
-          PAYLOAD=$(printf '{"iss":"%s","sub":"%s","aud":"%s","iat":%d,"exp":%d}' "$SUB_ACCOUNT" "$SUB_ACCOUNT" "$TOKEN_URI" "$NOW" "$EXP" | base64 | tr '+/' '-_' | tr -d '=\n')
-          SIGNATURE=$(printf '%s.%s' "$HEADER" "$PAYLOAD" | openssl dgst -binary -sha256 -sign /tmp/agc-private.pem | base64 | tr '+/' '-_' | tr -d '=\n')
-
-          JWT="${HEADER}.${PAYLOAD}.${SIGNATURE}"
-
-          RESPONSE=$(curl -s -X POST "$TOKEN_URI" \
-            -H "Content-Type: application/x-www-form-urlencoded" \
-            -d "grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${JWT}")
-
+          RESPONSE=$(curl -s -X POST \
+            "https://connect-api.cloud.huawei.com/api/oauth2/v1/token" \
+            -H "Content-Type: application/json" \
+            -d "{\"grant_type\":\"client_credentials\",\"client_id\":\"${{ secrets.AGC_CLIENT_ID }}\",\"client_secret\":\"${{ secrets.AGC_CLIENT_SECRET }}\"}")
           echo "::group::Token response"
           echo "$RESPONSE" | jq .
           echo "::endgroup::"
-
           TOKEN=$(echo "$RESPONSE" | jq -r '.access_token')
           if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
             echo "::error::Failed to get access token: $RESPONSE"
@@ -172,13 +153,11 @@ jobs:
           fi
           echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
 
-          rm -f /tmp/agc-key.json /tmp/agc-private.pem
-
       - name: Get Upload URL
         id: upload-url
         run: |
           RESPONSE=$(curl -s -w "\n%{http_code}" -X GET \
-            "https://connect-api.cloud.huawei.com/publish/v2/upload-url?appId=${{ secrets.AGC_APP_ID }}&suffix=app" \
+            "https://connect-api.cloud.huawei.com/api/publish/v2/upload-url?appId=${{ secrets.AGC_APP_ID }}&suffix=app&releaseType=1" \
             -H "Authorization: Bearer ${{ steps.auth.outputs.token }}" \
             -H "client_id: ${{ secrets.AGC_CLIENT_ID }}")
           HTTP_CODE=$(echo "$RESPONSE" | tail -1)
@@ -186,7 +165,7 @@ jobs:
           echo "::group::Upload URL response (HTTP $HTTP_CODE)"
           echo "$BODY"
           echo "::endgroup::"
-          UPLOAD_URL=$(echo "$BODY" | jq -r '.url // .data.url' 2>/dev/null || echo "")
+          UPLOAD_URL=$(echo "$BODY" | jq -r '.uploadUrl // .result.uploadUrl // .url // .data.url' 2>/dev/null || echo "")
           if [ -z "$UPLOAD_URL" ] || [ "$UPLOAD_URL" = "null" ]; then
             echo "::error::Failed to get upload URL (HTTP $HTTP_CODE): $BODY"
             exit 1
@@ -198,38 +177,41 @@ jobs:
         id: upload-file
         run: |
           APP_FILE=$(ls /tmp/cortexterminal-*.app | head -1)
-          UPLOAD_URL=$(jq -r '.url // .data.url' /tmp/upload-url-response.json)
-          AUTH_CODE=$(jq -r '.authCode // .data.authCode // .data.auth_code' /tmp/upload-url-response.json)
+          UPLOAD_URL=$(jq -r '.uploadUrl // .result.uploadUrl // .url // .data.url' /tmp/upload-url-response.json)
+          AUTH_CODE=$(jq -r '.authCode // .result.authCode // .data.authCode // .data.auth_code' /tmp/upload-url-response.json)
 
           RESPONSE=$(curl -s -X PUT "$UPLOAD_URL" \
             -H "Authorization: Bearer ${{ steps.auth.outputs.token }}" \
             -H "client_id: ${{ secrets.AGC_CLIENT_ID }}" \
             -F "file=@$APP_FILE" \
-            -F "auth_code=$AUTH_CODE")
+            -F "auth_code=$AUTH_CODE" \
+            -F "fileCount=1")
           echo "::group::Upload response"
           echo "$RESPONSE" | jq .
           echo "::endgroup::"
-          FILE_CONTENT=$(echo "$RESPONSE" | jq -r '.fileContent // .data.fileContent')
-          if [ -z "$FILE_CONTENT" ] || [ "$FILE_CONTENT" = "null" ]; then
+          FILE_DEST=$(echo "$RESPONSE" | jq -r '.result.UploadFileRsp.fileInfoList[0].fileDestUlr // .fileContent // .data.fileContent')
+          if [ -z "$FILE_DEST" ] || [ "$FILE_DEST" = "null" ]; then
             echo "::error::File upload failed: $RESPONSE"
             exit 1
           fi
-          echo "file_content=$FILE_CONTENT" >> "$GITHUB_OUTPUT"
+          echo "file_dest=$FILE_DEST" >> "$GITHUB_OUTPUT"
+          FILE_NAME=$(basename "$APP_FILE")
+          echo "file_name=$FILE_NAME" >> "$GITHUB_OUTPUT"
 
       - name: Update App File Info
         run: |
           RESPONSE=$(curl -s -X PUT \
-            "https://connect-api.cloud.huawei.com/publish/v3/app-info?appId=${{ secrets.AGC_APP_ID }}" \
+            "https://connect-api.cloud.huawei.com/api/publish/v2/app-file-info?appId=${{ secrets.AGC_APP_ID }}" \
             -H "Authorization: Bearer ${{ steps.auth.outputs.token }}" \
             -H "client_id: ${{ secrets.AGC_CLIENT_ID }}" \
             -H "Content-Type: application/json" \
-            -d "{\"lang\":\"zh-CN\",\"fileContents\":[{\"fileName\":\"app\",\"fileContent\":\"${{ steps.upload-file.outputs.file_content }}\"}]}")
-          echo "::group::Update app info response"
+            -d "{\"fileType\":5,\"files\":{\"fileName\":\"${{ steps.upload-file.outputs.file_name }}\",\"fileDestUrl\":\"${{ steps.upload-file.outputs.file_dest }}\"}}")
+          echo "::group::Update app file info response"
           echo "$RESPONSE" | jq .
           echo "::endgroup::"
-          RET=$(echo "$RESPONSE" | jq -r '.ret.code // .code // .data // "unknown"')
+          RET=$(echo "$RESPONSE" | jq -r '.ret.code // .code // "unknown"')
           if [ "$RET" != "0" ]; then
-            echo "::error::Update app info failed: $RESPONSE"
+            echo "::error::Update app file info failed: $RESPONSE"
             exit 1
           fi
 
@@ -240,10 +222,10 @@ jobs:
         run: |
           for i in $(seq 1 20); do
             RESPONSE=$(curl -s -X GET \
-              "https://connect-api.cloud.huawei.com/publish/v2/app-compile-status?appId=${{ secrets.AGC_APP_ID }}" \
+              "https://connect-api.cloud.huawei.com/api/publish/v2/app-compile-status?appId=${{ secrets.AGC_APP_ID }}" \
               -H "Authorization: Bearer ${{ steps.auth.outputs.token }}" \
               -H "client_id: ${{ secrets.AGC_CLIENT_ID }}")
-            STATUS=$(echo "$RESPONSE" | jq -r '.data // .status // "unknown"')
+            STATUS=$(echo "$RESPONSE" | jq -r '.result // .data // .status // "unknown"')
             echo "Attempt $i: compile status = $STATUS"
             if [ "$STATUS" = "2" ] || [ "$STATUS" = "success" ]; then
               echo "Compile successful"
@@ -261,7 +243,7 @@ jobs:
       - name: Submit for release
         run: |
           RESPONSE=$(curl -s -X POST \
-            "https://connect-api.cloud.huawei.com/publish/v2/app-submit?appid=${{ secrets.AGC_APP_ID }}" \
+            "https://connect-api.cloud.huawei.com/api/publish/v2/app-submit?appid=${{ secrets.AGC_APP_ID }}" \
             -H "Authorization: Bearer ${{ steps.auth.outputs.token }}" \
             -H "client_id: ${{ secrets.AGC_CLIENT_ID }}")
           echo "::group::Submit response"
