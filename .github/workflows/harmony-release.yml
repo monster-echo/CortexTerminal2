@@ -21,11 +21,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-
       - name: Extract version
         id: version
         run: |
@@ -49,6 +44,12 @@ jobs:
             -e "s/\"versionName\": \"[^\"]*\"/\"versionName\": \"${{ steps.version.outputs.version }}\"/" \
             AppScope/app.json5
 
+      - name: Prepare signing materials
+        run: |
+          echo "${{ secrets.HARMONY_KEYSTORE_P12 }}" | base64 -d > /tmp/cortex-release.p12
+          echo "${{ secrets.HARMONY_CERTIFICATE_CER }}" | base64 -d > /tmp/cortex-release.cer
+          echo "${{ secrets.HARMONY_PROFILE_P7B }}" | base64 -d > /tmp/cortex-release.p7b
+
       - name: Setup oh_modules symlinks
         run: |
           cd src/Harmony
@@ -67,12 +68,6 @@ jobs:
           done
           ln -sfn "$PWD/common/signalr" feature/terminal/oh_modules/@rwecho/signalr
 
-      - name: Setup signing materials
-        run: |
-          echo "${{ secrets.HARMONY_KEYSTORE_P12 }}" | base64 -d > /tmp/cortex-release.p12
-          echo "${{ secrets.HARMONY_CERTIFICATE_CER }}" | base64 -d > /tmp/cortex-release.cer
-          echo "${{ secrets.HARMONY_PROFILE_P7B }}" | base64 -d > /tmp/cortex-release.p7b
-
       - name: Build unsigned HAP
         run: |
           cd src/Harmony
@@ -85,19 +80,17 @@ jobs:
           KEYSTORE_PASS: ${{ secrets.HARMONY_KEYSTORE_PASSWORD }}
           KEY_PASS: ${{ secrets.HARMONY_KEY_PASSWORD }}
         run: |
-          printf '%s' "$KEYSTORE_PASS" > /tmp/store-pass.txt
-          printf '%s' "$KEY_PASS" > /tmp/key-pass.txt
           HAP_FILE=$(ls src/Harmony/product/entry/build/default/outputs/default/entry-default-unsigned.hap | head -1)
           java -jar "/Applications/DevEco-Studio.app/Contents/sdk/default/openharmony/toolchains/lib/hap-sign-tool.jar" sign-app \
             -mode localSign \
             -keyAlias "${{ secrets.HARMONY_KEY_ALIAS }}" \
-            -keyPwd "$(cat /tmp/key-pass.txt)" \
+            -keyPwd "$KEY_PASS" \
             -appCertFile /tmp/cortex-release.cer \
             -profileFile /tmp/cortex-release.p7b \
             -inFile "$HAP_FILE" \
             -signAlg SHA256withECDSA \
             -keystoreFile /tmp/cortex-release.p12 \
-            -keystorePwd "$(cat /tmp/store-pass.txt)" \
+            -keystorePwd "$KEYSTORE_PASS" \
             -outFile /tmp/entry-release-signed.hap \
             -compatibleVersion 12 \
             -signCode 1
@@ -115,11 +108,141 @@ jobs:
             echo '{"packages":[{"name":"entry-default","type":"hap","moduleType":"entry","deviceType":["default","tablet"],"deliveryWithInstall":true}]}' > "$UNPACK_DIR/pack.info"
           fi
           cd "$UNPACK_DIR"
-          zip -j /tmp/cortexterminal-release.app pac.json pack.info entry-default.hap
+          zip -j /tmp/cortexterminal-${{ steps.version.outputs.version }}.app pac.json pack.info entry-default.hap
+
+      - name: Upload artifact for publish job
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-bundle
+          path: /tmp/cortexterminal-${{ steps.version.outputs.version }}.app
+          retention-days: 1
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: /tmp/cortexterminal-release.app
+          files: /tmp/cortexterminal-${{ steps.version.outputs.version }}.app
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-appgallery:
+    name: Publish to AppGallery Connect
+    needs: build-harmony
+    runs-on: self-hosted
+    steps:
+      - name: Download app artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: app-bundle
+          path: /tmp
+
+      - name: Get AGConnect Access Token
+        id: auth
+        run: |
+          RESPONSE=$(curl -s -X POST \
+            "https://connect-api.cloud.huawei.com/api/oauth2/v1/token" \
+            -H "Content-Type: application/x-www-form-urlencoded" \
+            -d "grant_type=client_credentials&client_id=${{ secrets.AGC_CLIENT_ID }}&client_secret=${{ secrets.AGC_CLIENT_SECRET }}")
+          TOKEN=$(echo "$RESPONSE" | jq -r '.access_token // .data.access_token')
+          if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
+            echo "::error::Failed to get access token: $RESPONSE"
+            exit 1
+          fi
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+
+      - name: Get Upload URL
+        id: upload-url
+        run: |
+          RESPONSE=$(curl -s -X GET \
+            "https://connect-api.cloud.huawei.com/publish/v2/upload-url?appId=${{ secrets.AGC_APP_ID }}&suffix=app" \
+            -H "Authorization: Bearer ${{ steps.auth.outputs.token }}" \
+            -H "client_id: ${{ secrets.AGC_CLIENT_ID }}")
+          echo "::group::Upload URL response"
+          echo "$RESPONSE" | jq .
+          echo "::endgroup::"
+          UPLOAD_URL=$(echo "$RESPONSE" | jq -r '.url // .data.url')
+          if [ -z "$UPLOAD_URL" ] || [ "$UPLOAD_URL" = "null" ]; then
+            echo "::error::Failed to get upload URL: $RESPONSE"
+            exit 1
+          fi
+          echo "upload_url=$UPLOAD_URL" >> "$GITHUB_OUTPUT"
+          echo "$RESPONSE" > /tmp/upload-url-response.json
+
+      - name: Upload APP file to AppGallery
+        id: upload-file
+        run: |
+          APP_FILE=$(ls /tmp/cortexterminal-*.app | head -1)
+          UPLOAD_URL=$(jq -r '.url // .data.url' /tmp/upload-url-response.json)
+          AUTH_CODE=$(jq -r '.authCode // .data.authCode // .data.auth_code' /tmp/upload-url-response.json)
+
+          RESPONSE=$(curl -s -X PUT "$UPLOAD_URL" \
+            -H "Authorization: Bearer ${{ steps.auth.outputs.token }}" \
+            -H "client_id: ${{ secrets.AGC_CLIENT_ID }}" \
+            -F "file=@$APP_FILE" \
+            -F "auth_code=$AUTH_CODE")
+          echo "::group::Upload response"
+          echo "$RESPONSE" | jq .
+          echo "::endgroup::"
+          FILE_CONTENT=$(echo "$RESPONSE" | jq -r '.fileContent // .data.fileContent')
+          if [ -z "$FILE_CONTENT" ] || [ "$FILE_CONTENT" = "null" ]; then
+            echo "::error::File upload failed: $RESPONSE"
+            exit 1
+          fi
+          echo "file_content=$FILE_CONTENT" >> "$GITHUB_OUTPUT"
+
+      - name: Update App File Info
+        run: |
+          RESPONSE=$(curl -s -X PUT \
+            "https://connect-api.cloud.huawei.com/publish/v3/app-info?appId=${{ secrets.AGC_APP_ID }}" \
+            -H "Authorization: Bearer ${{ steps.auth.outputs.token }}" \
+            -H "client_id: ${{ secrets.AGC_CLIENT_ID }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"lang\":\"zh-CN\",\"fileContents\":[{\"fileName\":\"app\",\"fileContent\":\"${{ steps.upload-file.outputs.file_content }}\"}]}")
+          echo "::group::Update app info response"
+          echo "$RESPONSE" | jq .
+          echo "::endgroup::"
+          RET=$(echo "$RESPONSE" | jq -r '.ret.code // .code // .data // "unknown"')
+          if [ "$RET" != "0" ]; then
+            echo "::error::Update app info failed: $RESPONSE"
+            exit 1
+          fi
+
+      - name: Wait for package parsing
+        run: sleep 120
+
+      - name: Query compile status
+        run: |
+          for i in $(seq 1 20); do
+            RESPONSE=$(curl -s -X GET \
+              "https://connect-api.cloud.huawei.com/publish/v2/app-compile-status?appId=${{ secrets.AGC_APP_ID }}" \
+              -H "Authorization: Bearer ${{ steps.auth.outputs.token }}" \
+              -H "client_id: ${{ secrets.AGC_CLIENT_ID }}")
+            STATUS=$(echo "$RESPONSE" | jq -r '.data // .status // "unknown"')
+            echo "Attempt $i: compile status = $STATUS"
+            if [ "$STATUS" = "2" ] || [ "$STATUS" = "success" ]; then
+              echo "Compile successful"
+              exit 0
+            fi
+            if [ "$STATUS" = "3" ] || [ "$STATUS" = "fail" ]; then
+              echo "::error::Compile failed: $RESPONSE"
+              exit 1
+            fi
+            sleep 30
+          done
+          echo "::error::Timed out waiting for compile"
+          exit 1
+
+      - name: Submit for release
+        run: |
+          RESPONSE=$(curl -s -X POST \
+            "https://connect-api.cloud.huawei.com/publish/v2/app-submit?appid=${{ secrets.AGC_APP_ID }}" \
+            -H "Authorization: Bearer ${{ steps.auth.outputs.token }}" \
+            -H "client_id: ${{ secrets.AGC_CLIENT_ID }}")
+          echo "::group::Submit response"
+          echo "$RESPONSE" | jq .
+          echo "::endgroup::"
+          RET=$(echo "$RESPONSE" | jq -r '.ret.code // .code // "unknown"')
+          if [ "$RET" != "0" ]; then
+            echo "::error::Submit failed: $RESPONSE"
+            exit 1
+          fi
+          echo "App submitted to AppGallery Connect successfully!"
