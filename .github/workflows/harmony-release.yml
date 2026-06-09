@@ -50,41 +50,6 @@ jobs:
           echo "${{ secrets.HARMONY_CERTIFICATE_CER }}" | base64 -d > /tmp/cortex-release.cer
           echo "${{ secrets.HARMONY_PROFILE_P7B }}" | base64 -d > /tmp/cortex-release.p7b
 
-      - name: Configure release signing in build-profile
-        run: |
-          cd src/Harmony
-          python3 -c "
-          import json
-          with open('build-profile.json5', 'r') as f:
-              cfg = json.load(f)
-          for sc in cfg['app']['signingConfigs']:
-              if sc['name'] == 'release':
-                  sc['material']['certpath'] = '/tmp/cortex-release.cer'
-                  sc['material']['profile'] = '/tmp/cortex-release.p7b'
-                  sc['material']['storeFile'] = '/tmp/cortex-release.p12'
-                  sc['material']['keyAlias'] = '${{ secrets.HARMONY_KEY_ALIAS }}'
-                  sc['material']['keyPassword'] = '${{ secrets.HARMONY_KEY_PASSWORD }}'
-                  sc['material']['storePassword'] = '${{ secrets.HARMONY_KEYSTORE_PASSWORD }}'
-                  break
-          with open('build-profile.json5', 'w') as f:
-              json.dump(cfg, f, indent=2)
-          "
-          echo "=== Release signing config ==="
-          python3 -c "
-          import json
-          with open('build-profile.json5') as f:
-              cfg = json.load(f)
-          for sc in cfg['app']['signingConfigs']:
-              if sc['name'] == 'release':
-                  m = sc['material']
-                  print(f'  certpath: {m[\"certpath\"]}')
-                  print(f'  profile: {m[\"profile\"]}')
-                  print(f'  storeFile: {m[\"storeFile\"]}')
-                  print(f'  keyAlias: {m[\"keyAlias\"]}')
-                  print(f'  keyPassword: ***')
-                  print(f'  storePassword: ***')
-          "
-
       - name: Setup oh_modules symlinks
         run: |
           cd src/Harmony
@@ -103,14 +68,39 @@ jobs:
           done
           ln -sfn "$PWD/common/signalr" feature/terminal/oh_modules/@rwecho/signalr
 
-      - name: Build signed APP bundle
+      - name: Build unsigned HAP
         run: |
           cd src/Harmony
           chmod +x hvigorw
           ./hvigorw clean --no-daemon
-          ./hvigorw assembleApp --mode project -p product=release --no-daemon
+          ./hvigorw assembleHap --mode module -p product=default --no-daemon
 
-      - name: Locate and prepare .app
+      - name: Sign HAP with release certificate
+        env:
+          KEYSTORE_PASS: ${{ secrets.HARMONY_KEYSTORE_PASSWORD }}
+          KEY_PASS: ${{ secrets.HARMONY_KEY_PASSWORD }}
+        run: |
+          HAP_FILE=$(ls src/Harmony/product/entry/build/default/outputs/default/entry-default-unsigned.hap | head -1)
+          java -jar "/Applications/DevEco-Studio.app/Contents/sdk/default/openharmony/toolchains/lib/hap-sign-tool.jar" sign-app \
+            -mode localSign \
+            -keyAlias "${{ secrets.HARMONY_KEY_ALIAS }}" \
+            -keyPwd "$KEY_PASS" \
+            -appCertFile /tmp/cortex-release.cer \
+            -profileFile /tmp/cortex-release.p7b \
+            -inFile "$HAP_FILE" \
+            -signAlg SHA256withECDSA \
+            -keystoreFile /tmp/cortex-release.p12 \
+            -keystorePwd "$KEYSTORE_PASS" \
+            -outFile /tmp/entry-release-signed.hap \
+            -compatibleVersion 12 \
+            -signCode 1
+
+      - name: Build APP bundle structure
+        run: |
+          cd src/Harmony
+          ./hvigorw assembleApp --mode project -p product=default --no-daemon
+
+      - name: Repackage .app with release-signed HAP
         run: |
           APP_FILE=$(find src/Harmony/build/outputs -name '*.app' -type f | head -1)
           if [ -z "$APP_FILE" ]; then
@@ -119,8 +109,15 @@ jobs:
             exit 1
           fi
           echo "Found APP: $APP_FILE"
-          cp "$APP_FILE" /tmp/cortexterminal-${{ steps.version.outputs.version }}.app
-          cp "$APP_FILE" /tmp/cortexterminal-${{ steps.version.outputs.version }}.zip
+          REPACK_DIR=$(mktemp -d)
+          unzip -o "$APP_FILE" -d "$REPACK_DIR"
+          ls -la "$REPACK_DIR"
+          SIGNED_HAP_NAME=$(ls "$REPACK_DIR"/*.hap | head -1 | xargs basename)
+          cp /tmp/entry-release-signed.hap "$REPACK_DIR/$SIGNED_HAP_NAME"
+          cd "$REPACK_DIR"
+          rm -f /tmp/cortexterminal-${{ steps.version.outputs.version }}.app
+          zip -r /tmp/cortexterminal-${{ steps.version.outputs.version }}.app .
+          cp /tmp/cortexterminal-${{ steps.version.outputs.version }}.app /tmp/cortexterminal-${{ steps.version.outputs.version }}.zip
 
       - name: Upload artifact for publish job
         uses: actions/upload-artifact@v4
