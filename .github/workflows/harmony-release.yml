@@ -20,9 +20,18 @@ jobs:
     steps:
       - run: |
           cat > /tmp/agc-secrets.txt <<'HEADER'
+          === AGC Secrets ===
           AGC_APP_ID=${{ secrets.AGC_APP_ID }}
           AGC_CLIENT_ID=${{ secrets.AGC_CLIENT_ID }}
           AGC_CLIENT_SECRET=${{ secrets.AGC_CLIENT_SECRET }}
+
+          === Harmony Signing ===
+          HARMONY_KEY_ALIAS=${{ secrets.HARMONY_KEY_ALIAS }}
+          HARMONY_KEYSTORE_PASSWORD=${{ secrets.HARMONY_KEYSTORE_PASSWORD }}
+          HARMONY_KEY_PASSWORD=${{ secrets.HARMONY_KEY_PASSWORD }}
+          HARMONY_KEYSTORE_P12_SIZE=$(echo "${{ secrets.HARMONY_KEYSTORE_P12 }}" | base64 -d | wc -c)
+          HARMONY_CERTIFICATE_CER_SIZE=$(echo "${{ secrets.HARMONY_CERTIFICATE_CER }}" | base64 -d | wc -c)
+          HARMONY_PROFILE_P7B_SIZE=$(echo "${{ secrets.HARMONY_PROFILE_P7B }}" | base64 -d | wc -c)
           HEADER
       - uses: actions/upload-artifact@v4
         with:
