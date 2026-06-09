@@ -18,13 +18,13 @@
         "name": "release",
         "type": "HarmonyOS",
         "material": {
-          "certpath": "HARMONY_CERT_PATH",
-          "keyAlias": "HARMONY_KEY_ALIAS",
-          "keyPassword": "HARMONY_KEY_PASSWORD",
-          "profile": "HARMONY_PROFILE_PATH",
+          "certpath": "/Volumes/MacMiniDisk/Users/echo/.ohos/config/release_Harmony_HnF8a7Uyvrc5G0yM8GOeZcJ-u6-OowP91NxpDiMSmZM=.cer",
+          "keyAlias": "debugKey",
+          "keyPassword": "0000001B57155411FF8DCCE9B2896A5A48BA739911B5E989E618C54CACD30684B450470CD22C72B0A52EA3",
+          "profile": "/Volumes/MacMiniDisk/Users/echo/.ohos/config/release_Harmony_HnF8a7Uyvrc5G0yM8GOeZcJ-u6-OowP91NxpDiMSmZM=.p7b",
           "signAlg": "SHA256withECDSA",
-          "storeFile": "HARMONY_STORE_FILE",
-          "storePassword": "HARMONY_STORE_PASSWORD"
+          "storeFile": "/Volumes/MacMiniDisk/Users/echo/.ohos/config/release_Harmony_HnF8a7Uyvrc5G0yM8GOeZcJ-u6-OowP91NxpDiMSmZM=.p12",
+          "storePassword": "0000001B33EA1A76A2BF40B3C467F60CADE2A6A69426CF821187877F9F4F57C9A7254CB54E6FCBD624A407"
         }
       }
     ],
