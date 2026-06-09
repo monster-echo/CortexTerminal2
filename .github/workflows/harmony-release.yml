@@ -136,19 +136,43 @@ jobs:
           name: app-bundle
           path: /tmp
 
-      - name: Get AGConnect Access Token
+      - name: Get AGConnect Access Token (Service Account JWT)
         id: auth
+        env:
+          AGC_SERVICE_ACCOUNT_KEY: ${{ secrets.AGC_SERVICE_ACCOUNT_KEY }}
         run: |
-          RESPONSE=$(curl -s -X POST \
-            "https://connect-api.cloud.huawei.com/api/oauth2/v1/token" \
+          echo "$AGC_SERVICE_ACCOUNT_KEY" > /tmp/agc-key.json
+          jq -r '.private_key' /tmp/agc-key.json > /tmp/agc-private.pem
+
+          KEY_ID=$(jq -r '.key_id' /tmp/agc-key.json)
+          SUB_ACCOUNT=$(jq -r '.sub_account' /tmp/agc-key.json)
+          TOKEN_URI=$(jq -r '.token_uri' /tmp/agc-key.json)
+
+          NOW=$(date +%s)
+          EXP=$((NOW + 3600))
+
+          HEADER=$(printf '{"alg":"RS256","typ":"JWT","kid":"%s"}' "$KEY_ID" | base64 | tr '+/' '-_' | tr -d '=\n')
+          PAYLOAD=$(printf '{"iss":"%s","sub":"%s","aud":"%s","iat":%d,"exp":%d}' "$SUB_ACCOUNT" "$SUB_ACCOUNT" "$TOKEN_URI" "$NOW" "$EXP" | base64 | tr '+/' '-_' | tr -d '=\n')
+          SIGNATURE=$(printf '%s.%s' "$HEADER" "$PAYLOAD" | openssl dgst -binary -sha256 -sign /tmp/agc-private.pem | base64 | tr '+/' '-_' | tr -d '=\n')
+
+          JWT="${HEADER}.${PAYLOAD}.${SIGNATURE}"
+
+          RESPONSE=$(curl -s -X POST "$TOKEN_URI" \
             -H "Content-Type: application/x-www-form-urlencoded" \
-            -d "grant_type=client_credentials&client_id=${{ secrets.AGC_CLIENT_ID }}&client_secret=${{ secrets.AGC_CLIENT_SECRET }}")
-          TOKEN=$(echo "$RESPONSE" | jq -r '.access_token // .data.access_token')
+            -d "grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${JWT}")
+
+          echo "::group::Token response"
+          echo "$RESPONSE" | jq .
+          echo "::endgroup::"
+
+          TOKEN=$(echo "$RESPONSE" | jq -r '.access_token')
           if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
             echo "::error::Failed to get access token: $RESPONSE"
             exit 1
           fi
           echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+
+          rm -f /tmp/agc-key.json /tmp/agc-private.pem
 
       - name: Get Upload URL
         id: upload-url
