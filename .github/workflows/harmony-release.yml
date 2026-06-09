@@ -109,6 +109,7 @@ jobs:
           fi
           cd "$UNPACK_DIR"
           zip -j /tmp/cortexterminal-${{ steps.version.outputs.version }}.app pac.json pack.info entry-default.hap
+          cp /tmp/cortexterminal-${{ steps.version.outputs.version }}.app /tmp/cortexterminal-${{ steps.version.outputs.version }}.zip
 
       - name: Upload artifact for publish job
         uses: actions/upload-artifact@v4
@@ -120,7 +121,7 @@ jobs:
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: /tmp/cortexterminal-${{ steps.version.outputs.version }}.app
+          files: /tmp/cortexterminal-${{ steps.version.outputs.version }}.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
