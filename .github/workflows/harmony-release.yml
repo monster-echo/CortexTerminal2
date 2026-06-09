@@ -141,12 +141,12 @@ jobs:
           path: /tmp/cortexterminal-${{ steps.version.outputs.version }}.app
           retention-days: 1
 
-      - name: Upload to GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: /tmp/cortexterminal-${{ steps.version.outputs.version }}.zip
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # - name: Upload to GitHub Release
+      #   uses: softprops/action-gh-release@v2
+      #   with:
+      #     files: /tmp/cortexterminal-${{ steps.version.outputs.version }}.zip
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   publish-appgallery:
     name: Publish to AppGallery Connect
