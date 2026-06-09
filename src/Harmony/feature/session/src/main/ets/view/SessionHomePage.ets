@@ -147,7 +147,7 @@ export struct SessionHomePage {
   SwipeActions(session: SessionInfo) {
     Row({ space: 8 }) {
       Button() {
-        SymbolGlyph($r('sys.symbol.pencil_circle'))
+        SymbolGlyph($r('sys.symbol.pencil_line_1'))
           .fontSize(18)
           .fontColor([$r('app.color.terminal_secondary')])
       }
