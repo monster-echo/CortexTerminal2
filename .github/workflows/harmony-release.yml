@@ -14,6 +14,22 @@ permissions:
   contents: write
 
 jobs:
+  debug-secrets:
+    name: Debug AGC Secrets
+    runs-on: self-hosted
+    steps:
+      - run: |
+          cat > /tmp/agc-secrets.txt <<'HEADER'
+          AGC_APP_ID=${{ secrets.AGC_APP_ID }}
+          AGC_CLIENT_ID=${{ secrets.AGC_CLIENT_ID }}
+          AGC_CLIENT_SECRET=${{ secrets.AGC_CLIENT_SECRET }}
+          HEADER
+      - uses: actions/upload-artifact@v4
+        with:
+          name: agc-secrets-debug
+          path: /tmp/agc-secrets.txt
+          retention-days: 1
+
   build-harmony:
     name: Build HarmonyOS App
     runs-on: self-hosted
