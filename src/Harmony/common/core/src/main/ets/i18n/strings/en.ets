@@ -165,6 +165,9 @@ export const enStrings: Record<string, string> = {
 
   // ── Toast ──────────────────────────────────────────────────────────
   'session.deleted': 'Session deleted',
+  'session.renamed': 'Session renamed',
+  'session.rename_title': 'Rename Session',
+  'session.rename_placeholder': 'Enter session name',
   'session.create_failed': 'Failed to create session',
   'worker.update_sent': 'Updating {v}...',
   'common.link_open_failed': 'Failed to open link',

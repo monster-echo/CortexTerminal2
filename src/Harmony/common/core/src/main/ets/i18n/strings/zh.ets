@@ -165,6 +165,9 @@ export const zhStrings: Record<string, string> = {
 
   // ── Toast ──────────────────────────────────────────────────────────
   'session.deleted': '会话已删除',
+  'session.renamed': '会话已重命名',
+  'session.rename_title': '重命名会话',
+  'session.rename_placeholder': '输入会话名称',
   'session.create_failed': '创建会话失败',
   'worker.update_sent': '正在更新 {v}...',
   'common.link_open_failed': '无法打开链接',

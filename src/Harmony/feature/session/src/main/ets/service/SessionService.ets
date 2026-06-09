@@ -40,6 +40,10 @@ export class SessionService {
     await ApiService.deleteSession(sessionId)
   }
 
+  static async renameSession(sessionId: string, name: string): Promise<void> {
+    await ApiService.renameSession(sessionId, name)
+  }
+
   private static calculateTerminalSize(): TerminalSize {
     const vpWidth = AppStorage.get<number>('windowWidth') || 360
     const vpHeight = AppStorage.get<number>('windowHeight') || 640

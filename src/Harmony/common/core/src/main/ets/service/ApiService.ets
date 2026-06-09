@@ -39,7 +39,7 @@ export class ApiService {
     result.id = sessionId
     result.sessionId = sessionId
     result.workerId = (response['workerId'] as string) ?? ''
-    result.name = ApiService.shortSessionTitle(sessionId)
+    result.name = (response['name'] as string) || ApiService.shortSessionTitle(sessionId)
     result.status = 'idle'
     result.createdAt = new Date().toISOString()
     return result
@@ -53,6 +53,11 @@ export class ApiService {
 
   static async deleteSession(sessionId: string): Promise<void> {
     await ApiService.del(`/api/me/sessions/${encodeURIComponent(sessionId)}`)
+  }
+
+  static async renameSession(sessionId: string, name: string): Promise<void> {
+    const body: Record<string, string> = { 'name': name }
+    await ApiService.patch(`/api/me/sessions/${encodeURIComponent(sessionId)}`, body as Object)
   }
 
   // ── Worker APIs ───────────────────────────────────────────────────
@@ -246,6 +251,43 @@ export class ApiService {
     })
   }
 
+  private static async patch(path: string, body: Object, requiresAuth: boolean = true,
+    isRetry: boolean = false): Promise<Object> {
+    const url = `${ApiService.gatewayUrl}${path}`
+    const headers: Record<string, string> = ApiService.buildHeaders(requiresAuth)
+    headers['Content-Type'] = 'application/json'
+
+    return new Promise<Object>((resolve, reject) => {
+      const httpRequest = http.createHttp()
+      httpRequest.request(url, {
+        method: http.RequestMethod.PATCH,
+        header: headers,
+        extraData: JSON.stringify(body),
+        expectDataType: http.HttpDataType.OBJECT,
+        connectTimeout: 15000,
+        readTimeout: 15000
+      }, async (err, data) => {
+        if (err) {
+          reject(new Error(err.message || 'Network request failed'))
+          return
+        }
+        if (data.responseCode === 200) {
+          resolve(data.result as Object)
+        } else if (data.responseCode === 401 && requiresAuth && !isRetry) {
+          try {
+            const retried = await ApiService.handle401AndRetry('PATCH', path, body, requiresAuth)
+            resolve(retried)
+          } catch (retryErr) {
+            reject(retryErr)
+          }
+        } else {
+          reject(new Error(`Request failed (${data.responseCode})`))
+        }
+        httpRequest.destroy()
+      })
+    })
+  }
+
   // ── 401 handling ──────────────────────────────────────────────────
 
   private static async handle401AndRetry(method: string, path: string, body: Object | null,
@@ -271,6 +313,8 @@ export class ApiService {
         return await ApiService.get(path, requiresAuth, true)
       } else if (method === 'DELETE') {
         return await ApiService.del(path, requiresAuth, true)
+      } else if (method === 'PATCH') {
+        return await ApiService.patch(path, body!, requiresAuth, true)
       } else {
         return await ApiService.post(path, body!, requiresAuth, undefined, true)
       }
@@ -299,7 +343,7 @@ export class ApiService {
     const session = new SessionInfo()
     session.id = sessionId
     session.sessionId = sessionId
-    session.name = ApiService.shortSessionTitle(sessionId)
+    session.name = (data['name'] as string) || ApiService.shortSessionTitle(sessionId)
     session.status = ApiService.mapSessionStatus((data['status'] as string) ?? '')
     session.workerId = (data['workerId'] as string) ?? ''
     session.workerName = (data['workerName'] as string) ?? (data['workerHostname'] as string) ?? ''
