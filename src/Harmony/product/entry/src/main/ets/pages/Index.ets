@@ -109,27 +109,18 @@ struct Index {
       }
       .hideTitleBar(true)
       .backgroundColor($r('app.color.terminal_surface'))
-      .onBackPressed(() => true)
     } else if (name === RouteName.ACCOUNT_SECURITY) {
       NavDestination() {
         AccountSecurityPage()
       }
       .hideTitleBar(true)
       .backgroundColor($r('app.color.terminal_surface'))
-      .onBackPressed(() => {
-        this.pageStack.pop()
-        return true
-      })
     } else if (name === RouteName.CHANGE_PASSWORD) {
       NavDestination() {
         ChangePasswordPage()
       }
       .hideTitleBar(true)
       .backgroundColor($r('app.color.terminal_surface'))
-      .onBackPressed(() => {
-        this.pageStack.pop()
-        return true
-      })
     } else if (name === RouteName.SETTINGS) {
       NavDestination() {
         ShellScaffold({ activeRoute: RouteName.SETTINGS })
@@ -143,10 +134,6 @@ struct Index {
       }
       .hideTitleBar(true)
       .backgroundColor($r('app.color.terminal_surface'))
-      .onBackPressed(() => {
-        this.pageStack.pop()
-        return true
-      })
     }
   }
 }
