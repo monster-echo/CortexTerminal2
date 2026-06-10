@@ -241,41 +241,53 @@ jobs:
           fi
           echo "file_name=${{ steps.file-meta.outputs.name }}" >> "$GITHUB_OUTPUT"
 
-      - name: Update App File Info
+      - name: Update App Package Info
+        id: package-info
         run: |
           RESPONSE=$(curl -s -X PUT \
-            "https://connect-api.cloud.huawei.com/api/publish/v2/app-file-info?appId=${{ secrets.AGC_APP_ID }}" \
+            "https://connect-api.cloud.huawei.com/api/publish/v3/app-package-info?appId=${{ secrets.AGC_APP_ID }}" \
             -H "Authorization: Bearer ${{ steps.auth.outputs.token }}" \
             -H "client_id: ${{ secrets.AGC_CLIENT_ID }}" \
             -H "Content-Type: application/json" \
-            -d "{\"fileType\":5,\"files\":{\"fileName\":\"${{ steps.upload-file.outputs.file_name }}\",\"fileDestUrl\":\"${{ steps.upload-url.outputs.object_id }}\"}}")
-          echo "::group::Update app file info response"
+            -d "{\"fileName\":\"${{ steps.upload-file.outputs.file_name }}\",\"objectId\":\"${{ steps.upload-url.outputs.object_id }}\"}")
+          echo "::group::Update app package info response"
           echo "$RESPONSE" | jq .
           echo "::endgroup::"
           RET=$(echo "$RESPONSE" | jq -r '.ret.code // .code // "unknown"')
           if [ "$RET" != "0" ]; then
-            echo "::error::Update app file info failed: $RESPONSE"
+            echo "::error::Update app package info failed: $RESPONSE"
             exit 1
           fi
+          PACKAGE_ID=$(echo "$RESPONSE" | jq -r '.packageId // .data.packageId // empty')
+          if [ -z "$PACKAGE_ID" ] || [ "$PACKAGE_ID" = "null" ]; then
+            echo "::error::No packageId in response: $RESPONSE"
+            exit 1
+          fi
+          echo "package_id=$PACKAGE_ID" >> "$GITHUB_OUTPUT"
 
       - name: Wait for package parsing
-        run: sleep 120
+        run: sleep 60
 
       - name: Query compile status
         run: |
           for i in $(seq 1 20); do
             RESPONSE=$(curl -s -X GET \
-              "https://connect-api.cloud.huawei.com/api/publish/v2/app-compile-status?appId=${{ secrets.AGC_APP_ID }}" \
+              "https://connect-api.cloud.huawei.com/api/publish/v3/package/compile/status?appId=${{ secrets.AGC_APP_ID }}&pkgIds=${{ steps.package-info.outputs.package_id }}" \
               -H "Authorization: Bearer ${{ steps.auth.outputs.token }}" \
               -H "client_id: ${{ secrets.AGC_CLIENT_ID }}")
-            STATUS=$(echo "$RESPONSE" | jq -r '.result // .data // .status // "unknown"')
-            echo "Attempt $i: compile status = $STATUS"
-            if [ "$STATUS" = "2" ] || [ "$STATUS" = "success" ]; then
+            RET=$(echo "$RESPONSE" | jq -r '.ret.code // "unknown"')
+            if [ "$RET" != "0" ]; then
+              echo "::error::API error: $RESPONSE"
+              exit 1
+            fi
+            SUCCESS_STATUS=$(echo "$RESPONSE" | jq -r '.pkgStateList[0].successStatus // "unknown"')
+            echo "Attempt $i: successStatus = $SUCCESS_STATUS"
+            if [ "$SUCCESS_STATUS" = "0" ]; then
               echo "Compile successful"
               exit 0
             fi
-            if [ "$STATUS" = "3" ] || [ "$STATUS" = "fail" ]; then
-              echo "::error::Compile failed: $RESPONSE"
+            if [ "$SUCCESS_STATUS" = "2" ] || [ "$SUCCESS_STATUS" = "3" ]; then
+              echo "::error::Compile failed (successStatus=$SUCCESS_STATUS): $RESPONSE"
               exit 1
             fi
             sleep 30
