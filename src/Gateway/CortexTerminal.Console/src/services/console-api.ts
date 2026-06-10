@@ -87,6 +87,81 @@ export interface AuditLogResponse {
   totalCount: number
 }
 
+export interface GatewayStats {
+  connectedClients: number
+  onlineWorkers: number
+  activeSessions: number
+  detachedSessions: number
+  totalBytesTransferred: number
+  uptimeSeconds: number
+  startedAtUtc: string
+  totalUsers: number
+  totalSessions: number
+  allocatedMemoryBytes: number
+  gcGen0Collections: number
+  gcGen1Collections: number
+  gcGen2Collections: number
+  threadCount: number
+  failedLoginIpCount: number
+  hourlyHistory: HourlyStatsPoint[]
+}
+
+export interface HourlyStatsPoint {
+  timestamp: string
+  connectedClients: number
+  onlineWorkers: number
+  activeSessions: number
+  bytesTransferred: number
+}
+
+export interface AuditStats {
+  loginTrend: DailyCount[]
+  authProviderDistribution: ProviderCount[]
+  sessionActivityTrend: DailyCount[]
+  topActiveUsers: UserActivity[]
+}
+
+export interface DailyCount {
+  date: string
+  action: string
+  count: number
+}
+
+export interface ProviderCount {
+  provider: string
+  count: number
+}
+
+export interface UserActivity {
+  userId: string
+  userName: string
+  eventCount: number
+}
+
+export interface AdminSessionSummary {
+  sessionId: string
+  userId: string
+  workerId: string
+  workerName: string
+  status: string
+  createdAtUtc: string
+  lastActivityAtUtc: string
+  name: string | null
+}
+
+export interface AdminWorkerSummary {
+  workerId: string
+  name: string
+  hostname: string | null
+  operatingSystem: string | null
+  architecture: string | null
+  version: string | null
+  isOnline: boolean
+  lastSeenAtUtc: string
+  firstConnectedAtUtc: string | null
+  ownerUserId: string | null
+}
+
 export class ConsoleApiError extends Error {
   constructor(
     message: string,
@@ -128,6 +203,10 @@ export interface ConsoleApi {
   verifyDeviceCode(userCode: string): Promise<void>
   getGatewayInfo(): Promise<GatewayInfo>
   upgradeWorker(workerId: string): Promise<void>
+  getAdminStats(): Promise<GatewayStats>
+  getAdminAuditStats(period?: string): Promise<AuditStats>
+  getAdminSessions(): Promise<AdminSessionSummary[]>
+  getAdminWorkers(): Promise<AdminWorkerSummary[]>
 }
 
 type FetchFn = (input: string, init?: RequestInit) => Promise<Response>
@@ -395,6 +474,18 @@ export function createConsoleApi(
       return requestVoid(`/api/me/workers/${encodeURIComponent(workerId)}/upgrade`, {
         method: 'POST',
       })
+    },
+    getAdminStats() {
+      return request<GatewayStats>('/api/admin/stats')
+    },
+    getAdminAuditStats(period) {
+      return request<AuditStats>(`/api/admin/audit-stats${period ? `?period=${period}` : ''}`)
+    },
+    getAdminSessions() {
+      return request<AdminSessionSummary[]>('/api/admin/sessions')
+    },
+    getAdminWorkers() {
+      return request<AdminWorkerSummary[]>('/api/admin/workers')
     },
   }
 }

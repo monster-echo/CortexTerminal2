@@ -106,4 +106,8 @@ public sealed class InMemoryWorkerRegistry : IWorkerRegistry
 
         return Task.FromResult<IReadOnlyList<WorkerRecord>>(records);
     }
+
+    public int GetOnlineCount() => _workers.Count;
+
+    public IReadOnlyList<RegisteredWorker> GetAllOnline() => _workers.Values.ToArray();
 }

@@ -21,4 +21,6 @@ public interface ISessionCoordinator
     bool TryGetSession(string sessionId, out SessionRecord session);
     bool TouchSessionActivity(string sessionId, DateTimeOffset nowUtc);
     RenameSessionResult RenameSessionAsync(string userId, string sessionId, string? name);
+    (int Active, int Detached) GetAllSessionCounts();
+    IReadOnlyList<SessionRecord> GetAllActiveSessions();
 }

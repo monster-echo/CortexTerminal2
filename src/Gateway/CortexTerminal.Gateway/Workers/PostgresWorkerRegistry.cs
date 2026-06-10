@@ -162,6 +162,10 @@ public sealed class PostgresWorkerRegistry : IWorkerRegistry
             .ToListAsync();
     }
 
+    public int GetOnlineCount() => _workers.Count;
+
+    public IReadOnlyList<RegisteredWorker> GetAllOnline() => _workers.Values.ToArray();
+
     private async Task PersistAsync(Func<AppDbContext, Task> action)
     {
         try

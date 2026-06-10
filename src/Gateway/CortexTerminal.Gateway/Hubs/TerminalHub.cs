@@ -1,6 +1,7 @@
 using CortexTerminal.Contracts.Sessions;
 using CortexTerminal.Contracts.Streaming;
 using CortexTerminal.Gateway.Sessions;
+using CortexTerminal.Gateway.Stats;
 using CortexTerminal.Gateway.Workers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
@@ -13,8 +14,20 @@ public sealed class TerminalHub(
     IReplayCache replayCache,
     TimeProvider timeProvider,
     IWorkerCommandDispatcher workerCommands,
-    ISessionLaunchCoordinator sessionLaunchCoordinator) : Hub
+    ISessionLaunchCoordinator sessionLaunchCoordinator,
+    IGatewayStatsService stats) : Hub
 {
+    public override Task OnConnectedAsync()
+    {
+        stats.ClientConnected();
+        return base.OnConnectedAsync();
+    }
+
+    public override Task OnDisconnectedAsync(Exception? exception)
+    {
+        stats.ClientDisconnected();
+        return base.OnDisconnectedAsync(exception);
+    }
     public Task<CreateSessionResult> CreateSession(CreateSessionRequest request)
         => CreateSessionCoreAsync(request, Context.ConnectionAborted);
 

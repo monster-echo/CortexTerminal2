@@ -15,6 +15,8 @@ public interface IWorkerRegistry
     void UpdateMetadata(string workerId, WorkerMetadata? metadata);
     IReadOnlyList<RegisteredWorker> GetOnlineWorkersForUser(string userId);
     Task<IReadOnlyList<WorkerRecord>> GetAllWorkersForUserAsync(string userId);
+    int GetOnlineCount();
+    IReadOnlyList<RegisteredWorker> GetAllOnline();
 }
 
 public sealed record RegisteredWorker(

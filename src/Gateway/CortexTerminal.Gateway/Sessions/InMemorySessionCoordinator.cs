@@ -438,4 +438,29 @@ public sealed class InMemorySessionCoordinator : ISessionCoordinator
             return _sessions.Values.Where(session => session.UserId == userId).ToArray();
         }
     }
+
+    public (int Active, int Detached) GetAllSessionCounts()
+    {
+        lock (_sync)
+        {
+            var active = 0;
+            var detached = 0;
+            foreach (var session in _sessions.Values)
+            {
+                if (session.AttachmentState == SessionAttachmentState.Attached) active++;
+                else if (session.AttachmentState == SessionAttachmentState.DetachedGracePeriod) detached++;
+            }
+            return (active, detached);
+        }
+    }
+
+    public IReadOnlyList<SessionRecord> GetAllActiveSessions()
+    {
+        lock (_sync)
+        {
+            return _sessions.Values
+                .Where(s => s.AttachmentState is SessionAttachmentState.Attached or SessionAttachmentState.DetachedGracePeriod)
+                .ToArray();
+        }
+    }
 }

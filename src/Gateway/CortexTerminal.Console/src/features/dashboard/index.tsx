@@ -4,11 +4,16 @@ import { useNavigate } from '@tanstack/react-router'
 import { type SessionStatus } from '@/services/console-api'
 import {
   Activity,
+  Cpu,
+  HardDrive,
   Loader2,
   MonitorSmartphone,
   Plus,
   Server,
+  ShieldAlert,
   ArrowRight,
+  Users,
+  Wifi,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -27,6 +32,14 @@ import { Main } from '@/components/layout/main'
 import { NewSessionDialog } from '@/components/new-session-dialog'
 import { useWorkers } from '@/hooks/use-workers'
 import { useSessions } from '@/hooks/use-sessions'
+import { useAdminStats } from '@/hooks/use-admin-stats'
+import { useAdminAuditStats } from '@/hooks/use-admin-audit-stats'
+import { useAuthStore } from '@/stores/auth-store'
+import { TrafficChart } from './components/traffic-chart'
+import { ConnectionsChart } from './components/connections-chart'
+import { SessionsActivityChart } from './components/sessions-activity-chart'
+import { LoginTrendChart } from './components/login-trend-chart'
+import { AuthProviderChart } from './components/auth-provider-chart'
 
 const sessionStatusToBadge: Record<SessionStatus, SessionStatus | 'online' | 'offline'> = {
   live: 'live',
@@ -38,6 +51,8 @@ const sessionStatusToBadge: Record<SessionStatus, SessionStatus | 'online' | 'of
 export function Dashboard() {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const user = useAuthStore((state) => state.auth.user)
+  const isAdmin = user?.role === 'admin'
 
   const statusBadgeLabel: Record<SessionStatus, string> = {
     live: t('sessions.status.live'),
@@ -50,18 +65,16 @@ export function Dashboard() {
 
   const workersQuery = useWorkers()
   const sessionsQuery = useSessions()
+  const adminStatsQuery = useAdminStats()
+  const auditStatsQuery = useAdminAuditStats()
 
   const workers = workersQuery.data ?? []
   const sessions = sessionsQuery.data ?? []
+  const stats = adminStatsQuery.data
 
-  // Compute stats from actual data sources
   const activeSessions = sessions.filter((s) => s.status === 'live').length
-  const detachedSessions = sessions.filter((s) => s.status === 'detached').length
   const onlineWorkers = workers.filter((w) => w.isOnline).length
   const recentSessions = sessions.slice(0, 5)
-
-  // Worker info comes directly from the workers API
-  const workerInfoMap = workers
 
   const handleCreateSession = useCallback((workerId?: string) => {
     const bootstrapId = crypto.randomUUID()
@@ -88,56 +101,175 @@ export function Dashboard() {
       </Header>
 
       <Main>
-        {/* Stat Cards */}
-        <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-4'>
+        {/* Core Stat Cards */}
+        <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6'>
           <Card>
             <CardHeader className='flex flex-row items-center justify-between pb-2'>
-              <CardTitle className='text-sm font-medium'>
-                {t('dashboard.activeSessions')}
-              </CardTitle>
-              <MonitorSmartphone className='h-4 w-4 text-emerald-500' />
+              <CardTitle className='text-sm font-medium'>Connected Clients</CardTitle>
+              <Wifi className='h-4 w-4 text-violet-500' />
             </CardHeader>
             <CardContent>
-              <div className='text-2xl font-bold'>{activeSessions}</div>
+              <div className='text-2xl font-bold'>{stats?.connectedClients ?? '-'}</div>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className='flex flex-row items-center justify-between pb-2'>
-              <CardTitle className='text-sm font-medium'>
-                {t('dashboard.detachedSessions')}
-              </CardTitle>
-              <Activity className='h-4 w-4 text-amber-500' />
-            </CardHeader>
-            <CardContent>
-              <div className='text-2xl font-bold'>{detachedSessions}</div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className='flex flex-row items-center justify-between pb-2'>
-              <CardTitle className='text-sm font-medium'>
-                {t('dashboard.onlineWorkers')}
-              </CardTitle>
+              <CardTitle className='text-sm font-medium'>{t('dashboard.onlineWorkers')}</CardTitle>
               <Server className='h-4 w-4 text-emerald-500' />
             </CardHeader>
             <CardContent>
-              <div className='text-2xl font-bold'>{onlineWorkers}</div>
+              <div className='text-2xl font-bold'>{stats?.onlineWorkers ?? onlineWorkers}</div>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className='flex flex-row items-center justify-between pb-2'>
-              <CardTitle className='text-sm font-medium'>
-                {t('dashboard.systemUptime')}
-              </CardTitle>
+              <CardTitle className='text-sm font-medium'>{t('dashboard.activeSessions')}</CardTitle>
+              <MonitorSmartphone className='h-4 w-4 text-emerald-500' />
+            </CardHeader>
+            <CardContent>
+              <div className='text-2xl font-bold'>{stats?.activeSessions ?? activeSessions}</div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className='flex flex-row items-center justify-between pb-2'>
+              <CardTitle className='text-sm font-medium'>{t('dashboard.systemUptime')}</CardTitle>
               <Activity className='h-4 w-4 text-blue-500' />
             </CardHeader>
             <CardContent>
-              <div className='text-2xl font-bold'>{t('dashboard.na')}</div>
+              <div className='text-2xl font-bold'>
+                {stats ? formatUptime(stats.uptimeSeconds) : t('dashboard.na')}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className='flex flex-row items-center justify-between pb-2'>
+              <CardTitle className='text-sm font-medium'>Total Users</CardTitle>
+              <Users className='h-4 w-4 text-sky-500' />
+            </CardHeader>
+            <CardContent>
+              <div className='text-2xl font-bold'>{stats?.totalUsers ?? '-'}</div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className='flex flex-row items-center justify-between pb-2'>
+              <CardTitle className='text-sm font-medium'>Data Transferred</CardTitle>
+              <Activity className='h-4 w-4 text-orange-500' />
+            </CardHeader>
+            <CardContent>
+              <div className='text-2xl font-bold'>
+                {stats ? formatBytes(stats.totalBytesTransferred) : '-'}
+              </div>
             </CardContent>
           </Card>
         </div>
+
+        {/* System Health Cards */}
+        {isAdmin && stats && (
+          <div className='mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4'>
+            <Card>
+              <CardHeader className='flex flex-row items-center justify-between pb-2'>
+                <CardTitle className='text-sm font-medium'>Memory</CardTitle>
+                <HardDrive className='h-4 w-4 text-rose-500' />
+              </CardHeader>
+              <CardContent>
+                <div className='text-2xl font-bold'>{formatBytes(stats.allocatedMemoryBytes)}</div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className='flex flex-row items-center justify-between pb-2'>
+                <CardTitle className='text-sm font-medium'>Threads</CardTitle>
+                <Cpu className='h-4 w-4 text-cyan-500' />
+              </CardHeader>
+              <CardContent>
+                <div className='text-2xl font-bold'>{stats.threadCount}</div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className='flex flex-row items-center justify-between pb-2'>
+                <CardTitle className='text-sm font-medium'>GC Collections</CardTitle>
+                <Activity className='h-4 w-4 text-amber-500' />
+              </CardHeader>
+              <CardContent>
+                <div className='text-2xl font-bold'>
+                  {stats.gcGen0Collections}/{stats.gcGen1Collections}/{stats.gcGen2Collections}
+                </div>
+                <p className='text-xs text-muted-foreground'>Gen0 / Gen1 / Gen2</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className='flex flex-row items-center justify-between pb-2'>
+                <CardTitle className='text-sm font-medium'>Failed Login IPs</CardTitle>
+                <ShieldAlert className='h-4 w-4 text-red-500' />
+              </CardHeader>
+              <CardContent>
+                <div className='text-2xl font-bold'>{stats.failedLoginIpCount}</div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Charts */}
+        {isAdmin && stats && stats.hourlyHistory.length > 0 && (
+          <div className='mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3'>
+            <Card>
+              <CardHeader>
+                <CardTitle className='text-sm font-medium'>Connections (24h)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ConnectionsChart data={stats.hourlyHistory} />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className='text-sm font-medium'>Traffic (24h)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <TrafficChart data={stats.hourlyHistory} />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className='text-sm font-medium'>Sessions (24h)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <SessionsActivityChart data={stats.hourlyHistory} />
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Audit Analytics */}
+        {isAdmin && auditStatsQuery.data && (
+          <div className='mt-4 grid gap-4 md:grid-cols-2'>
+            <Card>
+              <CardHeader>
+                <CardTitle className='text-sm font-medium'>Login Trend (7d)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <LoginTrendChart data={auditStatsQuery.data.loginTrend} />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className='text-sm font-medium'>Auth Provider Distribution</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <AuthProviderChart data={auditStatsQuery.data.authProviderDistribution} />
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Bottom Section */}
         <div className='mt-6 grid gap-6 lg:grid-cols-7'>
@@ -240,7 +372,7 @@ export function Dashboard() {
               <CardTitle>{t('dashboard.workerStatus')}</CardTitle>
             </CardHeader>
             <CardContent>
-              {workerInfoMap.length === 0 ? (
+              {workers.length === 0 ? (
                 <div className='flex flex-col items-center justify-center rounded-lg border border-dashed p-8 text-center'>
                   <Server className='mb-3 h-8 w-8 text-muted-foreground' />
                   <h3 className='text-lg font-semibold'>
@@ -252,7 +384,7 @@ export function Dashboard() {
                 </div>
               ) : (
                 <div className='grid gap-3'>
-                  {workerInfoMap.map((worker) => {
+                  {workers.map((worker) => {
                     const status = worker.isOnline ? 'online' as const : 'offline' as const
                     return (
                       <div
@@ -266,10 +398,7 @@ export function Dashboard() {
                               {truncateId(worker.workerId)}
                             </p>
                             <p className='text-xs text-muted-foreground'>
-                              {worker.sessionCount}{' '}
-                              {worker.sessionCount === 1
-                                ? t('dashboard.session').toLowerCase()
-                                : t('dashboard.recentSessions').toLowerCase()}
+                              {worker.name ?? worker.hostname ?? '-'}
                             </p>
                           </div>
                         </div>
@@ -320,4 +449,20 @@ function formatDateTime(value: string) {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(new Date(value))
+}
+
+function formatUptime(seconds: number): string {
+  const days = Math.floor(seconds / 86400)
+  const hours = Math.floor((seconds % 86400) / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  if (days > 0) return `${days}d ${hours}h ${minutes}m`
+  if (hours > 0) return `${hours}h ${minutes}m`
+  return `${minutes}m`
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
 }

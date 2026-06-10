@@ -238,6 +238,8 @@ builder.Services.AddSingleton<PhoneCodeStore>();
 builder.Services.AddSingleton<TerminalWebSocketHandler>();
 builder.Services.AddSingleton<CaptchaService>();
 builder.Services.AddSingleton<FailedAttemptTracker>();
+builder.Services.AddSingleton<CortexTerminal.Gateway.Stats.IGatewayStatsService, CortexTerminal.Gateway.Stats.GatewayStatsService>();
+builder.Services.AddHostedService<CortexTerminal.Gateway.Stats.GatewayStatsBackgroundService>();
 var phoneAuthOptions = new PhoneAuthOptions();
 builder.Configuration.GetSection("PhoneAuth").Bind(phoneAuthOptions);
 var appleOAuthOptions = new AppleOAuthOptions();
@@ -1389,6 +1391,171 @@ app.MapGet("/api/gateway/info", async (IConfiguration config) =>
         LatestWorkerVersion = latestWorkerVersion,
         LatestGatewayVersion = latestGatewayVersion
     });
+}).RequireAuthorization();
+
+app.MapGet("/api/admin/stats", async (ClaimsPrincipal user, IServiceProvider serviceProvider) =>
+{
+    var userId = GetUserId(user);
+    if (!await IsAdmin(serviceProvider, userId))
+        return Results.Forbid();
+
+    var stats = serviceProvider.GetRequiredService<CortexTerminal.Gateway.Stats.IGatewayStatsService>();
+    var snapshot = stats.GetSnapshot();
+    var hourlyHistory = stats.GetHourlyHistory(24);
+
+    return Results.Ok(new
+    {
+        snapshot.ConnectedClients,
+        snapshot.OnlineWorkers,
+        snapshot.ActiveSessions,
+        snapshot.DetachedSessions,
+        snapshot.TotalBytesTransferred,
+        UptimeSeconds = (int)(DateTimeOffset.UtcNow - snapshot.StartedAtUtc).TotalSeconds,
+        snapshot.StartedAtUtc,
+        snapshot.TotalUsers,
+        snapshot.TotalSessions,
+        snapshot.AllocatedMemoryBytes,
+        snapshot.GcGen0Collections,
+        snapshot.GcGen1Collections,
+        snapshot.GcGen2Collections,
+        snapshot.ThreadCount,
+        snapshot.FailedLoginIpCount,
+        HourlyHistory = hourlyHistory
+    });
+}).RequireAuthorization();
+
+app.MapGet("/api/admin/audit-stats", async (ClaimsPrincipal user, IServiceProvider serviceProvider, string? period) =>
+{
+    var userId = GetUserId(user);
+    if (!await IsAdmin(serviceProvider, userId))
+        return Results.Forbid();
+
+    var days = period == "30" ? 30 : 7;
+    var fromDate = DateTimeOffset.UtcNow.AddDays(-days);
+
+    try
+    {
+        using var scope = serviceProvider.GetRequiredService<IServiceScopeFactory>().CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var loginActions = new[] { "user.oauth_login", "user.phone_login", "user.huawei_quick_login" };
+        var loginEvents = await db.AuditLogs
+            .Where(a => loginActions.Contains(a.Action) && a.Timestamp >= fromDate)
+            .ToListAsync();
+
+        var loginTrend = loginEvents
+            .GroupBy(e => new { Date = e.Timestamp.Date, e.Action })
+            .Select(g => new { Date = g.Key.Date.ToString("yyyy-MM-dd"), g.Key.Action, Count = g.Count() })
+            .OrderBy(x => x.Date)
+            .ToList();
+
+        var authProviderDistribution = loginEvents
+            .GroupBy(e => e.Action)
+            .Select(g => new { Provider = g.Key, Count = g.Count() })
+            .ToList();
+
+        var sessionEvents = await db.AuditLogs
+            .Where(a => (a.Action == "session.create" || a.Action == "session.delete") && a.Timestamp >= fromDate)
+            .ToListAsync();
+
+        var sessionActivityTrend = sessionEvents
+            .GroupBy(e => new { Date = e.Timestamp.Date, e.Action })
+            .Select(g => new { Date = g.Key.Date.ToString("yyyy-MM-dd"), g.Key.Action, Count = g.Count() })
+            .OrderBy(x => x.Date)
+            .ToList();
+
+        var topUsers = await db.AuditLogs
+            .Where(a => a.Timestamp >= fromDate)
+            .GroupBy(a => new { a.UserId, a.UserName })
+            .OrderByDescending(g => g.Count())
+            .Take(10)
+            .Select(g => new { UserId = g.Key.UserId, UserName = g.Key.UserName, EventCount = g.Count() })
+            .ToListAsync();
+
+        return Results.Ok(new
+        {
+            LoginTrend = loginTrend,
+            AuthProviderDistribution = authProviderDistribution,
+            SessionActivityTrend = sessionActivityTrend,
+            TopActiveUsers = topUsers
+        });
+    }
+    catch (InvalidOperationException)
+    {
+        return Results.Ok(new
+        {
+            LoginTrend = Array.Empty<object>(),
+            AuthProviderDistribution = Array.Empty<object>(),
+            SessionActivityTrend = Array.Empty<object>(),
+            TopActiveUsers = Array.Empty<object>()
+        });
+    }
+}).RequireAuthorization();
+
+app.MapGet("/api/admin/sessions", async (ClaimsPrincipal user, IServiceProvider serviceProvider) =>
+{
+    var userId = GetUserId(user);
+    if (!await IsAdmin(serviceProvider, userId))
+        return Results.Forbid();
+
+    var sessions = serviceProvider.GetRequiredService<CortexTerminal.Gateway.Sessions.ISessionCoordinator>();
+    var workers = serviceProvider.GetRequiredService<CortexTerminal.Gateway.Workers.IWorkerRegistry>();
+
+    var activeSessions = sessions.GetAllActiveSessions();
+    var summaries = activeSessions.Select(s =>
+    {
+        workers.TryGetWorker(s.WorkerId, out var worker);
+        return new
+        {
+            s.SessionId,
+            s.UserId,
+            s.WorkerId,
+            WorkerName = worker?.Metadata?.Name ?? worker?.Metadata?.Hostname ?? s.WorkerId,
+            Status = s.AttachmentState.ToString(),
+            s.CreatedAtUtc,
+            s.LastActivityAtUtc,
+            s.Name
+        };
+    }).ToArray();
+
+    return Results.Ok(summaries);
+}).RequireAuthorization();
+
+app.MapGet("/api/admin/workers", async (ClaimsPrincipal user, IServiceProvider serviceProvider) =>
+{
+    var userId = GetUserId(user);
+    if (!await IsAdmin(serviceProvider, userId))
+        return Results.Forbid();
+
+    try
+    {
+        using var scope = serviceProvider.GetRequiredService<IServiceScopeFactory>().CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var allWorkers = await db.Workers
+            .OrderByDescending(w => w.IsOnline)
+            .ThenByDescending(w => w.LastSeenAtUtc)
+            .ToListAsync();
+
+        var summaries = allWorkers.Select(w => new
+        {
+            w.WorkerId,
+            Name = w.Name ?? w.Hostname ?? w.WorkerId,
+            w.Hostname,
+            w.OperatingSystem,
+            w.Architecture,
+            w.Version,
+            w.IsOnline,
+            w.LastSeenAtUtc,
+            w.FirstConnectedAtUtc,
+            w.OwnerUserId
+        }).ToArray();
+
+        return Results.Ok(summaries);
+    }
+    catch (InvalidOperationException)
+    {
+        return Results.Ok(Array.Empty<object>());
+    }
 }).RequireAuthorization();
 
 app.MapGet("/api/me/workers", async (ClaimsPrincipal user, IWorkerRegistry workers) =>

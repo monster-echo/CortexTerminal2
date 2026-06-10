@@ -5,6 +5,7 @@ using System.Text.Json;
 using CortexTerminal.Contracts.Sessions;
 using CortexTerminal.Contracts.Streaming;
 using CortexTerminal.Gateway.Sessions;
+using CortexTerminal.Gateway.Stats;
 using CortexTerminal.Gateway.Workers;
 
 namespace CortexTerminal.Gateway.WebSockets;
@@ -19,6 +20,7 @@ public sealed class TerminalWebSocketHandler
     private readonly IReplayCache _replayCache;
     private readonly IWorkerCommandDispatcher _workerCommands;
     private readonly TimeProvider _timeProvider;
+    private readonly IGatewayStatsService _stats;
     private readonly ILogger<TerminalWebSocketHandler> _logger;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -33,6 +35,7 @@ public sealed class TerminalWebSocketHandler
         IWorkerCommandDispatcher workerCommands,
         ISessionLaunchCoordinator sessionLaunchCoordinator,
         TimeProvider timeProvider,
+        IGatewayStatsService stats,
         ILogger<TerminalWebSocketHandler> logger)
     {
         _sessions = sessions;
@@ -40,6 +43,7 @@ public sealed class TerminalWebSocketHandler
         _workerCommands = workerCommands;
         _ = sessionLaunchCoordinator;
         _timeProvider = timeProvider;
+        _stats = stats;
         _logger = logger;
     }
 
@@ -66,6 +70,7 @@ public sealed class TerminalWebSocketHandler
 
         // Register this WS connection for output forwarding
         TerminalWebSocketConnectionRegistry.Register(sessionId, connectionId, ws);
+        _stats.ClientConnected();
 
         try
         {
@@ -135,6 +140,7 @@ public sealed class TerminalWebSocketHandler
         }
         finally
         {
+            _stats.ClientDisconnected();
             TerminalWebSocketConnectionRegistry.Unregister(sessionId, connectionId);
 
             // Detach the session

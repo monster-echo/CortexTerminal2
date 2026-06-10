@@ -1,6 +1,7 @@
 using CortexTerminal.Contracts.Streaming;
 using CortexTerminal.Gateway.Audit;
 using CortexTerminal.Gateway.Sessions;
+using CortexTerminal.Gateway.Stats;
 using CortexTerminal.Gateway.WebSockets;
 using CortexTerminal.Gateway.Workers;
 using Microsoft.AspNetCore.Authorization;
@@ -17,6 +18,7 @@ public sealed class WorkerHub(
     IReplayCache replayCache,
     IAuditLogStore auditLog,
     IHubContext<TerminalHub> terminalHubContext,
+    IGatewayStatsService stats,
     ILogger<WorkerHub> logger) : Hub
 {
     private string GetUserId()
@@ -131,6 +133,7 @@ public sealed class WorkerHub(
         }
 
         sessions.TouchSessionActivity(chunk.SessionId, DateTimeOffset.UtcNow);
+        stats.RecordBytesTransferred(chunk.Payload.Length);
 
         await replayCache.AppendAsync(new ReplayChunk(chunk.SessionId, chunk.Stream, chunk.Payload), Context.ConnectionAborted);
 
@@ -178,6 +181,8 @@ public sealed class WorkerHub(
             logger.LogWarning("ForwardStderr DROP: session {SessionId} worker mismatch. Expected={Expected}, Actual={Actual}.", chunk.SessionId, session.WorkerConnectionId, Context.ConnectionId);
             return;
         }
+
+        stats.RecordBytesTransferred(chunk.Payload.Length);
 
         await replayCache.AppendAsync(new ReplayChunk(chunk.SessionId, chunk.Stream, chunk.Payload), Context.ConnectionAborted);
 

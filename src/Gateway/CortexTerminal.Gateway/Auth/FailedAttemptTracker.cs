@@ -41,6 +41,12 @@ public sealed class FailedAttemptTracker
         return record.Count >= _threshold;
     }
 
+    public int GetTrackedIpCount()
+    {
+        Cleanup();
+        return _attempts.Count;
+    }
+
     private void Cleanup()
     {
         var now = DateTimeOffset.UtcNow;
