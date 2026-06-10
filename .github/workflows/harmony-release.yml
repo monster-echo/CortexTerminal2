@@ -200,9 +200,9 @@ jobs:
           echo "::group::Upload URL response (HTTP $HTTP_CODE)"
           echo "$BODY" | jq .
           echo "::endgroup::"
-          UPLOAD_URL=$(echo "$BODY" | jq -r '.url // .data.url // .result.url' 2>/dev/null || echo "")
-          OBJECT_ID=$(echo "$BODY" | jq -r '.objectId // .data.objectId // .result.objectId' 2>/dev/null || echo "")
-          HEADERS_JSON=$(echo "$BODY" | jq -c '.headers // .data.headers // .result.headers' 2>/dev/null || echo "")
+          UPLOAD_URL=$(echo "$BODY" | jq -r '.urlInfo.url // .url' 2>/dev/null || echo "")
+          OBJECT_ID=$(echo "$BODY" | jq -r '.urlInfo.objectId // .objectId' 2>/dev/null || echo "")
+          HEADERS_JSON=$(echo "$BODY" | jq -c '.urlInfo.headers // .headers' 2>/dev/null || echo "")
           if [ -z "$UPLOAD_URL" ] || [ "$UPLOAD_URL" = "null" ]; then
             echo "::error::Failed to get upload URL (HTTP $HTTP_CODE): $BODY"
             exit 1
