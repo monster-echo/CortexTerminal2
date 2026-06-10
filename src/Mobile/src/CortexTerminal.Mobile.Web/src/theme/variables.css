@@ -226,6 +226,12 @@ body {
   --padding-end: 16px;
 }
 
+/* ── Android list background transparent ── */
+.md ion-list.list-md {
+  --ion-item-background: transparent;
+  background: transparent;
+}
+
 *::-webkit-scrollbar {
   display: none;
 }
