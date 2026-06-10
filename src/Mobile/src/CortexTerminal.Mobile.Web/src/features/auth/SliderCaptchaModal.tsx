@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import { IonModal, IonHeader, IonToolbar, IonTitle, IonContent, IonText, IonSpinner, IonButton } from "@ionic/react";
+import { IonModal, IonHeader, IonToolbar, IonTitle, IonContent, IonText, IonSpinner, IonButton, IonIcon, IonButtons } from "@ionic/react";
+import { close } from "ionicons/icons";
 import { useTranslation } from "react-i18next";
 import { authBridge } from "../../bridge/modules/authBridge";
 
@@ -161,10 +162,15 @@ export function SliderCaptchaModal({ isOpen, onClose, onSuccess }: SliderCaptcha
     "var(--ion-color-primary)";
 
   return (
-    <IonModal isOpen={isOpen} onDidDismiss={onClose}>
+    <IonModal isOpen={isOpen} onDidDismiss={onClose} breakpoints={[0, 0.66, 1]} initialBreakpoint={0.66}>
       <IonHeader>
         <IonToolbar>
           <IonTitle>{t("login.verificationRequired")}</IonTitle>
+          <IonButtons slot="end">
+            <IonButton onClick={onClose}>
+              <IonIcon slot="icon-only" icon={close} />
+            </IonButton>
+          </IonButtons>
         </IonToolbar>
       </IonHeader>
       <IonContent className="ion-padding">
