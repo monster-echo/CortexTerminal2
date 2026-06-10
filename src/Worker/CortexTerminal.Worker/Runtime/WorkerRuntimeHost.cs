@@ -213,8 +213,7 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
 
     private Task HandleWriteInputAsync(WriteInputFrame frame)
     {
-        var payload = frame.Payload.ToArray();
-        _logger.LogInformation("Received input for session {SessionId}: {Payload}", frame.SessionId, BitConverter.ToString(payload));
+        _logger.LogDebug("Received input for session {SessionId}, {ByteCount} bytes.", frame.SessionId, frame.Payload.Length);
 
         return _sessions.TryGetValue(frame.SessionId, out var runtime)
         ? runtime.WriteInputAsync(frame.Payload, CancellationToken.None)
@@ -257,12 +256,14 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         await LogMissingSessionAsync(request.SessionId, "close");
     }
 
-    private Task RemoveSessionAsync(string sessionId)
+    private async Task RemoveSessionAsync(string sessionId)
     {
         _logger.LogInformation("Removing session {SessionId}", sessionId);
 
-        _sessions.TryRemove(sessionId, out _);
-        return Task.CompletedTask;
+        if (_sessions.TryRemove(sessionId, out var runtime))
+        {
+            await runtime.DisposeAsync();
+        }
     }
 
     private Task LogMissingSessionAsync(string sessionId, string operation)
