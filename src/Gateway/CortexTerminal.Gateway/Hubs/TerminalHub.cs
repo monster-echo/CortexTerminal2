@@ -35,7 +35,7 @@ public sealed class TerminalHub(
     {
         var now = timeProvider.GetUtcNow();
         await sessions.DetachSessionAsync(Context.UserIdentifier ?? "unknown", sessionId, now, cancellationToken);
-        await Clients.Caller.SendAsync("SessionDetached", new SessionDetachedEvent(sessionId, now.AddMinutes(5)), cancellationToken);
+        await Clients.Caller.SendAsync("SessionDetached", new SessionDetachedEvent(sessionId, DateTimeOffset.MaxValue), cancellationToken);
     }
 
     private async Task<ReattachSessionResult> ReattachSessionCoreAsync(ReattachSessionRequest request, CancellationToken cancellationToken)

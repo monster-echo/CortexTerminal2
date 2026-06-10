@@ -58,13 +58,14 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
                         entity.Columns,
                         entity.Rows,
                         entity.CreatedAtUtc,
-                        entity.LastActivityAtUtc,
+                        LastActivityAtUtc: now,
                         AttachmentState: SessionAttachmentState.Recovering,
                         AttachedClientConnectionId: null,
                         LeaseExpiresAtUtc: null,
                         Name: entity.Name);
 
                     _sessions[entity.SessionId] = record;
+                    _logger.LogInformation("session.recovering {SessionId} worker={WorkerId} user={UserId}", entity.SessionId, entity.WorkerId, entity.UserId);
                 }
             }
 
@@ -150,6 +151,8 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
             });
         });
 
+        _logger.LogInformation("session.created {SessionId} worker={WorkerId} user={UserId}", sessionId, worker.WorkerId, userId);
+
         return Task.FromResult(CreateSessionResult.Success(new CreateSessionResponse(sessionId, worker.WorkerId)));
     }
 
@@ -162,18 +165,20 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
                 return Task.CompletedTask;
             }
 
+            // Session stays Attached — only clear the client connection.
+            // The session remains alive as long as the Worker/PTY is running.
+            // Client can Reattach at any time.
             _sessions[sessionId] = session with
             {
-                AttachmentState = SessionAttachmentState.DetachedGracePeriod,
                 AttachedClientConnectionId = null,
-                LeaseExpiresAtUtc = detachedAtUtc.AddMinutes(5),
                 ReplayPending = false,
                 LastActivityAtUtc = detachedAtUtc
             };
 
-            PersistSessionState(sessionId, "DetachedGracePeriod",
-                attachedClientConnectionId: null,
-                leaseExpiresAtUtc: detachedAtUtc.AddMinutes(5));
+            PersistSessionState(sessionId, "Attached",
+                attachedClientConnectionId: null);
+
+            _logger.LogInformation("session.client-detached {SessionId} user={UserId}", sessionId, userId);
         }
 
         return Task.CompletedTask;
@@ -202,6 +207,8 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
                 db.Sessions.Remove(entity);
             }
         });
+
+        _logger.LogInformation("session.deleted {SessionId} user={UserId}", sessionId, userId);
 
         return Task.FromResult(DeleteSessionResult.Success());
     }
@@ -233,6 +240,8 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
                 PersistSessionState(request.SessionId, "Attached",
                     attachedClientConnectionId: clientConnectionId,
                     replayPending: true);
+
+                _logger.LogInformation("session.reattached {SessionId} client={ClientConnectionId} (displaced existing)", request.SessionId, clientConnectionId);
 
                 return Task.FromResult(ReattachSessionResult.Success());
             }
@@ -306,6 +315,8 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
                 attachedClientConnectionId: clientConnectionId,
                 replayPending: true);
 
+            _logger.LogInformation("session.reattached {SessionId} client={ClientConnectionId} (from DetachedGracePeriod)", request.SessionId, clientConnectionId);
+
             return Task.FromResult(ReattachSessionResult.Success());
         }
     }
@@ -332,10 +343,14 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
 
             PersistSessionState(sessionId, "Exited", exitReason: reason);
         }
+
+        _logger.LogInformation("session.start-failed {SessionId} reason={Reason}", sessionId, reason);
     }
 
     public void RemoveSession(string sessionId)
     {
+        _logger.LogInformation("session.removed {SessionId}", sessionId);
+
         lock (_sync)
         {
             _sessions.TryRemove(sessionId, out _);
@@ -375,6 +390,8 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
 
             PersistSessionState(sessionId, "Exited", exitCode: exitCode, exitReason: reason);
         }
+
+        _logger.LogInformation("session.exited {SessionId} exitCode={ExitCode} reason={Reason}", sessionId, exitCode, reason);
     }
 
     public void MarkReplayCompleted(string sessionId, string clientConnectionId)
@@ -468,6 +485,7 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
                 };
 
                 PersistSessionState(session.SessionId, "Expired", exitReason: "worker-offline");
+                _logger.LogInformation("session.expired {SessionId} reason=worker-offline worker={WorkerId}", session.SessionId, workerId);
             }
         }
 
@@ -476,36 +494,9 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
 
     public IReadOnlyList<string> ExpireDetachedSessions(DateTimeOffset nowUtc)
     {
-        var expiredSessionIds = new List<string>();
-
-        lock (_sync)
-        {
-            foreach (var session in _sessions.Values)
-            {
-                if (session.AttachmentState != SessionAttachmentState.DetachedGracePeriod ||
-                    !session.LeaseExpiresAtUtc.HasValue ||
-                    session.LeaseExpiresAtUtc.Value > nowUtc)
-                {
-                    continue;
-                }
-
-                _sessions[session.SessionId] = session with
-                {
-                    AttachmentState = SessionAttachmentState.Expired,
-                    AttachedClientConnectionId = null,
-                    LeaseExpiresAtUtc = null,
-                    ExitCode = null,
-                    ExitReason = "expired",
-                    ReplayPending = false,
-                    LastActivityAtUtc = nowUtc
-                };
-                expiredSessionIds.Add(session.SessionId);
-
-                PersistSessionState(session.SessionId, "Expired", exitReason: "expired");
-            }
-        }
-
-        return expiredSessionIds;
+        // No-op: sessions are no longer expired due to client disconnect.
+        // Only Worker offline or process exit terminates a session.
+        return [];
     }
 
     public IReadOnlyList<string> ExpireRecoveringSessions(DateTimeOffset cutoffUtc)

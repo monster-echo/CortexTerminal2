@@ -1,11 +1,13 @@
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace CortexTerminal.Gateway.Sessions;
 
 public sealed class DetachedSessionExpiryService(
     ISessionCoordinator sessions,
     IReplayCache replayCache,
-    TimeProvider timeProvider) : BackgroundService
+    TimeProvider timeProvider,
+    ILogger<DetachedSessionExpiryService> logger) : BackgroundService
 {
     private static readonly TimeSpan RecoveryTimeout = TimeSpan.FromSeconds(60);
 
@@ -13,15 +15,9 @@ public sealed class DetachedSessionExpiryService(
     {
         while (!stoppingToken.IsCancellationRequested)
         {
-            var now = timeProvider.GetUtcNow();
-
-            foreach (var sessionId in sessions.ExpireDetachedSessions(now))
+            foreach (var sessionId in sessions.ExpireRecoveringSessions(timeProvider.GetUtcNow() - RecoveryTimeout))
             {
-                replayCache.Clear(sessionId);
-            }
-
-            foreach (var sessionId in sessions.ExpireRecoveringSessions(now - RecoveryTimeout))
-            {
+                logger.LogInformation("session.expired {SessionId} reason=recovery-timeout", sessionId);
                 replayCache.Clear(sessionId);
             }
 

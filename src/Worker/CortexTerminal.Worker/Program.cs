@@ -280,8 +280,11 @@ rootCommand.SetAction(async (ParseResult parseResult, CancellationToken cancella
 
     var builder = Host.CreateApplicationBuilder();
 
-    // Suppress verbose framework logging — only show warnings and errors
-    builder.Logging.SetMinimumLevel(LogLevel.Warning);
+    // Suppress verbose framework logging — only show warnings and errors from framework,
+    // but allow Information level from our own code
+    builder.Logging.AddFilter("Microsoft", LogLevel.Warning);
+    builder.Logging.AddFilter("System", LogLevel.Warning);
+    builder.Logging.SetMinimumLevel(LogLevel.Information);
 
     builder.Services.AddSingleton<IPtyHost, UnixPtyHost>();
     builder.Services.AddSingleton<IWorkerGatewayClient>(_ =>

@@ -44,7 +44,11 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         _subscriptions.Add(_gatewayClient.OnResizeSession(HandleResizeSessionAsync));
         _subscriptions.Add(_gatewayClient.OnCloseSession(HandleCloseSessionAsync));
         _subscriptions.Add(_gatewayClient.OnUpgradeWorker(HandleUpgradeWorkerAsync));
-        _subscriptions.Add(_gatewayClient.OnReconnected(_ => RegisterWorkerAsync(CancellationToken.None)));
+        _subscriptions.Add(_gatewayClient.OnReconnected(connectionId =>
+        {
+            _logger.LogInformation("Worker {WorkerId} reconnected to gateway, connection={ConnectionId}.", _workerId, connectionId);
+            return RegisterWorkerAsync(CancellationToken.None);
+        }));
 
         _logger.LogInformation("Worker {WorkerId} is starting.", _workerId);
         await _gatewayClient.StartAsync(cancellationToken);

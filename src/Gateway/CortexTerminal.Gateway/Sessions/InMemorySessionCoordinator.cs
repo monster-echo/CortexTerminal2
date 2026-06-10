@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using CortexTerminal.Contracts.Sessions;
 using CortexTerminal.Gateway.Workers;
+using Microsoft.Extensions.Logging;
 
 namespace CortexTerminal.Gateway.Sessions;
 
@@ -11,10 +12,12 @@ public sealed class InMemorySessionCoordinator : ISessionCoordinator
     private readonly ConcurrentDictionary<string, DateTimeOffset> _lastTouchBySession = new();
     private readonly object _sync = new();
     private readonly TimeProvider _timeProvider;
+    private readonly ILogger<InMemorySessionCoordinator> _logger;
 
-    public InMemorySessionCoordinator(IWorkerRegistry workers, TimeProvider? timeProvider = null)
+    public InMemorySessionCoordinator(IWorkerRegistry workers, ILogger<InMemorySessionCoordinator> logger, TimeProvider? timeProvider = null)
     {
         _workers = workers;
+        _logger = logger;
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
@@ -63,6 +66,9 @@ public sealed class InMemorySessionCoordinator : ISessionCoordinator
         {
             _sessions[sessionId] = record;
         }
+
+        _logger.LogInformation("session.created {SessionId} worker={WorkerId} user={UserId}", sessionId, worker.WorkerId, userId);
+
         return Task.FromResult(CreateSessionResult.Success(new CreateSessionResponse(sessionId, worker.WorkerId)));
     }
 
@@ -75,15 +81,16 @@ public sealed class InMemorySessionCoordinator : ISessionCoordinator
                 return Task.CompletedTask;
             }
 
+            // Session stays Attached — only clear the client connection.
             _sessions[sessionId] = session with
             {
-                AttachmentState = SessionAttachmentState.DetachedGracePeriod,
                 AttachedClientConnectionId = null,
-                LeaseExpiresAtUtc = detachedAtUtc.AddMinutes(5),
                 ReplayPending = false,
                 LastActivityAtUtc = detachedAtUtc
             };
         }
+
+        _logger.LogInformation("session.client-detached {SessionId} user={UserId}", sessionId, userId);
 
         return Task.CompletedTask;
     }
@@ -98,8 +105,11 @@ public sealed class InMemorySessionCoordinator : ISessionCoordinator
             }
 
             _sessions.TryRemove(sessionId, out _);
-            return Task.FromResult(DeleteSessionResult.Success());
         }
+
+        _logger.LogInformation("session.deleted {SessionId} user={UserId}", sessionId, userId);
+
+        return Task.FromResult(DeleteSessionResult.Success());
     }
 
     public Task<ReattachSessionResult> ReattachSessionAsync(
@@ -128,6 +138,8 @@ public sealed class InMemorySessionCoordinator : ISessionCoordinator
                         LastActivityAtUtc = nowUtc
                     };
 
+                    _logger.LogInformation("session.reattached {SessionId} client={ClientConnectionId}", request.SessionId, clientConnectionId);
+
                     return Task.FromResult(ReattachSessionResult.Success());
                 }
 
@@ -138,6 +150,8 @@ public sealed class InMemorySessionCoordinator : ISessionCoordinator
                     ReplayPending = true,
                     LastActivityAtUtc = nowUtc
                 };
+
+                _logger.LogInformation("session.reattached {SessionId} client={ClientConnectionId} (displaced existing)", request.SessionId, clientConnectionId);
 
                 return Task.FromResult(ReattachSessionResult.Success());
             }
@@ -158,6 +172,8 @@ public sealed class InMemorySessionCoordinator : ISessionCoordinator
                     LastActivityAtUtc = nowUtc
                 };
 
+                _logger.LogInformation("session.expired {SessionId} reason=detached-without-lease", request.SessionId);
+
                 return Task.FromResult(ReattachSessionResult.Failure("session-detached-without-lease"));
             }
 
@@ -172,6 +188,8 @@ public sealed class InMemorySessionCoordinator : ISessionCoordinator
                     LastActivityAtUtc = nowUtc
                 };
 
+                _logger.LogInformation("session.expired {SessionId} reason=lease-expired", request.SessionId);
+
                 return Task.FromResult(ReattachSessionResult.Failure("session-expired"));
             }
 
@@ -183,6 +201,8 @@ public sealed class InMemorySessionCoordinator : ISessionCoordinator
                 ReplayPending = true,
                 LastActivityAtUtc = nowUtc
             };
+
+            _logger.LogInformation("session.reattached {SessionId} client={ClientConnectionId} (from DetachedGracePeriod)", request.SessionId, clientConnectionId);
 
             return Task.FromResult(ReattachSessionResult.Success());
         }
@@ -208,10 +228,14 @@ public sealed class InMemorySessionCoordinator : ISessionCoordinator
                 LastActivityAtUtc = _timeProvider.GetUtcNow()
             };
         }
+
+        _logger.LogInformation("session.start-failed {SessionId} reason={Reason}", sessionId, reason);
     }
 
     public void RemoveSession(string sessionId)
     {
+        _logger.LogInformation("session.removed {SessionId}", sessionId);
+
         lock (_sync)
         {
             _sessions.TryRemove(sessionId, out _);
@@ -239,6 +263,8 @@ public sealed class InMemorySessionCoordinator : ISessionCoordinator
                 LastActivityAtUtc = _timeProvider.GetUtcNow()
             };
         }
+
+        _logger.LogInformation("session.exited {SessionId} exitCode={ExitCode} reason={Reason}", sessionId, exitCode, reason);
     }
 
     public void MarkReplayCompleted(string sessionId, string clientConnectionId)
@@ -278,6 +304,7 @@ public sealed class InMemorySessionCoordinator : ISessionCoordinator
 
                 _sessions[sessionId] = session with { WorkerConnectionId = workerConnectionId };
                 reboundCount++;
+                _logger.LogInformation("session.rebound {SessionId} worker={WorkerId}", sessionId, workerId);
             }
         }
 
@@ -311,6 +338,8 @@ public sealed class InMemorySessionCoordinator : ISessionCoordinator
                     ReplayPending = false,
                     LastActivityAtUtc = _timeProvider.GetUtcNow()
                 };
+
+                _logger.LogInformation("session.expired {SessionId} reason=worker-offline worker={WorkerId}", session.SessionId, workerId);
             }
         }
 
@@ -319,34 +348,8 @@ public sealed class InMemorySessionCoordinator : ISessionCoordinator
 
     public IReadOnlyList<string> ExpireDetachedSessions(DateTimeOffset nowUtc)
     {
-        var expiredSessionIds = new List<string>();
-
-        lock (_sync)
-        {
-            foreach (var session in _sessions.Values)
-            {
-                if (session.AttachmentState != SessionAttachmentState.DetachedGracePeriod ||
-                    !session.LeaseExpiresAtUtc.HasValue ||
-                    session.LeaseExpiresAtUtc.Value > nowUtc)
-                {
-                    continue;
-                }
-
-                _sessions[session.SessionId] = session with
-                {
-                    AttachmentState = SessionAttachmentState.Expired,
-                    AttachedClientConnectionId = null,
-                    LeaseExpiresAtUtc = null,
-                    ExitCode = null,
-                    ExitReason = "expired",
-                    ReplayPending = false,
-                    LastActivityAtUtc = nowUtc
-                };
-                expiredSessionIds.Add(session.SessionId);
-            }
-        }
-
-        return expiredSessionIds;
+        // No-op: sessions are no longer expired due to client disconnect.
+        return [];
     }
 
     public IReadOnlyList<string> ExpireRecoveringSessions(DateTimeOffset cutoffUtc)
@@ -374,6 +377,8 @@ public sealed class InMemorySessionCoordinator : ISessionCoordinator
                     LastActivityAtUtc = _timeProvider.GetUtcNow()
                 };
                 expiredSessionIds.Add(session.SessionId);
+
+                _logger.LogInformation("session.expired {SessionId} reason=recovery-timeout worker={WorkerId}", session.SessionId, session.WorkerId);
             }
         }
 

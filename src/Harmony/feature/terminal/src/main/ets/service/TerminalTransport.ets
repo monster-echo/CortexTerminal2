@@ -1,6 +1,6 @@
 import { buffer } from '@kit.ArkTS'
 import { HubConnectionBuilder, HubConnection, HubConnectionState, LogLevel } from '@rwecho/signalr'
-import { I18n } from '@rwecho/core'
+import { I18n, Logger } from '@rwecho/core'
 import {
   TransportFrame,
   ReattachSessionParams,
@@ -12,6 +12,8 @@ import {
 
 type OnFrameCallback = (frame: TransportFrame) => void
 type OnDisconnectedCallback = () => void
+
+const logger = new Logger('Transport')
 
 export class TerminalTransport {
   isConnected: boolean = false
@@ -39,7 +41,7 @@ export class TerminalTransport {
 
     const baseUrl = gatewayUrl.replace(/\/+$/, '')
     const hubUrl = baseUrl + '/hubs/terminal'
-    console.info(`[TerminalTransport] connecting to ${hubUrl}, sessionId=${sessionId}, token=${token.substring(0, 10)}...`)
+    logger.info(`session.connecting id=${sessionId} hub=${hubUrl}`)
 
     this.connection = new HubConnectionBuilder()
       .withUrl(hubUrl)
@@ -111,20 +113,25 @@ export class TerminalTransport {
 
     conn.on('SessionExpired', (args: Object[]) => {
       const evt = args[0] as Record<string, Object>
+      const reason = (evt['reason'] as string) ?? 'worker-offline'
       const frame = new TransportFrame()
       frame.type = 'expired'
       frame.sessionId = (evt['sessionId'] as string) ?? this.sessionId
-      frame.reason = (evt['reason'] as string) ?? 'worker-offline'
+      frame.reason = reason
+      logger.warn(`session.expired id=${this.sessionId} reason=${reason}`)
       this.emitFrame(frame)
     })
 
     conn.on('SessionExited', (args: Object[]) => {
       const evt = args[0] as Record<string, Object>
+      const exitCode = (evt['exitCode'] as number) ?? 0
+      const reason = (evt['reason'] as string) ?? ''
       const frame = new TransportFrame()
       frame.type = 'exited'
       frame.sessionId = (evt['sessionId'] as string) ?? this.sessionId
-      frame.exitCode = (evt['exitCode'] as number) ?? 0
-      frame.reason = (evt['reason'] as string) ?? ''
+      frame.exitCode = exitCode
+      frame.reason = reason
+      logger.info(`session.exited id=${this.sessionId} exitCode=${exitCode} reason=${reason}`)
       this.emitFrame(frame)
     })
 
@@ -158,6 +165,7 @@ export class TerminalTransport {
     conn.onreconnecting = (_error: Error | null) => {
       this.isConnected = false
       this.stopLatencyProbe()
+      logger.warn(`session.reconnecting id=${this.sessionId}`)
       if (!this.manualDisconnect && this.onDisconnected) {
         this.onDisconnected()
       }
@@ -165,6 +173,7 @@ export class TerminalTransport {
 
     conn.onreconnected = (_connectionId: string | null) => {
       this.isConnected = true
+      logger.info(`session.reconnected id=${this.sessionId}`)
       this.startLatencyProbe()
       this.reattachSession()
     }
@@ -176,7 +185,7 @@ export class TerminalTransport {
 
     await conn.start()
     this.isConnected = true
-    console.info(`[TerminalTransport] HubConnection started, invoking ReattachSession`)
+    logger.info(`session.connected id=${this.sessionId}`)
 
     await this.reattachSession()
     this.startLatencyProbe()
@@ -250,6 +259,7 @@ export class TerminalTransport {
       return
     }
     try {
+      logger.info(`session.reattaching id=${this.sessionId}`)
       const params = new ReattachSessionParams()
       params.sessionId = this.sessionId
       const result = await this.connection.invoke('ReattachSession', params)
@@ -258,12 +268,15 @@ export class TerminalTransport {
         const success = r['isSuccess'] ?? r['IsSuccess']
         if (success === false || success === 0) {
           const errorCode = (r['errorCode'] as string) ?? (r['ErrorCode'] as string) ?? 'unknown'
+          logger.warn(`session.reattach-failed id=${this.sessionId} error=${errorCode}`)
           this.emitReattachError(errorCode)
           this.disconnect()
           return
         }
       }
+      logger.info(`session.reattached id=${this.sessionId}`)
     } catch (e) {
+      logger.error(`session.reattach-error id=${this.sessionId} error=${(e as Error).message}`)
       this.emitReattachError('reattach-failed: ' + (e as Error).message)
       this.disconnect()
     }

@@ -25,6 +25,12 @@ using BCrypt.Net;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Logging.AddSimpleConsole(options =>
+{
+    options.IncludeScopes = true;
+    options.TimestampFormat = "HH:mm:ss.fff ";
+});
+
 var signingKey = builder.Configuration["Auth:SigningKey"] ?? "gateway-auth-signing-key-minimum-32b";
 var gatewayAudiences = new[] { "corterm-gateway", "cortex-terminal-gateway" };
 
