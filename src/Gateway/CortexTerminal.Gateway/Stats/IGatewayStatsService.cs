@@ -7,6 +7,7 @@ public interface IGatewayStatsService
     void RecordBytesTransferred(int byteCount);
     GatewayStatsSnapshot GetSnapshot();
     IReadOnlyList<HourlyStatsPoint> GetHourlyHistory(int hours);
+    void CaptureSnapshot();
 }
 
 public sealed record GatewayStatsSnapshot(

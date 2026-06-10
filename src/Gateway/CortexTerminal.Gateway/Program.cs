@@ -969,43 +969,20 @@ app.MapPost("/api/auth/huawei/quick-login", async (HuaweiQuickLoginRequest reque
     {
         var http = httpClientFactory.CreateClient();
 
-        // Step 1: Exchange authorization code for access token
-        var tokenContent = new FormUrlEncodedContent(new Dictionary<string, string>
+        // Use official API: code → phone number (one step, no token exchange needed)
+        var phonePayload = JsonSerializer.Serialize(new
         {
-            ["grant_type"] = "authorization_code",
-            ["client_id"] = huaweiOAuthOptions.ClientId,
-            ["client_secret"] = huaweiOAuthOptions.ClientSecret,
-            ["code"] = request.AuthCode
+            code = request.AuthCode,
+            clientId = huaweiOAuthOptions.ClientId,
+            clientSecret = huaweiOAuthOptions.ClientSecret
         });
+        var phoneContent = new StringContent(phonePayload, Encoding.UTF8, "application/json");
 
-        var tokenResponse = await http.PostAsync("https://oauth-login.cloud.huawei.com/oauth2/v3/token", tokenContent);
-        var tokenJson = await tokenResponse.Content.ReadAsStringAsync();
-        if (!tokenResponse.IsSuccessStatusCode)
-        {
-            Console.WriteLine($"[HuaweiAuth] Token exchange failed: {tokenJson}");
-            return Results.BadRequest(new { error = "Failed to exchange authorization code" });
-        }
-
-        var tokenData = JsonSerializer.Deserialize<JsonElement>(tokenJson);
-        var accessToken = tokenData.TryGetProperty("access_token", out var atProp) ? atProp.GetString() : null;
-        if (string.IsNullOrEmpty(accessToken))
-            return Results.BadRequest(new { error = "No access token received from Huawei" });
-
-        // Step 2: Get real phone number using access token + unionID
-        var phoneContent = new FormUrlEncodedContent(new Dictionary<string, string>
-        {
-            ["client_id"] = huaweiOAuthOptions.ClientId,
-            ["union_id"] = request.UnionID
-        });
-
-        var phoneRequest = new HttpRequestMessage(HttpMethod.Post, "https://oauth-login.cloud.huawei.com/oauth2/v6/quickLogin/getPhoneNumber")
-        {
-            Content = phoneContent
-        };
-        phoneRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-
-        var phoneResponse = await http.SendAsync(phoneRequest);
+        var phoneResponse = await http.PostAsync(
+            "https://account-api.cloud.huawei.com/oauth2/v6/quickLogin/getPhoneNumber",
+            phoneContent);
         var phoneJson = await phoneResponse.Content.ReadAsStringAsync();
+
         if (!phoneResponse.IsSuccessStatusCode)
         {
             Console.WriteLine($"[HuaweiAuth] Phone retrieval failed: {phoneJson}");
@@ -1013,17 +990,29 @@ app.MapPost("/api/auth/huawei/quick-login", async (HuaweiQuickLoginRequest reque
         }
 
         var phoneData = JsonSerializer.Deserialize<JsonElement>(phoneJson);
-        var phoneNumber = phoneData.TryGetProperty("phoneNumber", out var pnProp) ? pnProp.GetString() : null;
-        var phoneZone = phoneData.TryGetProperty("phoneZone", out var pzProp) ? pzProp.GetString() : "86";
 
-        if (string.IsNullOrEmpty(phoneNumber))
+        if (phoneData.TryGetProperty("resultCode", out var rc))
+        {
+            var resultCode = rc.GetInt32();
+            if (resultCode != 0)
+            {
+                var resultDesc = phoneData.TryGetProperty("resultDesc", out var rd) ? rd.GetString() : "";
+                Console.WriteLine($"[HuaweiAuth] Phone retrieval error: resultCode={resultCode} desc={resultDesc}");
+                return Results.BadRequest(new { error = $"Failed to retrieve phone number ({resultCode})" });
+            }
+        }
+
+        var phoneNumber = phoneData.TryGetProperty("phoneNumber", out var pnProp) ? pnProp.GetString() : null;
+        var purePhoneNumber = phoneData.TryGetProperty("purePhoneNumber", out var ppProp) ? ppProp.GetString() : null;
+
+        if (string.IsNullOrEmpty(phoneNumber) && string.IsNullOrEmpty(purePhoneNumber))
             return Results.BadRequest(new { error = "No phone number received from Huawei" });
 
-        // Step 3: Create or find user (similar to phone verify flow)
-        var providerId = $"+{phoneZone}{phoneNumber}";
-        var last4 = phoneNumber.Length >= 4 ? phoneNumber[^4..] : phoneNumber;
+        var actualPhone = purePhoneNumber ?? phoneNumber!;
+        var providerId = phoneNumber ?? $"+86{purePhoneNumber!}";
+        var last4 = actualPhone.Length >= 4 ? actualPhone[^4..] : actualPhone;
         var username = $"hw_{last4}";
-        var displayName = $"{phoneNumber[..3]}****{last4}";
+        var displayName = $"{actualPhone[..3]}****{last4}";
 
         var dbUser = await EnsureUser(serviceProvider, username, null, displayName, null, "huawei", providerId);
         if (dbUser is null || dbUser.Status == "disabled" || dbUser.Status == "deleted")

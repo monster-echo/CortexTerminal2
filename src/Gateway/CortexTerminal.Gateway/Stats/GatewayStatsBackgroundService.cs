@@ -1,6 +1,6 @@
 namespace CortexTerminal.Gateway.Stats;
 
-public sealed class GatewayStatsBackgroundService(GatewayStatsService stats) : BackgroundService
+public sealed class GatewayStatsBackgroundService(IGatewayStatsService stats) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {

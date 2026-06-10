@@ -100,7 +100,7 @@ public sealed class GatewayStatsService : IGatewayStatsService
         }
     }
 
-    internal HourlyStatsPoint CaptureSnapshot()
+    public void CaptureSnapshot()
     {
         var clients = Interlocked.CompareExchange(ref _connectedClients, 0, 0);
         var bytes = Interlocked.Read(ref _totalBytesTransferred);
@@ -119,7 +119,5 @@ public sealed class GatewayStatsService : IGatewayStatsService
             _hourlyIndex = (_hourlyIndex + 1) % 24;
             _hourlyHistory[_hourlyIndex] = point;
         }
-
-        return point;
     }
 }
