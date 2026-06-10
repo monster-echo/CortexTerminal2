@@ -9,11 +9,13 @@ public sealed class WorkerGatewayClient : IWorkerGatewayClient
     private readonly object _sync = new();
     private readonly HubConnection _connection;
     private event Func<string?, Task>? Reconnected;
+    private event Func<Exception?, Task>? Closed;
 
     public WorkerGatewayClient(HubConnection connection)
     {
         _connection = connection;
         connection.Reconnected += HandleReconnectedAsync;
+        connection.Closed += HandleClosedAsync;
     }
 
     public Task StartAsync(CancellationToken cancellationToken)
@@ -56,6 +58,22 @@ public sealed class WorkerGatewayClient : IWorkerGatewayClient
         });
     }
 
+    public IDisposable OnClosed(Func<Exception?, Task> handler)
+    {
+        lock (_sync)
+        {
+            Closed += handler;
+        }
+
+        return new CallbackSubscription(() =>
+        {
+            lock (_sync)
+            {
+                Closed -= handler;
+            }
+        });
+    }
+
     public Task ForwardStdoutAsync(TerminalChunk chunk, CancellationToken cancellationToken)
         => _connection.InvokeAsync("ForwardStdout", chunk, cancellationToken);
 
@@ -85,12 +103,25 @@ public sealed class WorkerGatewayClient : IWorkerGatewayClient
             handlers = Reconnected;
         }
 
-        if (handlers is null)
+        if (handlers is not null)
         {
-            return;
+            await handlers(connectionId);
+        }
+    }
+
+    private async Task HandleClosedAsync(Exception? exception)
+    {
+        Func<Exception?, Task>? handlers;
+
+        lock (_sync)
+        {
+            handlers = Closed;
         }
 
-        await handlers(connectionId);
+        if (handlers is not null)
+        {
+            await handlers(exception);
+        }
     }
 
     private sealed class CallbackSubscription(Action dispose) : IDisposable

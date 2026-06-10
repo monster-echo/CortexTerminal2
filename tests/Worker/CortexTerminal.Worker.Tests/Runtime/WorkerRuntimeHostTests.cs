@@ -101,6 +101,84 @@ public sealed class WorkerRuntimeHostTests
         host.ActiveSessionCount.Should().Be(1);
         process.ResizeRequests.Should().BeEmpty();
     }
+
+    [Fact(Timeout = 15000)]
+    public async Task Closed_RetriesUntilGatewayComesBack()
+    {
+        var gateway = new FakeWorkerGatewayClient();
+        // Initial StartAsync succeeds (StartAsyncResult not set = default success)
+
+        await using var host = new WorkerRuntimeHost(
+            "worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()),
+            NullLoggerFactory.Instance, TimeSpan.FromMilliseconds(50));
+
+        await host.StartAsync(CancellationToken.None);
+        gateway.RegisteredWorkerIds.Should().ContainSingle(); // initial register
+
+        // Now make StartAsync fail first 3 reconnect attempts, then succeed
+        var failCount = 0;
+        gateway.StartAsyncResult = () => ++failCount > 3;
+
+        await gateway.RaiseClosedAsync();
+
+        // Wait for the second registration (reconnect)
+        await gateway.WaitForRegisterCountAsync(2);
+
+        gateway.StartCallCount.Should().BeGreaterThanOrEqualTo(4); // 1 initial + at least 3 retries
+        gateway.RegisteredWorkerIds.Count.Should().BeGreaterThanOrEqualTo(2); // initial + reconnect register
+    }
+
+    [Fact(Timeout = 10000)]
+    public async Task StopAsync_CancelsReconnectLoop()
+    {
+        var gateway = new FakeWorkerGatewayClient();
+
+        await using var host = new WorkerRuntimeHost(
+            "worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()),
+            NullLoggerFactory.Instance, TimeSpan.FromMilliseconds(50));
+
+        await host.StartAsync(CancellationToken.None);
+        var startCountBefore = gateway.StartCallCount;
+
+        // Now make StartAsync always fail for reconnect attempts
+        gateway.StartAsyncResult = () => false;
+        await gateway.RaiseClosedAsync();
+        await Task.Delay(300); // let the loop attempt a few times
+
+        await host.StopAsync(CancellationToken.None);
+        var startCountAtStop = gateway.StartCallCount;
+
+        await Task.Delay(300); // verify loop stopped
+        gateway.StartCallCount.Should().Be(startCountAtStop);
+        gateway.StartCallCount.Should().BeGreaterThan(startCountBefore);
+    }
+
+    [Fact(Timeout = 10000)]
+    public async Task MultipleClosedEvents_DoNotCreateConcurrentReconnectLoops()
+    {
+        var gateway = new FakeWorkerGatewayClient();
+
+        await using var host = new WorkerRuntimeHost(
+            "worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()),
+            NullLoggerFactory.Instance, TimeSpan.FromMilliseconds(50));
+
+        await host.StartAsync(CancellationToken.None);
+        gateway.RegisteredWorkerIds.Clear();
+
+        // Make StartAsync fail first, then succeed
+        var failCount = 0;
+        gateway.StartAsyncResult = () => ++failCount > 2;
+
+        // Fire multiple Closed events rapidly — only one reconnect loop should be active
+        await gateway.RaiseClosedAsync();
+        await gateway.RaiseClosedAsync();
+        await gateway.RaiseClosedAsync();
+
+        await gateway.WaitForRegisterCountAsync(2);
+
+        // Should only register once despite multiple Closed events
+        gateway.RegisteredWorkerIds.Should().ContainSingle();
+    }
 }
 
 internal sealed class FakeWorkerGatewayClient : IWorkerGatewayClient
@@ -112,9 +190,12 @@ internal sealed class FakeWorkerGatewayClient : IWorkerGatewayClient
     private readonly List<Func<CloseSessionRequest, Task>> _closeHandlers = [];
     private readonly List<Func<UpgradeWorkerCommand, Task>> _upgradeHandlers = [];
     private readonly List<Func<string?, Task>> _reconnectHandlers = [];
+    private readonly List<Func<Exception?, Task>> _closedHandlers = [];
     private readonly ConcurrentDictionary<string, TaskCompletionSource<TerminalChunk>> _stdoutWaiters = new();
     private readonly ConcurrentDictionary<string, TaskCompletionSource<TerminalChunk>> _stderrWaiters = new();
     private readonly ConcurrentDictionary<string, TaskCompletionSource<SessionExited>> _exitWaiters = new();
+    private int _registeredCount;
+    private readonly ConcurrentDictionary<int, TaskCompletionSource> _registerWaiters = new();
 
     public List<string> RegisteredWorkerIds { get; } = [];
     public List<TerminalChunk> StdoutChunks { get; } = [];
@@ -125,16 +206,37 @@ internal sealed class FakeWorkerGatewayClient : IWorkerGatewayClient
     public int StartCallCount { get; private set; }
     public int DisposeCount { get; private set; }
 
+    /// <summary>
+    /// Controls StartAsync behavior. When set, this function is called instead of the default.
+    /// Return true to simulate success, false to throw InvalidOperationException.
+    /// </summary>
+    public Func<bool>? StartAsyncResult { get; set; }
+
     public Task StartAsync(CancellationToken cancellationToken)
     {
         StartCallCount++;
+        if (StartAsyncResult is not null)
+        {
+            return StartAsyncResult()
+                ? Task.CompletedTask
+                : Task.FromException(new InvalidOperationException("Connection refused"));
+        }
         return Task.CompletedTask;
     }
 
     public Task RegisterAsync(string workerId, CancellationToken cancellationToken)
     {
         RegisteredWorkerIds.Add(workerId);
+        var count = Interlocked.Increment(ref _registeredCount);
+        _registerWaiters.GetOrAdd(count, _ => new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously))
+            .TrySetResult();
         return Task.CompletedTask;
+    }
+
+    public Task WaitForRegisterCountAsync(int count)
+    {
+        var tcs = _registerWaiters.GetOrAdd(count, _ => new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously));
+        return tcs.Task;
     }
 
     public IDisposable OnStartSession(Func<StartSessionCommand, Task> handler)
@@ -157,6 +259,9 @@ internal sealed class FakeWorkerGatewayClient : IWorkerGatewayClient
 
     public IDisposable OnReconnected(Func<string?, Task> handler)
         => Register(_reconnectHandlers, handler);
+
+    public IDisposable OnClosed(Func<Exception?, Task> handler)
+        => Register(_closedHandlers, handler);
 
     public Task ForwardStdoutAsync(TerminalChunk chunk, CancellationToken cancellationToken)
     {
@@ -239,6 +344,14 @@ internal sealed class FakeWorkerGatewayClient : IWorkerGatewayClient
         foreach (var handler in _reconnectHandlers)
         {
             await handler(connectionId);
+        }
+    }
+
+    public async Task RaiseClosedAsync(Exception? exception = null)
+    {
+        foreach (var handler in _closedHandlers)
+        {
+            await handler(exception);
         }
     }
 

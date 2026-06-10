@@ -20,18 +20,31 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
     private readonly ILoggerFactory _loggerFactory;
     private readonly ConcurrentDictionary<string, WorkerSessionRuntime> _sessions = [];
     private readonly List<IDisposable> _subscriptions = [];
+    private readonly TimeSpan _reconnectInterval;
+    private CancellationTokenSource? _reconnectCts;
+
+    private static readonly TimeSpan DefaultReconnectInterval = TimeSpan.FromSeconds(5);
 
     public WorkerRuntimeHost(
         string workerId,
         IWorkerGatewayClient gatewayClient,
         IPtyHost ptyHost,
         ILoggerFactory loggerFactory)
+        : this(workerId, gatewayClient, ptyHost, loggerFactory, DefaultReconnectInterval) { }
+
+    internal WorkerRuntimeHost(
+        string workerId,
+        IWorkerGatewayClient gatewayClient,
+        IPtyHost ptyHost,
+        ILoggerFactory loggerFactory,
+        TimeSpan reconnectInterval)
     {
         _workerId = workerId;
         _gatewayClient = gatewayClient;
         _ptyHost = ptyHost;
         _loggerFactory = loggerFactory;
         _logger = loggerFactory.CreateLogger<WorkerRuntimeHost>();
+        _reconnectInterval = reconnectInterval;
     }
 
     public int ActiveSessionCount => _sessions.Count;
@@ -49,6 +62,11 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
             _logger.LogInformation("Worker {WorkerId} reconnected to gateway, connection={ConnectionId}.", _workerId, connectionId);
             return RegisterWorkerAsync(CancellationToken.None);
         }));
+        _subscriptions.Add(_gatewayClient.OnClosed(ex =>
+        {
+            _ = ReconnectLoopAsync();
+            return Task.CompletedTask;
+        }));
 
         _logger.LogInformation("Worker {WorkerId} is starting.", _workerId);
         await _gatewayClient.StartAsync(cancellationToken);
@@ -56,9 +74,44 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         Console.WriteLine("  Connected. Press Ctrl+C to stop.");
     }
 
+    private async Task ReconnectLoopAsync()
+    {
+        _reconnectCts?.Cancel();
+        _reconnectCts?.Dispose();
+        _reconnectCts = new CancellationTokenSource();
+        var ct = _reconnectCts.Token;
+
+        _logger.LogWarning("Worker {WorkerId} connection lost. Reconnecting every {Interval}s...", _workerId, _reconnectInterval.TotalSeconds);
+
+        while (!ct.IsCancellationRequested)
+        {
+            try
+            {
+                await Task.Delay(_reconnectInterval, ct);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+
+            try
+            {
+                await _gatewayClient.StartAsync(ct);
+                await RegisterWorkerAsync(ct);
+                _logger.LogInformation("Worker {WorkerId} reconnected successfully.", _workerId);
+                return;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Worker {WorkerId} reconnect failed, retrying...", _workerId);
+            }
+        }
+    }
+
     public async Task StopAsync(CancellationToken cancellationToken)
     {
         _logger.LogInformation("Worker {WorkerId} is stopping.", _workerId);
+        _reconnectCts?.Cancel();
         foreach (var subscription in _subscriptions)
         {
             subscription.Dispose();

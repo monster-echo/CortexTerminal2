@@ -15,6 +15,9 @@
     <TrimmerRemoveSymbols>true</TrimmerRemoveSymbols>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="CortexTerminal.Worker.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\..\Shared\CortexTerminal.Contracts\CortexTerminal.Contracts.csproj" />
     <TrimmerRootAssembly Include="CortexTerminal.Contracts" />
   </ItemGroup>
