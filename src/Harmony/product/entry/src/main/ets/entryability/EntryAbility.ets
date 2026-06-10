@@ -31,6 +31,9 @@ export default class EntryAbility extends UIAbility {
     const isDark = colorMode !== ConfigurationConstant.ColorMode.COLOR_MODE_LIGHT
     AppStorage.setOrCreate('colorMode', isDark ? 'dark' : 'light')
     this.applyStatusBar(isDark)
+    try {
+      this.context.getApplicationContext().setColorMode(colorMode)
+    } catch (_e) {}
   }
 
   private applyStatusBar(isDark: boolean): void {
