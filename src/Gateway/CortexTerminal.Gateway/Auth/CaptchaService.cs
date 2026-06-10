@@ -18,6 +18,7 @@ public sealed class CaptchaService
     private const int ImageHeight = 180;
     private const int PieceSize = 44;
     private const int PiecePadding = 8;
+    private const int InitialPieceX = PieceSize / 2 + PiecePadding;
 
     public CaptchaService(IConfiguration configuration)
     {
@@ -115,7 +116,7 @@ public sealed class CaptchaService
         // Extract the original area from background (before hole was drawn)
         // Re-create background without hole for extraction
         using var bgClean = GenerateCleanBackground(rng, colors);
-        using var clipPath = CreatePuzzlePiecePath(targetX, targetY);
+        using var clipPath = CreatePuzzlePiecePath(InitialPieceX, targetY);
         using (var clipPaint = new SKPaint
         {
             Style = SKPaintStyle.Fill,
@@ -124,7 +125,7 @@ public sealed class CaptchaService
         {
             sliderCanvas.Save();
             sliderCanvas.ClipPath(clipPath);
-            sliderCanvas.DrawBitmap(bgClean, 0, 0);
+            sliderCanvas.DrawBitmap(bgClean, InitialPieceX - targetX, 0);
             sliderCanvas.Restore();
         }
         using (var strokePaint = new SKPaint
@@ -139,7 +140,7 @@ public sealed class CaptchaService
         }
 
         var id = Guid.NewGuid().ToString("N");
-        _entries[id] = new CaptchaEntry(targetX, DateTimeOffset.UtcNow.AddMinutes(5));
+        _entries[id] = new CaptchaEntry(targetX - InitialPieceX, DateTimeOffset.UtcNow.AddMinutes(5));
 
         var bgBase64 = BitmapToBase64(background);
         var sliderBase64 = BitmapToBase64(sliderBitmap);

@@ -24,13 +24,20 @@ public sealed class PhoneCodeStore
 
     public bool Verify(string phone, string inputCode)
     {
-        if (!_codes.TryRemove(phone, out var entry))
+        if (!_codes.TryGetValue(phone, out var entry))
             return false;
 
         if (entry.ExpiresAtUtc < DateTimeOffset.UtcNow)
+        {
+            _codes.TryRemove(phone, out _);
+            return false;
+        }
+
+        if (entry.Code != inputCode)
             return false;
 
-        return entry.Code == inputCode;
+        _codes.TryRemove(phone, out _);
+        return true;
     }
 
     private void RemoveExpired()

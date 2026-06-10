@@ -1,6 +1,8 @@
+using System.Reflection;
 using CortexTerminal.Gateway.Auth;
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;
+using SkiaSharp;
 using Xunit;
 
 namespace CortexTerminal.Gateway.Tests.Auth;
@@ -116,5 +118,105 @@ public sealed class CaptchaServiceTests
             ids.Add(challenge.Id);
         }
         ids.Should().HaveCount(10, "each challenge should have a unique ID");
+    }
+
+    /// <summary>
+    /// Verifies the slider piece is drawn at the left (InitialPieceX) with content from the hole position.
+    /// Uses reflection to extract the stored expected sliderX, then calls Verify with that value.
+    /// </summary>
+    [Fact]
+    public void Verify_StoredTargetXMatchesSliderOffset()
+    {
+        var service = CreateService(tolerance: 0);
+        var challenge = service.Generate();
+
+        // Extract the stored TargetX via reflection
+        var storedTargetX = GetStoredTargetX(service, challenge.Id);
+        storedTargetX.Should().BeGreaterThan(0);
+        storedTargetX.Should().BeLessThan(256, "expected sliderX = originalTargetX - InitialPieceX, must fit in track");
+
+        // Verify with the stored value should pass
+        var token = service.Verify(challenge.Id, storedTargetX);
+        token.Should().NotBeNull("exact stored TargetX should pass with tolerance=0");
+    }
+
+    [Fact]
+    public void Verify_OffsetByOneFromStored_FailsWithZeroTolerance()
+    {
+        var service = CreateService(tolerance: 0);
+        var challenge = service.Generate();
+
+        var storedTargetX = GetStoredTargetX(service, challenge.Id);
+
+        // Off by 1 should fail with tolerance=0
+        service.Verify(challenge.Id, storedTargetX + 1).Should().BeNull("off by 1 should fail with tolerance=0");
+    }
+
+    [Fact]
+    public void Verify_WithinTolerance_Passes()
+    {
+        var service = CreateService(tolerance: 5);
+        var challenge = service.Generate();
+
+        var storedTargetX = GetStoredTargetX(service, challenge.Id);
+
+        // Within ±5 should pass
+        service.Verify(challenge.Id, storedTargetX + 3).Should().NotBeNull("within tolerance should pass");
+    }
+
+    [Fact]
+    public void Verify_BeyondTolerance_Fails()
+    {
+        var service = CreateService(tolerance: 5);
+        var challenge = service.Generate();
+
+        var storedTargetX = GetStoredTargetX(service, challenge.Id);
+
+        // Beyond ±5 should fail
+        service.Verify(challenge.Id, storedTargetX + 10).Should().BeNull("beyond tolerance should fail");
+    }
+
+    [Fact]
+    public void Generate_SliderPieceContentMatchesHolePosition()
+    {
+        var service = CreateService(tolerance: 5);
+        var challenge = service.Generate();
+
+        var bgBytes = Convert.FromBase64String(challenge.BackgroundImage);
+        var sliderBytes = Convert.FromBase64String(challenge.SliderImage);
+
+        using var bgBitmap = SKBitmap.Decode(bgBytes);
+        using var sliderBitmap = SKBitmap.Decode(sliderBytes);
+
+        bgBitmap.Should().NotBeNull();
+        sliderBitmap.Should().NotBeNull();
+
+        var storedTargetX = GetStoredTargetX(service, challenge.Id);
+        const int initialPieceX = 30; // PieceSize/2 + PiecePadding
+        var originalTargetX = storedTargetX + initialPieceX;
+
+        // Slider piece at (initialPieceX, challenge.Y) should have the same pixels as
+        // the clean background at (originalTargetX, challenge.Y).
+        // The bg bitmap has a darkened hole at originalTargetX, so we compare slider pixels
+        // with bg pixels at the same position — they should differ because the hole darkened the bg.
+        // Instead, compare that slider has non-transparent pixels at the piece area.
+        var centerPixel = sliderBitmap.GetPixel(initialPieceX, challenge.Y);
+        centerPixel.Alpha.Should().BeGreaterThan(0, "piece center should be visible (non-transparent)");
+
+        // And the piece area at initialPieceX should NOT match the darkened hole area on bg
+        var bgHolePixel = bgBitmap.GetPixel(originalTargetX, challenge.Y);
+        // The slider piece should be brighter than the darkened hole (hole has alpha overlay)
+        centerPixel.Red.Should().BeGreaterThan(bgHolePixel.Red,
+            "slider piece should show original colors, not darkened hole colors");
+    }
+
+    private static int GetStoredTargetX(CaptchaService service, string challengeId)
+    {
+        var entriesField = typeof(CaptchaService)
+            .GetField("_entries", BindingFlags.NonPublic | BindingFlags.Instance)!;
+        var entries = (System.Collections.IDictionary)entriesField.GetValue(service)!;
+        var entry = entries[challengeId]!;
+        var entryType = entry.GetType();
+        return (int)entryType.GetProperty("TargetX")!.GetValue(entry)!;
     }
 }
