@@ -88,8 +88,7 @@ public sealed class ReattachSessionFlowTests : IClassFixture<GatewayApplicationF
 
         var detached = detachCaller.Invocations.Should().ContainSingle().Subject.Arguments[0].Should().BeOfType<SessionDetachedEvent>().Subject;
         detached.SessionId.Should().Be(sessionId);
-        detached.LeaseExpiresAtUtc.Should().BeAfter(DateTimeOffset.UtcNow);
-        detached.LeaseExpiresAtUtc.Should().BeOnOrBefore(detachedAt.AddMinutes(5).AddSeconds(1));
+        detached.LeaseExpiresAtUtc.Should().Be(DateTimeOffset.MaxValue);
 
         var reattachCaller = new RecordingClientProxy();
         var reattachHub = ActivatorUtilities.CreateInstance<TerminalHub>(services);

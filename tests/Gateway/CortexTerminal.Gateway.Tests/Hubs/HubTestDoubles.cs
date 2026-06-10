@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.SignalR;
 using CortexTerminal.Contracts.Sessions;
 using CortexTerminal.Contracts.Streaming;
+using CortexTerminal.Gateway.Stats;
 using CortexTerminal.Gateway.Workers;
 
 namespace CortexTerminal.Gateway.Tests.Hubs;
@@ -88,6 +89,16 @@ internal sealed class NoOpWorkerCommandDispatcher : IWorkerCommandDispatcher
     public Task ResizeSessionAsync(string workerConnectionId, ResizePtyRequest request, CancellationToken cancellationToken) => Task.CompletedTask;
     public Task CloseSessionAsync(string workerConnectionId, CloseSessionRequest request, CancellationToken cancellationToken) => Task.CompletedTask;
     public Task UpgradeWorkerAsync(string workerConnectionId, UpgradeWorkerCommand command, CancellationToken cancellationToken) => Task.CompletedTask;
+}
+
+internal sealed class NoOpStatsService : IGatewayStatsService
+{
+    public void ClientConnected() { }
+    public void ClientDisconnected() { }
+    public void RecordBytesTransferred(int byteCount) { }
+    public GatewayStatsSnapshot GetSnapshot() => throw new NotSupportedException();
+    public IReadOnlyList<HourlyStatsPoint> GetHourlyHistory(int hours) => [];
+    public void CaptureSnapshot() { }
 }
 
 internal sealed class ThrowingWorkerCommandDispatcher(string message) : IWorkerCommandDispatcher

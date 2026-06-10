@@ -12,7 +12,7 @@ public interface IWorkerRegistry
     RegisteredWorker? FindByConnectionId(string connectionId);
     IReadOnlyList<RegisteredWorker> GetWorkersForUser(string userId);
     bool SetWorkerOwner(string workerId, string ownerUserId);
-    void UpdateMetadata(string workerId, WorkerMetadata? metadata);
+    void PersistMetadata(string workerId, WorkerMetadata? metadata);
     IReadOnlyList<RegisteredWorker> GetOnlineWorkersForUser(string userId);
     Task<IReadOnlyList<WorkerRecord>> GetAllWorkersForUserAsync(string userId);
     int GetOnlineCount();
@@ -23,8 +23,7 @@ public sealed record RegisteredWorker(
     string WorkerId,
     string ConnectionId,
     string? OwnerUserId = null,
-    DateTimeOffset? LastSeenAtUtc = null,
-    WorkerMetadata? Metadata = null);
+    DateTimeOffset? LastSeenAtUtc = null);
 
 public sealed record WorkerMetadata(
     string? Hostname = null,

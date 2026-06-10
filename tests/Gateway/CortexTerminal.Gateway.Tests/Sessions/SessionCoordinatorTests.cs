@@ -129,12 +129,14 @@ public sealed class SessionCoordinatorTests
             return false;
         }
 
-        public void UpdateMetadata(string workerId, WorkerMetadata? metadata)
+        public void PersistMetadata(string workerId, WorkerMetadata? metadata)
             => throw new NotSupportedException();
 
         public IReadOnlyList<RegisteredWorker> GetOnlineWorkersForUser(string userId)
             => throw new NotSupportedException();
 
+        public int GetOnlineCount() => 1;
+        public IReadOnlyList<RegisteredWorker> GetAllOnline() => [_worker];
         public Task<IReadOnlyList<WorkerRecord>> GetAllWorkersForUserAsync(string userId)
             => Task.FromResult<IReadOnlyList<WorkerRecord>>(Array.Empty<WorkerRecord>());
     }
@@ -178,12 +180,14 @@ public sealed class SessionCoordinatorTests
         public bool SetWorkerOwner(string workerId, string ownerUserId)
             => _inner.SetWorkerOwner(workerId, ownerUserId);
 
-        public void UpdateMetadata(string workerId, WorkerMetadata? metadata)
-            => _inner.UpdateMetadata(workerId, metadata);
+        public void PersistMetadata(string workerId, WorkerMetadata? metadata)
+            => _inner.PersistMetadata(workerId, metadata);
 
         public IReadOnlyList<RegisteredWorker> GetOnlineWorkersForUser(string userId)
             => _inner.GetOnlineWorkersForUser(userId);
 
+        public int GetOnlineCount() => _inner.GetOnlineCount();
+        public IReadOnlyList<RegisteredWorker> GetAllOnline() => _inner.GetAllOnline();
         public Task<IReadOnlyList<WorkerRecord>> GetAllWorkersForUserAsync(string userId)
             => _inner.GetAllWorkersForUserAsync(userId);
     }

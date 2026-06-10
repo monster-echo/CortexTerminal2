@@ -3,6 +3,7 @@ using CortexTerminal.Contracts.Streaming;
 using CortexTerminal.Gateway.Audit;
 using CortexTerminal.Gateway.Hubs;
 using CortexTerminal.Gateway.Sessions;
+using CortexTerminal.Gateway.Stats;
 using CortexTerminal.Gateway.Tests.Workers;
 using CortexTerminal.Gateway.Workers;
 using FluentAssertions;
@@ -103,7 +104,7 @@ public sealed class TerminalHubReconnectTests
     }
 
     [Fact]
-    public async Task ReattachSession_WhenReplayDeliveryFails_RevertsSessionToDetachedGracePeriod()
+    public async Task ReattachSession_WhenReplayDeliveryFails_RevertsSessionToAttached()
     {
         var workers = new InMemoryWorkerRegistry();
         workers.Register("worker-1", "worker-conn-1");
@@ -134,10 +135,10 @@ public sealed class TerminalHubReconnectTests
         await action.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage("replay failed");
         sessions.TryGetSession(sessionId, out var session).Should().BeTrue();
-        session.AttachmentState.Should().Be(SessionAttachmentState.DetachedGracePeriod);
+        session.AttachmentState.Should().Be(SessionAttachmentState.Attached);
         session.AttachedClientConnectionId.Should().BeNull();
         session.ReplayPending.Should().BeFalse();
-        session.LeaseExpiresAtUtc.Should().NotBeNull();
+        session.LeaseExpiresAtUtc.Should().BeNull();
     }
 
     private static TerminalHub CreateTerminalHub(ISessionCoordinator sessions, IReplayCache replayCache, TimeProvider timeProvider)
@@ -147,7 +148,8 @@ public sealed class TerminalHubReconnectTests
             replayCache,
             timeProvider,
             new NoOpWorkerCommandDispatcher(),
-            new SessionLaunchCoordinator(sessions, new NoOpWorkerCommandDispatcher()))!;
+            new SessionLaunchCoordinator(sessions, new NoOpWorkerCommandDispatcher()),
+            new NoOpStatsService())!;
 
     private static WorkerHub CreateWorkerHub(
         IWorkerRegistry workers,
@@ -161,6 +163,7 @@ public sealed class TerminalHubReconnectTests
             replayCache,
             new InMemoryAuditLogStore(),
             new TestHubContext<TerminalHub>(terminalClients ?? new Dictionary<string, IClientProxy>()),
+            new NoOpStatsService(),
             NullLogger<WorkerHub>.Instance)!;
 
     private static async Task<T> InvokeAsync<T>(object instance, string methodName, params object?[] arguments)

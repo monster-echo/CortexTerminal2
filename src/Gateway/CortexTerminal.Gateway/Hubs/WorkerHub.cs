@@ -58,7 +58,7 @@ public sealed class WorkerHub(
             return;
         }
 
-        workers.UpdateMetadata(worker.WorkerId, new WorkerMetadata(
+        workers.PersistMetadata(worker.WorkerId, new WorkerMetadata(
             info.Hostname,
             info.OperatingSystem,
             info.Architecture,

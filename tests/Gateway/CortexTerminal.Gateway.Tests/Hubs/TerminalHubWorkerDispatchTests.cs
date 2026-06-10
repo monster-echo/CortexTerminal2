@@ -2,6 +2,7 @@ using CortexTerminal.Contracts.Sessions;
 using CortexTerminal.Contracts.Streaming;
 using CortexTerminal.Gateway.Hubs;
 using CortexTerminal.Gateway.Sessions;
+using CortexTerminal.Gateway.Stats;
 using CortexTerminal.Gateway.Tests.Workers;
 using CortexTerminal.Gateway.Workers;
 using FluentAssertions;
@@ -199,7 +200,8 @@ public sealed class TerminalHubWorkerDispatchTests
             replayCache,
             timeProvider,
             dispatcher,
-            new SessionLaunchCoordinator(sessions, dispatcher))!;
+            new SessionLaunchCoordinator(sessions, dispatcher),
+            new NoOpStatsService())!;
 
     private static SessionRecord GetSingleSession(InMemorySessionCoordinator coordinator)
     {

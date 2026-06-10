@@ -121,29 +121,21 @@ public sealed class PostgresWorkerRegistry : IWorkerRegistry
         return false;
     }
 
-    public void UpdateMetadata(string workerId, WorkerMetadata? metadata)
+    public void PersistMetadata(string workerId, WorkerMetadata? metadata)
     {
-        while (_workers.TryGetValue(workerId, out var existing))
+        _ = PersistAsync(async db =>
         {
-            var updated = existing with { Metadata = metadata, LastSeenAtUtc = DateTimeOffset.UtcNow };
-            if (_workers.TryUpdate(workerId, updated, existing))
+            var record = await db.Workers.FindAsync(workerId);
+            if (record is not null)
             {
-                _ = PersistAsync(async db =>
-                {
-                    var record = await db.Workers.FindAsync(workerId);
-                    if (record is not null)
-                    {
-                        record.Hostname = metadata?.Hostname;
-                        record.OperatingSystem = metadata?.OperatingSystem;
-                        record.Architecture = metadata?.Architecture;
-                        record.Name = metadata?.Name;
-                        record.Version = metadata?.Version;
-                        record.LastSeenAtUtc = DateTimeOffset.UtcNow;
-                    }
-                });
-                return;
+                record.Hostname = metadata?.Hostname;
+                record.OperatingSystem = metadata?.OperatingSystem;
+                record.Architecture = metadata?.Architecture;
+                record.Name = metadata?.Name;
+                record.Version = metadata?.Version;
+                record.LastSeenAtUtc = DateTimeOffset.UtcNow;
             }
-        }
+        });
     }
 
     public IReadOnlyList<RegisteredWorker> GetOnlineWorkersForUser(string userId)

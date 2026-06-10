@@ -2,6 +2,7 @@ using CortexTerminal.Contracts.Sessions;
 using CortexTerminal.Contracts.Streaming;
 using CortexTerminal.Gateway.Hubs;
 using CortexTerminal.Gateway.Sessions;
+using CortexTerminal.Gateway.Stats;
 using CortexTerminal.Gateway.Workers;
 using FluentAssertions;
 using Microsoft.AspNetCore.SignalR;
@@ -95,5 +96,6 @@ public sealed class TerminalHubTests
             replayCache,
             timeProvider,
             new NoOpWorkerCommandDispatcher(),
-            new SessionLaunchCoordinator(sessions, new NoOpWorkerCommandDispatcher()))!;
+            new SessionLaunchCoordinator(sessions, new NoOpWorkerCommandDispatcher()),
+            new NoOpStatsService())!;
 }

@@ -68,17 +68,7 @@ public sealed class InMemoryWorkerRegistry : IWorkerRegistry
         return false;
     }
 
-    public void UpdateMetadata(string workerId, WorkerMetadata? metadata)
-    {
-        while (_workers.TryGetValue(workerId, out var existing))
-        {
-            var updated = existing with { Metadata = metadata, LastSeenAtUtc = DateTimeOffset.UtcNow };
-            if (_workers.TryUpdate(workerId, updated, existing))
-            {
-                return;
-            }
-        }
-    }
+    public void PersistMetadata(string workerId, WorkerMetadata? metadata) { }
 
     public IReadOnlyList<RegisteredWorker> GetOnlineWorkersForUser(string userId)
         => _workers.Values
@@ -93,11 +83,6 @@ public sealed class InMemoryWorkerRegistry : IWorkerRegistry
             {
                 WorkerId = w.WorkerId,
                 OwnerUserId = w.OwnerUserId,
-                Hostname = w.Metadata?.Hostname,
-                OperatingSystem = w.Metadata?.OperatingSystem,
-                Architecture = w.Metadata?.Architecture,
-                Name = w.Metadata?.Name,
-                Version = w.Metadata?.Version,
                 LastSeenAtUtc = w.LastSeenAtUtc ?? DateTimeOffset.UtcNow,
                 FirstConnectedAtUtc = w.LastSeenAtUtc,
                 IsOnline = true

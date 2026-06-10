@@ -201,6 +201,15 @@ public sealed class SessionRecoveryCoordinatorTests
         await db.SaveChangesAsync();
         await coordinator.RecoverActiveSessionsAsync();
 
+        // Recovery sets LastActivityAtUtc = now, so reset the old session's timestamp back
+        var sessionsDict = (ConcurrentDictionary<string, SessionRecord>)coordinator.GetType()
+            .GetField("_sessions", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .GetValue(coordinator)!;
+        sessionsDict[oldSessionId] = sessionsDict[oldSessionId] with
+        {
+            LastActivityAtUtc = now.AddMinutes(-2)
+        };
+
         // Cutoff is 60 seconds ago - old session (2 min ago) should expire, recent should not
         var expiredIds = coordinator.ExpireRecoveringSessions(now.AddSeconds(-60));
 

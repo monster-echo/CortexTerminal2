@@ -3,6 +3,7 @@ using CortexTerminal.Contracts.Streaming;
 using CortexTerminal.Gateway.Audit;
 using CortexTerminal.Gateway.Hubs;
 using CortexTerminal.Gateway.Sessions;
+using CortexTerminal.Gateway.Stats;
 using CortexTerminal.Gateway.Tests.Workers;
 using CortexTerminal.Gateway.Workers;
 using FluentAssertions;
@@ -252,6 +253,7 @@ public sealed class WorkerHubTests
             replayCache,
             new InMemoryAuditLogStore(),
             new TestHubContext<TerminalHub>(terminalClients),
+            new NoOpStatsService(),
             NullLogger<WorkerHub>.Instance)!;
 
     private static TerminalHub CreateTerminalHub(ISessionCoordinator sessions, IReplayCache replayCache, TimeProvider timeProvider)
@@ -261,7 +263,8 @@ public sealed class WorkerHubTests
             replayCache,
             timeProvider,
             new NoOpWorkerCommandDispatcher(),
-            new SessionLaunchCoordinator(sessions, new NoOpWorkerCommandDispatcher()))!;
+            new SessionLaunchCoordinator(sessions, new NoOpWorkerCommandDispatcher()),
+            new NoOpStatsService())!;
 
     [Fact]
     public async Task OnDisconnectedAsync_ExpiresAttachedSessionsAndNotifiesClients()

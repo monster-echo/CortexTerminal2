@@ -174,11 +174,11 @@ static object ToSessionDetailResponse(
         CurrentWorkerConnectionId = currentWorker?.ConnectionId,
         WorkerConnectionStatus = workerConnectionStatus,
         WorkerOnline = currentWorker is not null,
-        WorkerName = currentWorker?.Metadata?.Name ?? workerRecord?.Name,
-        WorkerHostname = currentWorker?.Metadata?.Hostname ?? workerRecord?.Hostname,
-        WorkerOperatingSystem = currentWorker?.Metadata?.OperatingSystem ?? workerRecord?.OperatingSystem,
-        WorkerArchitecture = currentWorker?.Metadata?.Architecture ?? workerRecord?.Architecture,
-        WorkerVersion = currentWorker?.Metadata?.Version ?? workerRecord?.Version,
+        WorkerName = workerRecord?.Name,
+        WorkerHostname = workerRecord?.Hostname,
+        WorkerOperatingSystem = workerRecord?.OperatingSystem,
+        WorkerArchitecture = workerRecord?.Architecture,
+        WorkerVersion = workerRecord?.Version,
         WorkerLastSeenAt = currentWorker?.LastSeenAtUtc ?? workerRecord?.LastSeenAtUtc
     };
 }
@@ -454,7 +454,7 @@ app.MapPost("/api/auth/refresh", async (ClaimsPrincipal user, IServiceProvider s
                 existingRole = dbUser.Role;
             }
         }
-        catch (InvalidOperationException) { }
+        catch (Exception) { }
     }
 
     var accessToken = isWorker ? CreateWorkerAccessToken(userId) : CreateAccessToken(userId, role: existingRole);
@@ -1491,15 +1491,20 @@ app.MapGet("/api/admin/sessions", async (ClaimsPrincipal user, IServiceProvider 
     var workers = serviceProvider.GetRequiredService<CortexTerminal.Gateway.Workers.IWorkerRegistry>();
 
     var activeSessions = sessions.GetAllActiveSessions();
+
+    using var adminScope = serviceProvider.CreateScope();
+    var adminDb = adminScope.ServiceProvider.GetRequiredService<CortexTerminal.Gateway.Data.AppDbContext>();
+
     var summaries = activeSessions.Select(s =>
     {
         workers.TryGetWorker(s.WorkerId, out var worker);
+        var dbRecord = adminDb.Workers.Find(s.WorkerId);
         return new
         {
             s.SessionId,
             s.UserId,
             s.WorkerId,
-            WorkerName = worker?.Metadata?.Name ?? worker?.Metadata?.Hostname ?? s.WorkerId,
+            WorkerName = dbRecord?.Name ?? dbRecord?.Hostname ?? s.WorkerId,
             Status = s.AttachmentState.ToString(),
             s.CreatedAtUtc,
             s.LastActivityAtUtc,
@@ -1604,7 +1609,7 @@ app.MapGet("/api/me/workers/{workerId}", async (string workerId, ClaimsPrincipal
     });
 }).RequireAuthorization();
 
-app.MapPost("/api/me/workers/{workerId}/upgrade", async (string workerId, ClaimsPrincipal user, IWorkerRegistry workers, IWorkerCommandDispatcher dispatcher) =>
+app.MapPost("/api/me/workers/{workerId}/upgrade", async (string workerId, ClaimsPrincipal user, IWorkerRegistry workers, IWorkerCommandDispatcher dispatcher, IServiceProvider serviceProvider) =>
 {
     var userId = GetUserId(user);
     if (!workers.TryGetWorker(workerId, out var worker))
@@ -1626,20 +1631,27 @@ app.MapPost("/api/me/workers/{workerId}/upgrade", async (string workerId, Claims
         return Results.BadRequest(new { error = "Could not determine latest worker version." });
     }
 
+    WorkerRecord? workerRecord;
+    using (var scope = serviceProvider.CreateScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<CortexTerminal.Gateway.Data.AppDbContext>();
+        workerRecord = await db.Workers.FindAsync(workerId);
+    }
+
     // Skip if already on the target version (normalize trailing .0 segments, e.g. "0.4.0.0" → "0.4")
-    var currentVersion = worker.Metadata?.Version;
+    var currentVersion = workerRecord?.Version;
     if (currentVersion is not null
         && NormalizeVersion(currentVersion) == NormalizeVersion(latestVersion))
     {
         return Results.Ok(new { message = "Already up to date.", TargetVersion = latestVersion });
     }
 
-    if (worker.Metadata is null)
+    if (workerRecord?.OperatingSystem is null)
     {
         return Results.BadRequest(new { error = "Worker metadata not available. Please try again after the worker reconnects." });
     }
 
-    var assetName = WorkerReleaseAsset.GetAssetName(worker.Metadata.OperatingSystem, worker.Metadata.Architecture);
+    var assetName = WorkerReleaseAsset.GetAssetName(workerRecord.OperatingSystem, workerRecord.Architecture);
     var githubProxy = builder.Configuration["GitHub:Proxy"] ?? "https://proxy.0x2a.top";
     var downloadUrl = $"{githubProxy}/https://github.com/{githubRepo}/releases/latest/download/{assetName}";
 

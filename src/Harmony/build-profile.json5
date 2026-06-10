@@ -5,13 +5,13 @@
         "name": "default",
         "type": "HarmonyOS",
         "material": {
-          "certpath": "/Volumes/MacMiniDisk/Users/echo/.ohos/config/default_Harmony_HnF8a7Uyvrc5G0yM8GOeZcJ-u6-OowP91NxpDiMSmZM=.cer",
-          "keyAlias": "debugKey",
-          "keyPassword": "0000001BBA0E4501879B4E8F93C6E2FFCA5C28C7FB11B6F9E8F0C86FC81AE944B4987BAD55F2255BB043FD",
-          "profile": "/Volumes/MacMiniDisk/Users/echo/.ohos/config/default_Harmony_HnF8a7Uyvrc5G0yM8GOeZcJ-u6-OowP91NxpDiMSmZM=.p7b",
+          "storeFile": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/.local/harmony-debug/cortexterminal-debug.p12",
+          "storePassword": "0000001B0FD211F8A56CEF03CAF17C26D6D59B694A886CCDBDCFD97EA328A85EEA099AE804074C954099D2",
+          "keyAlias": "cortexterminal-debug",
+          "keyPassword": "0000001BD33B14BD1AA45376E3D6BDBDD7D16E3C60DE997065123E46D5DEA8A65BCF49F1DE29F321C947E3",
           "signAlg": "SHA256withECDSA",
-          "storeFile": "/Volumes/MacMiniDisk/Users/echo/.ohos/config/default_Harmony_HnF8a7Uyvrc5G0yM8GOeZcJ-u6-OowP91NxpDiMSmZM=.p12",
-          "storePassword": "0000001BC330EF276CC07CEAEDD8FCC384D2E55D6195712626B39B097C9E2120F23A5C28CD48588CB2314F"
+          "profile": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/.local/harmony-debug/coterxterminal-debug.p7b",
+          "certpath": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/.local/harmony-debug/cortexterminal-debug.cer"
         }
       },
       {

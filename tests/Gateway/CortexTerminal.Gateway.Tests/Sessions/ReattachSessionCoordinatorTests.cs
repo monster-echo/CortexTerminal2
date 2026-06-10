@@ -105,8 +105,15 @@ public sealed class ReattachSessionCoordinatorTests
         var createResult = await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), clientConnectionId: null, CancellationToken.None);
         var sessionId = createResult.Response!.SessionId;
         var detachedAtUtc = new DateTimeOffset(2025, 1, 1, 12, 0, 0, TimeSpan.Zero);
+        var sessions = GetSessions(coordinator);
 
         await coordinator.DetachSessionAsync("user-1", sessionId, detachedAtUtc, CancellationToken.None);
+        // Manually set to DetachedGracePeriod with an expired lease to test this code path
+        sessions[sessionId] = sessions[sessionId] with
+        {
+            AttachmentState = SessionAttachmentState.DetachedGracePeriod,
+            LeaseExpiresAtUtc = detachedAtUtc.AddMinutes(5)
+        };
 
         var result = await coordinator.ReattachSessionAsync(
             "user-1",

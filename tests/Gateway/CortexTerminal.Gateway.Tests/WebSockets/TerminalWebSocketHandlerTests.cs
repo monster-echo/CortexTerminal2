@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using CortexTerminal.Contracts.Sessions;
 using CortexTerminal.Gateway.Sessions;
+using CortexTerminal.Gateway.Stats;
 using CortexTerminal.Gateway.Tests.Hubs;
 using CortexTerminal.Gateway.WebSockets;
 using CortexTerminal.Gateway.Workers;
@@ -70,7 +71,7 @@ public sealed class TerminalWebSocketHandlerTests
         var workers = new InMemoryWorkerRegistry();
         workers.Register("worker-ws-1", "worker-connection-1");
 
-        var sessions = new InMemorySessionCoordinator(workers, new FixedTimeProvider(DateTimeOffset.UnixEpoch));
+        var sessions = new InMemorySessionCoordinator(workers, timeProvider: new FixedTimeProvider(DateTimeOffset.UnixEpoch));
         var dispatcher = new NoOpWorkerCommandDispatcher();
         var launcher = new SessionLaunchCoordinator(sessions, dispatcher);
         var created = await launcher.CreateSessionAsync(
@@ -87,6 +88,7 @@ public sealed class TerminalWebSocketHandlerTests
             dispatcher,
             launcher,
             new FixedTimeProvider(DateTimeOffset.UnixEpoch.AddSeconds(1)),
+            new NoOpStatsService(),
             NullLogger<TerminalWebSocketHandler>.Instance);
 
         return (handler, created.Response!.SessionId);

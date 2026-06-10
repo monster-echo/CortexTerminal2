@@ -14,10 +14,10 @@ public sealed class InMemorySessionCoordinator : ISessionCoordinator
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<InMemorySessionCoordinator> _logger;
 
-    public InMemorySessionCoordinator(IWorkerRegistry workers, ILogger<InMemorySessionCoordinator> logger, TimeProvider? timeProvider = null)
+    public InMemorySessionCoordinator(IWorkerRegistry workers, ILogger<InMemorySessionCoordinator>? logger = null, TimeProvider? timeProvider = null)
     {
         _workers = workers;
-        _logger = logger;
+        _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance.CreateLogger<InMemorySessionCoordinator>();
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
 

@@ -10,9 +10,15 @@ public sealed class WorkerReleaseAssetTests
     [InlineData("Darwin 24.0.0", "Arm64", "corterm-osx-arm64.tar.gz")]
     [InlineData("Windows 11", "X64", "corterm-win-x64.zip")]
     [InlineData("Linux", "Arm64", "corterm-linux-arm64.tar.gz")]
-    [InlineData(null, null, "corterm-linux-x64.tar.gz")]
     public void GetAssetName_ReturnsReleaseArtifactName(string? operatingSystem, string? architecture, string expected)
     {
         WorkerReleaseAsset.GetAssetName(operatingSystem, architecture).Should().Be(expected);
+    }
+
+    [Fact]
+    public void GetAssetName_Throws_WhenOperatingSystemIsNull()
+    {
+        var act = () => WorkerReleaseAsset.GetAssetName(null, "Arm64");
+        act.Should().Throw<InvalidOperationException>();
     }
 }
