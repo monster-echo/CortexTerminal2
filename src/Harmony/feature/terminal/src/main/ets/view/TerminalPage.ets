@@ -7,6 +7,8 @@
  * Handles background/foreground session recovery and keyboard resize.
  */
 import { buffer } from '@kit.ArkTS'
+import { common } from '@kit.AbilityKit'
+import { window } from '@kit.ArkUI'
 import { webview } from '@kit.ArkWeb'
 import { pasteboard } from '@kit.BasicServicesKit'
 import { TerminalNavParam, RouteName, I18n, AnalyticsService, lightHaptic, clickHaptic } from '@rwecho/core'
@@ -149,6 +151,15 @@ export struct TerminalPage {
   private connectTimer: number = -1
   private pageVisible: boolean = true
 
+  private applyStatusBar(forceWhite: boolean): void {
+    const context = getContext(this) as common.UIAbilityContext
+    window.getLastWindow(context).then((win: window.Window) => {
+      win.setWindowSystemBarProperties({
+        statusBarContentColor: forceWhite ? '#ffffff' : '#000000'
+      })
+    }).catch(() => {})
+  }
+
   onKeyboardHeightChange() {
     if (this.webviewReady) {
       setTimeout(() => { this.fitAndResize() }, 100)
@@ -172,12 +183,15 @@ export struct TerminalPage {
     if (!this.transport.isConnected) {
       this.connectSession()
     }
-    // Terminal always uses dark theme — signal EntryAbility to set white status bar
+    // Terminal always uses dark theme — set white status bar text
     AppStorage.setOrCreate('terminalPageActive', true)
+    this.applyStatusBar(true)
   }
 
   aboutToDisappear() {
     AppStorage.setOrCreate('terminalPageActive', false)
+    const isDark = AppStorage.get<string>('colorMode') !== 'light'
+    this.applyStatusBar(isDark)
     this.pageVisible = false
     if (this.connectTimer !== -1) {
       clearTimeout(this.connectTimer)

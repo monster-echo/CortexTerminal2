@@ -2,7 +2,6 @@
  * @file Index.ets
  * @brief Root Navigation shell — minimal router + auth state watcher.
  */
-import { window } from '@kit.ArkUI'
 import { DynamicsRouter, Interceptor } from 'routermodule'
 import { AuthInterceptorExecute } from '../interceptor/AuthInterceptor'
 import { AuthService, RouteName } from '@rwecho/core'
@@ -17,13 +16,9 @@ struct Index {
   @Provide('pageStack') pageStack: NavPathStack = DynamicsRouter.navPathStack
   @StorageLink('authToken') @Watch('onAuthChanged') authToken: string = ''
   @StorageLink('isLoggedIn') @Watch('onAuthChanged') isLoggedIn: boolean = false
-  @StorageLink('terminalPageActive') @Watch('onTerminalPageChanged') terminalPageActive: boolean = false
   private isInitialized: boolean = false
-  private mainWindow: window.Window | null = null
 
   aboutToAppear() {
-    this.mainWindow = this.getUIContext().getHostWindow()
-
     Interceptor.registerInterceptorPage(new AuthInterceptorExecute())
 
     console.info(`[Index] Startup: isLoggedIn=${this.isLoggedIn} token=${this.authToken.length > 0 ? 'yes' : 'no'}`)
@@ -36,15 +31,6 @@ struct Index {
       this.pageStack.replacePath({ name: RouteName.AUTH_LOGIN })
     }
     this.isInitialized = true
-  }
-
-  onTerminalPageChanged() {
-    if (this.mainWindow) {
-      const isDark = AppStorage.get<string>('colorMode') !== 'light'
-      this.mainWindow.setWindowSystemBarProperties({
-        statusBarContentColor: (isDark || this.terminalPageActive) ? '#ffffff' : '#000000'
-      })
-    }
   }
 
   onAuthChanged() {
