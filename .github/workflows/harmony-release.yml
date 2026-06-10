@@ -157,12 +157,12 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: app-bundle
-          path: /tmp
+          path: /tmp/harmony-publish
 
       - name: Compute file metadata
         id: file-meta
         run: |
-          APP_FILE=$(ls /tmp/cortexterminal-*.app | head -1)
+          APP_FILE=$(ls /tmp/harmony-publish/cortexterminal-*.app | head -1)
           FILE_SIZE=$(stat -f%z "$APP_FILE")
           SHA256=$(shasum -a 256 "$APP_FILE" | cut -d' ' -f1)
           FILE_NAME=$(basename "$APP_FILE")
