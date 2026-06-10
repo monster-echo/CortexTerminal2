@@ -159,6 +159,18 @@ jobs:
           name: app-bundle
           path: /tmp
 
+      - name: Compute file metadata
+        id: file-meta
+        run: |
+          APP_FILE=$(ls /tmp/cortexterminal-*.app | head -1)
+          FILE_SIZE=$(stat -f%z "$APP_FILE")
+          SHA256=$(shasum -a 256 "$APP_FILE" | cut -d' ' -f1)
+          FILE_NAME=$(basename "$APP_FILE")
+          echo "file=$APP_FILE" >> "$GITHUB_OUTPUT"
+          echo "size=$FILE_SIZE" >> "$GITHUB_OUTPUT"
+          echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
+          echo "name=$FILE_NAME" >> "$GITHUB_OUTPUT"
+
       - name: Get AGConnect Access Token (API Client)
         id: auth
         run: |
@@ -180,46 +192,54 @@ jobs:
         id: upload-url
         run: |
           RESPONSE=$(curl -s -w "\n%{http_code}" -X GET \
-            "https://connect-api.cloud.huawei.com/api/publish/v2/upload-url?appId=${{ secrets.AGC_APP_ID }}&suffix=app&releaseType=1" \
+            "https://connect-api.cloud.huawei.com/api/publish/v2/upload-url/for-obs?appId=${{ secrets.AGC_APP_ID }}&fileName=${{ steps.file-meta.outputs.name }}&contentLength=${{ steps.file-meta.outputs.size }}&sha256=${{ steps.file-meta.outputs.sha256 }}&releaseType=1" \
             -H "Authorization: Bearer ${{ steps.auth.outputs.token }}" \
             -H "client_id: ${{ secrets.AGC_CLIENT_ID }}")
           HTTP_CODE=$(echo "$RESPONSE" | tail -1)
           BODY=$(echo "$RESPONSE" | sed '$d')
           echo "::group::Upload URL response (HTTP $HTTP_CODE)"
-          echo "$BODY"
+          echo "$BODY" | jq .
           echo "::endgroup::"
-          UPLOAD_URL=$(echo "$BODY" | jq -r '.uploadUrl // .result.uploadUrl // .url // .data.url' 2>/dev/null || echo "")
+          UPLOAD_URL=$(echo "$BODY" | jq -r '.url // .data.url // .result.url' 2>/dev/null || echo "")
+          OBJECT_ID=$(echo "$BODY" | jq -r '.objectId // .data.objectId // .result.objectId' 2>/dev/null || echo "")
+          HEADERS_JSON=$(echo "$BODY" | jq -c '.headers // .data.headers // .result.headers' 2>/dev/null || echo "")
           if [ -z "$UPLOAD_URL" ] || [ "$UPLOAD_URL" = "null" ]; then
             echo "::error::Failed to get upload URL (HTTP $HTTP_CODE): $BODY"
             exit 1
           fi
           echo "upload_url=$UPLOAD_URL" >> "$GITHUB_OUTPUT"
+          echo "object_id=$OBJECT_ID" >> "$GITHUB_OUTPUT"
+          echo "$HEADERS_JSON" > /tmp/obs-headers.json
           echo "$BODY" > /tmp/upload-url-response.json
 
       - name: Upload APP file to AppGallery
         id: upload-file
         run: |
-          APP_FILE=$(ls /tmp/cortexterminal-*.app | head -1)
-          UPLOAD_URL=$(jq -r '.uploadUrl // .result.uploadUrl // .url // .data.url' /tmp/upload-url-response.json)
-          AUTH_CODE=$(jq -r '.authCode // .result.authCode // .data.authCode // .data.auth_code' /tmp/upload-url-response.json)
+          APP_FILE="${{ steps.file-meta.outputs.file }}"
+          UPLOAD_URL="${{ steps.upload-url.outputs.upload_url }}"
 
-          RESPONSE=$(curl -s -X PUT "$UPLOAD_URL" \
-            -H "Authorization: Bearer ${{ steps.auth.outputs.token }}" \
-            -H "client_id: ${{ secrets.AGC_CLIENT_ID }}" \
-            -F "file=@$APP_FILE" \
-            -F "auth_code=$AUTH_CODE" \
-            -F "fileCount=1")
-          echo "::group::Upload response"
-          echo "$RESPONSE" | jq .
-          echo "::endgroup::"
-          FILE_DEST=$(echo "$RESPONSE" | jq -r '.result.UploadFileRsp.fileInfoList[0].fileDestUlr // .fileContent // .data.fileContent')
-          if [ -z "$FILE_DEST" ] || [ "$FILE_DEST" = "null" ]; then
-            echo "::error::File upload failed: $RESPONSE"
+          OBS_AUTH=$(jq -r '.Authorization // empty' /tmp/obs-headers.json)
+          OBS_SHA256=$(jq -r '.["x-amz-content-sha256"] // empty' /tmp/obs-headers.json)
+          OBS_DATE=$(jq -r '.["x-amz-date"] // empty' /tmp/obs-headers.json)
+          OBS_HOST=$(jq -r '.Host // empty' /tmp/obs-headers.json)
+          OBS_UA=$(jq -r '.["user-agent"] // empty' /tmp/obs-headers.json)
+          OBS_CT=$(jq -r '.["Content-Type"] // empty' /tmp/obs-headers.json)
+
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X PUT "$UPLOAD_URL" \
+            -H "Authorization: $OBS_AUTH" \
+            -H "x-amz-content-sha256: $OBS_SHA256" \
+            -H "x-amz-date: $OBS_DATE" \
+            -H "Host: $OBS_HOST" \
+            -H "user-agent: $OBS_UA" \
+            -H "Content-Type: $OBS_CT" \
+            --data-binary "@$APP_FILE")
+
+          echo "Upload HTTP status: $HTTP_CODE"
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::File upload failed with HTTP $HTTP_CODE"
             exit 1
           fi
-          echo "file_dest=$FILE_DEST" >> "$GITHUB_OUTPUT"
-          FILE_NAME=$(basename "$APP_FILE")
-          echo "file_name=$FILE_NAME" >> "$GITHUB_OUTPUT"
+          echo "file_name=${{ steps.file-meta.outputs.name }}" >> "$GITHUB_OUTPUT"
 
       - name: Update App File Info
         run: |
@@ -228,7 +248,7 @@ jobs:
             -H "Authorization: Bearer ${{ steps.auth.outputs.token }}" \
             -H "client_id: ${{ secrets.AGC_CLIENT_ID }}" \
             -H "Content-Type: application/json" \
-            -d "{\"fileType\":5,\"files\":{\"fileName\":\"${{ steps.upload-file.outputs.file_name }}\",\"fileDestUrl\":\"${{ steps.upload-file.outputs.file_dest }}\"}}")
+            -d "{\"fileType\":5,\"files\":{\"fileName\":\"${{ steps.upload-file.outputs.file_name }}\",\"fileDestUrl\":\"${{ steps.upload-url.outputs.object_id }}\"}}")
           echo "::group::Update app file info response"
           echo "$RESPONSE" | jq .
           echo "::endgroup::"
