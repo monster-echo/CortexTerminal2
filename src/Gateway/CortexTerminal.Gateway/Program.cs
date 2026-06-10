@@ -1011,7 +1011,7 @@ app.MapPost("/api/auth/huawei/quick-login", async (HuaweiQuickLoginRequest reque
         var actualPhone = purePhoneNumber ?? phoneNumber!;
         var providerId = phoneNumber ?? $"+86{purePhoneNumber!}";
         var last4 = actualPhone.Length >= 4 ? actualPhone[^4..] : actualPhone;
-        var username = $"hw_{last4}";
+        var username = $"hw_{actualPhone}";
         var displayName = $"{actualPhone[..3]}****{last4}";
 
         var dbUser = await EnsureUser(serviceProvider, username, null, displayName, null, "huawei", providerId);
@@ -1634,7 +1634,12 @@ app.MapPost("/api/me/workers/{workerId}/upgrade", async (string workerId, Claims
         return Results.Ok(new { message = "Already up to date.", TargetVersion = latestVersion });
     }
 
-    var assetName = WorkerReleaseAsset.GetAssetName(worker.Metadata?.OperatingSystem, worker.Metadata?.Architecture);
+    if (worker.Metadata is null)
+    {
+        return Results.BadRequest(new { error = "Worker metadata not available. Please try again after the worker reconnects." });
+    }
+
+    var assetName = WorkerReleaseAsset.GetAssetName(worker.Metadata.OperatingSystem, worker.Metadata.Architecture);
     var githubProxy = builder.Configuration["GitHub:Proxy"] ?? "https://proxy.0x2a.top";
     var downloadUrl = $"{githubProxy}/https://github.com/{githubRepo}/releases/latest/download/{assetName}";
 

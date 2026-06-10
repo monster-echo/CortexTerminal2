@@ -1,11 +1,22 @@
-import { SessionInfo, I18n, RouteName, TerminalNavParam, showI18nToast, AnalyticsService, AnalyticsEvent, lightHaptic, clickHaptic } from '@rwecho/core'
+import { SessionInfo, WorkerInfo, I18n, RouteName, TerminalNavParam, showI18nToast, showToast, AnalyticsService, AnalyticsEvent, lightHaptic, clickHaptic, AppConstants } from '@rwecho/core'
 import { SessionCard } from './SessionCard'
 import { CreateSessionSheet } from './CreateSessionSheet'
 import { SessionService } from '../service/SessionService'
+import { pasteboard } from '@kit.BasicServicesKit'
+
+class TerminalLine {
+  type: string = ''
+  text: string = ''
+  constructor(type: string, text: string) {
+    this.type = type
+    this.text = text
+  }
+}
 
 @Component
 export struct SessionHomePage {
   @State allSessions: SessionInfo[] = []
+  @State workers: WorkerInfo[] = []
   @State isLoading: boolean = false
   @State errorMessage: string = ''
   @State isRefreshing: boolean = false
@@ -88,15 +99,31 @@ export struct SessionHomePage {
           .alignItems(HorizontalAlign.Center)
           .padding({ left: 20, right: 20 })
         } else if (this.allSessions.length === 0) {
-          Column() {
-            Text(I18n.get('session.home.empty_history'))
-              .fontSize(16)
-              .fontColor($r('app.color.terminal_on_surface_variant'))
-              .margin({ top: 40 })
+          Scroll() {
+            Column() {
+              if (this.workers.length === 0) {
+                this.TerminalGuide()
+              } else if (!this.workers.some((w: WorkerInfo) => w.isOnline)) {
+                Column() {
+                  Text(I18n.get('session.home.empty_active_offline'))
+                    .fontSize(14)
+                    .fontColor($r('app.color.terminal_on_surface_variant'))
+                }
+                .margin({ top: 40 })
+              } else {
+                Column() {
+                  Text(I18n.get('session.home.empty_active_online'))
+                    .fontSize(14)
+                    .fontColor($r('app.color.terminal_secondary'))
+                }
+                .margin({ top: 40 })
+              }
+            }
+            .width('100%')
+            .padding({ left: 16, right: 16, top: 8 })
           }
-          .width('100%')
-          .alignItems(HorizontalAlign.Center)
-          .padding({ left: 20, right: 20 })
+          .layoutWeight(1)
+          .scrollBar(BarState.Off)
         } else {
           List({ space: 8 }) {
             ForEach(this.allSessions, (session: SessionInfo) => {
@@ -329,11 +356,132 @@ export struct SessionHomePage {
         return timeB - timeA
       })
       this.allSessions = all
+      this.workers = data.workers
     } catch (e) {
       this.errorMessage = (e as Error).message
     } finally {
       this.isLoading = false
       this.isRefreshing = false
     }
+  }
+
+  // ── Terminal Install Guide ─────────────────────────────────────
+
+  @Builder
+  TerminalGuide() {
+    Column({ space: 12 }) {
+      this.TerminalBlock(I18n.get('session.home.guide.title'), [
+        new TerminalLine('comment', I18n.get('session.home.guide.no_session')),
+        new TerminalLine('comment', I18n.get('session.home.guide.need_worker')),
+        new TerminalLine('success', I18n.get('session.home.guide.follow_steps'))
+      ])
+
+      this.TerminalBlock(I18n.get('session.home.guide.step1_mac'), [
+        new TerminalLine('command', 'curl -fsSL https://corterm.rwecho.top/install.sh | sh')
+      ])
+
+      this.TerminalBlock(I18n.get('session.home.guide.step1_win'), [
+        new TerminalLine('command', 'powershell -Command "irm https://corterm.rwecho.top/install.ps1 | iex"')
+      ])
+
+      this.TerminalBlock(I18n.get('session.home.guide.step2_activate'), [
+        new TerminalLine('comment', I18n.get('session.home.guide.auto_activate')),
+        new TerminalLine('link', I18n.get('session.home.guide.visit'))
+      ])
+
+      // Activate button
+      Button(I18n.get('session.home.guide.enter_code'))
+        .width('100%')
+        .height(44)
+        .borderRadius(10)
+        .backgroundColor($r('app.color.terminal_secondary_container'))
+        .fontColor($r('app.color.terminal_on_secondary_container'))
+        .fontSize(14)
+        .fontWeight(FontWeight.Medium)
+        .onClick(() => {
+          clickHaptic()
+          this.pageStack.pushPath({ name: RouteName.ACTIVATE_WORKER })
+        })
+
+      this.TerminalBlock(I18n.get('session.home.guide.step3_start'), [
+        new TerminalLine('comment', I18n.get('session.home.guide.back_refresh')),
+        new TerminalLine('comment', I18n.get('session.home.guide.create_session')),
+        new TerminalLine('success', I18n.get('session.home.guide.ready'))
+      ])
+    }
+  }
+
+  @Builder
+  TerminalBlock(title: string, lines: TerminalLine[]) {
+    Column() {
+      Row() {
+        Row().width(8).height(8).borderRadius(4).backgroundColor('#ff5f57')
+        Row().width(8).height(8).borderRadius(4).backgroundColor('#febc2e').margin({ left: 6 })
+        Row().width(8).height(8).borderRadius(4).backgroundColor('#28c840').margin({ left: 6 })
+        Text(title)
+          .fontSize(11)
+          .fontColor($r('app.color.terminal_on_surface_variant'))
+          .margin({ left: 12 })
+          .layoutWeight(1)
+      }
+      .padding({ left: 12, right: 12, top: 8, bottom: 8 })
+
+      Divider().color('#21262d')
+
+      Column() {
+        ForEach(lines, (line: TerminalLine) => {
+          if (line.type === 'command') {
+            Row() {
+              Text('$ ')
+                .fontSize(12)
+                .fontColor('#58a6ff')
+                .fontFamily('monospace')
+              Text(line.text)
+                .fontSize(12)
+                .fontColor('#c9d1d9')
+                .fontFamily('monospace')
+                .layoutWeight(1)
+                .copyOption(CopyOptions.InApp)
+              Text('📋')
+                .fontSize(14)
+                .fontColor($r('app.color.terminal_on_surface_variant'))
+                .onClick(() => { this.copyToClipboard(line.text) })
+            }
+            .width('100%')
+            .alignItems(VerticalAlign.Center)
+          } else if (line.type === 'comment') {
+            Text(line.text)
+              .fontSize(12)
+              .fontColor('#8b949e')
+              .fontFamily('monospace')
+              .width('100%')
+          } else if (line.type === 'success') {
+            Text(line.text)
+              .fontSize(12)
+              .fontColor('#3fb950')
+              .fontFamily('monospace')
+              .width('100%')
+          } else if (line.type === 'link') {
+            Text(line.text)
+              .fontSize(12)
+              .fontColor('#58a6ff')
+              .fontFamily('monospace')
+              .width('100%')
+          }
+        }, (line: TerminalLine, idx: number) => `${idx}`)
+      }
+      .padding(12)
+      .alignItems(HorizontalAlign.Start)
+    }
+    .borderRadius(10)
+    .backgroundColor('#0d1117')
+    .clip(true)
+  }
+
+  private copyToClipboard(text: string) {
+    const pasteboardData = pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, text)
+    const systemPasteboard = pasteboard.getSystemPasteboard()
+    systemPasteboard.setData(pasteboardData)
+    showToast(I18n.get('session.home.guide.copied'))
   }
 }
