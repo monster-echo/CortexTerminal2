@@ -80,3 +80,5 @@ jobs:
           platforms: linux/amd64,linux/arm64
           build-args: |
             VERSION=${{ steps.version.outputs.VERSION }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

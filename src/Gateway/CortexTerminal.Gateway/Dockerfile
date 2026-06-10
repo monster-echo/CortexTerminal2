@@ -1,13 +1,14 @@
-# ===== Stage 1: Build Frontend =====
-FROM node:22-slim AS frontend
+# ===== Stage 1: Build Frontend (native platform, no QEMU) =====
+FROM --platform=$BUILDPLATFORM node:22-slim AS frontend
 WORKDIR /build
 COPY src/Gateway/CortexTerminal.Console/package.json src/Gateway/CortexTerminal.Console/package-lock.json ./
 RUN npm ci
 COPY src/Gateway/CortexTerminal.Console/ ./
 RUN npm run build -- --outDir /build/dist
 
-# ===== Stage 2: Build .NET =====
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+# ===== Stage 2: Build .NET (native platform, cross-compile via -a $TARGETARCH) =====
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+ARG TARGETARCH
 ARG VERSION=0.0.0
 WORKDIR /src
 COPY src/Shared/CortexTerminal.Contracts/ ./src/Shared/CortexTerminal.Contracts/
@@ -15,7 +16,7 @@ COPY src/Gateway/CortexTerminal.Gateway/ ./src/Gateway/CortexTerminal.Gateway/
 COPY CortexTerminal.sln Directory.Build.props ./
 COPY --from=frontend /build/dist ./src/Gateway/CortexTerminal.Gateway/wwwroot/
 RUN dotnet publish src/Gateway/CortexTerminal.Gateway/CortexTerminal.Gateway.csproj \
-    -c Release -p:Version=${VERSION} -o /app/publish
+    -c Release -p:Version=${VERSION} -a $TARGETARCH -o /app/publish
 
 # ===== Stage 3: Runtime =====
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
