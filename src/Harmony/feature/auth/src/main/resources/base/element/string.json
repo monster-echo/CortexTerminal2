@@ -1,0 +1,13 @@
+{
+  "string": [
+    { "name": "app_name", "value": "Corterm" },
+    { "name": "login_tagline", "value": "Your Cloud Terminal, Always Connected" },
+    { "name": "activate_title", "value": "Activate Worker" },
+    { "name": "activate_subtitle", "value": "Enter the activation code from your worker machine" },
+    { "name": "activate_code_label", "value": "Activation Code" },
+    { "name": "activate_code_placeholder", "value": "XXXX-XXXX" },
+    { "name": "activate_button", "value": "Activate" },
+    { "name": "activate_skip", "value": "Skip for now" },
+    { "name": "activate_success", "value": "Worker activated successfully!" }
+  ]
+}

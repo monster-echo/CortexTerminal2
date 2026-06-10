@@ -5,7 +5,7 @@
  * Provides the main terminal navigation destination that hosts
  * TerminalHome. The shell Navigation handles routing.
  */
-import { TerminalHome } from './view/TerminalHome'
+import { TerminalPage } from './view/TerminalPage'
 
 /**
  * Main TerminalComponent that acts as a NavDestination wrapper.
@@ -15,7 +15,7 @@ import { TerminalHome } from './view/TerminalHome'
 export struct TerminalComponent {
   build() {
     NavDestination() {
-      TerminalHome()
+      TerminalPage()
     }
     .hideTitleBar(true)
     .backgroundColor($r('app.color.terminal_surface'))

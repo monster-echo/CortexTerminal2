@@ -1,0 +1,13 @@
+{
+  "string": [
+    { "name": "app_name", "value": "云枢终端" },
+    { "name": "login_tagline", "value": "随时连接你的云端终端" },
+    { "name": "activate_title", "value": "激活工作节点" },
+    { "name": "activate_subtitle", "value": "输入工作节点上的激活码" },
+    { "name": "activate_code_label", "value": "激活码" },
+    { "name": "activate_code_placeholder", "value": "XXXX-XXXX" },
+    { "name": "activate_button", "value": "激活" },
+    { "name": "activate_skip", "value": "暂时跳过" },
+    { "name": "activate_success", "value": "工作节点激活成功！" }
+  ]
+}
