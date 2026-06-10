@@ -32,7 +32,7 @@
       {
         "name": "default",
         "bundleName": "top.rwecho.cortexterminal",
-        "signingConfig": "release",
+        "signingConfig": "default",
         "compileSdkVersion": "6.1.0(23)",
         "compatibleSdkVersion": "5.0.0(12)",
         "runtimeOS": "HarmonyOS",
