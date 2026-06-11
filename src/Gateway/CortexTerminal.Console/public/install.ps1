@@ -88,7 +88,7 @@ function Add-ToPath {
     }
 }
 
-# ---- Install startup shortcut (auto-start) ----
+# ---- Install scheduled task (auto-start + crash recovery) ----
 function Install-Service {
     $exePath = Join-Path $INSTALL_DIR "$BIN_NAME.exe"
 
@@ -96,25 +96,46 @@ function Install-Service {
         return
     }
 
+    $taskName = "Corterm Worker"
+
+    # Remove old Startup shortcut if present
     $startupFolder = [Environment]::GetFolderPath('Startup')
     $shortcutPath = Join-Path $startupFolder "Corterm Worker.lnk"
-
     if (Test-Path $shortcutPath) {
-        Write-Info "Startup shortcut already exists. Skipping."
+        Remove-Item $shortcutPath -Force
+        Write-Info "Removed old startup shortcut."
+    }
+
+    $existingTask = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+
+    if ($existingTask) {
+        # Update the action path in case install dir changed
+        $existingAction = $existingTask.Actions | Select-Object -First 1
+        if ($existingAction.Execute -ne $exePath) {
+            Set-ScheduledTask -TaskName $taskName -Action (New-ScheduledTaskAction -Execute $exePath -WorkingDirectory $INSTALL_DIR) | Out-Null
+            Write-Ok "Updated scheduled task path."
+        } else {
+            Write-Info "Scheduled task already configured. Skipping."
+        }
         return
     }
 
-    Write-Info "Creating startup shortcut ..."
+    Write-Info "Creating scheduled task for auto-start and crash recovery ..."
 
-    $shell = New-Object -ComObject WScript.Shell
-    $shortcut = $shell.CreateShortcut($shortcutPath)
-    $shortcut.TargetPath = $exePath
-    $shortcut.WorkingDirectory = $INSTALL_DIR
-    $shortcut.WindowStyle = 7  # Minimized
-    $shortcut.Description = "Corterm Worker auto-start"
-    $shortcut.Save()
+    $action = New-ScheduledTaskAction -Execute $exePath -WorkingDirectory $INSTALL_DIR
+    $trigger = New-ScheduledTaskTrigger -AtLogOn
+    $settings = New-ScheduledTaskSettingsSet `
+        -AllowStartIfOnBatteries `
+        -DontStopIfGoingOnBatteries `
+        -StartWhenAvailable `
+        -ExecutionTimeLimit ([TimeSpan]::Zero) `
+        -RestartCount 3 `
+        -RestartInterval (New-TimeSpan -Seconds 5)
+    $principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited
 
-    Write-Ok "Startup shortcut created (auto-start on login)."
+    Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Settings $settings -Principal $principal -Description "Corterm Worker auto-start with crash recovery" | Out-Null
+
+    Write-Ok "Scheduled task created (auto-start on login, restart on crash)."
 }
 
 # ---- Start worker if already authenticated ----

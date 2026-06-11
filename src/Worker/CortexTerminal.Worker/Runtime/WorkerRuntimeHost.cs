@@ -371,16 +371,47 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
                 }
                 File.Move(stagingPath, currentBinary, overwrite: true);
 
-                _logger.LogInformation("Binary replaced. Exiting for restart ...");
+                _logger.LogInformation("Binary replaced. Restarting via OS service manager ...");
 
-                // Exit the current process. The process manager (systemd with Restart=always,
-                // or a wrapper script) will restart the binary automatically.
-                Environment.Exit(0);
+                RestartViaServiceManager();
             }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Upgrade failed.");
         }
+    }
+
+    private static void RestartViaServiceManager()
+    {
+        var isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+        var isOsx = RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
+
+        string program, args;
+        if (isWindows)
+        {
+            program = "cmd";
+            args = "/c \"taskkill /IM corterm.exe /F & schtasks /run /tn \\\"Corterm Worker\\\"\"";
+        }
+        else if (isOsx)
+        {
+            var homeDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            var plistPath = Path.Combine(homeDir, "Library/LaunchAgents/com.corterm.worker.plist");
+            program = "bash";
+            args = $"-c \"launchctl unload '{plistPath}' && launchctl load '{plistPath}'\"";
+        }
+        else
+        {
+            program = "systemctl";
+            args = "--user restart corterm-worker";
+        }
+
+        Process.Start(new ProcessStartInfo(program, args)
+        {
+            UseShellExecute = false,
+            CreateNoWindow = true
+        });
+
+        Environment.Exit(0);
     }
 }

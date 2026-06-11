@@ -77,6 +77,71 @@ static Dictionary<string, JsonElement>? DecodeJwtPayload(string token)
     }
 }
 
+// ── Helper: run OS service command (start/stop/restart) ──
+static void RunServiceCommand(string action)
+{
+    var isOsx = RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
+    var isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+    var homeDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+    var plistPath = Path.Combine(homeDir, "Library/LaunchAgents/com.corterm.worker.plist");
+
+    string program, args;
+    if (isWindows)
+    {
+        program = action switch
+        {
+            "start" => "schtasks",
+            "stop" => "taskkill",
+            "restart" => "cmd",
+            _ => throw new InvalidOperationException($"Unknown action: {action}")
+        };
+        args = action switch
+        {
+            "start" => "/run /tn \"Corterm Worker\"",
+            "stop" => "/IM corterm.exe /F",
+            "restart" => "/c \"taskkill /IM corterm.exe /F & schtasks /run /tn \\\"Corterm Worker\\\"\"",
+            _ => ""
+        };
+    }
+    else if (isOsx)
+    {
+        program = "launchctl";
+        args = action switch
+        {
+            "start" => $"load \"{plistPath}\"",
+            "stop" => $"unload \"{plistPath}\"",
+            "restart" => $"unload \"{plistPath}\" && launchctl load \"{plistPath}\"",
+            _ => ""
+        };
+    }
+    else
+    {
+        program = "systemctl";
+        args = $"--user {action} corterm-worker";
+    }
+
+    using var proc = Process.Start(new ProcessStartInfo(program, args)
+    {
+        UseShellExecute = false,
+        RedirectStandardError = true
+    });
+    if (proc is null)
+    {
+        Console.Error.WriteLine($"  Failed to run: {program} {args}");
+        Environment.ExitCode = 1;
+        return;
+    }
+    proc.WaitForExit();
+    if (proc.ExitCode != 0)
+    {
+        var stderr = proc.StandardError.ReadToEnd();
+        Console.Error.WriteLine($"  Failed to {action} worker (exit code {proc.ExitCode}).{(!string.IsNullOrEmpty(stderr) ? $"\n  {stderr.Trim()}" : "")}");
+        Environment.ExitCode = 1;
+        return;
+    }
+    Console.WriteLine($"  Worker {action}ed.");
+}
+
 // ── Helper: check if token is expired ──
 static bool IsTokenExpired(string token)
 {
@@ -148,6 +213,10 @@ statusCommand.SetAction((ParseResult parseResult) =>
     var tokenStore = new FileWorkerTokenStore(installDir);
     var token = tokenStore.GetAccessTokenAsync(CancellationToken.None).GetAwaiter().GetResult();
 
+    Console.WriteLine($"  Version: {version}");
+    Console.WriteLine($"  PID:     {Environment.ProcessId}");
+    var uptime = DateTime.UtcNow - Process.GetCurrentProcess().StartTime.ToUniversalTime();
+    Console.WriteLine($"  Uptime:  {(int)uptime.TotalDays}d {uptime.Hours}h {uptime.Minutes}m");
     Console.WriteLine($"  Gateway: {gatewayUrl}");
     Console.WriteLine($"  Worker:  {workerId}");
 
@@ -164,7 +233,43 @@ statusCommand.SetAction((ParseResult parseResult) =>
                 ? subEl.GetString()
                 : null;
         var expiry = FormatExpiry(token);
-        Console.WriteLine($"  Status:  Authenticated{(username is not null ? $" ({username})" : "")} ({expiry})");
+        Console.WriteLine($"  User:    {username ?? "unknown"}");
+        Console.WriteLine($"  Status:  Authenticated ({expiry})");
+
+        // Fetch gateway info and worker list
+        try
+        {
+            using var http = new HttpClient(new SocketsHttpHandler { Proxy = HttpClient.DefaultProxy, UseProxy = true });
+            http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+            http.Timeout = TimeSpan.FromSeconds(5);
+
+            var infoResp = http.GetFromJsonAsync<JsonElement>($"{gatewayUrl}/api/gateway/info").GetAwaiter().GetResult();
+            Console.WriteLine();
+            Console.WriteLine("  Gateway Version: " + (infoResp.TryGetProperty("version", out var gv) ? gv.GetString() : "—"));
+            var latestWorker = infoResp.TryGetProperty("latestWorkerVersion", out var lw) ? lw.GetString() : null;
+            if (latestWorker is not null)
+                Console.WriteLine($"  Latest Worker:   {latestWorker}{(latestWorker.Replace(".0", "") != version.Replace(".0", "") ? "  (update available)" : "")}");
+
+            var workersResp = http.GetFromJsonAsync<JsonElement[]>($"{gatewayUrl}/api/me/workers").GetAwaiter().GetResult();
+            if (workersResp is not null && workersResp.Length > 0)
+            {
+                Console.WriteLine();
+                Console.WriteLine("  Workers:");
+                foreach (var w in workersResp)
+                {
+                    var name = w.TryGetProperty("name", out var n) ? n.GetString() : w.TryGetProperty("workerId", out var wid) ? wid.GetString() : "?";
+                    var isOnline = w.TryGetProperty("isOnline", out var on) && on.GetBoolean();
+                    var wVer = w.TryGetProperty("version", out var wv) ? wv.GetString() : "—";
+                    var os = w.TryGetProperty("operatingSystem", out var osEl) ? osEl.GetString() : "";
+                    var statusIcon = isOnline ? "●" : "○";
+                    Console.WriteLine($"    {statusIcon} {name}  v{wVer}  {os}{(!isOnline ? "  (offline)" : "")}");
+                }
+            }
+        }
+        catch
+        {
+            // Network errors should not block status display
+        }
     }
 });
 
@@ -443,7 +548,9 @@ updateCommand.SetAction(async (ParseResult parseResult, CancellationToken cancel
 
         try { File.Delete(backupPath); } catch { }
 
-        Console.WriteLine($"  Updated to {latestVersion}. Restart the worker to apply.");
+        Console.WriteLine($"  Updated to {latestVersion}. Restarting worker ...");
+
+        RunServiceCommand("restart");
     }
     finally
     {
@@ -451,11 +558,35 @@ updateCommand.SetAction(async (ParseResult parseResult, CancellationToken cancel
     }
 });
 
+// ── start command ──
+var startCommand = new Command("start", "Start the worker service");
+startCommand.SetAction((ParseResult parseResult) =>
+{
+    RunServiceCommand("start");
+});
+
+// ── stop command ──
+var stopCommand = new Command("stop", "Stop the worker service");
+stopCommand.SetAction((ParseResult parseResult) =>
+{
+    RunServiceCommand("stop");
+});
+
+// ── restart command ──
+var restartCommand = new Command("restart", "Restart the worker service");
+restartCommand.SetAction((ParseResult parseResult) =>
+{
+    RunServiceCommand("restart");
+});
+
 rootCommand.Subcommands.Add(loginCommand);
 rootCommand.Subcommands.Add(logoutCommand);
 rootCommand.Subcommands.Add(statusCommand);
 rootCommand.Subcommands.Add(doctorCommand);
 rootCommand.Subcommands.Add(updateCommand);
+rootCommand.Subcommands.Add(startCommand);
+rootCommand.Subcommands.Add(stopCommand);
+rootCommand.Subcommands.Add(restartCommand);
 
 return await rootCommand.Parse(args).InvokeAsync();
 
