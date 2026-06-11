@@ -737,20 +737,13 @@ public partial class MainPage : ContentPage
 			if (Platform.CurrentActivity?.Window is not null)
 			{
 				var window = Platform.CurrentActivity.Window;
-#pragma warning disable CA1422
-				if (Android.OS.Build.VERSION.SdkInt >= (Android.OS.BuildVersionCodes)35)
-				{
-					window.SetStatusBarColor(Android.Graphics.Color.Transparent);
-					window.SetNavigationBarColor(Android.Graphics.Color.Transparent);
-				}
-				else
+				if (Android.OS.Build.VERSION.SdkInt < (Android.OS.BuildVersionCodes)35)
 				{
 					var statusColor = Android.Graphics.Color.ParseColor(isDark ? "#121212" : "#f4f4f5");
 					var navigationColor = Android.Graphics.Color.ParseColor(isDark ? "#121212" : "#ffffff");
 					window.SetStatusBarColor(statusColor);
 					window.SetNavigationBarColor(navigationColor);
 				}
-#pragma warning restore CA1422
 
 				var controller = AndroidX.Core.View.WindowCompat.GetInsetsController(window, window.DecorView);
 				if (controller is not null)

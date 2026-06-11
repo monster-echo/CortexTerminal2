@@ -26,21 +26,11 @@ public class MainActivity : MauiAppCompatActivity
         }
 
         // Prevent white flash on navigation bar during dark mode startup.
-        if (Window is not null)
+        // API 35+ enforces edge-to-edge by default; SetStatusBarColor/SetNavigationBarColor are deprecated.
+        if (Window is not null && Build.VERSION.SdkInt < BuildVersionCodes.VanillaIceCream)
         {
-
-#pragma warning disable CA1422
-            if (Build.VERSION.SdkInt >= BuildVersionCodes.VanillaIceCream)
-            {
-                Window.SetNavigationBarColor(Android.Graphics.Color.Transparent);
-                Window.SetStatusBarColor(Android.Graphics.Color.Transparent);
-            }
-            else
-            {
-                Window.SetNavigationBarColor(Android.Graphics.Color.ParseColor("#08080A"));
-                Window.SetStatusBarColor(Android.Graphics.Color.ParseColor("#08080A"));
-            }
-#pragma warning restore CA1422
+            Window.SetNavigationBarColor(Android.Graphics.Color.ParseColor("#08080A"));
+            Window.SetStatusBarColor(Android.Graphics.Color.ParseColor("#08080A"));
         }
     }
 
