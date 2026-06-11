@@ -35,6 +35,7 @@ public sealed class WorkerSessionRuntime : IAsyncDisposable
     public async Task StartAsync(int columns, int rows, CancellationToken cancellationToken)
     {
         _process = await _session.StartAsync(SessionId, columns, rows, cancellationToken);
+        _logger.LogDebug("Session {SessionId} PTY started ({Columns}x{Rows}).", SessionId, columns, rows);
         _stdoutPump = PumpAsync(_session.ReadStdoutChunksAsync(SessionId, _lifetime.Token), GatewayClient.ForwardStdoutAsync);
         _stderrPump = PumpAsync(_session.ReadStderrChunksAsync(SessionId, _lifetime.Token), GatewayClient.ForwardStderrAsync);
         _ = ObserveExitAsync(_process);
@@ -90,6 +91,7 @@ public sealed class WorkerSessionRuntime : IAsyncDisposable
         try
         {
             var exitCode = await process.WaitForExitAsync(_lifetime.Token);
+            _logger.LogInformation("Session {SessionId} process exited with code {ExitCode}.", SessionId, exitCode);
             await GatewayClient.ForwardExitedAsync(
                 new SessionExited(SessionId, exitCode, "process-exited"),
                 CancellationToken.None);

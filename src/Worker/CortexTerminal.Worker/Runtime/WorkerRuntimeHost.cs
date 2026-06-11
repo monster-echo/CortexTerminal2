@@ -65,6 +65,7 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         }));
         _subscriptions.Add(_gatewayClient.OnClosed(ex =>
         {
+            _logger.LogWarning(ex, "Worker {WorkerId} connection closed.", _workerId);
             _ = ReconnectLoopAsync();
             return Task.CompletedTask;
         }));
@@ -136,7 +137,7 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
     {
         await StopAsync(CancellationToken.None);
         await _gatewayClient.DisposeAsync();
-        _logger.LogInformation("Worker {WorkerId} has been disposed.", _workerId);
+        _logger.LogDebug("Worker {WorkerId} has been disposed.", _workerId);
     }
 
     private async Task RegisterWorkerAsync(CancellationToken cancellationToken)
@@ -232,7 +233,7 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
 
     private Task HandleResizeSessionAsync(ResizePtyRequest request)
     {
-        _logger.LogInformation("Received resize for session {SessionId}: {Columns}x{Rows}", request.SessionId, request.Columns, request.Rows);
+        _logger.LogDebug("Received resize for session {SessionId}: {Columns}x{Rows}", request.SessionId, request.Columns, request.Rows);
         if (!TerminalSizeLimits.IsValid(request.Columns, request.Rows))
         {
             _logger.LogWarning("Ignoring invalid resize for session {SessionId}: {Columns}x{Rows}", request.SessionId, request.Columns, request.Rows);
@@ -246,7 +247,7 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
 
     private async Task HandleCloseSessionAsync(CloseSessionRequest request)
     {
-        _logger.LogInformation("Received close for session {SessionId}", request.SessionId);
+        _logger.LogDebug("Received close for session {SessionId}", request.SessionId);
         if (_sessions.TryRemove(request.SessionId, out var runtime))
         {
             await runtime.CloseAsync(CancellationToken.None);
@@ -259,7 +260,7 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
 
     private async Task RemoveSessionAsync(string sessionId)
     {
-        _logger.LogInformation("Removing session {SessionId}", sessionId);
+        _logger.LogDebug("Removing session {SessionId}", sessionId);
 
         if (_sessions.TryRemove(sessionId, out var runtime))
         {
@@ -269,7 +270,7 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
 
     private Task LogMissingSessionAsync(string sessionId, string operation)
     {
-        _logger.LogInformation("Ignoring {Operation} for unknown session {SessionId}.", operation, sessionId);
+        _logger.LogDebug("Ignoring {Operation} for unknown session {SessionId}.", operation, sessionId);
         return Task.CompletedTask;
     }
 

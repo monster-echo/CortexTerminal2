@@ -417,7 +417,8 @@ rootCommand.SetAction(async (ParseResult parseResult, CancellationToken cancella
     builder.Services.AddHostedService<TokenRefreshService>(sp =>
     {
         var httpClient = sp.GetRequiredService<HttpClient>();
-        return new TokenRefreshService(httpClient, tokenStore, () => currentToken, t => currentToken = t);
+        var logger = sp.GetRequiredService<ILogger<TokenRefreshService>>();
+        return new TokenRefreshService(httpClient, tokenStore, () => currentToken, t => currentToken = t, logger);
     });
 
     builder.Services.AddHostedService(services => new WorkerRuntimeHost(
