@@ -178,9 +178,9 @@ public sealed class TerminalGatewayService
         _connection = connection;
         _connectedSessionId = sessionId;
 
-        // Start periodic latency probe (15-second interval, aligned with Console)
+        // Start periodic latency probe (1-second interval)
         StopLatencyProbeTimer();
-        _latencyProbeTimer = new Timer(_ => FireLatencyProbe(sessionId), null, TimeSpan.Zero, TimeSpan.FromSeconds(15));
+        _latencyProbeTimer = new Timer(_ => FireLatencyProbe(sessionId), null, TimeSpan.Zero, TimeSpan.FromSeconds(1));
 
         await PushEventAsync(new { type = "terminal.connected", sessionId });
     }

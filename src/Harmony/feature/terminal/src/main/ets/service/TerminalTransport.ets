@@ -337,7 +337,7 @@ export class TerminalTransport {
       this.connection.send('ProbeLatency', params).catch((_e: Error) => {
         this.pendingProbes.delete(probeId)
       })
-    }, 15000) as number
+    }, 1000) as number
   }
 
   private stopLatencyProbe(): void {
