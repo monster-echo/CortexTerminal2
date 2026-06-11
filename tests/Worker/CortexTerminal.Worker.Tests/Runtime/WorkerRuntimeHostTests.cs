@@ -229,15 +229,17 @@ public sealed class WorkerRuntimeHostTests
     }
 
     [Theory]
-    [InlineData("https://example.com/corterm-osx-arm64.tar.gz", true, true)]
-    [InlineData("https://example.com/corterm-linux-x64.tar.gz", false, false)]
-    [InlineData("https://example.com/corterm-win-x64.zip", false, false)]
-    [InlineData("https://example.com/corterm-linux-arm64.tar.gz", false, false)]
-    public void DoesDownloadUrlMatchLocalPlatform_ValidatesCorrectly(string url, bool expectedOnMac, bool expectedOnLinux)
+    [InlineData("https://example.com/corterm-osx-arm64.tar.gz", "osx", "arm64")]
+    [InlineData("https://example.com/corterm-linux-x64.tar.gz", "linux", "x64")]
+    [InlineData("https://example.com/corterm-win-x64.zip", "win", "x64")]
+    [InlineData("https://example.com/corterm-linux-arm64.tar.gz", "linux", "arm64")]
+    public void DoesDownloadUrlMatchLocalPlatform_ValidatesCorrectly(string url, string urlOs, string urlArch)
     {
         var isOsx = System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.OSX);
         var isLinux = System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Linux);
-        var expected = isOsx ? expectedOnMac : isLinux ? expectedOnLinux : false;
+        var localOs = isOsx ? "osx" : isLinux ? "linux" : "win";
+        var localArch = System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture == System.Runtime.InteropServices.Architecture.Arm64 ? "arm64" : "x64";
+        var expected = urlOs == localOs && urlArch == localArch;
 
         WorkerRuntimeHost.DoesDownloadUrlMatchLocalPlatform(url).Should().Be(expected);
     }
