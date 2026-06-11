@@ -197,7 +197,7 @@ export struct TerminalPage {
       clearTimeout(this.connectTimer)
       this.connectTimer = -1
     }
-    // Don't disconnect - keep session alive for background/return
+    this.transport.sendDetach()
   }
 
   build() {
