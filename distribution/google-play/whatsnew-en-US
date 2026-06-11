@@ -1,1 +1,1 @@
-Add Firebase Analytics screen tracking for Ionic pages and key user event logging (login, session, settings)
+Terminal latency probe interval reduced from 15s to 1s for real-time RTT display in status bar
