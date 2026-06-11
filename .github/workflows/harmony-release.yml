@@ -298,20 +298,21 @@ jobs:
           echo "::error::Timed out waiting for compile"
           exit 1
 
-      - name: Submit for release
-        run: |
-          RESPONSE=$(curl -s -X POST \
-            "https://connect-api.cloud.huawei.com/api/publish/v2/app-submit?appid=${{ secrets.AGC_APP_ID }}" \
-            -H "Authorization: Bearer ${{ steps.auth.outputs.token }}" \
-            -H "client_id: ${{ secrets.AGC_CLIENT_ID }}" \
-            -H "Content-Type: application/json" \
-            -d '{}')
-          echo "::group::Submit response"
-          echo "$RESPONSE" | jq .
-          echo "::endgroup::"
-          RET=$(echo "$RESPONSE" | jq -r '.ret.code // .code // "unknown"')
-          if [ "$RET" != "0" ]; then
-            echo "::error::Submit failed: $RESPONSE"
-            exit 1
-          fi
-          echo "App submitted to AppGallery Connect successfully!"
+      # 发布前需要人工审核，暂时无法完全自动化提交审核流程
+      # - name: Submit for release
+      #   run: |
+      #     RESPONSE=$(curl -s -X POST \
+      #       "https://connect-api.cloud.huawei.com/api/publish/v2/app-submit?appid=${{ secrets.AGC_APP_ID }}" \
+      #       -H "Authorization: Bearer ${{ steps.auth.outputs.token }}" \
+      #       -H "client_id: ${{ secrets.AGC_CLIENT_ID }}" \
+      #       -H "Content-Type: application/json" \
+      #       -d '{}')
+      #     echo "::group::Submit response"
+      #     echo "$RESPONSE" | jq .
+      #     echo "::endgroup::"
+      #     RET=$(echo "$RESPONSE" | jq -r '.ret.code // .code // "unknown"')
+      #     if [ "$RET" != "0" ]; then
+      #       echo "::error::Submit failed: $RESPONSE"
+      #       exit 1
+      #     fi
+      #     echo "App submitted to AppGallery Connect successfully!"
