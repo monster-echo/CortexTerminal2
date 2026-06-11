@@ -22,18 +22,34 @@ const DOMAIN = 0x0001
  */
 export default class EntryAbility extends UIAbility {
   private mainWindow: window.Window | null = null
+  private colorModeSyncing: boolean = false
 
   private syncColorMode(): void {
-    const themeMode = AppStorage.get<string>('themeMode') ?? 'system'
-    const colorMode = themeMode === 'system'
-      ? this.context.config.colorMode ?? ConfigurationConstant.ColorMode.COLOR_MODE_DARK
-      : (themeMode === 'dark' ? ConfigurationConstant.ColorMode.COLOR_MODE_DARK : ConfigurationConstant.ColorMode.COLOR_MODE_LIGHT)
-    const isDark = colorMode !== ConfigurationConstant.ColorMode.COLOR_MODE_LIGHT
-    AppStorage.setOrCreate('colorMode', isDark ? 'dark' : 'light')
-    this.applyStatusBar(isDark)
+    if (this.colorModeSyncing) return
+    this.colorModeSyncing = true
     try {
-      this.context.getApplicationContext().setColorMode(colorMode)
-    } catch (_e) {}
+      const themeMode = AppStorage.get<string>('themeMode') ?? 'system'
+      if (themeMode === 'system') {
+        try {
+          this.context.getApplicationContext().setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET)
+        } catch (_e) {}
+        const sysColorMode = this.context.config.colorMode ?? ConfigurationConstant.ColorMode.COLOR_MODE_DARK
+        const isDark = sysColorMode !== ConfigurationConstant.ColorMode.COLOR_MODE_LIGHT
+        AppStorage.setOrCreate('colorMode', isDark ? 'dark' : 'light')
+        this.applyStatusBar(isDark)
+      } else {
+        const colorMode = themeMode === 'dark'
+          ? ConfigurationConstant.ColorMode.COLOR_MODE_DARK
+          : ConfigurationConstant.ColorMode.COLOR_MODE_LIGHT
+        AppStorage.setOrCreate('colorMode', colorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK ? 'dark' : 'light')
+        this.applyStatusBar(colorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK)
+        try {
+          this.context.getApplicationContext().setColorMode(colorMode)
+        } catch (_e) {}
+      }
+    } finally {
+      this.colorModeSyncing = false
+    }
   }
 
   private applyStatusBar(isDark: boolean): void {
@@ -191,6 +207,13 @@ export default class EntryAbility extends UIAbility {
    */
   onConfigurationUpdate(newConfig: Configuration): void {
     hilog.info(DOMAIN, TAG, `onConfigurationUpdate: ${JSON.stringify(newConfig)}`)
-    this.syncColorMode()
+    const themeMode = AppStorage.get<string>('themeMode') ?? 'system'
+    if (themeMode === 'system' && newConfig.colorMode !== undefined) {
+      const isDark = newConfig.colorMode !== ConfigurationConstant.ColorMode.COLOR_MODE_LIGHT
+      AppStorage.setOrCreate('colorMode', isDark ? 'dark' : 'light')
+      this.applyStatusBar(isDark)
+    } else {
+      this.syncColorMode()
+    }
   }
 }

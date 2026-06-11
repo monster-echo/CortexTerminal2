@@ -224,14 +224,16 @@ export struct SettingsPage {
   }
 
   private applyTheme(theme: string) {
-    AppStorage.setOrCreate('themeMode', theme)
     const context = this.getUIContext()?.getHostContext() as common.UIAbilityContext
-    const colorMode = theme === 'dark'
-      ? ConfigurationConstant.ColorMode.COLOR_MODE_DARK
-      : (theme === 'light' ? ConfigurationConstant.ColorMode.COLOR_MODE_LIGHT
-        : context.config.colorMode ?? ConfigurationConstant.ColorMode.COLOR_MODE_DARK)
     try {
-      context.getApplicationContext().setColorMode(colorMode)
+      if (theme === 'system') {
+        context.getApplicationContext().setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET)
+      } else {
+        const colorMode = theme === 'dark'
+          ? ConfigurationConstant.ColorMode.COLOR_MODE_DARK
+          : ConfigurationConstant.ColorMode.COLOR_MODE_LIGHT
+        context.getApplicationContext().setColorMode(colorMode)
+      }
     } catch (_e) {}
   }
 
