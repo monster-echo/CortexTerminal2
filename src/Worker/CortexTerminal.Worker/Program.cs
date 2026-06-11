@@ -334,6 +334,8 @@ updateCommand.SetAction(async (ParseResult parseResult, CancellationToken cancel
     var githubRepo = "monster-echo/CortexTerminal2";
     var isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
     var isOsx = RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
+    var isLinux = RuntimeInformation.IsOSPlatform(OSPlatform.Linux);
+    if (!isWindows && !isOsx && !isLinux) throw new PlatformNotSupportedException($"Unsupported platform: {RuntimeInformation.OSDescription}");
     var arch = RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "arm64" : "x64";
     var ridOs = isOsx ? "osx" : isWindows ? "win" : "linux";
     var ext = isWindows ? "zip" : "tar.gz";

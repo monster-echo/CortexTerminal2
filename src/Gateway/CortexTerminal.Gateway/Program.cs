@@ -1609,7 +1609,7 @@ app.MapGet("/api/me/workers/{workerId}", async (string workerId, ClaimsPrincipal
     });
 }).RequireAuthorization();
 
-app.MapPost("/api/me/workers/{workerId}/upgrade", async (string workerId, ClaimsPrincipal user, IWorkerRegistry workers, IWorkerCommandDispatcher dispatcher, IServiceProvider serviceProvider) =>
+app.MapPost("/api/me/workers/{workerId}/upgrade", async (string workerId, ClaimsPrincipal user, IWorkerRegistry workers, IWorkerCommandDispatcher dispatcher, IAuditLogStore auditLog, IServiceProvider serviceProvider) =>
 {
     var userId = GetUserId(user);
     if (!workers.TryGetWorker(workerId, out var worker))
@@ -1663,6 +1663,16 @@ app.MapPost("/api/me/workers/{workerId}/upgrade", async (string workerId, Claims
     {
         return Results.BadRequest(new { error = "Worker connection is no longer active." });
     }
+
+    auditLog.Record(new AuditLogEntry(
+        Id: Guid.NewGuid().ToString("N"),
+        Timestamp: DateTimeOffset.UtcNow,
+        UserId: userId,
+        UserName: userId,
+        Action: "worker.upgrade",
+        TargetEntity: "worker",
+        TargetId: workerId
+    ));
 
     return Results.Ok(new { message = "Upgrade command sent.", TargetVersion = latestVersion });
 }).RequireAuthorization();

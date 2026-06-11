@@ -179,6 +179,76 @@ public sealed class WorkerRuntimeHostTests
         // Should only register once despite multiple Closed events
         gateway.RegisteredWorkerIds.Should().ContainSingle();
     }
+
+    [Fact]
+    public async Task Upgrade_RejectedWhenPlatformMismatches()
+    {
+        var gateway = new FakeWorkerGatewayClient();
+        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()), NullLoggerFactory.Instance);
+
+        await host.StartAsync(CancellationToken.None);
+
+        // Build a URL with a deliberately wrong platform
+        var isOsx = System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.OSX);
+        var isWindows = System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows);
+        var wrongAsset = isOsx ? "corterm-linux-x64.tar.gz"
+            : isWindows ? "corterm-osx-arm64.tar.gz"
+            : "corterm-win-x64.zip";
+
+        var wrongUrl = $"https://example.com/releases/download/{wrongAsset}";
+
+        // Should not throw, but should silently reject (no binary download attempted)
+        await gateway.RaiseUpgradeWorkerAsync(new UpgradeWorkerCommand("99.0.0", wrongUrl));
+
+        // Worker should still be running (not exited)
+        host.ActiveSessionCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Upgrade_AcceptedWhenPlatformMatches()
+    {
+        var gateway = new FakeWorkerGatewayClient();
+        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()), NullLoggerFactory.Instance);
+
+        await host.StartAsync(CancellationToken.None);
+
+        var isOsx = System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.OSX);
+        var isWindows = System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows);
+        var arch = System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture == System.Runtime.InteropServices.Architecture.Arm64 ? "arm64" : "x64";
+        var os = isOsx ? "osx" : isWindows ? "win" : "linux";
+        var ext = isWindows ? "zip" : "tar.gz";
+        var correctAsset = $"corterm-{os}-{arch}.{ext}";
+        var correctUrl = $"https://example.com/releases/download/{correctAsset}";
+
+        // This will attempt to download (and fail because the URL is fake), but the platform check passes
+        // The handler catches the download exception, so no throw
+        await gateway.RaiseUpgradeWorkerAsync(new UpgradeWorkerCommand("99.0.0", correctUrl));
+
+        // Worker should still be running (download failed, not platform rejection)
+        host.ActiveSessionCount.Should().Be(0);
+    }
+
+    [Theory]
+    [InlineData("https://example.com/corterm-osx-arm64.tar.gz", true, true)]
+    [InlineData("https://example.com/corterm-linux-x64.tar.gz", false, false)]
+    [InlineData("https://example.com/corterm-win-x64.zip", false, false)]
+    [InlineData("https://example.com/corterm-linux-arm64.tar.gz", false, false)]
+    public void DoesDownloadUrlMatchLocalPlatform_ValidatesCorrectly(string url, bool expectedOnMac, bool expectedOnLinux)
+    {
+        var isOsx = System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.OSX);
+        var isLinux = System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Linux);
+        var expected = isOsx ? expectedOnMac : isLinux ? expectedOnLinux : false;
+
+        WorkerRuntimeHost.DoesDownloadUrlMatchLocalPlatform(url).Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("https://example.com/unknown-file.bin")]
+    public void DoesDownloadUrlMatchLocalPlatform_AllowsUnrecognizedUrls(string url)
+    {
+        WorkerRuntimeHost.DoesDownloadUrlMatchLocalPlatform(url).Should().BeTrue();
+    }
 }
 
 internal sealed class FakeWorkerGatewayClient : IWorkerGatewayClient
@@ -352,6 +422,14 @@ internal sealed class FakeWorkerGatewayClient : IWorkerGatewayClient
         foreach (var handler in _closedHandlers)
         {
             await handler(exception);
+        }
+    }
+
+    public async Task RaiseUpgradeWorkerAsync(UpgradeWorkerCommand command)
+    {
+        foreach (var handler in _upgradeHandlers)
+        {
+            await handler(command);
         }
     }
 

@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 using CortexTerminal.Contracts.Sessions;
 using CortexTerminal.Contracts.Streaming;
 using CortexTerminal.Worker.Pty;
@@ -274,6 +275,24 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
 
     private static readonly SemaphoreSlim _upgradeLock = new(1, 1);
 
+    internal static bool DoesDownloadUrlMatchLocalPlatform(string downloadUrl)
+    {
+        var fileName = downloadUrl.Split('/').LastOrDefault() ?? "";
+        var match = Regex.Match(fileName, @"corterm-(\w+)-(\w+)\.(tar\.gz|zip)", RegexOptions.IgnoreCase);
+        if (!match.Success) return true;
+
+        var urlOs = match.Groups[1].Value;
+        var urlArch = match.Groups[2].Value;
+
+        var localOs = RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ? "osx"
+            : RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "win"
+            : "linux";
+        var localArch = RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "arm64" : "x64";
+
+        return string.Equals(urlOs, localOs, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(urlArch, localArch, StringComparison.OrdinalIgnoreCase);
+    }
+
     private async Task HandleUpgradeWorkerAsync(UpgradeWorkerCommand command)
     {
         if (!_upgradeLock.Wait(0))
@@ -283,6 +302,16 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         }
 
         _logger.LogInformation("Received upgrade command: target={TargetVersion}, url={DownloadUrl}", command.TargetVersion, command.DownloadUrl);
+
+        if (!DoesDownloadUrlMatchLocalPlatform(command.DownloadUrl))
+        {
+            _logger.LogError(
+                "Upgrade rejected: download URL platform does not match local platform. Local: {LocalOS}/{LocalArch}, URL: {DownloadUrl}.",
+                RuntimeInformation.OSDescription,
+                RuntimeInformation.ProcessArchitecture,
+                command.DownloadUrl);
+            return;
+        }
 
         try
         {
