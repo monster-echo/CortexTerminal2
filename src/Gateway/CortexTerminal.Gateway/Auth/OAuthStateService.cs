@@ -7,15 +7,15 @@ public sealed class OAuthStateService
     private readonly ConcurrentDictionary<string, OAuthStateEntry> _states = new();
     private static readonly TimeSpan Expiry = TimeSpan.FromMinutes(10);
 
-    public string Create(string redirectUrl)
+    public string Create(string redirectUrl, string? linkUserId = null)
     {
         RemoveExpired();
         var state = Guid.NewGuid().ToString("N");
-        _states[state] = new OAuthStateEntry(redirectUrl, DateTimeOffset.UtcNow.Add(Expiry));
+        _states[state] = new OAuthStateEntry(redirectUrl, DateTimeOffset.UtcNow.Add(Expiry), linkUserId);
         return state;
     }
 
-    public string? Consume(string state)
+    public OAuthStateEntry? ConsumeFull(string state)
     {
         if (!_states.TryRemove(state, out var entry))
             return null;
@@ -23,8 +23,11 @@ public sealed class OAuthStateService
         if (entry.ExpiresAtUtc < DateTimeOffset.UtcNow)
             return null;
 
-        return entry.RedirectUrl;
+        return entry;
     }
+
+    public string? Consume(string state)
+        => ConsumeFull(state)?.RedirectUrl;
 
     private void RemoveExpired()
     {
@@ -36,5 +39,5 @@ public sealed class OAuthStateService
         }
     }
 
-    private sealed record OAuthStateEntry(string RedirectUrl, DateTimeOffset ExpiresAtUtc);
+    public sealed record OAuthStateEntry(string RedirectUrl, DateTimeOffset ExpiresAtUtc, string? LinkUserId = null);
 }

@@ -5,6 +5,7 @@ namespace CortexTerminal.Gateway.Data;
 public class AppDbContext : DbContext
 {
     public DbSet<User> Users => Set<User>();
+    public DbSet<UserIdentity> UserIdentities => Set<UserIdentity>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<WorkerRecord> Workers => Set<WorkerRecord>();
     public DbSet<SessionRecordEntity> Sessions => Set<SessionRecordEntity>();
@@ -30,6 +31,14 @@ public class AppDbContext : DbContext
         {
             entity.HasIndex(e => e.OwnerUserId);
             entity.HasIndex(e => e.IsOnline);
+        });
+
+        modelBuilder.Entity<UserIdentity>(entity =>
+        {
+            entity.HasIndex(e => e.UserId);
+            entity.HasIndex(e => new { e.AuthProvider, e.AuthProviderId }).IsUnique();
+            entity.HasIndex(e => e.PhoneNormalized);
+            entity.HasIndex(e => e.Email);
         });
 
         modelBuilder.Entity<SessionRecordEntity>(entity =>

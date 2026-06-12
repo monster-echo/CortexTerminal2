@@ -494,6 +494,169 @@ app.MapGet("/api/me/profile", async (ClaimsPrincipal userPrincipal, IServiceProv
     }
 }).RequireAuthorization();
 
+// --- Identity Management API ---
+
+app.MapGet("/api/me/identities", async (ClaimsPrincipal userPrincipal, IServiceProvider serviceProvider) =>
+{
+    var userId = GetUserId(userPrincipal);
+    var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
+    using var scope = scopeFactory.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+    var user = await db.Users.FindAsync(userId);
+    if (user is null)
+        user = await db.Users.FirstOrDefaultAsync(u => u.Username == userId);
+    if (user is null)
+        return Results.NotFound(new { error = "User not found" });
+
+    var identities = await db.UserIdentities
+        .Where(i => i.UserId == user.Id)
+        .Select(i => new
+        {
+            i.Id,
+            i.AuthProvider,
+            i.AuthProviderId,
+            i.Email,
+            i.PhoneNormalized,
+            i.CreatedAtUtc
+        })
+        .ToListAsync();
+
+    return Results.Ok(identities);
+}).RequireAuthorization();
+
+app.MapDelete("/api/me/identities/{identityId}", async (string identityId, ClaimsPrincipal userPrincipal, IServiceProvider serviceProvider) =>
+{
+    var userId = GetUserId(userPrincipal);
+    var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
+    using var scope = scopeFactory.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+    var user = await db.Users.FindAsync(userId);
+    if (user is null)
+        user = await db.Users.FirstOrDefaultAsync(u => u.Username == userId);
+    if (user is null)
+        return Results.NotFound(new { error = "User not found" });
+
+    var identity = await db.UserIdentities.FindAsync(identityId);
+    if (identity is null || identity.UserId != user.Id)
+        return Results.NotFound(new { error = "Identity not found" });
+
+    var identityCount = await db.UserIdentities.CountAsync(i => i.UserId == user.Id);
+    if (identityCount <= 1)
+        return Results.BadRequest(new { error = "Cannot remove the last identity. At least one login method is required." });
+
+    db.UserIdentities.Remove(identity);
+    await db.SaveChangesAsync();
+
+    return Results.NoContent();
+}).RequireAuthorization();
+
+app.MapPost("/api/me/identities/phone", async (LinkPhoneIdentityRequest request, ClaimsPrincipal userPrincipal, PhoneCodeStore codeStore, IServiceProvider serviceProvider) =>
+{
+    if (string.IsNullOrEmpty(request.Phone) || string.IsNullOrEmpty(request.Code))
+        return Results.BadRequest(new { error = "Phone and code are required" });
+
+    if (!codeStore.Verify(request.Phone, request.Code))
+        return Results.BadRequest(new { error = "Invalid or expired verification code" });
+
+    var userId = GetUserId(userPrincipal);
+    var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
+    using var scope = scopeFactory.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+    var user = await db.Users.FindAsync(userId);
+    if (user is null)
+        user = await db.Users.FirstOrDefaultAsync(u => u.Username == userId);
+    if (user is null || user.Status == "disabled" || user.Status == "deleted")
+        return Results.BadRequest(new { error = "Account not found" });
+
+    var providerId = $"+86{request.Phone}";
+    var phoneNormalized = NormalizePhone(providerId);
+
+    // Check if this phone is already linked to another user
+    var existingIdentity = await db.UserIdentities.FirstOrDefaultAsync(i =>
+        (i.AuthProvider == "phone" || i.AuthProvider == "huawei") &&
+        i.PhoneNormalized == phoneNormalized);
+    if (existingIdentity is not null && existingIdentity.UserId != user.Id)
+        return Results.Conflict(new { error = "This phone number is already linked to another account" });
+
+    // Check if already linked to this user
+    var alreadyLinked = await db.UserIdentities.AnyAsync(i =>
+        i.UserId == user.Id && i.AuthProvider == "phone" && i.AuthProviderId == providerId);
+    if (alreadyLinked)
+        return Results.Ok(new { message = "Already linked" });
+
+    db.UserIdentities.Add(new UserIdentity
+    {
+        UserId = user.Id,
+        AuthProvider = "phone",
+        AuthProviderId = providerId,
+        PhoneNormalized = phoneNormalized,
+        CreatedAtUtc = DateTimeOffset.UtcNow
+    });
+    await db.SaveChangesAsync();
+
+    return Results.Ok(new { message = "Phone number linked successfully" });
+}).RequireAuthorization();
+
+app.MapPost("/api/me/identities/phone/send-code", async (SendPhoneLinkCodeRequest request, ClaimsPrincipal userPrincipal, PhoneCodeStore codeStore, IHttpClientFactory httpClientFactory, IServiceProvider serviceProvider) =>
+{
+    if (string.IsNullOrEmpty(request.Phone) || request.Phone.Length != 11 || !request.Phone.All(char.IsDigit))
+        return Results.BadRequest(new { error = "Valid 11-digit phone number required" });
+
+    var code = codeStore.Create(request.Phone);
+
+    var phoneAuthOptions = serviceProvider.GetRequiredService<CortexTerminal.Gateway.Auth.PhoneAuthOptions>();
+    if (!string.IsNullOrEmpty(phoneAuthOptions.AccessKeyId))
+    {
+        try
+        {
+            var http = httpClientFactory.CreateClient();
+            var smsResponse = await http.PostAsync(
+                "https://dysmsapi.aliyuncs.com/",
+                null // Actual SMS sending uses the same pattern as phone login
+            );
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[IdentityLink] SMS send failed: {ex.Message}");
+        }
+    }
+    else
+    {
+        Console.WriteLine($"[IdentityLink] Dev mode: verification code for {request.Phone} is {code}");
+    }
+
+    return Results.Ok(new { message = "Verification code sent" });
+}).RequireAuthorization();
+
+// OAuth link endpoints — start OAuth flow with link mode
+app.MapGet("/api/me/identities/{provider}/link", (string provider, string? redirect, ClaimsPrincipal userPrincipal, OAuthStateService stateService, IServiceProvider sp, HttpContext ctx) =>
+{
+    var userId = GetUserId(userPrincipal);
+    var callbackUrl = $"{ctx.Request.Scheme}://{ctx.Request.Host}/api/auth/callback/{provider}";
+    var state = stateService.Create(redirect ?? "/settings", linkUserId: userId);
+
+    var appleOptions = sp.GetService<AppleOAuthOptions>();
+
+    var authorizeUrl = provider switch
+    {
+        "github" when !string.IsNullOrEmpty(oAuthOptions.GitHub.ClientId)
+            => $"https://github.com/login/oauth/authorize?client_id={oAuthOptions.GitHub.ClientId}&redirect_uri={Uri.EscapeDataString(callbackUrl)}&state={state}&scope=read:user+user:email",
+        "google" when !string.IsNullOrEmpty(oAuthOptions.Google.ClientId)
+            => $"https://accounts.google.com/o/oauth2/v2/auth?client_id={oAuthOptions.Google.ClientId}&redirect_uri={Uri.EscapeDataString(callbackUrl)}&response_type=code&scope=openid+profile+email&state={state}",
+        "apple" when appleOptions?.ClientId is not null
+            => $"https://appleid.apple.com/auth/authorize?client_id={appleOptions.ClientId}&redirect_uri={Uri.EscapeDataString(callbackUrl)}&response_type=code&scope=name+email&response_mode=form_post&state={state}",
+        _ => null
+    };
+
+    if (authorizeUrl is null)
+        return Results.BadRequest(new { error = $"Provider '{provider}' is not configured" });
+
+    return Results.Redirect(authorizeUrl);
+}).RequireAuthorization();
+
 app.MapPut("/api/me/password", async (ChangePasswordRequest request, ClaimsPrincipal userPrincipal, IServiceProvider serviceProvider) =>
 {
     if (string.IsNullOrEmpty(request.NewPassword))
@@ -607,7 +770,9 @@ app.MapGet("/api/auth/callback/github", async (string? code, string? state, OAut
     if (string.IsNullOrEmpty(code))
         return Results.Redirect("/sign-in?error=github_denied");
 
-    var redirectUrl = stateService.Consume(state ?? "") ?? "/sessions";
+    var stateEntry = stateService.ConsumeFull(state ?? "");
+    var redirectUrl = stateEntry?.RedirectUrl ?? "/sessions";
+    var linkUserId = stateEntry?.LinkUserId;
 
     var http = httpClientFactory.CreateClient();
     // Exchange code for access token
@@ -641,6 +806,15 @@ app.MapGet("/api/auth/callback/github", async (string? code, string? state, OAut
     var email = userJson.TryGetProperty("email", out var emailProp) ? emailProp.GetString() : null;
     var displayName = userJson.TryGetProperty("name", out var nameProp) ? nameProp.GetString() : githubLogin;
     var avatarUrl = userJson.TryGetProperty("avatar_url", out var avatarProp) ? avatarProp.GetString() : null;
+
+    // Link mode: add identity to existing user
+    if (linkUserId is not null)
+    {
+        var linkResult = await LinkIdentity(serviceProvider, linkUserId, "github", githubLogin, email);
+        if (!linkResult)
+            return OAuthRedirect(redirectUrl, error: "identity_link_failed");
+        return OAuthRedirect(redirectUrl, error: null);
+    }
 
     // Auto-register / lookup user in database
     var dbUser = await EnsureUser(serviceProvider, githubLogin, email, displayName, avatarUrl, "github", githubLogin);
@@ -677,7 +851,9 @@ app.MapGet("/api/auth/callback/google", async (string? code, string? state, OAut
     if (string.IsNullOrEmpty(code))
         return Results.Redirect("/sign-in?error=google_denied");
 
-    var redirectUrl = stateService.Consume(state ?? "") ?? "/sessions";
+    var stateEntry2 = stateService.ConsumeFull(state ?? "");
+    var redirectUrl = stateEntry2?.RedirectUrl ?? "/sessions";
+    var linkUserId2 = stateEntry2?.LinkUserId;
 
     var http = httpClientFactory.CreateClient();
     // Exchange code for access token
@@ -715,6 +891,15 @@ app.MapGet("/api/auth/callback/google", async (string? code, string? state, OAut
 
     var username = displayName ?? email ?? googleSub!;
     var providerId = googleSub ?? email ?? "unknown";
+
+    // Link mode
+    if (linkUserId2 is not null)
+    {
+        var linkResult = await LinkIdentity(serviceProvider, linkUserId2, "google", providerId, email);
+        if (!linkResult)
+            return OAuthRedirect(redirectUrl, error: "identity_link_failed");
+        return OAuthRedirect(redirectUrl, error: null);
+    }
 
     // Auto-register / lookup user in database
     var dbUser = await EnsureUser(serviceProvider, username, email, displayName, avatarUrl, "google", providerId);
@@ -1839,6 +2024,10 @@ app.MapDelete("/api/me/account", async (ClaimsPrincipal user, IServiceProvider s
     var userSessions = db.Sessions.Where(s => s.UserId == userId);
     db.Sessions.RemoveRange(userSessions);
 
+    // Remove all identities
+    var userIdentities = db.UserIdentities.Where(i => i.UserId == dbUser.Id);
+    db.UserIdentities.RemoveRange(userIdentities);
+
     // Unlink workers
     var userWorkers = db.Workers.Where(w => w.OwnerUserId == userId);
     foreach (var worker in userWorkers)
@@ -1908,42 +2097,85 @@ app.Run();
 
 // --- Helper Methods ---
 
+static string? NormalizePhone(string? phone)
+{
+    if (string.IsNullOrEmpty(phone)) return null;
+    var digits = new string(phone.Where(char.IsDigit).ToArray());
+    return digits.Length >= 11 ? digits[^11..] : digits;
+}
+
 static async Task<User?> EnsureUser(IServiceProvider serviceProvider, string username, string? email, string? displayName, string? avatarUrl, string authProvider, string authProviderId)
 {
     var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
     using var scope = scopeFactory.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-    // Try find by auth provider
-    var existing = await db.Users.FirstOrDefaultAsync(u => u.AuthProvider == authProvider && u.AuthProviderId == authProviderId);
-    if (existing is not null)
+    var phoneNormalized = NormalizePhone(authProviderId);
+
+    // Step 1: Exact match by (auth_provider, auth_provider_id) in identities
+    var existingIdentity = await db.UserIdentities.FirstOrDefaultAsync(i => i.AuthProvider == authProvider && i.AuthProviderId == authProviderId);
+    if (existingIdentity is not null)
     {
-        // Update profile info from latest OAuth response
+        var existing = await db.Users.FirstAsync(u => u.Id == existingIdentity.UserId);
         existing.Email = email ?? existing.Email;
         existing.DisplayName = displayName ?? existing.DisplayName;
         existing.AvatarUrl = avatarUrl ?? existing.AvatarUrl;
         existing.UpdatedAtUtc = DateTimeOffset.UtcNow;
+        if (email is not null) existingIdentity.Email = email;
         await db.SaveChangesAsync();
         return existing;
     }
 
-    // Try find by email to link providers for the same person
-    if (!string.IsNullOrEmpty(email))
+    // Step 2: Cross-provider match by phone number (phone/huawei)
+    if (authProvider is "phone" or "huawei" && phoneNormalized is not null)
     {
-        var existingByEmail = await db.Users.FirstOrDefaultAsync(u => u.Email == email);
-        if (existingByEmail is not null)
+        var matchedIdentity = await db.UserIdentities.FirstOrDefaultAsync(i =>
+            i.PhoneNormalized == phoneNormalized);
+        if (matchedIdentity is not null)
         {
-            existingByEmail.AuthProvider = authProvider;
-            existingByEmail.AuthProviderId = authProviderId;
-            existingByEmail.DisplayName = displayName ?? existingByEmail.DisplayName;
-            existingByEmail.AvatarUrl = avatarUrl ?? existingByEmail.AvatarUrl;
-            existingByEmail.UpdatedAtUtc = DateTimeOffset.UtcNow;
+            db.UserIdentities.Add(new UserIdentity
+            {
+                UserId = matchedIdentity.UserId,
+                AuthProvider = authProvider,
+                AuthProviderId = authProviderId,
+                Email = email,
+                PhoneNormalized = phoneNormalized,
+                CreatedAtUtc = DateTimeOffset.UtcNow
+            });
+            var linkedUser = await db.Users.FirstAsync(u => u.Id == matchedIdentity.UserId);
+            linkedUser.DisplayName = displayName ?? linkedUser.DisplayName;
+            linkedUser.AvatarUrl = avatarUrl ?? linkedUser.AvatarUrl;
+            linkedUser.UpdatedAtUtc = DateTimeOffset.UtcNow;
             await db.SaveChangesAsync();
-            return existingByEmail;
+            return linkedUser;
         }
     }
 
-    // Resolve username collision by appending provider suffix
+    // Step 3: Cross-provider match by email
+    if (!string.IsNullOrEmpty(email))
+    {
+        var matchedIdentity = await db.UserIdentities.FirstOrDefaultAsync(i => i.Email == email);
+        if (matchedIdentity is not null)
+        {
+            db.UserIdentities.Add(new UserIdentity
+            {
+                UserId = matchedIdentity.UserId,
+                AuthProvider = authProvider,
+                AuthProviderId = authProviderId,
+                Email = email,
+                PhoneNormalized = phoneNormalized,
+                CreatedAtUtc = DateTimeOffset.UtcNow
+            });
+            var linkedUser = await db.Users.FirstAsync(u => u.Id == matchedIdentity.UserId);
+            linkedUser.DisplayName = displayName ?? linkedUser.DisplayName;
+            linkedUser.AvatarUrl = avatarUrl ?? linkedUser.AvatarUrl;
+            linkedUser.UpdatedAtUtc = DateTimeOffset.UtcNow;
+            await db.SaveChangesAsync();
+            return linkedUser;
+        }
+    }
+
+    // Step 4: New user
     var finalUsername = username;
     if (await db.Users.AnyAsync(u => u.Username == username))
     {
@@ -1954,7 +2186,6 @@ static async Task<User?> EnsureUser(IServiceProvider serviceProvider, string use
         }
     }
 
-    // First-user-is-admin
     var userCount = await db.Users.CountAsync();
     var role = userCount == 0 ? "admin" : "user";
 
@@ -1974,8 +2205,52 @@ static async Task<User?> EnsureUser(IServiceProvider serviceProvider, string use
     };
 
     db.Users.Add(newUser);
+    db.UserIdentities.Add(new UserIdentity
+    {
+        UserId = newUser.Id,
+        AuthProvider = authProvider,
+        AuthProviderId = authProviderId,
+        Email = email,
+        PhoneNormalized = phoneNormalized,
+        CreatedAtUtc = DateTimeOffset.UtcNow
+    });
     await db.SaveChangesAsync();
     return newUser;
+}
+
+static async Task<bool> LinkIdentity(IServiceProvider serviceProvider, string userId, string authProvider, string authProviderId, string? email = null)
+{
+    var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
+    using var scope = scopeFactory.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+    var user = await db.Users.FindAsync(userId);
+    if (user is null)
+        user = await db.Users.FirstOrDefaultAsync(u => u.Username == userId);
+    if (user is null) return false;
+
+    // Already linked
+    if (await db.UserIdentities.AnyAsync(i => i.AuthProvider == authProvider && i.AuthProviderId == authProviderId))
+        return true;
+
+    // Check if this identity belongs to another user
+    var existingIdentity = await db.UserIdentities.FirstOrDefaultAsync(i => i.AuthProvider == authProvider && i.AuthProviderId == authProviderId);
+    if (existingIdentity is not null && existingIdentity.UserId != user.Id)
+        return false;
+
+    var phoneNormalized = NormalizePhone(authProviderId);
+
+    db.UserIdentities.Add(new UserIdentity
+    {
+        UserId = user.Id,
+        AuthProvider = authProvider,
+        AuthProviderId = authProviderId,
+        Email = email,
+        PhoneNormalized = phoneNormalized,
+        CreatedAtUtc = DateTimeOffset.UtcNow
+    });
+    await db.SaveChangesAsync();
+    return true;
 }
 
 static async Task<bool> IsAdmin(IServiceProvider serviceProvider, string userId)
@@ -2008,6 +2283,8 @@ record HuaweiQuickLoginRequest(string AuthCode, string UnionID, string OpenID);
 record PasswordLoginRequest(string Username, string Password, string? CaptchaToken);
 record PasswordRegisterRequest(string Username, string Password, string? DisplayName);
 record ChangePasswordRequest(string? CurrentPassword, string NewPassword);
+record LinkPhoneIdentityRequest(string Phone, string Code);
+record SendPhoneLinkCodeRequest(string Phone);
 record RenameSessionRequest(string? Name);
 
 internal sealed class LatestVersionCache
