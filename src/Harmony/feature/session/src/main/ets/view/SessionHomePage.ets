@@ -128,10 +128,9 @@ export struct SessionHomePage {
           List({ space: 8 }) {
             ForEach(this.allSessions, (session: SessionInfo) => {
               ListItem() {
-                SessionCard({ session: session })
+                SessionCard({ session: session, onCardClick: () => { lightHaptic(); this.resumeSession(session) } })
               }
               .swipeAction({ end: this.SwipeActions(session) })
-              .onClick(() => { lightHaptic(); this.resumeSession(session) })
             }, (session: SessionInfo) => session.id)
           }
           .width('100%')

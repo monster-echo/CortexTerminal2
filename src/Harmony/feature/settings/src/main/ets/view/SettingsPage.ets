@@ -1,4 +1,4 @@
-import { common, Want, ConfigurationConstant } from '@kit.AbilityKit'
+import { common, ConfigurationConstant } from '@kit.AbilityKit'
 import { ApiService, AuthService, AuthState, I18n, RouteName, AppConstants, showI18nToast, showToast, AnalyticsService, AnalyticsEvent, lightHaptic, clickHaptic, heavyHaptic } from '@rwecho/core'
 
 @Component
@@ -270,17 +270,7 @@ export struct SettingsPage {
     })
   }
 
-  private async openExternal(url: string) {
-    try {
-      const context = this.getUIContext()?.getHostContext() as common.UIAbilityContext
-      const want: Want = {
-        action: 'ohos.want.action.viewData',
-        entities: ['entity.system.browsable'],
-        uri: url
-      }
-      await context.startAbility(want)
-    } catch (e) {
-      showToast(`${(e as Error).message}`)
-    }
+  private openExternal(url: string) {
+    this.pageStack.pushPath({ name: RouteName.WEB_PAGE, param: { url: url } })
   }
 }

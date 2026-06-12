@@ -161,8 +161,7 @@ export struct AccountSecurityPage {
       AnalyticsService.onEvent(AnalyticsEvent.ACCOUNT_DELETE)
       showI18nToast('security.account_deleted')
       AuthService.logout()
-      this.pageStack.clear()
-      AppStorage.setOrCreate('navigateTo', RouteName.AUTH_LOGIN)
+      this.pageStack.replacePath({ name: RouteName.AUTH_LOGIN })
     } catch (e) {
       this.deleteError = (e as Error).message || I18n.get('common.error')
       this.isDeleting = false

@@ -5,11 +5,11 @@
  * Step 1: createAuthorizationWithHuaweiIDRequest → anonymous phone
  * Step 2: LoginWithHuaweiIDButton → Authorization Code
  */
-import { AuthService, I18n, AppConstants, showToast, AnalyticsService, lightHaptic, clickHaptic } from '@rwecho/core'
+import { AuthService, I18n, AppConstants, RouteName, showToast, AnalyticsService, lightHaptic, clickHaptic } from '@rwecho/core'
 import { authentication, loginComponentManager, LoginWithHuaweiIDButton } from '@kit.AccountKit'
 import { util } from '@kit.ArkTS'
 import { BusinessError } from '@kit.BasicServicesKit'
-import { common, Want } from '@kit.AbilityKit'
+import { common } from '@kit.AbilityKit'
 import { resourceManager } from '@kit.LocalizationKit'
 
 const TERMS_TAG = 'terms'
@@ -490,18 +490,8 @@ export struct LoginPage {
     }
   }
 
-  private async openExternal(url: string) {
-    try {
-      const context = this.getUIContext()?.getHostContext() as common.UIAbilityContext
-      const want: Want = {
-        action: 'ohos.want.action.viewData',
-        entities: ['entity.system.browsable'],
-        uri: url
-      }
-      await context.startAbility(want)
-    } catch (e) {
-      showToast(`${(e as Error).message}`)
-    }
+  private openExternal(url: string) {
+    this.pageStack.pushPath({ name: RouteName.WEB_PAGE, param: { url: url } })
   }
 }
 

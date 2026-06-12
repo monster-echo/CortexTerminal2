@@ -8,7 +8,7 @@ import { AuthService, RouteName } from '@rwecho/core'
 import { LoginPage, ActivateWorkerPage } from '@rwecho/auth'
 import { TerminalPage } from '@rwecho/terminal'
 import { ShellScaffold } from '../shell/ShellScaffold'
-import { AccountSecurityPage, ChangePasswordPage } from '@rwecho/settings'
+import { AccountSecurityPage, ChangePasswordPage, WebPage } from '@rwecho/settings'
 
 @Entry
 @Component
@@ -117,6 +117,12 @@ struct Index {
     } else if (name === RouteName.ACTIVATE_WORKER) {
       NavDestination() {
         ActivateWorkerPage()
+      }
+      .hideTitleBar(true)
+      .backgroundColor($r('app.color.terminal_surface'))
+    } else if (name === RouteName.WEB_PAGE) {
+      NavDestination() {
+        WebPage()
       }
       .hideTitleBar(true)
       .backgroundColor($r('app.color.terminal_surface'))

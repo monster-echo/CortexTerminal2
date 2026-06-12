@@ -8,4 +8,5 @@ export class RouteName {
   static readonly ACCOUNT_SECURITY: string = 'AccountSecurity'
   static readonly CHANGE_PASSWORD: string = 'ChangePassword'
   static readonly ACTIVATE_WORKER: string = 'ActivateWorker'
+  static readonly WEB_PAGE: string = 'web/Page'
 }

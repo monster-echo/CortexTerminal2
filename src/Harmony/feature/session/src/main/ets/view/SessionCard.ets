@@ -4,6 +4,7 @@ import { TimeUtils } from '../utils/TimeUtils'
 @Component
 export struct SessionCard {
   @Prop session: SessionInfo = new SessionInfo()
+  onCardClick?: () => void
 
   build() {
     Row() {
@@ -47,6 +48,7 @@ export struct SessionCard {
     .padding(14)
     .borderRadius(12)
     .backgroundColor($r('app.color.terminal_surface_container'))
+    .onClick(() => { if (this.onCardClick) { this.onCardClick() } })
   }
 
   private getStatusColor(): ResourceColor {
