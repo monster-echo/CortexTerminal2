@@ -275,7 +275,7 @@ export struct LoginPage {
         .color($r('app.color.terminal_outline_variant'))
     }
     .width('100%')
-    .alignItems(HorizontalAlign.Center)
+    .alignItems(VerticalAlign.Center)
     .margin({ top: 24 })
     .padding({ left: 24, right: 24 })
   }
@@ -521,7 +521,8 @@ export struct LoginPage {
   }
 
   private openExternal(url: string) {
-    this.pageStack.pushPath({ name: RouteName.WEB_PAGE, param: { url: url } })
+    const navParam: Record<string, string> = { 'url': url }
+    this.pageStack.pushPath({ name: RouteName.WEB_PAGE, param: navParam })
   }
 }
 

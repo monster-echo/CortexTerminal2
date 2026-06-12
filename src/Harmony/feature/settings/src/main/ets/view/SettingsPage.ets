@@ -271,6 +271,7 @@ export struct SettingsPage {
   }
 
   private openExternal(url: string) {
-    this.pageStack.pushPath({ name: RouteName.WEB_PAGE, param: { url: url } })
+    const navParam: Record<string, string> = { 'url': url }
+    this.pageStack.pushPath({ name: RouteName.WEB_PAGE, param: navParam })
   }
 }
