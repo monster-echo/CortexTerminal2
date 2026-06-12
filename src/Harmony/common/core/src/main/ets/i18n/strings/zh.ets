@@ -23,6 +23,7 @@ export const zhStrings: Record<string, string> = {
   'auth.login.huawei_failed': '华为账号登录失败',
   'auth.login.no_auth_code': '未获取到授权码',
   'auth.login.username_password_button': '使用用户名和密码登录',
+  'auth.login.huawei_login_button': '使用华为账号登录',
   'auth.login.enter_username': '请输入用户名',
   'auth.login.enter_password': '请输入密码',
   'auth.login.enter_credentials': '请输入用户名和密码',

@@ -23,6 +23,7 @@ export const enStrings: Record<string, string> = {
   'auth.login.huawei_failed': 'Huawei ID login failed',
   'auth.login.no_auth_code': 'No authorization code received',
   'auth.login.username_password_button': 'Sign in with username and password',
+  'auth.login.huawei_login_button': 'Sign in with Huawei ID',
   'auth.login.enter_username': 'Enter username',
   'auth.login.enter_password': 'Enter password',
   'auth.login.enter_credentials': 'Please enter username and password',

@@ -18,7 +18,7 @@ const HUAWEI_AUTH_TAG = 'huawei_auth'
 
 @Component
 export struct LoginPage {
-  @State showPasswordSheet: boolean = false
+  @State loginMode: string = 'huawei'
   @State isHuaweiLoading: boolean = false
   @State isPasswordLoading: boolean = false
   @State errorMessage: string = ''
@@ -106,31 +106,36 @@ export struct LoginPage {
 
   build() {
     Column() {
-      this.BrandSection()
-      this.HuaweiLoginSection()
+      Scroll() {
+        Column() {
+          this.BrandSection()
 
+          if (this.loginMode === 'huawei') {
+            this.HuaweiLoginSection()
+            this.DividerSection()
+            this.PasswordLoginEntry()
+          } else {
+            this.PasswordFormSection()
+            this.DividerSection()
+            this.HuaweiLoginEntry()
+          }
 
-
-      this.DividerSection()
-
-      this.PasswordLoginEntry()
-
-      if (this.errorMessage.length > 0) {
-        this.ErrorBanner()
+          if (this.errorMessage.length > 0) {
+            this.ErrorBanner()
+          }
+        }
+        .width('100%')
       }
+      .width('100%')
+      .layoutWeight(1)
+      .scrollBar(BarState.Off)
+      .edgeEffect(EdgeEffect.Spring)
 
-      Blank()
       this.AgreementSection()
     }
     .width('100%')
     .height('100%')
     .backgroundColor($r('app.color.terminal_surface'))
-    .bindSheet($$this.showPasswordSheet, this.PasswordSheetContent(), {
-      height: SheetSize.LARGE,
-      showClose: true,
-      backgroundColor: $r('app.color.terminal_surface'),
-      onDisappear: () => { this.showPasswordSheet = false }
-    })
   }
 
   // ── Brand Area ──────────────────────────────────────────────────
@@ -156,7 +161,7 @@ export struct LoginPage {
     }
     .width('100%')
     .alignItems(HorizontalAlign.Center)
-    .margin({ top: 80 })
+    .margin({ top: 60 })
   }
 
   // ── Huawei One-Click Login ──────────────────────────────────────
@@ -270,11 +275,12 @@ export struct LoginPage {
         .color($r('app.color.terminal_outline_variant'))
     }
     .width('100%')
-    .alignItems(VerticalAlign.Center)
+    .alignItems(HorizontalAlign.Center)
     .margin({ top: 24 })
+    .padding({ left: 24, right: 24 })
   }
 
-  // ── Password Login Entry Button ─────────────────────────────────
+  // ── Password Login Entry Button (from huawei mode) ──────────────
 
   @Builder
   PasswordLoginEntry() {
@@ -290,7 +296,7 @@ export struct LoginPage {
         .fontWeight(FontWeight.Medium)
         .onClick(() => {
           clickHaptic()
-          this.showPasswordSheet = true
+          this.loginMode = 'password'
           this.errorMessage = ''
         })
     }
@@ -300,99 +306,118 @@ export struct LoginPage {
     .margin({ top: 24 })
   }
 
-  // ── Password Login Sheet ────────────────────────────────────────
+  // ── Huawei Login Entry Button (from password mode) ──────────────
 
   @Builder
-  PasswordSheetContent() {
+  HuaweiLoginEntry() {
     Column() {
-      Column() {
-        Text(I18n.get('auth.login.username_placeholder'))
-          .fontSize(14)
-          .fontColor($r('app.color.terminal_on_surface_variant'))
-          .width('100%')
-          .margin({ bottom: 8 })
-
-        TextInput({ placeholder: I18n.get('auth.login.enter_username'), text: this.username })
-          .width('100%')
-          .height(48)
-          .borderRadius(8)
-          .backgroundColor($r('app.color.terminal_surface_container_high'))
-          .fontColor($r('app.color.terminal_primary'))
-          .placeholderColor($r('app.color.terminal_on_surface_variant'))
-          .onChange((value: string) => {
-            this.username = value
-            this.errorMessage = ''
-          })
-
-        Text(I18n.get('auth.login.password_placeholder'))
-          .fontSize(14)
-          .fontColor($r('app.color.terminal_on_surface_variant'))
-          .width('100%')
-          .margin({ top: 16, bottom: 8 })
-
-        TextInput({ placeholder: I18n.get('auth.login.enter_password'), text: this.password })
-          .type(InputType.Password)
-          .width('100%')
-          .height(48)
-          .borderRadius(8)
-          .backgroundColor($r('app.color.terminal_surface_container_high'))
-          .fontColor($r('app.color.terminal_primary'))
-          .placeholderColor($r('app.color.terminal_on_surface_variant'))
-          .onChange((value: string) => {
-            this.password = value
-            this.errorMessage = ''
-          })
-
-        if (this.errorMessage.length > 0) {
-          Row() {
-            Text('⚠')
-              .fontSize(14)
-              .fontColor($r('app.color.terminal_error'))
-              .margin({ right: 8 })
-            Text(this.errorMessage)
-              .fontSize(14)
-              .fontWeight(FontWeight.Medium)
-              .fontColor($r('app.color.terminal_error'))
-              .layoutWeight(1)
-          }
-          .width('100%')
-          .margin({ top: 16 })
-        }
-
-        Button() {
-          if (this.isPasswordLoading) {
-            LoadingProgress()
-              .width(20)
-              .height(20)
-              .color($r('app.color.terminal_on_secondary_container'))
-          } else {
-            Text(I18n.get('auth.login.button'))
-              .fontSize(16)
-              .fontWeight(FontWeight.Medium)
-              .fontColor($r('app.color.terminal_on_secondary_container'))
-          }
-        }
+      Button(I18n.get('auth.login.huawei_login_button'))
         .width('100%')
         .height(48)
         .borderRadius(24)
-        .backgroundColor($r('app.color.terminal_secondary_container'))
-        .margin({ top: 20 })
-        .enabled(this.username.length > 0 && this.password.length > 0 && !this.isPasswordLoading)
-        .opacity(this.username.length > 0 && this.password.length > 0 ? 1 : 0.5)
+        .backgroundColor(Color.Transparent)
+        .border({ width: 1, color: $r('app.color.terminal_outline_variant') })
+        .fontColor($r('app.color.terminal_primary'))
+        .fontSize(14)
+        .fontWeight(FontWeight.Medium)
         .onClick(() => {
           clickHaptic()
-          this.handlePasswordLogin()
+          this.loginMode = 'huawei'
+          this.errorMessage = ''
         })
-      }
-      .width('100%')
-      .padding(20)
-      .borderRadius(12)
-      .backgroundColor($r('app.color.terminal_surface_container'))
-      .margin({ left: 24, right: 24 })
     }
     .width('100%')
-    .padding({ top: 24 })
-    .backgroundColor($r('app.color.terminal_surface'))
+    .constraintSize({ maxWidth: 400 })
+    .padding({ left: 24, right: 24 })
+    .margin({ top: 24 })
+  }
+
+  // ── Password Form (inline) ──────────────────────────────────────
+
+  @Builder
+  PasswordFormSection() {
+    Column() {
+      Text(I18n.get('auth.login.username_placeholder'))
+        .fontSize(14)
+        .fontColor($r('app.color.terminal_on_surface_variant'))
+        .width('100%')
+        .margin({ bottom: 8 })
+
+      TextInput({ placeholder: I18n.get('auth.login.enter_username'), text: this.username })
+        .width('100%')
+        .height(48)
+        .borderRadius(8)
+        .backgroundColor($r('app.color.terminal_surface_container_high'))
+        .fontColor($r('app.color.terminal_primary'))
+        .placeholderColor($r('app.color.terminal_on_surface_variant'))
+        .onChange((value: string) => {
+          this.username = value
+          this.errorMessage = ''
+        })
+
+      Text(I18n.get('auth.login.password_placeholder'))
+        .fontSize(14)
+        .fontColor($r('app.color.terminal_on_surface_variant'))
+        .width('100%')
+        .margin({ top: 16, bottom: 8 })
+
+      TextInput({ placeholder: I18n.get('auth.login.enter_password'), text: this.password })
+        .type(InputType.Password)
+        .width('100%')
+        .height(48)
+        .borderRadius(8)
+        .backgroundColor($r('app.color.terminal_surface_container_high'))
+        .fontColor($r('app.color.terminal_primary'))
+        .placeholderColor($r('app.color.terminal_on_surface_variant'))
+        .onChange((value: string) => {
+          this.password = value
+          this.errorMessage = ''
+        })
+
+      if (this.errorMessage.length > 0) {
+        Row() {
+          Text('⚠')
+            .fontSize(14)
+            .fontColor($r('app.color.terminal_error'))
+            .margin({ right: 8 })
+          Text(this.errorMessage)
+            .fontSize(14)
+            .fontWeight(FontWeight.Medium)
+            .fontColor($r('app.color.terminal_error'))
+            .layoutWeight(1)
+        }
+        .width('100%')
+        .margin({ top: 16 })
+      }
+
+      Button() {
+        if (this.isPasswordLoading) {
+          LoadingProgress()
+            .width(20)
+            .height(20)
+            .color($r('app.color.terminal_on_secondary_container'))
+        } else {
+          Text(I18n.get('auth.login.button'))
+            .fontSize(16)
+            .fontWeight(FontWeight.Medium)
+            .fontColor($r('app.color.terminal_on_secondary_container'))
+        }
+      }
+      .width('100%')
+      .height(48)
+      .borderRadius(24)
+      .backgroundColor($r('app.color.terminal_secondary_container'))
+      .margin({ top: 20 })
+      .enabled(this.username.length > 0 && this.password.length > 0 && !this.isPasswordLoading)
+      .opacity(this.username.length > 0 && this.password.length > 0 ? 1 : 0.5)
+      .onClick(() => {
+        clickHaptic()
+        this.handlePasswordLogin()
+      })
+    }
+    .width('100%')
+    .padding({ left: 24, right: 24 })
+    .margin({ top: 36 })
   }
 
   // ── Error Banner ────────────────────────────────────────────────
@@ -411,6 +436,7 @@ export struct LoginPage {
         .layoutWeight(1)
     }
     .width('100%')
+    .padding({ left: 24, right: 24 })
     .margin({ top: 16 })
   }
 
@@ -473,6 +499,10 @@ export struct LoginPage {
   }
 
   private async handlePasswordLogin() {
+    if (!this.isAgreementAccepted) {
+      this.agreementDialogController.open()
+      return
+    }
     if (this.username.length === 0 || this.password.length === 0) {
       this.errorMessage = I18n.get('auth.login.enter_credentials')
       return
