@@ -7,7 +7,7 @@ export struct SettingsPage {
   @StorageLink('language') currentLanguage: string = 'en'
   @State displayName: string = ''
   @Consume('pageStack') pageStack: NavPathStack
-  private appVersion: string = '1.0.0'
+  @StorageLink('appVersion') appVersion: string = '1.0.0'
 
   aboutToAppear() {
     AnalyticsService.onPageStart('settings/Page')

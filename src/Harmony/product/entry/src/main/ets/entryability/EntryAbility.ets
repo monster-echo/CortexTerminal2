@@ -10,6 +10,7 @@ import { UIAbility, AbilityConstant, Want, Configuration, ConfigurationConstant 
 import { window, KeyboardAvoidMode } from '@kit.ArkUI'
 import { webview } from '@kit.ArkWeb'
 import { hilog } from '@kit.PerformanceAnalysisKit'
+import { bundleManager } from '@kit.AbilityKit'
 import { AppConstants, AnalyticsService, AnalyticsEvent, CrashService } from '@rwecho/core'
 import { DynamicsRouter } from 'routermodule'
 
@@ -68,7 +69,12 @@ export default class EntryAbility extends UIAbility {
 
     // Initialize AppStorage with default values (non-persistent)
     AppStorage.setOrCreate('authCompleted', false)
-    AppStorage.setOrCreate('appVersion', '1.0.0')
+    let appVersion = '1.0.0'
+    try {
+      const bundleInfo = bundleManager.getBundleInfoForSelfSync(bundleManager.BundleFlag.GET_BUNDLE_INFO_DEFAULT)
+      appVersion = bundleInfo.versionName
+    } catch (_e) {}
+    AppStorage.setOrCreate('appVersion', appVersion)
     AppStorage.setOrCreate('currentBreakpoint', 'sm')
     AppStorage.setOrCreate('windowWidth', 0)
     AppStorage.setOrCreate('windowHeight', 0)
