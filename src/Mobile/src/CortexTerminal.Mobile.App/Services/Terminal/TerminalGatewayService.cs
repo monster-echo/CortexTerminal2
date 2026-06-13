@@ -60,7 +60,6 @@ public sealed class TerminalGatewayService
 
         if (connection.State == HubConnectionState.Connected)
         {
-            // Connection still alive, request a fresh replay
             try
             {
                 var result = await connection.InvokeAsync<ReattachSessionResult>(
@@ -79,7 +78,7 @@ public sealed class TerminalGatewayService
             return;
         }
 
-        // Connection is Disconnected or Reconnecting — let the front-end trigger a full reconnect
+        // Reconnecting — ensure frontend shows loading overlay
         await PushEventAsync(new { type = "terminal.reconnecting", sessionId, reason = "app_resumed" });
     }
 
@@ -148,7 +147,7 @@ public sealed class TerminalGatewayService
                 options.Transports = Microsoft.AspNetCore.Http.Connections.HttpTransportType.WebSockets |
                                      Microsoft.AspNetCore.Http.Connections.HttpTransportType.LongPolling;
             })
-            .WithAutomaticReconnect()
+            .WithAutomaticReconnect(new RetryPolicy())
             .Build();
 
         RegisterHandlers(connection, sessionId);
@@ -308,23 +307,33 @@ public sealed class TerminalGatewayService
         connection.Reconnected += async _ =>
         {
             await PushEventAsync(new { type = "terminal.reconnected", sessionId });
+            if (_connectedSessionId != sessionId) return;
+            try
+            {
+                var result = await connection.InvokeAsync<ReattachSessionResult>(
+                    "ReattachSession",
+                    new ReattachSessionRequest(sessionId),
+                    CancellationToken.None);
+                if (result.IsSuccess)
+                {
+                    await PushEventAsync(new { type = "terminal.reattached", sessionId });
+                    return;
+                }
+                await PushEventAsync(new { type = "terminal.closed", sessionId, reason = result.ErrorCode ?? "session_gone" });
+            }
+            catch (Exception ex)
+            {
+                await PushEventAsync(new { type = "terminal.closed", sessionId, reason = ex.Message });
+            }
+            _suppressClosedEvent = true;
+            try { await connection.DisposeAsync(); }
+            finally { _suppressClosedEvent = false; }
             if (_connectedSessionId == sessionId)
             {
-                try
-                {
-                    var result = await connection.InvokeAsync<ReattachSessionResult>(
-                        "ReattachSession",
-                        new ReattachSessionRequest(sessionId),
-                        CancellationToken.None);
-                    if (result.IsSuccess)
-                    {
-                        await PushEventAsync(new { type = "terminal.reattached", sessionId });
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Re-attach after reconnect failed for session {SessionId}.", sessionId);
-                }
+                _connection = null;
+                _connectedSessionId = null;
+                StopLatencyProbeTimer();
+                _pendingProbes.Clear();
             }
         };
         connection.Closed += error =>
@@ -382,7 +391,7 @@ public sealed class TerminalGatewayService
     private void FireLatencyProbe(string sessionId)
     {
         var connection = _connection;
-        if (connection is null) return;
+        if (connection is null || connection.State != HubConnectionState.Connected) return;
 
         var probeId = Guid.NewGuid().ToString("N");
         var sw = System.Diagnostics.Stopwatch.StartNew();
@@ -468,5 +477,17 @@ public sealed class TerminalGatewayService
 #else
         System.Diagnostics.Debug.WriteLine(message);
 #endif
+    }
+
+    private sealed class RetryPolicy : IRetryPolicy
+    {
+        private static readonly TimeSpan[] Intervals = [TimeSpan.FromSeconds(0), TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(30)];
+
+        public TimeSpan? NextRetryDelay(RetryContext context)
+        {
+            return context.PreviousRetryCount < Intervals.Length
+                ? Intervals[context.PreviousRetryCount]
+                : TimeSpan.FromSeconds(30);
+        }
     }
 }

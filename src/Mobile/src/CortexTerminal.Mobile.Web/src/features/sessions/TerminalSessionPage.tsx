@@ -491,7 +491,6 @@ export default function TerminalSessionPage({
           void terminalBridge.resizeSession(sessionId, term.cols, term.rows);
       }
       if (event.type === "terminal.closed") {
-        if (!connectedRef.current) return;
         connectedRef.current = false;
         const reason = event.reason ?? t("terminal.closed");
         setStatusMessage(reason);
@@ -603,6 +602,10 @@ export default function TerminalSessionPage({
         if (cancelled) return;
         const msg = error instanceof Error ? error.message : String(error);
         setStatusMessage(msg);
+        if (loadingRef.current) {
+          loadingRef.current = false;
+          dismissLoading();
+        }
 
         const lowerMsg = msg.toLowerCase();
         if (lowerMsg.includes("session-expired")) {
@@ -627,6 +630,15 @@ export default function TerminalSessionPage({
             color: "warning",
           });
           history.replace("/sessions");
+        } else {
+          removeSession(sessionId);
+          presentToast({
+            message: t("terminal.sessionClosedToast", { reason: msg }),
+            duration: 3000,
+            position: "bottom",
+            color: "warning",
+          });
+          history.replace("/sessions");
         }
       }
     };
@@ -634,25 +646,9 @@ export default function TerminalSessionPage({
     setStatusMessage(t("terminal.connecting"));
     void connect();
 
-    const handleVisibility = () => {
-      if (
-        document.visibilityState === "visible" &&
-        !connectedRef.current &&
-        !cancelled
-      ) {
-        if (!loadingRef.current) {
-          loadingRef.current = true;
-          presentLoading({ message: t("terminal.reconnecting"), duration: 0 });
-        }
-        void connect();
-      }
-    };
-    document.addEventListener("visibilitychange", handleVisibility);
-
     return () => {
       cancelled = true;
       connectedRef.current = false;
-      document.removeEventListener("visibilitychange", handleVisibility);
       if (loadingRef.current) {
         loadingRef.current = false;
         dismissLoading();
