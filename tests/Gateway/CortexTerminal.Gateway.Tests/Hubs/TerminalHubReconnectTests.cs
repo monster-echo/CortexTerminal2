@@ -21,17 +21,18 @@ public sealed class TerminalHubReconnectTests
         var workers = new InMemoryWorkerRegistry();
         workers.Register("worker-1", "worker-conn-1");
         var sessions = new InMemorySessionCoordinator(workers);
-        var replayCache = new ReplayCache(1024);
+        var replayCoordinator = new ReplayCoordinator();
+        var dispatcher = new ScrollbackWorkerCommandDispatcher(
+            new TerminalChunk("dummy", "stdout", [0x01, 0x02]),
+            new TerminalChunk("dummy", "stderr", [0x03]));
         var createResult = await sessions.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), clientConnectionId: null, CancellationToken.None);
         var sessionId = createResult.Response!.SessionId;
         var detachedAtUtc = new DateTimeOffset(2025, 1, 1, 12, 0, 0, TimeSpan.Zero);
 
         await sessions.DetachSessionAsync("user-1", sessionId, detachedAtUtc, CancellationToken.None);
-        replayCache.Append(new ReplayChunk(sessionId, "stdout", [0x01, 0x02]));
-        replayCache.Append(new ReplayChunk(sessionId, "stderr", [0x03]));
 
         var caller = new RecordingClientProxy();
-        var hub = CreateTerminalHub(sessions, replayCache, new FixedTimeProvider(detachedAtUtc.AddMinutes(4)));
+        var hub = CreateTerminalHub(sessions, replayCoordinator, dispatcher, new FixedTimeProvider(detachedAtUtc.AddMinutes(4)));
         hub.Context = new TestHubCallerContext("client-reattached", "user-1");
         hub.Clients = new TestHubCallerClients(caller);
 
@@ -58,13 +59,14 @@ public sealed class TerminalHubReconnectTests
         var workers = new InMemoryWorkerRegistry();
         workers.Register("worker-1", "worker-conn-1");
         var sessions = new InMemorySessionCoordinator(workers);
-        var replayCache = new ReplayCache(1024);
+        var replayCoordinator = new ReplayCoordinator();
+        var dispatcher = new ScrollbackWorkerCommandDispatcher(
+            new TerminalChunk("dummy", "stdout", [0xAA]));
         var createResult = await sessions.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), clientConnectionId: null, CancellationToken.None);
         var sessionId = createResult.Response!.SessionId;
         var detachedAtUtc = new DateTimeOffset(2025, 1, 1, 12, 0, 0, TimeSpan.Zero);
 
         await sessions.DetachSessionAsync("user-1", sessionId, detachedAtUtc, CancellationToken.None);
-        replayCache.Append(new ReplayChunk(sessionId, "stdout", [0xAA]));
 
         Task? liveForwardTask = null;
         var liveChunk = new TerminalChunk(sessionId, "stdout", [0xBB]);
@@ -76,13 +78,13 @@ public sealed class TerminalHubReconnectTests
                 liveForwardTask = Task.Run(() => workerHub!.ForwardStdout(liveChunk));
             }
         });
-        workerHub = CreateWorkerHub(workers, sessions, replayCache, new Dictionary<string, IClientProxy>
+        workerHub = CreateWorkerHub(workers, sessions, replayCoordinator, new Dictionary<string, IClientProxy>
         {
             ["client-reattached"] = caller
         });
         workerHub.Context = new TestHubCallerContext("worker-conn-1");
         workerHub.Clients = new TestHubCallerClients(new RecordingClientProxy());
-        var terminalHub = CreateTerminalHub(sessions, replayCache, new FixedTimeProvider(detachedAtUtc.AddMinutes(4)));
+        var terminalHub = CreateTerminalHub(sessions, replayCoordinator, dispatcher, new FixedTimeProvider(detachedAtUtc.AddMinutes(4)));
         terminalHub.Context = new TestHubCallerContext("client-reattached", "user-1");
         terminalHub.Clients = new TestHubCallerClients(caller);
 
@@ -95,6 +97,7 @@ public sealed class TerminalHubReconnectTests
         liveForwardTask.Should().NotBeNull();
         await liveForwardTask!;
 
+        // Live chunk should appear AFTER ReplayCompleted (snapshot is flushed first, then pendingQueue drains)
         caller.Invocations.Select(static invocation => invocation.Method).Should().Equal(
             "SessionReattached",
             "ReplayChunk",
@@ -109,15 +112,16 @@ public sealed class TerminalHubReconnectTests
         var workers = new InMemoryWorkerRegistry();
         workers.Register("worker-1", "worker-conn-1");
         var sessions = new InMemorySessionCoordinator(workers);
-        var replayCache = new ReplayCache(1024);
+        var replayCoordinator = new ReplayCoordinator();
+        var dispatcher = new ScrollbackWorkerCommandDispatcher(
+            new TerminalChunk("dummy", "stdout", [0xAA]));
         var createResult = await sessions.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), clientConnectionId: null, CancellationToken.None);
         var sessionId = createResult.Response!.SessionId;
         var detachedAtUtc = new DateTimeOffset(2025, 1, 1, 12, 0, 0, TimeSpan.Zero);
 
         await sessions.DetachSessionAsync("user-1", sessionId, detachedAtUtc, CancellationToken.None);
-        replayCache.Append(new ReplayChunk(sessionId, "stdout", [0xAA]));
 
-        var hub = CreateTerminalHub(sessions, replayCache, new FixedTimeProvider(detachedAtUtc.AddMinutes(4)));
+        var hub = CreateTerminalHub(sessions, replayCoordinator, dispatcher, new FixedTimeProvider(detachedAtUtc.AddMinutes(4)));
         hub.Context = new TestHubCallerContext("client-reattached", "user-1");
         hub.Clients = new TestHubCallerClients(new RecordingClientProxy((method, _) =>
         {
@@ -141,26 +145,31 @@ public sealed class TerminalHubReconnectTests
         session.LeaseExpiresAtUtc.Should().BeNull();
     }
 
-    private static TerminalHub CreateTerminalHub(ISessionCoordinator sessions, IReplayCache replayCache, TimeProvider timeProvider)
+    private static TerminalHub CreateTerminalHub(
+        ISessionCoordinator sessions,
+        ReplayCoordinator replayCoordinator,
+        IWorkerCommandDispatcher dispatcher,
+        TimeProvider timeProvider)
         => (TerminalHub)Activator.CreateInstance(
             typeof(TerminalHub),
             sessions,
-            replayCache,
+            replayCoordinator,
             timeProvider,
-            new NoOpWorkerCommandDispatcher(),
-            new SessionLaunchCoordinator(sessions, new NoOpWorkerCommandDispatcher()),
-            new NoOpStatsService())!;
+            dispatcher,
+            new SessionLaunchCoordinator(sessions, dispatcher),
+            new NoOpStatsService(),
+            NullLogger<TerminalHub>.Instance)!;
 
     private static WorkerHub CreateWorkerHub(
         IWorkerRegistry workers,
         ISessionCoordinator sessions,
-        IReplayCache replayCache,
+        ReplayCoordinator replayCoordinator,
         IReadOnlyDictionary<string, IClientProxy>? terminalClients = null)
         => (WorkerHub)Activator.CreateInstance(
             typeof(WorkerHub),
             workers,
             sessions,
-            replayCache,
+            replayCoordinator,
             new InMemoryAuditLogStore(),
             new TestHubContext<TerminalHub>(terminalClients ?? new Dictionary<string, IClientProxy>()),
             new NoOpStatsService(),
@@ -173,5 +182,35 @@ public sealed class TerminalHubReconnectTests
 
         var task = (Task<T>)method!.Invoke(instance, arguments)!;
         return await task;
+    }
+
+    private sealed class ScrollbackWorkerCommandDispatcher : IWorkerCommandDispatcher
+    {
+        private readonly (string Stream, byte[] Payload)[] _scrollback;
+
+        public ScrollbackWorkerCommandDispatcher(params TerminalChunk[] scrollback)
+            => _scrollback = scrollback.Select(c => (c.Stream, c.Payload)).ToArray();
+
+        public Task StartSessionAsync(string workerConnectionId, StartSessionCommand command, CancellationToken cancellationToken)
+            => Task.CompletedTask;
+
+        public Task WriteInputAsync(string workerConnectionId, WriteInputFrame frame, CancellationToken cancellationToken)
+            => Task.CompletedTask;
+
+        public Task ProbeLatencyAsync(string workerConnectionId, LatencyProbeFrame frame, CancellationToken cancellationToken)
+            => Task.CompletedTask;
+
+        public Task ResizeSessionAsync(string workerConnectionId, ResizePtyRequest request, CancellationToken cancellationToken)
+            => Task.CompletedTask;
+
+        public Task CloseSessionAsync(string workerConnectionId, CloseSessionRequest request, CancellationToken cancellationToken)
+            => Task.CompletedTask;
+
+        public Task UpgradeWorkerAsync(string workerConnectionId, UpgradeWorkerCommand command, CancellationToken cancellationToken)
+            => Task.CompletedTask;
+
+        public Task<IReadOnlyList<TerminalChunk>> RequestScrollbackAsync(string workerConnectionId, string sessionId, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<TerminalChunk>>(
+                _scrollback.Select(item => new TerminalChunk(sessionId, item.Stream, item.Payload)).ToArray());
     }
 }

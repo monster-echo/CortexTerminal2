@@ -22,14 +22,14 @@ public sealed class DetachedSessionExpiryServiceTests
         var workers = new InMemoryWorkerRegistry();
         workers.Register("worker-1", "worker-conn-1");
         var sessions = new InMemorySessionCoordinator(workers);
-        var replayCache = new ReplayCache(1024);
+        var replayCoordinator = new ReplayCoordinator();
         var createResult = await sessions.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), clientConnectionId: null, CancellationToken.None);
         var sessionId = createResult.Response!.SessionId;
         var detachedAtUtc = new DateTimeOffset(2025, 1, 1, 12, 0, 0, TimeSpan.Zero);
 
         await sessions.DetachSessionAsync("user-1", sessionId, detachedAtUtc, CancellationToken.None);
 
-        var service = CreateService(sessions, replayCache, new FixedTimeProvider(detachedAtUtc.AddMinutes(6)));
+        var service = CreateService(sessions, replayCoordinator, new FixedTimeProvider(detachedAtUtc.AddMinutes(6)));
 
         await service.StartAsync(CancellationToken.None);
         await Task.Delay(100);
@@ -45,8 +45,8 @@ public sealed class DetachedSessionExpiryServiceTests
     {
         var workers = new InMemoryWorkerRegistry();
         var sessions = new InMemorySessionCoordinator(workers);
-        var replayCache = new ReplayCache(1024);
-        var service = CreateService(sessions, replayCache, TimeProvider.System);
+        var replayCoordinator = new ReplayCoordinator();
+        var service = CreateService(sessions, replayCoordinator, TimeProvider.System);
         var executeAsync = service.GetType().GetMethod("ExecuteAsync", BindingFlags.Instance | BindingFlags.NonPublic);
         executeAsync.Should().NotBeNull();
         using var cts = new CancellationTokenSource();
@@ -67,7 +67,7 @@ public sealed class DetachedSessionExpiryServiceTests
         var workers = new InMemoryWorkerRegistry();
         workers.Register("worker-1", "worker-conn-1");
         var sessions = new InMemorySessionCoordinator(workers);
-        var replayCache = new ReplayCache(1024);
+        var replayCoordinator = new ReplayCoordinator();
 
         // Manually inject a Recovering session via reflection
         var createResult = await sessions.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), clientConnectionId: null, CancellationToken.None);
@@ -81,7 +81,7 @@ public sealed class DetachedSessionExpiryServiceTests
             LastActivityAtUtc = new DateTimeOffset(2025, 1, 1, 12, 0, 0, TimeSpan.Zero)
         };
 
-        var service = CreateService(sessions, replayCache, new FixedTimeProvider(new DateTimeOffset(2025, 1, 1, 12, 2, 0, TimeSpan.Zero)));
+        var service = CreateService(sessions, replayCoordinator, new FixedTimeProvider(new DateTimeOffset(2025, 1, 1, 12, 2, 0, TimeSpan.Zero)));
 
         await service.StartAsync(CancellationToken.None);
         await Task.Delay(100);
@@ -92,6 +92,6 @@ public sealed class DetachedSessionExpiryServiceTests
         expiredSession.ExitReason.Should().Be("recovery-timeout");
     }
 
-    private static IHostedService CreateService(ISessionCoordinator sessions, IReplayCache replayCache, TimeProvider timeProvider)
-        => new DetachedSessionExpiryService(sessions, replayCache, timeProvider, NullLogger<DetachedSessionExpiryService>.Instance);
+    private static IHostedService CreateService(ISessionCoordinator sessions, ReplayCoordinator replayCoordinator, TimeProvider timeProvider)
+        => new DetachedSessionExpiryService(sessions, replayCoordinator, timeProvider, NullLogger<DetachedSessionExpiryService>.Instance);
 }

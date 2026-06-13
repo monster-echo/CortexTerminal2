@@ -259,5 +259,8 @@ public sealed class InteractiveSessionFlowTests : IClassFixture<GatewayApplicati
 
         public Task UpgradeWorkerAsync(string workerConnectionId, CortexTerminal.Contracts.Streaming.UpgradeWorkerCommand command, CancellationToken cancellationToken)
             => Task.CompletedTask;
+
+        public Task<IReadOnlyList<CortexTerminal.Contracts.Streaming.TerminalChunk>> RequestScrollbackAsync(string workerConnectionId, string sessionId, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<CortexTerminal.Contracts.Streaming.TerminalChunk>>(Array.Empty<CortexTerminal.Contracts.Streaming.TerminalChunk>());
     }
 }

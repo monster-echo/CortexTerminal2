@@ -17,7 +17,7 @@ namespace CortexTerminal.Gateway.WebSockets;
 public sealed class TerminalWebSocketHandler
 {
     private readonly ISessionCoordinator _sessions;
-    private readonly IReplayCache _replayCache;
+    private readonly ReplayCoordinator _replayCoordinator;
     private readonly IWorkerCommandDispatcher _workerCommands;
     private readonly TimeProvider _timeProvider;
     private readonly IGatewayStatsService _stats;
@@ -31,7 +31,7 @@ public sealed class TerminalWebSocketHandler
 
     public TerminalWebSocketHandler(
         ISessionCoordinator sessions,
-        IReplayCache replayCache,
+        ReplayCoordinator replayCoordinator,
         IWorkerCommandDispatcher workerCommands,
         ISessionLaunchCoordinator sessionLaunchCoordinator,
         TimeProvider timeProvider,
@@ -39,7 +39,7 @@ public sealed class TerminalWebSocketHandler
         ILogger<TerminalWebSocketHandler> logger)
     {
         _sessions = sessions;
-        _replayCache = replayCache;
+        _replayCoordinator = replayCoordinator;
         _workerCommands = workerCommands;
         _ = sessionLaunchCoordinator;
         _timeProvider = timeProvider;
@@ -74,6 +74,8 @@ public sealed class TerminalWebSocketHandler
 
         try
         {
+            _replayCoordinator.BeginReplay(sessionId, connectionId);
+
             // Reattach the session (same logic as TerminalHub.ReattachSession)
             var reattachResult = await _sessions.ReattachSessionAsync(
                 userId,
@@ -84,6 +86,7 @@ public sealed class TerminalWebSocketHandler
 
             if (!reattachResult.IsSuccess)
             {
+                _replayCoordinator.AbortReplay(sessionId);
                 await SendErrorAsync(ws, sessionId, reattachResult.ErrorCode ?? "reattach-failed", "Failed to reattach session.", cancellationToken);
                 return;
             }
@@ -91,21 +94,46 @@ public sealed class TerminalWebSocketHandler
             // Send replay
             await SendJsonAsync(ws, new WsReplayingFrame { SessionId = sessionId }, cancellationToken);
 
-            await _replayCache.ReplayWhileLockedAsync(sessionId, async snapshot =>
-            {
-                foreach (var chunk in snapshot)
-                {
-                    await SendJsonAsync(ws, new WsReplayFrame
-                    {
-                        SessionId = chunk.SessionId,
-                        Stream = chunk.Stream,
-                        Payload = Convert.ToBase64String(chunk.Payload)
-                    }, cancellationToken);
-                }
+            _sessions.TryGetSession(sessionId, out var currentSession);
+            var workerConnectionId = currentSession?.WorkerConnectionId;
 
-                await SendJsonAsync(ws, new WsReplayCompletedFrame { SessionId = sessionId }, cancellationToken);
-                _sessions.MarkReplayCompleted(sessionId, connectionId);
-            }, cancellationToken);
+            IReadOnlyList<TerminalChunk> snapshot = Array.Empty<TerminalChunk>();
+            if (!string.IsNullOrEmpty(workerConnectionId))
+            {
+                try
+                {
+                    snapshot = await _workerCommands.RequestScrollbackAsync(workerConnectionId, sessionId, cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "RequestScrollback failed for WS session {SessionId}, sending empty replay.", sessionId);
+                }
+            }
+
+            foreach (var chunk in snapshot)
+            {
+                await SendJsonAsync(ws, new WsReplayFrame
+                {
+                    SessionId = chunk.SessionId,
+                    Stream = chunk.Stream,
+                    Payload = Convert.ToBase64String(chunk.Payload)
+                }, cancellationToken);
+            }
+
+            await SendJsonAsync(ws, new WsReplayCompletedFrame { SessionId = sessionId }, cancellationToken);
+
+            await _replayCoordinator.FlushPendingAsync(
+                sessionId,
+                connectionId,
+                chunk => SendJsonAsync(ws, new WsOutputFrame
+                {
+                    SessionId = chunk.SessionId,
+                    Stream = chunk.Stream,
+                    Payload = Convert.ToBase64String(chunk.Payload)
+                }, cancellationToken),
+                cancellationToken);
+
+            _sessions.MarkReplayCompleted(sessionId, connectionId);
 
             // Send "live" signal
             await SendJsonAsync(ws, new WsLiveFrame { SessionId = sessionId }, cancellationToken);
@@ -140,6 +168,7 @@ public sealed class TerminalWebSocketHandler
         }
         finally
         {
+            _replayCoordinator.AbortReplay(sessionId);
             _stats.ClientDisconnected();
             TerminalWebSocketConnectionRegistry.Unregister(sessionId, connectionId);
 

@@ -50,6 +50,9 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
 
     public int ActiveSessionCount => _sessions.Count;
 
+    public IReadOnlyList<TerminalChunk>? GetSessionScrollback(string sessionId)
+        => _sessions.TryGetValue(sessionId, out var runtime) ? runtime.GetScrollback() : null;
+
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         _subscriptions.Add(_gatewayClient.OnStartSession(HandleStartSessionAsync));
@@ -58,6 +61,7 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         _subscriptions.Add(_gatewayClient.OnResizeSession(HandleResizeSessionAsync));
         _subscriptions.Add(_gatewayClient.OnCloseSession(HandleCloseSessionAsync));
         _subscriptions.Add(_gatewayClient.OnUpgradeWorker(HandleUpgradeWorkerAsync));
+        _subscriptions.Add(_gatewayClient.OnRequestScrollback(HandleRequestScrollbackAsync));
         _subscriptions.Add(_gatewayClient.OnReconnected(connectionId =>
         {
             _logger.LogInformation("Worker {WorkerId} reconnected to gateway, connection={ConnectionId}.", _workerId, connectionId);
@@ -272,6 +276,18 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
     {
         _logger.LogDebug("Ignoring {Operation} for unknown session {SessionId}.", operation, sessionId);
         return Task.CompletedTask;
+    }
+
+    private IReadOnlyList<TerminalChunk> HandleRequestScrollbackAsync(string sessionId)
+    {
+        var scrollback = GetSessionScrollback(sessionId);
+        if (scrollback is null)
+        {
+            _logger.LogWarning("RequestScrollback for unknown session {SessionId}, returning empty.", sessionId);
+            return Array.Empty<TerminalChunk>();
+        }
+        _logger.LogInformation("RequestScrollback for session {SessionId}, returning {ChunkCount} chunks.", sessionId, scrollback.Count);
+        return scrollback;
     }
 
     private static readonly SemaphoreSlim _upgradeLock = new(1, 1);

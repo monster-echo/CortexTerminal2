@@ -39,10 +39,13 @@ public sealed class ReattachSessionFlowTests : IClassFixture<GatewayApplicationF
         var sessionId = created.Response!.SessionId;
 
         await sessions.DetachSessionAsync("test-user", sessionId, DateTimeOffset.UtcNow, CancellationToken.None);
-        await worker.InvokeAsync(
-            "ForwardStdout",
-            new TerminalChunk(sessionId, "stdout", System.Text.Encoding.UTF8.GetBytes("hello from worker")),
-            CancellationToken.None);
+
+        // Worker holds the authoritative scrollback snapshot and serves it on demand
+        worker.On<string, IReadOnlyList<TerminalChunk>>("RequestScrollback", requestedSessionId =>
+            (IReadOnlyList<TerminalChunk>)new List<TerminalChunk>
+            {
+                new(sessionId, "stdout", System.Text.Encoding.UTF8.GetBytes("hello from worker"))
+            });
 
         await using var reattachedTerminal = factory.CreateAuthenticatedHubConnection("/hubs/terminal");
         reattachedTerminal.On<ReplayChunk>("ReplayChunk", chunk =>

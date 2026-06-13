@@ -24,4 +24,7 @@ public sealed class SignalRWorkerCommandDispatcher(IHubContext<WorkerHub> hubCon
 
     public Task UpgradeWorkerAsync(string workerConnectionId, UpgradeWorkerCommand command, CancellationToken cancellationToken)
         => hubContext.Clients.Client(workerConnectionId).SendAsync("UpgradeWorker", command, cancellationToken);
+
+    public Task<IReadOnlyList<TerminalChunk>> RequestScrollbackAsync(string workerConnectionId, string sessionId, CancellationToken cancellationToken)
+        => hubContext.Clients.Client(workerConnectionId).InvokeAsync<IReadOnlyList<TerminalChunk>>("RequestScrollback", sessionId, cancellationToken);
 }

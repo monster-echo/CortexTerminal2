@@ -6,6 +6,7 @@ using CortexTerminal.Gateway.Stats;
 using CortexTerminal.Gateway.Workers;
 using FluentAssertions;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace CortexTerminal.Gateway.Tests.Hubs;
@@ -46,12 +47,12 @@ public sealed class TerminalHubTests
         var workers = new InMemoryWorkerRegistry();
         workers.Register("worker-1", "worker-conn-1");
         var sessions = new InMemorySessionCoordinator(workers);
-        var replayCache = new ReplayCache(1024);
+        var replayCoordinator = new ReplayCoordinator();
         var createResult = await sessions.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), "client-1", CancellationToken.None);
         var sessionId = createResult.Response!.SessionId;
         await sessions.DetachSessionAsync("user-1", sessionId, new DateTimeOffset(2025, 1, 1, 12, 0, 0, TimeSpan.Zero), CancellationToken.None);
 
-        var hub = CreateTerminalHub(sessions, replayCache, TimeProvider.System);
+        var hub = CreateTerminalHub(sessions, replayCoordinator, TimeProvider.System);
         hub.Context = new TestHubCallerContext("client-1", "user-1");
         hub.Clients = new TestHubCallerClients(new RecordingClientProxy(), new Dictionary<string, IClientProxy>
         {
@@ -70,12 +71,12 @@ public sealed class TerminalHubTests
         var workers = new InMemoryWorkerRegistry();
         workers.Register("worker-1", "worker-conn-1");
         var sessions = new InMemorySessionCoordinator(workers);
-        var replayCache = new ReplayCache(1024);
+        var replayCoordinator = new ReplayCoordinator();
         var createResult = await sessions.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), "client-1", CancellationToken.None);
         var sessionId = createResult.Response!.SessionId;
         var workerClient = new RecordingClientProxy();
 
-        var hub = CreateTerminalHub(sessions, replayCache, TimeProvider.System);
+        var hub = CreateTerminalHub(sessions, replayCoordinator, TimeProvider.System);
         hub.Context = new TestHubCallerContext("client-2", "user-1");
         hub.Clients = new TestHubCallerClients(new RecordingClientProxy(), new Dictionary<string, IClientProxy>
         {
@@ -89,13 +90,14 @@ public sealed class TerminalHubTests
         workerClient.Invocations.Should().BeEmpty();
     }
 
-    private static TerminalHub CreateTerminalHub(ISessionCoordinator sessions, IReplayCache replayCache, TimeProvider timeProvider)
+    private static TerminalHub CreateTerminalHub(ISessionCoordinator sessions, ReplayCoordinator replayCoordinator, TimeProvider timeProvider)
         => (TerminalHub)Activator.CreateInstance(
             typeof(TerminalHub),
             sessions,
-            replayCache,
+            replayCoordinator,
             timeProvider,
             new NoOpWorkerCommandDispatcher(),
             new SessionLaunchCoordinator(sessions, new NoOpWorkerCommandDispatcher()),
-            new NoOpStatsService())!;
+            new NoOpStatsService(),
+            NullLogger<TerminalHub>.Instance)!;
 }

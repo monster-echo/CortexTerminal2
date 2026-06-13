@@ -84,7 +84,7 @@ public sealed class TerminalWebSocketHandlerTests
 
         var handler = new TerminalWebSocketHandler(
             sessions,
-            new ReplayCache(4096),
+            new ReplayCoordinator(),
             dispatcher,
             launcher,
             new FixedTimeProvider(DateTimeOffset.UnixEpoch.AddSeconds(1)),

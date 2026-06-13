@@ -11,11 +11,12 @@ namespace CortexTerminal.Gateway.Hubs;
 [Authorize]
 public sealed class TerminalHub(
     ISessionCoordinator sessions,
-    IReplayCache replayCache,
+    ReplayCoordinator replayCoordinator,
     TimeProvider timeProvider,
     IWorkerCommandDispatcher workerCommands,
     ISessionLaunchCoordinator sessionLaunchCoordinator,
-    IGatewayStatsService stats) : Hub
+    IGatewayStatsService stats,
+    ILogger<TerminalHub> logger) : Hub
 {
     public override Task OnConnectedAsync()
     {
@@ -56,6 +57,8 @@ public sealed class TerminalHub(
         sessions.TryGetSession(request.SessionId, out var oldSession);
         var oldConnectionId = oldSession?.AttachedClientConnectionId;
 
+        replayCoordinator.BeginReplay(request.SessionId, Context.ConnectionId);
+
         var result = await sessions.ReattachSessionAsync(
             Context.UserIdentifier ?? "unknown",
             request,
@@ -65,6 +68,7 @@ public sealed class TerminalHub(
 
         if (!result.IsSuccess)
         {
+            replayCoordinator.AbortReplay(request.SessionId);
             return result;
         }
 
@@ -76,20 +80,40 @@ public sealed class TerminalHub(
 
         try
         {
-            await replayCache.ReplayWhileLockedAsync(request.SessionId, async snapshot =>
-            {
-                await Clients.Caller.SendAsync("SessionReattached", new SessionReattachedEvent(request.SessionId), cancellationToken);
-                foreach (var chunk in snapshot)
-                {
-                    await Clients.Caller.SendAsync("ReplayChunk", chunk, cancellationToken);
-                }
+            sessions.TryGetSession(request.SessionId, out var session);
+            var workerConnectionId = session?.WorkerConnectionId;
 
-                await Clients.Caller.SendAsync("ReplayCompleted", new ReplayCompleted(request.SessionId), cancellationToken);
-                sessions.MarkReplayCompleted(request.SessionId, Context.ConnectionId);
-            }, cancellationToken);
+            IReadOnlyList<TerminalChunk> snapshot = Array.Empty<TerminalChunk>();
+            if (!string.IsNullOrEmpty(workerConnectionId))
+            {
+                try
+                {
+                    snapshot = await workerCommands.RequestScrollbackAsync(workerConnectionId, request.SessionId, cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "RequestScrollback failed for session {SessionId}, sending empty replay.", request.SessionId);
+                }
+            }
+
+            await Clients.Caller.SendAsync("SessionReattached", new SessionReattachedEvent(request.SessionId), cancellationToken);
+            foreach (var chunk in snapshot)
+            {
+                await Clients.Caller.SendAsync("ReplayChunk", new ReplayChunk(chunk.SessionId, chunk.Stream, chunk.Payload), cancellationToken);
+            }
+            await Clients.Caller.SendAsync("ReplayCompleted", new ReplayCompleted(request.SessionId), cancellationToken);
+
+            await replayCoordinator.FlushPendingAsync(
+                request.SessionId,
+                Context.ConnectionId,
+                chunk => Clients.Caller.SendAsync("StdoutChunk", chunk, cancellationToken),
+                cancellationToken);
+
+            sessions.MarkReplayCompleted(request.SessionId, Context.ConnectionId);
         }
         catch
         {
+            replayCoordinator.AbortReplay(request.SessionId);
             await sessions.DetachSessionAsync(Context.UserIdentifier ?? "unknown", request.SessionId, timeProvider.GetUtcNow(), cancellationToken);
             throw;
         }

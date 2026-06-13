@@ -225,11 +225,11 @@ builder.Services
 
 builder.Services.AddAuthorization();
 builder.Services.AddControllers();
-builder.Services.AddSignalR().AddMessagePackProtocol();
+builder.Services.AddSignalR(options => options.MaximumReceiveMessageSize = 8 * 1024 * 1024).AddMessagePackProtocol();
 builder.Services.AddSingleton<IWorkerCommandDispatcher, SignalRWorkerCommandDispatcher>();
 builder.Services.AddSingleton<ISessionLaunchCoordinator, SessionLaunchCoordinator>();
 builder.Services.AddSingleton<InMemoryDeviceFlowStore>();
-builder.Services.AddSingleton<IReplayCache>(_ => new ReplayCache(16 * 1024));
+builder.Services.AddSingleton<ReplayCoordinator>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddHostedService<DetachedSessionExpiryService>();
 builder.Services.AddHttpClient();

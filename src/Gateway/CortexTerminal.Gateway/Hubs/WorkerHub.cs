@@ -15,7 +15,7 @@ namespace CortexTerminal.Gateway.Hubs;
 public sealed class WorkerHub(
     IWorkerRegistry workers,
     ISessionCoordinator sessions,
-    IReplayCache replayCache,
+    ReplayCoordinator replayCoordinator,
     IAuditLogStore auditLog,
     IHubContext<TerminalHub> terminalHubContext,
     IGatewayStatsService stats,
@@ -90,7 +90,7 @@ public sealed class WorkerHub(
 
                 foreach (var session in expiredSessions)
                 {
-                    replayCache.Clear(session.SessionId);
+                    replayCoordinator.AbortReplay(session.SessionId);
 
                     if (session.AttachedClientConnectionId is not null)
                     {
@@ -135,12 +135,9 @@ public sealed class WorkerHub(
         sessions.TouchSessionActivity(chunk.SessionId, DateTimeOffset.UtcNow);
         stats.RecordBytesTransferred(chunk.Payload.Length);
 
-        await replayCache.AppendAsync(new ReplayChunk(chunk.SessionId, chunk.Stream, chunk.Payload), Context.ConnectionAborted);
-
-        if (!sessions.TryGetSession(chunk.SessionId, out session) ||
-            session.WorkerConnectionId != Context.ConnectionId)
+        if (session.ReplayPending)
         {
-            logger.LogWarning("ForwardStdout DROP: session {SessionId} changed after replay append.", chunk.SessionId);
+            replayCoordinator.TryEnqueue(chunk.SessionId, chunk);
             return;
         }
 
@@ -153,12 +150,6 @@ public sealed class WorkerHub(
         if (session.AttachedClientConnectionId is null)
         {
             logger.LogWarning("ForwardStdout DROP: session {SessionId} has no attached client.", chunk.SessionId);
-            return;
-        }
-
-        if (session.ReplayPending)
-        {
-            logger.LogWarning("ForwardStdout DROP: session {SessionId} replay pending.", chunk.SessionId);
             return;
         }
 
@@ -184,12 +175,9 @@ public sealed class WorkerHub(
 
         stats.RecordBytesTransferred(chunk.Payload.Length);
 
-        await replayCache.AppendAsync(new ReplayChunk(chunk.SessionId, chunk.Stream, chunk.Payload), Context.ConnectionAborted);
-
-        if (!sessions.TryGetSession(chunk.SessionId, out session) ||
-            session.WorkerConnectionId != Context.ConnectionId)
+        if (session.ReplayPending)
         {
-            logger.LogWarning("ForwardStderr DROP: session {SessionId} changed after replay append.", chunk.SessionId);
+            replayCoordinator.TryEnqueue(chunk.SessionId, chunk);
             return;
         }
 
@@ -202,12 +190,6 @@ public sealed class WorkerHub(
         if (session.AttachedClientConnectionId is null)
         {
             logger.LogWarning("ForwardStderr DROP: session {SessionId} has no attached client.", chunk.SessionId);
-            return;
-        }
-
-        if (session.ReplayPending)
-        {
-            logger.LogWarning("ForwardStderr DROP: session {SessionId} replay pending.", chunk.SessionId);
             return;
         }
 
@@ -255,7 +237,7 @@ public sealed class WorkerHub(
         }
 
         sessions.MarkSessionStartFailed(evt.SessionId, evt.Reason);
-        replayCache.Clear(evt.SessionId);
+        replayCoordinator.AbortReplay(evt.SessionId);
 
         if (session.AttachedClientConnectionId is not null)
         {
@@ -271,7 +253,7 @@ public sealed class WorkerHub(
         }
 
         var attachedClientConnectionId = session.AttachedClientConnectionId;
-        replayCache.Clear(evt.SessionId);
+        replayCoordinator.AbortReplay(evt.SessionId);
         sessions.RemoveSession(evt.SessionId);
 
         if (attachedClientConnectionId is not null)

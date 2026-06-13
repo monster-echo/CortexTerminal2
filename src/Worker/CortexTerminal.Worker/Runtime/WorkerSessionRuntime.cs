@@ -25,7 +25,14 @@ public sealed class WorkerSessionRuntime : IAsyncDisposable
         SessionId = sessionId;
         GatewayClient = gatewayClient;
         _logger = logger;
-        _session = new PtySession(ptyHost, new ScrollbackBuffer(64 * 1024));
+        _session = new PtySession(ptyHost, new ScrollbackBuffer(ResolveScrollbackBytes()));
+    }
+
+    private static int ResolveScrollbackBytes()
+    {
+        var env = Environment.GetEnvironmentVariable("CORTERM_SCROLLBACK_BYTES");
+        if (int.TryParse(env, out var bytes) && bytes > 0) return bytes;
+        return 5 * 1024 * 1024;
     }
 
     public string SessionId { get; }
@@ -50,6 +57,8 @@ public sealed class WorkerSessionRuntime : IAsyncDisposable
         => _process is null
             ? Task.CompletedTask
             : _process.ResizeAsync(columns, rows, cancellationToken);
+
+    public IReadOnlyList<TerminalChunk> GetScrollback() => _session.GetScrollback();
 
     public async Task CloseAsync(CancellationToken cancellationToken)
     {

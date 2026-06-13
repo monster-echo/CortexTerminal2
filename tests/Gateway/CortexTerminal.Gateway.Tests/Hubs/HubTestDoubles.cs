@@ -89,6 +89,8 @@ internal sealed class NoOpWorkerCommandDispatcher : IWorkerCommandDispatcher
     public Task ResizeSessionAsync(string workerConnectionId, ResizePtyRequest request, CancellationToken cancellationToken) => Task.CompletedTask;
     public Task CloseSessionAsync(string workerConnectionId, CloseSessionRequest request, CancellationToken cancellationToken) => Task.CompletedTask;
     public Task UpgradeWorkerAsync(string workerConnectionId, UpgradeWorkerCommand command, CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task<IReadOnlyList<TerminalChunk>> RequestScrollbackAsync(string workerConnectionId, string sessionId, CancellationToken cancellationToken)
+        => Task.FromResult<IReadOnlyList<TerminalChunk>>(Array.Empty<TerminalChunk>());
 }
 
 internal sealed class NoOpStatsService : IGatewayStatsService
@@ -120,4 +122,7 @@ internal sealed class ThrowingWorkerCommandDispatcher(string message) : IWorkerC
 
     public Task UpgradeWorkerAsync(string workerConnectionId, UpgradeWorkerCommand command, CancellationToken cancellationToken)
         => Task.FromException(new InvalidOperationException(message));
+
+    public Task<IReadOnlyList<TerminalChunk>> RequestScrollbackAsync(string workerConnectionId, string sessionId, CancellationToken cancellationToken)
+        => Task.FromException<IReadOnlyList<TerminalChunk>>(new InvalidOperationException(message));
 }

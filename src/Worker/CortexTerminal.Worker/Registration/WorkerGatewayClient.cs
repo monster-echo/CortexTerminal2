@@ -42,6 +42,9 @@ public sealed class WorkerGatewayClient : IWorkerGatewayClient
     public IDisposable OnUpgradeWorker(Func<UpgradeWorkerCommand, Task> handler)
         => _connection.On<UpgradeWorkerCommand>("UpgradeWorker", handler);
 
+    public IDisposable OnRequestScrollback(Func<string, IReadOnlyList<TerminalChunk>> handler)
+        => _connection.On<string, IReadOnlyList<TerminalChunk>>("RequestScrollback", handler);
+
     public IDisposable OnReconnected(Func<string?, Task> handler)
     {
         lock (_sync)

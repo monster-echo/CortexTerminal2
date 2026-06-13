@@ -5,7 +5,7 @@ namespace CortexTerminal.Gateway.Sessions;
 
 public sealed class DetachedSessionExpiryService(
     ISessionCoordinator sessions,
-    IReplayCache replayCache,
+    ReplayCoordinator replayCoordinator,
     TimeProvider timeProvider,
     ILogger<DetachedSessionExpiryService> logger) : BackgroundService
 {
@@ -18,7 +18,7 @@ public sealed class DetachedSessionExpiryService(
             foreach (var sessionId in sessions.ExpireRecoveringSessions(timeProvider.GetUtcNow() - RecoveryTimeout))
             {
                 logger.LogInformation("session.expired {SessionId} reason=recovery-timeout", sessionId);
-                replayCache.Clear(sessionId);
+                replayCoordinator.AbortReplay(sessionId);
             }
 
             try

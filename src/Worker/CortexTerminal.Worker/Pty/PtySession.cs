@@ -31,4 +31,6 @@ public sealed class PtySession(IPtyHost host, ScrollbackBuffer scrollbackBuffer)
             yield return new TerminalChunk(sessionId, "stderr", data);
         }
     }
+
+    public IReadOnlyList<TerminalChunk> GetScrollback() => scrollbackBuffer.Snapshot();
 }

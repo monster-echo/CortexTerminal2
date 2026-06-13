@@ -13,6 +13,7 @@ public interface IWorkerGatewayClient : IAsyncDisposable
     IDisposable OnResizeSession(Func<ResizePtyRequest, Task> handler);
     IDisposable OnCloseSession(Func<CloseSessionRequest, Task> handler);
     IDisposable OnUpgradeWorker(Func<UpgradeWorkerCommand, Task> handler);
+    IDisposable OnRequestScrollback(Func<string, IReadOnlyList<TerminalChunk>> handler);
     IDisposable OnReconnected(Func<string?, Task> handler);
     IDisposable OnClosed(Func<Exception?, Task> handler);
     Task ForwardStdoutAsync(TerminalChunk chunk, CancellationToken cancellationToken);
