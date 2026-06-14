@@ -28,6 +28,13 @@
       overflow-y: auto !important;
       -webkit-overflow-scrolling: touch;
     }
+    /* Force xterm DOM renderer onto its own GPU compositing layer.
+       When WebGL is unavailable, this avoids full-document reflow during scroll. */
+    .xterm-rows {
+      transform: translateZ(0);
+      will-change: transform;
+      contain: strict;
+    }
   </style>
   <link rel="stylesheet" href="xterm.css" />
 </head>
@@ -110,12 +117,6 @@
       const container = document.getElementById('terminal-container');
       term.open(container);
 
-      // WebGL renderer: GPU texture-backed rendering eliminates DOM reflow on scroll.
-      // WebGL context loss is fatal — surface as error per project policy (no silent fallback).
-      const webglAddon = new WebglAddon.WebglAddon();
-      webglAddon.registerContextLossHandler(() => { throw new Error('WebGL context lost'); });
-      term.loadAddon(webglAddon);
-
       // Register resize handler BEFORE fit() so the initial resize event is captured
       term.onResize(function(size) {
         if (h5Port) {
@@ -130,7 +131,8 @@
         console.warn('fitAddon.fit() failed:', e);
       }
 
-      // Forward user input to ArkTS via WebMessagePort
+      // Forward user input to ArkTS via WebMessagePort (MUST register before WebGL,
+      // so a renderer init failure can never break input — VS Code applies the same pattern)
       term.onData(function(data) {
         if (h5Port) {
           h5Port.postMessage(JSON.stringify({ type: 'input', data: data }));
@@ -139,6 +141,21 @@
           document.title = 'h5Port NULL!';
         }
       });
+
+      // WebGL renderer is best-effort: GPU texture-backed rendering eliminates DOM reflow on scroll.
+      // ArkWeb WebGL2 support is uncertain; if init throws or context is lost, fall back to the
+      // built-in DOM renderer. Input is unaffected because onData is registered above unconditionally.
+      try {
+        var webglAddon = new WebglAddon.WebglAddon();
+        webglAddon.onContextLoss(function() {
+          console.warn('[XtermWebview] WebGL context lost, disposing addon');
+          webglAddon.dispose();
+        });
+        term.loadAddon(webglAddon);
+        console.info('[XtermWebview] WebGL renderer enabled');
+      } catch(e) {
+        console.warn('[XtermWebview] WebGL init failed, using DOM renderer:', e);
+      }
 
       console.log('Terminal initialized: ' + cols + 'x' + rows);
     }

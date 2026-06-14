@@ -46,7 +46,8 @@ export struct XtermWebview {
           this.onWebviewReady()
         })
         .onConsole((event) => {
-          return false
+          console.info('[WebView] ' + event.message.getMessage())
+          return true
         })
     }
     .width('100%')
