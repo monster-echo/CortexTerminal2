@@ -36,6 +36,7 @@
 
   <script src="xterm.js"></script>
   <script src="xterm-addon-fit.js"></script>
+  <script src="xterm-addon-webgl.js"></script>
 
   <script>
     // === Globals ===
@@ -98,7 +99,7 @@
           brightCyan: '#80cbc4',
           brightWhite: '#e3e2e2'
         },
-        scrollback: 64000,
+        scrollback: 5000,
         allowProposedApi: true,
         allowTransparency: false
       });
@@ -108,6 +109,12 @@
 
       const container = document.getElementById('terminal-container');
       term.open(container);
+
+      // WebGL renderer: GPU texture-backed rendering eliminates DOM reflow on scroll.
+      // WebGL context loss is fatal — surface as error per project policy (no silent fallback).
+      const webglAddon = new WebglAddon.WebglAddon();
+      webglAddon.registerContextLossHandler(() => { throw new Error('WebGL context lost'); });
+      term.loadAddon(webglAddon);
 
       // Register resize handler BEFORE fit() so the initial resize event is captured
       term.onResize(function(size) {
@@ -147,30 +154,44 @@
     }
 
     /**
-     * Write base64-encoded data to the terminal.
-     * Decodes base64 to Uint8Array and passes bytes directly to xterm.js,
-     * avoiding TextEncoder re-encoding corruption of multi-byte UTF-8 sequences.
-     * Also normalizes bare \n to \r\n to prevent the staircase effect.
+     * Decode base64 to bytes and write to terminal.
+     * Shared by single-frame and batched write paths.
+     * Normalizes bare \n to \r\n to prevent the staircase effect.
+     */
+    function decodeAndWrite(b64) {
+      var binaryStr = atob(b64);
+      var bytes = new Uint8Array(binaryStr.length);
+      for (var i = 0; i < binaryStr.length; i++) {
+        bytes[i] = binaryStr.charCodeAt(i) & 0xFF;
+      }
+      var text = new TextDecoder().decode(bytes);
+      if (text.indexOf('\n') !== -1) {
+        text = text.replace(/(?<!\r)\n/g, '\r\n');
+        bytes = new TextEncoder().encode(text);
+      }
+      term.write(bytes);
+    }
+
+    /**
+     * Write a single base64-encoded frame to the terminal.
      * @param {string} base64Data - Base64 encoded output data
      */
     function writeBase64Output(base64Data) {
       if (term && base64Data) {
-        try {
-          var binaryStr = atob(base64Data);
-          var bytes = new Uint8Array(binaryStr.length);
-          for (var i = 0; i < binaryStr.length; i++) {
-            bytes[i] = binaryStr.charCodeAt(i) & 0xFF;
-          }
-          // Normalize bare \n to \r\n (matches MAUI normalizeTerminalOutput)
-          var text = new TextDecoder().decode(bytes);
-          if (text.indexOf('\n') !== -1) {
-            text = text.replace(/(?<!\r)\n/g, '\r\n');
-            bytes = new TextEncoder().encode(text);
-          }
-          term.write(bytes);
-        } catch(e) {
-          console.error('Failed to decode base64 output:', e);
-        }
+        decodeAndWrite(base64Data);
+      }
+    }
+
+    /**
+     * Write multiple base64-encoded frames in one JS bridge call.
+     * Frames are joined with '|' (base64 charset A-Za-z0-9+/= does not include '|').
+     * @param {string} packed - '|' separated base64 frames
+     */
+    function writeBatchedOutput(packed) {
+      if (!term || !packed) return;
+      var frames = packed.split('|');
+      for (var i = 0; i < frames.length; i++) {
+        decodeAndWrite(frames[i]);
       }
     }
 

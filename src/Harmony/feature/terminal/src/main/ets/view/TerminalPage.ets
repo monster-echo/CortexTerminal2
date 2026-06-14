@@ -147,7 +147,8 @@ export struct TerminalPage {
   private webviewReady: boolean = false
   private terminalLive: boolean = false
   private initialFitDone: boolean = false
-  private pendingOutput: string[] = []
+  private pendingBatch: string[] = []
+  private flushScheduled: boolean = false
   private connectTimer: number = -1
   private pageVisible: boolean = true
 
@@ -401,14 +402,13 @@ export struct TerminalPage {
         this.connectionError = ''
         this.terminalLive = true
         this.stateManager.setState(TerminalState.Live)
-        setTimeout(() => { this.fitAndResizeIfReady() }, 200)
+        this.fitAndResizeIfReady()
         break
 
       case 'pong':
         break
 
       case 'latencyAck':
-        console.info(`[TerminalPage] latencyAck: clientTime=${frame.clientTime}ms, probeId=${frame.probeId}`)
         if (frame.clientTime >= 0) {
           this.latencyMs = frame.clientTime
         }
@@ -438,27 +438,32 @@ export struct TerminalPage {
   }
 
   private writeOutput(payload: string) {
-    if (!this.webviewReady) {
-      this.pendingOutput.push(payload)
+    this.pendingBatch.push(payload)
+    if (this.webviewReady && !this.flushScheduled) {
+      this.flushScheduled = true
+      setTimeout(() => { this.flushBatch() }, 16)
+    }
+  }
+
+  private flushBatch() {
+    this.flushScheduled = false
+    if (this.pendingBatch.length === 0) {
       return
     }
+    const packed = this.pendingBatch.join('|')
+    this.pendingBatch = []
     try {
-      console.info(`[TerminalPage] writeOutput: ${payload.substring(0, 60)}`)
-      this.webviewController.runJavaScript(`writeBase64Output("${payload}")`)
+      this.webviewController.runJavaScript(`writeBatchedOutput("${packed}")`)
     } catch (e) {
-      console.warn('Failed to write terminal output: ' + (e as Error).message)
+      throw new Error('Failed to write terminal batch: ' + (e as Error).message)
     }
   }
 
   private flushPendingOutput() {
-    if (!this.webviewReady || this.pendingOutput.length === 0) {
+    if (!this.webviewReady || this.pendingBatch.length === 0) {
       return
     }
-    const output = this.pendingOutput
-    this.pendingOutput = []
-    for (const payload of output) {
-      this.writeOutput(payload)
-    }
+    this.flushBatch()
   }
 
   private retryConnection() {
@@ -569,9 +574,7 @@ export struct TerminalPage {
   }
 
   private sendInput(data: string) {
-    console.info(`[TerminalPage] sendInput: data="${data}" (len=${data.length})`)
     const base64 = this.stringToBase64(data)
-    console.info(`[TerminalPage] sendInput: base64=${base64}`)
     this.transport.sendInput(base64)
   }
 

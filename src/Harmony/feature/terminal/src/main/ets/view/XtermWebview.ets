@@ -46,7 +46,6 @@ export struct XtermWebview {
           this.onWebviewReady()
         })
         .onConsole((event) => {
-          console.info('[WebView] ' + event.message.getMessage())
           return false
         })
     }
@@ -59,14 +58,11 @@ export struct XtermWebview {
       this.msgPorts = this.webviewController.createWebMessagePorts()
       console.info('[XtermWebview] ports created, length=' + this.msgPorts.length)
       this.msgPorts[1].onMessageEvent((result: webview.WebMessage) => {
-        console.info('[XtermWebview] onMessageEvent received, type=' + typeof result)
         if (typeof result === 'string') {
-          console.info('[XtermWebview] message: ' + result.substring(0, 100))
           try {
             const msg = JSON.parse(result) as Record<string, Object>
             const type = msg['type'] as string
             if (type === 'input') {
-              console.info('[XtermWebview] forwarding input: ' + (msg['data'] as string).substring(0, 20))
               this.onInput(msg['data'] as string)
             } else if (type === 'resize') {
               const cols = msg['cols'] as number
