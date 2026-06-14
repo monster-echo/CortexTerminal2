@@ -1,1 +1,1 @@
-Terminal latency probe interval reduced from 15s to 1s for real-time RTT display in status bar
+Lowered iOS minimum deployment target to 18.0 for broader device support.
