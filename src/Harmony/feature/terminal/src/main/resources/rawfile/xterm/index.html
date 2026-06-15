@@ -23,17 +23,15 @@
       user-select: text;
       -webkit-user-select: text;
     }
-    /* Native smooth touch scrolling for xterm viewport */
-    .xterm-viewport {
-      overflow-y: auto !important;
-      -webkit-overflow-scrolling: touch;
-    }
-    /* Force xterm DOM renderer onto its own GPU compositing layer.
-       When WebGL is unavailable, this avoids full-document reflow during scroll. */
-    .xterm-rows {
+    /* Force WebGL canvas onto its own GPU compositing layer.
+       ArkWeb API20 has a known regression where WebGL canvas renders black
+       despite all GL calls succeeding (context, shaders, drawArrays all OK).
+       translateZ(0) lifts the canvas out of the software compositor path
+       that has the bug. Must be on `canvas`, never on `.xterm-rows` (would
+       break DOM renderer's internal measurement). */
+    .xterm-screen canvas {
       transform: translateZ(0);
       will-change: transform;
-      contain: strict;
     }
   </style>
   <link rel="stylesheet" href="xterm.css" />
@@ -106,7 +104,7 @@
           brightCyan: '#80cbc4',
           brightWhite: '#e3e2e2'
         },
-        scrollback: 5000,
+        scrollback: 10000,
         allowProposedApi: true,
         allowTransparency: false
       });
@@ -142,20 +140,174 @@
         }
       });
 
-      // WebGL renderer is best-effort: GPU texture-backed rendering eliminates DOM reflow on scroll.
-      // ArkWeb WebGL2 support is uncertain; if init throws or context is lost, fall back to the
-      // built-in DOM renderer. Input is unaffected because onData is registered above unconditionally.
+      // WebGL renderer is mandatory. No DOM renderer fallback.
+      // Addon itself throws "WebGL2 not supported" if context unavailable —
+      // surfacing that error visibly so the root cause is obvious.
+
+      // === Monkey-patch mainDocument to point at real document ===
+      // xterm 6.0's CoreBrowserService.mainDocument on ArkWeb may produce a
+      // canvas whose getContext('webgl2') returns null even though the real
+      // document works. Force it to the real document so the addon can create
+      // a working WebGL context.
       try {
-        var webglAddon = new WebglAddon.WebglAddon();
-        webglAddon.onContextLoss(function() {
-          console.warn('[XtermWebview] WebGL context lost, disposing addon');
-          webglAddon.dispose();
-        });
-        term.loadAddon(webglAddon);
-        console.info('[XtermWebview] WebGL renderer enabled');
+        var core = term._core;
+        if (core && core._coreBrowserService) {
+          core._coreBrowserService.mainDocument = document;
+        }
       } catch(e) {
-        console.warn('[XtermWebview] WebGL init failed, using DOM renderer:', e);
+        console.error('[XtermWebview] mainDocument patch failed: ' + e.message);
       }
+
+      var webglAddon = new WebglAddon.WebglAddon();
+      term.loadAddon(webglAddon);
+
+      webglAddon.onContextLoss(function() {
+        console.error('[XtermWebview] WebGL context lost');
+        document.title = 'FATAL: WebGL context lost';
+      });
+      console.info('[XtermWebview] WebGL renderer enabled');
+
+      // === Custom touch scroll (ported from MAUI useTouchScroll.ts) ===
+      // xterm 6.0 WebGL doesn't support touch scroll natively — SmoothScrollableElement
+      // only listens for wheel events, and the page is overflow:hidden so the browser
+      // doesn't synthesize wheel from touch. MAUI solved this in useTouchScroll.ts;
+      // this is a 1:1 native-JS port.
+      //   - long press 500ms → enter selection mode (let xterm handle the touch)
+      //   - move > 10px before long press fires → cancel long press, scroll mode
+      //   - touchmove: passive:false + preventDefault, accumulate dy, scrollLines(±)
+      //   - touchend: if velocity > 0.5, requestAnimationFrame inertia loop (0.95 decay)
+      (function setupTouchScroll() {
+        var PIXELS_PER_LINE = 17;
+        var FRICTION = 0.95;
+        var MIN_VELOCITY = 0.5;
+        var LONG_PRESS_MS = 500;
+        var MOVE_THRESHOLD = 10;
+
+        var st = null; // { accumulated, lastY, lastTime, rafId, velocity, startY, longPressTimer, selecting }
+
+        function clearLongPress(s) {
+          if (s.longPressTimer) {
+            clearTimeout(s.longPressTimer);
+            s.longPressTimer = null;
+          }
+        }
+
+        container.addEventListener('touchstart', function(e) {
+          if (e.touches.length !== 1) return;
+          if (st && st.rafId) cancelAnimationFrame(st.rafId);
+
+          var s = {
+            accumulated: 0,
+            lastY: e.touches[0].clientY,
+            lastTime: Date.now(),
+            rafId: 0,
+            velocity: 0,
+            startY: e.touches[0].clientY,
+            longPressTimer: null,
+            selecting: false
+          };
+
+          // Long-press timer: after 500ms of no movement, switch to selection mode.
+          // Focus the xterm helper textarea and dispatch a synthetic touchstart on
+          // the real target under the finger so xterm's selection picks it up.
+          s.longPressTimer = setTimeout(function() {
+            s.selecting = true;
+            var textarea = container.querySelector('.xterm-helper-textarea');
+            if (textarea) textarea.focus();
+            var touch = e.touches[0];
+            var target = document.elementFromPoint(touch.clientX, touch.clientY);
+            if (target) {
+              var syntheticTouch = new Touch({
+                identifier: touch.identifier,
+                target: target,
+                clientX: touch.clientX,
+                clientY: touch.clientY,
+                pageX: touch.pageX,
+                pageY: touch.pageY,
+                screenX: touch.screenX,
+                screenY: touch.screenY
+              });
+              target.dispatchEvent(new TouchEvent('touchstart', {
+                touches: [syntheticTouch],
+                targetTouches: [syntheticTouch],
+                bubbles: true,
+                cancelable: true
+              }));
+            }
+          }, LONG_PRESS_MS);
+
+          st = s;
+        }, { passive: true });
+
+        container.addEventListener('touchmove', function(e) {
+          if (!st || e.touches.length !== 1) return;
+          var s = st;
+
+          var currentY = e.touches[0].clientY;
+          var totalDelta = Math.abs(currentY - s.startY);
+
+          // Movement beyond threshold before long-press fires → cancel selection intent
+          if (!s.selecting && totalDelta > MOVE_THRESHOLD) {
+            clearLongPress(s);
+          }
+
+          // In selection mode, let xterm handle the touch
+          if (s.selecting) return;
+
+          e.preventDefault();
+
+          var deltaY = s.lastY - currentY;
+          var now = Date.now();
+          var dt = now - s.lastTime;
+          if (dt > 0) s.velocity = deltaY / dt;
+
+          s.lastY = currentY;
+          s.lastTime = now;
+          s.accumulated += deltaY;
+
+          var lines = Math.trunc(s.accumulated / PIXELS_PER_LINE);
+          if (lines !== 0) {
+            term.scrollLines(lines);
+            s.accumulated -= lines * PIXELS_PER_LINE;
+          }
+        }, { passive: false });
+
+        container.addEventListener('touchend', function() {
+          if (!st) return;
+          var s = st;
+          clearLongPress(s);
+
+          if (s.selecting) {
+            st = null;
+            return;
+          }
+
+          if (Math.abs(s.velocity) > MIN_VELOCITY) {
+            var inertiaScroll = function() {
+              if (!st) return;
+              var cur = st;
+              cur.velocity *= FRICTION;
+              if (Math.abs(cur.velocity) < MIN_VELOCITY * 0.1) {
+                st = null;
+                return;
+              }
+              var delta = cur.velocity * 16;
+              cur.accumulated += delta;
+              var lines = Math.trunc(cur.accumulated / PIXELS_PER_LINE);
+              if (lines !== 0) {
+                term.scrollLines(lines);
+                cur.accumulated -= lines * PIXELS_PER_LINE;
+              }
+              cur.rafId = requestAnimationFrame(inertiaScroll);
+            };
+            s.rafId = requestAnimationFrame(inertiaScroll);
+          } else {
+            st = null;
+          }
+        }, { passive: true });
+
+        console.info('[XtermWebview] touch scroll installed (ported from MAUI)');
+      })();
 
       console.log('Terminal initialized: ' + cols + 'x' + rows);
     }

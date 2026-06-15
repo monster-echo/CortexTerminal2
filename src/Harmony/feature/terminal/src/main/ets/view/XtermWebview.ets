@@ -28,7 +28,7 @@ export struct XtermWebview {
 
   build() {
     Column() {
-      Web({ src: $rawfile('xterm/index.html'), controller: this.webviewController })
+      Web({ src: $rawfile('xterm/index.html'), controller: this.webviewController, renderMode: RenderMode.SYNC_RENDER })
         .width('100%')
         .height('100%')
         .backgroundColor('#1a1b26')
@@ -43,6 +43,7 @@ export struct XtermWebview {
         .focusable(true)
         .onPageEnd(() => {
           this.initMessagePort()
+          this.webviewController.onActive()
           this.onWebviewReady()
         })
         .onConsole((event) => {
