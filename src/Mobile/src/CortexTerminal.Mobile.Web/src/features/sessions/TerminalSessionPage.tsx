@@ -161,6 +161,7 @@ export default function TerminalSessionPage({
   const [hasSelection, setHasSelection] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleKeyRef = useRef<any>(null);
+  const recentInputRef = useRef<{ data: string; time: number }>({ data: "", time: 0 });
 
   const {
     keyboardVisible: vvKeyboardVisible,
@@ -283,28 +284,23 @@ export default function TerminalSessionPage({
     xtermRef.current = term;
     fitAddonRef.current = fitAddon;
 
-    // === DICTATION DIAGNOSTIC ===
-    // Temporary: log ALL events to understand what iOS dictation fires
-    const logEvent = (label: string, ev: Event) => {
+    // iOS WKWebView 9-grid pinyin IME drops numeric keys: keydown (keyCode=229) returns early
+    // without emitting, then input(insertText, composed=true) is blocked by xterm's _keyDownSeen
+    // gate in CoreBrowserTerminal._inputEvent. Listen on the container (capture) and forward the
+    // dropped data. The 26-key path emits via onData first; dedup by 50ms window + matching data.
+    // See xterm.js upstream issues #5835 and #5887 (both unfixed as of 6.1.0-beta.219).
+    const onBeforeInput = (ev: Event) => {
       const ie = ev as InputEvent;
-      console.log(`[DICT] ${label}`, {
-        type: ev.type,
-        inputType: (ie as any).inputType ?? "N/A",
-        data: (ie as any).data ?? "N/A",
-        composed: (ie as any).composed ?? "N/A",
-        eventPhase: ev.eventPhase,
-        target: (ev.target as HTMLElement)?.tagName,
-      });
+      if (ie.inputType !== "insertText") return;
+      if (!ie.composed) return;
+      if (typeof ie.data !== "string" || ie.data.length === 0) return;
+      const now = Date.now();
+      const recent = recentInputRef.current;
+      if (now - recent.time < 50 && recent.data === ie.data) return;
+      recentInputRef.current = { data: ie.data, time: now };
+      handleKeyRef.current?.(ie.data);
     };
-    terminalRef.current.addEventListener("beforeinput", (ev) => logEvent("beforeinput(cap)", ev), true);
-    terminalRef.current.addEventListener("input", (ev) => logEvent("input(cap)", ev), true);
-    terminalRef.current.addEventListener("compositionstart", (ev) => logEvent("compStart(cap)", ev), true);
-    terminalRef.current.addEventListener("compositionupdate", (ev) => logEvent("compUpdate(cap)", ev), true);
-    terminalRef.current.addEventListener("compositionend", (ev) => logEvent("compEnd(cap)", ev), true);
-    terminalRef.current.addEventListener("input", (ev) => logEvent("input(bub)", ev), false);
-    terminalRef.current.addEventListener("keydown", (ev) => logEvent("keydown(cap)", ev), true);
-    terminalRef.current.addEventListener("keypress", (ev) => logEvent("keypress(cap)", ev), true);
-    // === END DICTATION DIAGNOSTIC ===
+    terminalRef.current.addEventListener("beforeinput", onBeforeInput, true);
 
     term.open(terminalRef.current);
 
@@ -348,7 +344,7 @@ export default function TerminalSessionPage({
     });
 
     const inputDataDisposable = term.onData((data) => {
-      console.log("[DICT] onData:", JSON.stringify(data));
+      recentInputRef.current = { data, time: Date.now() };
       handleKeyRef.current?.(data);
     });
 
@@ -396,6 +392,7 @@ export default function TerminalSessionPage({
     return () => {
       observer.disconnect();
       textareaObserver.disconnect();
+      terminalRef.current?.removeEventListener("beforeinput", onBeforeInput, true);
       inputDataDisposable.dispose();
       selectionDisposable.dispose();
       resizeDisposable.dispose();
