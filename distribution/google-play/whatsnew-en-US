@@ -1,1 +1,1 @@
-Lowered iOS minimum deployment target to 18.0 for broader device support.
+Fix Android build failure; restore status/navigation bar tint on API ≤ 34.

@@ -29,8 +29,10 @@ public class MainActivity : MauiAppCompatActivity
         // API 35+ enforces edge-to-edge by default; SetStatusBarColor/SetNavigationBarColor are deprecated.
         if (Window is not null && Build.VERSION.SdkInt < BuildVersionCodes.VanillaIceCream)
         {
+#pragma warning disable CA1422
             Window.SetNavigationBarColor(Android.Graphics.Color.ParseColor("#08080A"));
             Window.SetStatusBarColor(Android.Graphics.Color.ParseColor("#08080A"));
+#pragma warning restore CA1422
         }
     }
 

@@ -739,10 +739,12 @@ public partial class MainPage : ContentPage
 				var window = Platform.CurrentActivity.Window;
 				if (Android.OS.Build.VERSION.SdkInt < (Android.OS.BuildVersionCodes)35)
 				{
+#pragma warning disable CA1422
 					var statusColor = Android.Graphics.Color.ParseColor(isDark ? "#121212" : "#f4f4f5");
 					var navigationColor = Android.Graphics.Color.ParseColor(isDark ? "#121212" : "#ffffff");
 					window.SetStatusBarColor(statusColor);
 					window.SetNavigationBarColor(navigationColor);
+#pragma warning restore CA1422
 				}
 
 				var controller = AndroidX.Core.View.WindowCompat.GetInsetsController(window, window.DecorView);
