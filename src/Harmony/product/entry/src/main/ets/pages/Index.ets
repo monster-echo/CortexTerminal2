@@ -81,7 +81,6 @@ struct Index {
       }
       .hideTitleBar(true)
       .backgroundColor('#0f1419')
-      .onBackPressed(() => true)
     } else if (name === RouteName.WORKER_LIST) {
       NavDestination() {
         ShellScaffold({ activeRoute: RouteName.WORKER_LIST })
