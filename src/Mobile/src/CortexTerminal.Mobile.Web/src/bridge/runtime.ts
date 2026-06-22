@@ -3,6 +3,12 @@
 import type { ZodType } from "zod";
 import { transport } from "./transport";
 
+const ANALYTICS_METHODS = new Set([
+  "TrackAnalyticsEventAsync",
+  "SetAnalyticsUserIdAsync",
+  "SetAnalyticsUserPropertyAsync",
+]);
+
 let onSessionInvalidated: (() => void) | null = null;
 
 export function registerSessionInvalidatedHandler(handler: () => void) {
@@ -66,6 +72,8 @@ export async function invoke<T>(
       if (data && typeof data === "object" && "error" in data) {
         const errorMsg = (data as { error: string }).error;
         console.log(`⏱ [bridge] ${methodName} IPC=${(t2 - t1).toFixed(0)}ms ERROR: ${errorMsg}`);
+        reportBridgeCall(methodName, t2 - t1);
+        reportBridgeError(methodName, "remote", errorMsg);
         if (errorMsg.includes("401") || errorMsg.toLowerCase().includes("unauthorized")) {
           onSessionInvalidated?.();
         }
@@ -75,16 +83,24 @@ export async function invoke<T>(
       const parsed = schema.safeParse(data);
       if (!parsed.success) {
         console.log(`⏱ [bridge] ${methodName} IPC=${(t2 - t1).toFixed(0)}ms SCHEMA_FAIL`);
+        reportBridgeCall(methodName, t2 - t1);
+        reportBridgeError(methodName, "schema", parsed.error.message);
         throw new BridgeSchemaValidationError(
           `Schema validation failed for ${methodName}: ${parsed.error.message}`,
         );
       }
 
       console.log(`⏱ [bridge] ${methodName} total=${(performance.now() - t0).toFixed(0)}ms IPC=${(t2 - t1).toFixed(0)}ms ok`);
+      reportBridgeCall(methodName, t2 - t1);
       return parsed.data;
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
       console.log(`⏱ [bridge] ${methodName} FAIL after ${(performance.now() - t0).toFixed(0)}ms: ${lastError.message}`);
+      if (error instanceof BridgeTimeoutError) {
+        reportBridgeError(methodName, "timeout", lastError.message);
+      } else if (!ANALYTICS_METHODS.has(methodName)) {
+        reportBridgeError(methodName, "exception", lastError.message);
+      }
       // Only retry on timeout errors (JS timeout or C# HttpClient timeout)
       const isRetryable =
         error instanceof BridgeTimeoutError ||
@@ -97,6 +113,24 @@ export async function invoke<T>(
   }
 
   throw lastError;
+}
+
+function reportBridgeCall(methodName: string, durationMs: number): void {
+  if (ANALYTICS_METHODS.has(methodName)) return;
+  import("./modules/analyticsBridge")
+    .then(({ analyticsBridge }) => {
+      analyticsBridge.trackTiming("bridge_call", durationMs, { call_name: methodName });
+    })
+    .catch(() => {});
+}
+
+function reportBridgeError(methodName: string, errorType: string, message: string): void {
+  if (ANALYTICS_METHODS.has(methodName)) return;
+  import("./modules/analyticsBridge")
+    .then(({ analyticsBridge }) => {
+      analyticsBridge.trackBridgeError(methodName, errorType, message);
+    })
+    .catch(() => {});
 }
 
 export function sendRaw(message: unknown) {

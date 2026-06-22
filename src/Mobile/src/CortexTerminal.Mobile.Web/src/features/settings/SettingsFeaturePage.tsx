@@ -143,6 +143,7 @@ export default function SettingsFeaturePage({ history }: RouteComponentProps) {
     }
     nativeBridge.trackEvent("logout");
     nativeBridge.setUserId("");
+    nativeBridge.setUserProperty("logged_in", "false");
     clearSession();
     history.replace("/sessions");
   };
@@ -167,6 +168,7 @@ export default function SettingsFeaturePage({ history }: RouteComponentProps) {
     applyColorMode(mode);
     setColorModeState(mode);
     nativeBridge.trackEvent("theme_change", { mode });
+    nativeBridge.setUserProperty("theme", mode);
   };
 
   const handleThemeSelect = () => {
@@ -202,6 +204,7 @@ export default function SettingsFeaturePage({ history }: RouteComponentProps) {
           handler: () => {
             setLanguage("zh");
             nativeBridge.trackEvent("language_change", { language: "zh" });
+            nativeBridge.setUserProperty("language", "zh");
           },
         },
         {
@@ -209,6 +212,7 @@ export default function SettingsFeaturePage({ history }: RouteComponentProps) {
           handler: () => {
             setLanguage("en");
             nativeBridge.trackEvent("language_change", { language: "en" });
+            nativeBridge.setUserProperty("language", "en");
           },
         },
         {
@@ -247,6 +251,7 @@ export default function SettingsFeaturePage({ history }: RouteComponentProps) {
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "24px 0 8px" }}>
           <div
             onClick={avatarSubmitting ? undefined : handleAvatarClick}
+            data-analytics-id="settings_avatar"
             style={{ position: "relative", cursor: "pointer" }}
           >
             <UserAvatar username={user?.username} avatarUrl={user?.avatarUrl} style={{ width: 80, height: 80, fontSize: 32 }} />
@@ -278,7 +283,7 @@ export default function SettingsFeaturePage({ history }: RouteComponentProps) {
               {t("settings.appearanceSection")}
             </IonLabel>
           </IonItemDivider>
-          <IonItem button onClick={handleThemeSelect}>
+          <IonItem button onClick={handleThemeSelect} data-analytics-id="settings_theme">
             <IonIcon slot="start" icon={contrastOutline} />
             <IonLabel>
               <h2>{t("settings.themeLabel")}</h2>
@@ -287,7 +292,7 @@ export default function SettingsFeaturePage({ history }: RouteComponentProps) {
               {currentThemeLabel()}
             </IonLabel>
           </IonItem>
-          <IonItem button onClick={handleLanguageSelect}>
+          <IonItem button onClick={handleLanguageSelect} data-analytics-id="settings_language">
             <IonIcon slot="start" icon={languageOutline} />
             <IonLabel>
               <h2>{t("settings.languageLabel")}</h2>
@@ -303,7 +308,7 @@ export default function SettingsFeaturePage({ history }: RouteComponentProps) {
           <IonItemDivider>
             <IonLabel className="py-2">{t("settings.featureSection")}</IonLabel>
           </IonItemDivider>
-          <IonItem button routerLink="/activate" routerDirection="root">
+          <IonItem button routerLink="/activate" routerDirection="root" data-analytics-id="settings_activate_worker">
             <IonIcon slot="start" icon={keyOutline} />
             <IonLabel>{t("settings.activateWorker")}</IonLabel>
           </IonItem>
@@ -313,7 +318,7 @@ export default function SettingsFeaturePage({ history }: RouteComponentProps) {
           <IonItemDivider>
             <IonLabel className="py-2">{t("settings.securitySection")}</IonLabel>
           </IonItemDivider>
-          <IonItem button routerLink="/settings/security" routerDirection="forward">
+          <IonItem button routerLink="/settings/security" routerDirection="forward" data-analytics-id="settings_account_security">
             <IonIcon slot="start" icon={lockClosedOutline} />
             <IonLabel>{t("settings.securitySection")}</IonLabel>
           </IonItem>
@@ -321,7 +326,7 @@ export default function SettingsFeaturePage({ history }: RouteComponentProps) {
 
         <div style={{ marginTop: 24 }}>
           <IonList inset>
-            <IonItem button onClick={handleLogout} detail={false}>
+            <IonItem button onClick={handleLogout} detail={false} data-analytics-id="settings_logout">
               <IonIcon slot="start" icon={logOutOutline} color="danger" />
               <IonLabel color="danger">{t("sidebar.logout")}</IonLabel>
             </IonItem>
@@ -425,10 +430,10 @@ export default function SettingsFeaturePage({ history }: RouteComponentProps) {
             </div>
           )}
           <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: 16, background: "rgba(0,0,0,0.6)" }}>
-            <IonButton expand="block" onClick={handleCropConfirm} disabled={avatarSubmitting}>
+            <IonButton expand="block" onClick={handleCropConfirm} disabled={avatarSubmitting} data-analytics-id="settings_avatar_crop_confirm">
               {avatarSubmitting ? t("settings.cancel") : t("settings.cropConfirm")}
             </IonButton>
-            <IonButton expand="block" fill="outline" color="light" onClick={handleCropCancel} disabled={avatarSubmitting}>
+            <IonButton expand="block" fill="outline" color="light" onClick={handleCropCancel} disabled={avatarSubmitting} data-analytics-id="settings_avatar_crop_cancel">
               {t("settings.cancel")}
             </IonButton>
           </div>

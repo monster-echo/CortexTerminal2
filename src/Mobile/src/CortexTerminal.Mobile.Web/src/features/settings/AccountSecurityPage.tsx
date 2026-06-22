@@ -123,6 +123,7 @@ export default function AccountSecurityPage({ history }: RouteComponentProps) {
       await authBridge.deleteAccount();
       nativeBridge.trackEvent("account_delete");
       nativeBridge.setUserId("");
+      nativeBridge.setUserProperty("logged_in", "false");
       deleteModalRef.current?.dismiss();
       resetDeleteForm();
       void presentToast({ message: t("settings.deleteAccountSuccess"), duration: 2000, position: "bottom", color: "success" });
@@ -143,7 +144,7 @@ export default function AccountSecurityPage({ history }: RouteComponentProps) {
           <IonItemDivider>
             <IonLabel className="py-2">{t("settings.securitySection")}</IonLabel>
           </IonItemDivider>
-          <IonItem button onClick={() => setShowPasswordModal(true)}>
+          <IonItem button onClick={() => setShowPasswordModal(true)} data-analytics-id="account_set_password">
             <IonIcon slot="start" icon={lockClosedOutline} />
             <IonLabel>
               {hasPassword ? t("settings.changePassword") : t("settings.setPassword")}
@@ -152,7 +153,7 @@ export default function AccountSecurityPage({ history }: RouteComponentProps) {
         </IonList>
 
         <IonList inset>
-          <IonItem button onClick={() => setShowDeleteModal(true)} detail={false}>
+          <IonItem button onClick={() => setShowDeleteModal(true)} detail={false} data-analytics-id="account_delete">
             <IonIcon slot="start" icon={trashOutline} color="danger" />
             <IonLabel color="danger">{t("settings.deleteAccount")}</IonLabel>
           </IonItem>
@@ -182,6 +183,7 @@ export default function AccountSecurityPage({ history }: RouteComponentProps) {
                       value={currentPassword}
                       onIonInput={(e) => setCurrentPassword(e.detail.value ?? "")}
                       disabled={passwordSubmitting}
+                      data-analytics-id="account_password_current"
                     />
                   </IonItem>
                 )}
@@ -192,6 +194,7 @@ export default function AccountSecurityPage({ history }: RouteComponentProps) {
                     value={newPassword}
                     onIonInput={(e) => setNewPassword(e.detail.value ?? "")}
                     disabled={passwordSubmitting}
+                    data-analytics-id="account_password_new"
                   />
                 </IonItem>
                 <IonItem style={{ "--padding-top": 8, "--padding-bottom": 8, "--background": "transparent" }}>
@@ -202,6 +205,7 @@ export default function AccountSecurityPage({ history }: RouteComponentProps) {
                     onIonInput={(e) => setConfirmPassword(e.detail.value ?? "")}
                     disabled={passwordSubmitting}
                     onKeyDown={(e) => { if (e.key === "Enter") handleSubmitPassword(); }}
+                    data-analytics-id="account_password_confirm"
                   />
                 </IonItem>
               </IonList>
@@ -211,6 +215,7 @@ export default function AccountSecurityPage({ history }: RouteComponentProps) {
                   expand="block"
                   onClick={handleSubmitPassword}
                   disabled={passwordSubmitting}
+                  data-analytics-id="account_password_submit"
                 >
                   {passwordSubmitting ? t("settings.cancel") : (hasPassword ? t("settings.changePassword") : t("settings.setPassword"))}
                 </IonButton>
@@ -219,6 +224,7 @@ export default function AccountSecurityPage({ history }: RouteComponentProps) {
                   fill="clear"
                   onClick={() => passwordModalRef.current?.dismiss()}
                   disabled={passwordSubmitting}
+                  data-analytics-id="account_password_cancel"
                 >
                   {t("settings.cancel")}
                 </IonButton>
@@ -259,6 +265,7 @@ export default function AccountSecurityPage({ history }: RouteComponentProps) {
                     value={deleteIdentity}
                     onIonInput={(e) => setDeleteIdentity(e.detail.value ?? "")}
                     disabled={deleteSubmitting}
+                    data-analytics-id="account_delete_identity"
                   />
                 </IonItem>
               </IonList>
@@ -269,6 +276,7 @@ export default function AccountSecurityPage({ history }: RouteComponentProps) {
                   color="danger"
                   onClick={handleConfirmDelete}
                   disabled={deleteSubmitting || !deleteIdentity.trim()}
+                  data-analytics-id="account_delete_confirm"
                 >
                   {t("settings.deleteAccountConfirm")}
                 </IonButton>
@@ -277,6 +285,7 @@ export default function AccountSecurityPage({ history }: RouteComponentProps) {
                   fill="clear"
                   onClick={() => deleteModalRef.current?.dismiss()}
                   disabled={deleteSubmitting}
+                  data-analytics-id="account_delete_cancel"
                 >
                   {t("settings.cancel")}
                 </IonButton>

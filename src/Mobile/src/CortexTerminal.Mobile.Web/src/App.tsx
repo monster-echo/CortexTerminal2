@@ -1,4 +1,4 @@
-import { Redirect, Route } from "react-router-dom";
+import { matchPath, Redirect, Route } from "react-router-dom";
 import { IonApp, IonSpinner, setupIonicReact } from "@ionic/react";
 import { IonReactRouter } from "@ionic/react-router";
 import { createHashHistory } from "history";
@@ -6,6 +6,7 @@ import { useEffect } from "react";
 import AppLayout from "./components/AppLayout";
 import { nativeBridge } from "./bridge/nativeBridge";
 import { transport, registerSessionInvalidatedHandler } from "./bridge/runtime";
+import { initGlobalAnalytics, setRouteTemplate } from "./bridge/analytics/globalTracker";
 import SettingsFeaturePage from "./features/settings/SettingsFeaturePage";
 import LoginPage from "./features/auth/LoginPage";
 import SessionsPage from "./features/sessions/SessionsPage";
@@ -73,6 +74,22 @@ function pathToScreenName(pathname: string): string {
   return "unknown";
 }
 
+const ROUTE_PATTERNS = [
+  "/sessions/:sessionId",
+  "/sessions",
+  "/workers",
+  "/activate",
+  "/settings/security",
+  "/settings",
+];
+
+function pathToRouteTemplate(pathname: string): string {
+  for (const pattern of ROUTE_PATTERNS) {
+    if (matchPath(pathname, { path: pattern, exact: true })) return pattern;
+  }
+  return pathname;
+}
+
 export default function App({
   initialData,
 }: {
@@ -114,13 +131,16 @@ export default function App({
         if (session) {
           setSession({ username: session.username }, session.token);
           nativeBridge.setUserId(session.username);
+          nativeBridge.setUserProperty("logged_in", "true");
         } else {
           clearSession();
           nativeBridge.setUserId("");
+          nativeBridge.setUserProperty("logged_in", "false");
         }
       } catch {
         clearSession();
         nativeBridge.setUserId("");
+        nativeBridge.setUserProperty("logged_in", "false");
       }
     };
     checkSession();
@@ -145,6 +165,10 @@ export default function App({
         setBridgeReady(true);
         setLastBridgeError(null);
 
+        nativeBridge.setUserProperty("platform", initialData?.platform ?? "unknown");
+        const version = typeof appInfo?.appVersion === "string" ? appInfo.appVersion : "unknown";
+        nativeBridge.setUserProperty("app_version", version);
+
         // Sync theme & language from native preferences (authoritative source)
         try {
           const [savedColorMode, savedLanguage] = await Promise.all([
@@ -168,6 +192,11 @@ export default function App({
         const message = error instanceof Error ? error.message : String(error);
         console.warn("Failed to bootstrap bridge state", error);
         setLastBridgeError(message);
+        nativeBridge.trackError({
+          source: "bootstrap",
+          message,
+          stack: error instanceof Error ? error.stack : "",
+        });
       } finally {
         setInitializing(false);
       }
@@ -220,14 +249,34 @@ export default function App({
     };
 
     const updateOnlineStatus = () => {
-      setOffline(!navigator.onLine);
+      const wasOffline = useAppStore.getState().isOffline;
+      const nextOffline = !navigator.onLine;
+      setOffline(nextOffline);
+      if (wasOffline !== nextOffline) {
+        nativeBridge.trackNetworkChange(
+          nextOffline ? "offline" : "online",
+          wasOffline ? "offline" : "online",
+        );
+      }
     };
 
+    const reportRoute = (pathname: string) => {
+      const screenName = pathToScreenName(pathname);
+      const template = pathToRouteTemplate(pathname);
+      setRouteTemplate(template);
+      nativeBridge.trackPageView({
+        pageName: screenName,
+        pagePath: pathname,
+        routeTemplate: template,
+      });
+    };
+
+    const teardownGlobalAnalytics = initGlobalAnalytics();
+
     const unsubscribeHistory = history.listen((location) => {
-      const screenName = pathToScreenName(location.pathname);
-      nativeBridge.setScreen(screenName);
+      reportRoute(location.pathname);
     });
-    nativeBridge.setScreen(pathToScreenName(history.location.pathname));
+    reportRoute(history.location.pathname);
 
     const unsubscribeNative = transport.onMessage(onNativeMessage);
     registerSessionInvalidatedHandler(() => clearSession());
@@ -241,6 +290,7 @@ export default function App({
       delete (window as any).checkWebViewHealth;
       unsubscribeHistory();
       unsubscribeNative();
+      teardownGlobalAnalytics();
       window.removeEventListener("online", updateOnlineStatus);
       window.removeEventListener("offline", updateOnlineStatus);
     };

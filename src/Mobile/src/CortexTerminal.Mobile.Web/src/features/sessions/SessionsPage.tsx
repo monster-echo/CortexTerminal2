@@ -105,7 +105,7 @@ export default function SessionsPage({ history }: RouteComponentProps) {
           <IonTitle>{t("sessions.title")}</IonTitle>
           {isGatewayLoaded && workers.length > 0 && (
             <IonButtons slot="end">
-              <IonButton onClick={create.openModal}>
+              <IonButton onClick={create.openModal} data-analytics-id="sessions_new">
                 <IonIcon slot="icon-only" icon={addOutline} />
               </IonButton>
             </IonButtons>
@@ -170,6 +170,7 @@ export default function SessionsPage({ history }: RouteComponentProps) {
                   <IonItem
                     button
                     detail
+                    data-analytics-id="sessions_item"
                     onClick={() => {
                       history.replace(`/sessions/${session.id}`);
                     }}
@@ -206,6 +207,7 @@ export default function SessionsPage({ history }: RouteComponentProps) {
                         borderRadius: "8px",
                         padding: "0 16px",
                       }}
+                      data-analytics-id="sessions_rename"
                       onClick={() => {
                         presentRenameAlert({
                           header: t("sessions.rename"),
@@ -251,6 +253,7 @@ export default function SessionsPage({ history }: RouteComponentProps) {
                         borderRadius: "8px",
                         padding: "0 16px",
                       }}
+                      data-analytics-id="sessions_delete"
                       onClick={async () => {
                         try {
                           await terminalBridge.deleteSession(session.id);

@@ -258,6 +258,7 @@ export default function LoginPage() {
                     onIonInput={(e) => setPhone(e.detail.value ?? "")}
                     disabled={isLoading}
                     maxlength={11}
+                    data-analytics-id="login_phone"
                   />
                 </IonItem>
                 <IonItem>
@@ -269,6 +270,7 @@ export default function LoginPage() {
                     disabled={isLoading}
                     onKeyDown={(e) => { if (e.key === "Enter") handlePhoneLogin(); }}
                     style={{ flex: 1 }}
+                    data-analytics-id="login_code"
                   />
                   <IonButton
                     slot="end"
@@ -276,6 +278,7 @@ export default function LoginPage() {
                     size="small"
                     onClick={() => handleSendCode()}
                     disabled={isLoading || codeCountdown > 0 || phone.length !== 11}
+                    data-analytics-id="login_send_code"
                   >
                     {codeCountdown > 0
                       ? t("login.resend") + ` (${codeCountdown}s)`
@@ -289,6 +292,7 @@ export default function LoginPage() {
                 style={btnStyle}
                 onClick={handlePhoneLogin}
                 disabled={isLoading || !code.trim() || phone.length !== 11}
+                data-analytics-id="login_submit_phone"
               >
                 {loadingProvider === "phone" ? <IonSpinner name="crescent" /> : t("login.login")}
               </IonButton>
@@ -306,6 +310,7 @@ export default function LoginPage() {
                     value={username}
                     onIonInput={(e) => setUsername(e.detail.value ?? "")}
                     disabled={isLoading}
+                    data-analytics-id="login_username"
                   />
                 </IonItem>
                 <IonItem>
@@ -316,6 +321,7 @@ export default function LoginPage() {
                     onIonInput={(e) => setPassword(e.detail.value ?? "")}
                     disabled={isLoading}
                     onKeyDown={(e) => { if (e.key === "Enter") handlePasswordLogin(); }}
+                    data-analytics-id="login_password"
                   />
                 </IonItem>
               </IonList>
@@ -325,6 +331,7 @@ export default function LoginPage() {
                 style={btnStyle}
                 onClick={() => handlePasswordLogin()}
                 disabled={isLoading || !username.trim() || !password.trim()}
+                data-analytics-id="login_submit_password"
               >
                 {loadingProvider === "password" ? <IonSpinner name="crescent" /> : t("login.passwordLogin")}
               </IonButton>
@@ -351,6 +358,7 @@ export default function LoginPage() {
                     className="ion-margin-bottom"
                     onClick={() => handleOAuth("apple")}
                     disabled={isLoading}
+                    data-analytics-id="login_oauth_apple"
                   >
                     {loadingProvider === "apple" ? (
                       <IonSpinner name="crescent" />
@@ -369,6 +377,7 @@ export default function LoginPage() {
                     className="ion-margin-bottom"
                     onClick={() => handleOAuth("github")}
                     disabled={isLoading}
+                    data-analytics-id="login_oauth_github"
                   >
                     {loadingProvider === "github" ? (
                       <IonSpinner name="crescent" />
@@ -386,6 +395,7 @@ export default function LoginPage() {
                     fill="outline"
                     onClick={() => handleOAuth("google")}
                     disabled={isLoading}
+                    data-analytics-id="login_oauth_google"
                   >
                     {loadingProvider === "google" ? (
                       <IonSpinner name="crescent" />
@@ -410,11 +420,13 @@ export default function LoginPage() {
             <a
               onClick={(e) => { e.preventDefault(); nativeBridge.openExternalLink(appInfo?.privacyPolicyUrl ?? ""); }}
               style={{ color: "var(--ion-color-primary)", cursor: "pointer", textDecoration: "underline" }}
+              data-analytics-id="login_privacy_link"
             >{t("settings.privacy")}</a>
             {t("login.agreementAnd")}
             <a
               onClick={(e) => { e.preventDefault(); nativeBridge.openExternalLink(appInfo?.termsOfServiceUrl ?? ""); }}
               style={{ color: "var(--ion-color-primary)", cursor: "pointer", textDecoration: "underline" }}
+              data-analytics-id="login_terms_link"
             >{t("settings.terms")}</a>
             {t("login.agreementSuffix")}
           </div>

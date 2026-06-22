@@ -28,7 +28,6 @@ import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
 import "@xterm/xterm/css/xterm.css";
 import { useSessionStore, type SessionState } from "../../store/sessionStore";
-import { useAppStore } from "../../store/appStore";
 import { terminalBridge } from "../../bridge/modules/terminalBridge";
 import { nativeBridge } from "../../bridge/nativeBridge";
 import { transport } from "../../bridge/runtime";
@@ -72,12 +71,14 @@ function ToolbarButton({
   active,
   disabled,
   onClick,
+  analyticsId,
 }: {
   label?: string;
   icon?: string;
   active?: boolean;
   disabled?: boolean;
   onClick: () => void;
+  analyticsId?: string;
 }) {
   return (
     <button
@@ -88,6 +89,7 @@ function ToolbarButton({
         void nativeBridge.haptics("click");
       }}
       disabled={disabled}
+      data-analytics-id={analyticsId}
       style={{
         minWidth: 40,
         height: 34,
@@ -133,10 +135,6 @@ export default function TerminalSessionPage({
   const [presentActionSheet] = useIonActionSheet();
   const [presentLoading, dismissLoading] = useIonLoading();
   const loadingRef = useRef(false);
-
-  // ── Platform detection ──
-  const platformLabel = useAppStore((s) => s.platformLabel);
-
 
   const recentSessions = useSessionStore(selectRecentSessions);
   const session = useMemo(
@@ -309,12 +307,9 @@ export default function TerminalSessionPage({
 
     term.open(terminalRef.current);
 
-    // deleteContentBackward-as-backspace forwarding is iOS-only: Android's physical keyboard
-    // emits \x7f via xterm's keydown path, so listening to `input` here would double-send.
-    const imeTextarea =
-      platformLabel === "ios"
-        ? terminalRef.current?.querySelector<HTMLTextAreaElement>(".xterm-helper-textarea")
-        : null;
+    const imeTextarea = terminalRef.current?.querySelector<HTMLTextAreaElement>(
+      ".xterm-helper-textarea",
+    );
     if (imeTextarea) lastTextareaValueRef.current = imeTextarea.value;
     const onTextareaInput = (ev: Event) => {
       const ie = ev as InputEvent;
@@ -614,6 +609,9 @@ export default function TerminalSessionPage({
         if (typeof rtt === "number" && rtt >= 0) {
           setLatency(rtt);
           setStatusMessage(t("terminal.live"));
+          if (rtt >= 500) {
+            nativeBridge.trackTiming("terminal_latency", rtt, { session_id: sessionId });
+          }
         }
       }
 
@@ -798,40 +796,48 @@ export default function TerminalSessionPage({
                 scrollbarWidth: "none",
               }}
             >
-              <ToolbarButton label="Esc" onClick={() => handleKey("\x1b")} />
-              <ToolbarButton label="Tab" onClick={() => handleKey("\t")} />
+              <ToolbarButton label="Esc" analyticsId="terminal_toolbar_esc" onClick={() => handleKey("\x1b")} />
+              <ToolbarButton label="Tab" analyticsId="terminal_toolbar_tab" onClick={() => handleKey("\t")} />
               <ToolbarButton
                 label="S-Tab"
+                analyticsId="terminal_toolbar_stab"
                 onClick={() => handleKey("\x1b[Z")}
               />
               <ToolbarButton
                 label="Ctrl"
+                analyticsId="terminal_toolbar_ctrl"
                 active={ctrlActive}
                 onClick={() => setCtrlActive((v) => !v)}
               />
               <ToolbarButton
                 label="Alt"
+                analyticsId="terminal_toolbar_alt"
                 active={altActive}
                 onClick={() => setAltActive((v) => !v)}
               />
               <ToolbarButton
                 icon={arrowBackOutline}
+                analyticsId="terminal_toolbar_arrow_left"
                 onClick={() => handleKey("\x1b[D")}
               />
               <ToolbarButton
                 icon={arrowUpOutline}
+                analyticsId="terminal_toolbar_arrow_up"
                 onClick={() => handleKey("\x1b[A")}
               />
               <ToolbarButton
                 icon={arrowDownOutline}
+                analyticsId="terminal_toolbar_arrow_down"
                 onClick={() => handleKey("\x1b[B")}
               />
               <ToolbarButton
                 icon={arrowForwardOutline}
+                analyticsId="terminal_toolbar_arrow_right"
                 onClick={() => handleKey("\x1b[C")}
               />
               <ToolbarButton
                 icon={clipboardOutline}
+                analyticsId="terminal_toolbar_paste"
                 label={t("terminal.paste")}
                 disabled={!hasClipboard}
                 onClick={handlePaste}
@@ -840,6 +846,7 @@ export default function TerminalSessionPage({
             </div>
             <ToolbarButton
               label={t("terminal.done")}
+              analyticsId="terminal_toolbar_done"
               onClick={() => {
                 const textarea = terminalRef.current?.querySelector(
                   ".xterm-helper-textarea",

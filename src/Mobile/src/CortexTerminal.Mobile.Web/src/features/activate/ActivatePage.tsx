@@ -152,6 +152,7 @@ export default function ActivatePage() {
                     placeholder={t("activate.codePlaceholder")}
                     maxlength={9}
                     debounce={0}
+                    data-analytics-id="activate_code"
                     style={{
                       fontFamily: "'SF Mono', 'Menlo', 'Monaco', monospace",
                       fontSize: 28,
@@ -188,6 +189,7 @@ export default function ActivatePage() {
                       size="large"
                       disabled={state === "submitting" || code.trim().length < 9}
                       onClick={() => void handleSubmit()}
+                      data-analytics-id="activate_submit"
                     >
                       {state === "submitting" ? (
                         <IonSpinner name="crescent" />

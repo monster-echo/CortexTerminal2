@@ -5,9 +5,13 @@ import "./i18n";
 import App from "./App";
 import { transport } from "./bridge/runtime";
 import { initColorMode } from "./theme/colorMode";
+import { analyticsBridge } from "./bridge/modules/analyticsBridge";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 
 const container = document.getElementById("root");
 const root = createRoot(container!);
+
+const APP_START_TS = performance.now();
 
 const sendAppReady = () => {
   try {
@@ -15,6 +19,7 @@ const sendAppReady = () => {
   } catch (error) {
     console.warn("Failed to send appReady", error);
   }
+  analyticsBridge.trackTiming("app_start", performance.now() - APP_START_TS, { phase: "cold" });
 };
 
 const sendAppInit = () => {
@@ -27,7 +32,9 @@ const sendAppInit = () => {
 
 const renderApp = (initialData?: unknown) => {
   root.render(
-    <App initialData={initialData as { platform?: string } | undefined} />,
+    <ErrorBoundary>
+      <App initialData={initialData as { platform?: string } | undefined} />
+    </ErrorBoundary>,
   );
 };
 

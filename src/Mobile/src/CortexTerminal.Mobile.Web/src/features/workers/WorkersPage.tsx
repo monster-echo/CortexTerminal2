@@ -100,6 +100,7 @@ export default function WorkersPage() {
                 key={worker.id}
                 button
                 detail
+                data-analytics-id="workers_item"
                 onClick={() => setSelectedWorker(worker)}
               >
                 <IonIcon slot="start" icon={hardwareChipOutline} />
@@ -128,7 +129,7 @@ export default function WorkersPage() {
             <IonToolbar>
               <IonTitle>{selectedWorker?.name ?? t("workers.title")}</IonTitle>
               <IonButtons slot="end">
-                <IonButton onClick={() => setSelectedWorker(null)}>{t("workers.close")}</IonButton>
+                <IonButton onClick={() => setSelectedWorker(null)} data-analytics-id="workers_detail_close">{t("workers.close")}</IonButton>
               </IonButtons>
             </IonToolbar>
           </IonHeader>
