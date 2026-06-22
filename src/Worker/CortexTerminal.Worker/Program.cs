@@ -386,7 +386,7 @@ rootCommand.SetAction(async (ParseResult parseResult, CancellationToken cancella
     Console.WriteLine($"  Worker:  {workerId}");
 
     var builder = Host.CreateApplicationBuilder();
-    builder.Configuration.SetBasePath(installDir);
+    builder.Configuration.AddJsonFile(Path.Combine(installDir, "appsettings.json"), optional: true, reloadOnChange: true);
     builder.Logging.AddConsoleFormatter<CliConsoleFormatter, SimpleConsoleFormatterOptions>();
 
     builder.Services.AddSingleton<IPtyHost, UnixPtyHost>();
