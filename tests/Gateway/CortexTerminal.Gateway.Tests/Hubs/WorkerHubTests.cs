@@ -204,7 +204,7 @@ public sealed class WorkerHubTests
         workerHub.Context = new TestHubCallerContext("worker-conn-2", "user-1");
         workerHub.Clients = new TestHubCallerClients(new RecordingClientProxy());
 
-        workerHub.RegisterWorker("worker-1");
+        await workerHub.RegisterWorker("worker-1");
 
         sessions.TryGetSession(sessionId, out var session).Should().BeTrue();
         session.WorkerConnectionId.Should().Be("worker-conn-2");
@@ -230,7 +230,7 @@ public sealed class WorkerHubTests
         });
         workerHub.Context = new TestHubCallerContext("worker-conn-2", "user-1");
         workerHub.Clients = new TestHubCallerClients(new RecordingClientProxy());
-        workerHub.RegisterWorker("worker-1");
+        await workerHub.RegisterWorker("worker-1");
 
         await workerHub.SessionExited(new SessionExited(sessionId, 137, "terminated-by-user"));
 
@@ -347,7 +347,7 @@ public sealed class WorkerHubTests
         var workerHub2 = CreateWorkerHub(workers, sessions, replayCoordinator, new Dictionary<string, IClientProxy>());
         workerHub2.Context = new TestHubCallerContext("worker-conn-2", "user-1");
         workerHub2.Clients = new TestHubCallerClients(new RecordingClientProxy());
-        workerHub2.RegisterWorker("worker-1");
+        await workerHub2.RegisterWorker("worker-1");
 
         var workerHub1 = CreateWorkerHub(workers, sessions, replayCoordinator, new Dictionary<string, IClientProxy>());
         workerHub1.Context = new TestHubCallerContext("worker-conn-1");

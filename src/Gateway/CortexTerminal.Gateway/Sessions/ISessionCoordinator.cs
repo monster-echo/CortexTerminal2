@@ -9,18 +9,16 @@ public interface ISessionCoordinator
     Task DetachSessionAsync(string userId, string sessionId, DateTimeOffset detachedAtUtc, CancellationToken cancellationToken);
     Task<DeleteSessionResult> DeleteSessionAsync(string userId, string sessionId, CancellationToken cancellationToken);
     Task<ReattachSessionResult> ReattachSessionAsync(string userId, ReattachSessionRequest request, string clientConnectionId, DateTimeOffset nowUtc, CancellationToken cancellationToken);
-    IReadOnlyList<SessionRecord> GetSessionsForUser(string userId);
-    void MarkSessionStartFailed(string sessionId, string reason);
-    void MarkSessionExited(string sessionId, int exitCode, string reason);
-    void RemoveSession(string sessionId);
-    void MarkReplayCompleted(string sessionId, string clientConnectionId);
-    int RebindActiveSessions(string userId, string workerId, string workerConnectionId);
-    IReadOnlyList<SessionRecord> TransitionToRecovering(string workerId, string workerConnectionId);
-    IReadOnlyList<string> ExpireDetachedSessions(DateTimeOffset nowUtc);
-    IReadOnlyList<string> ExpireRecoveringSessions(DateTimeOffset cutoffUtc);
+    Task<IReadOnlyList<SessionRecord>> GetSessionsForUser(string userId);
+    Task MarkSessionStartFailed(string sessionId, string reason);
+    Task MarkSessionExited(string sessionId, int exitCode, string reason);
+    Task RemoveSession(string sessionId);
+    Task MarkReplayCompleted(string sessionId, string clientConnectionId);
+    Task<int> RebindActiveSessions(string userId, string workerId, string workerConnectionId);
+    Task<IReadOnlyList<SessionRecord>> TransitionToRecovering(string workerId, string workerConnectionId);
+    Task<IReadOnlyList<string>> ExpireRecoveringSessions(DateTimeOffset cutoffUtc);
     bool TryGetSession(string sessionId, out SessionRecord session);
     bool TouchSessionActivity(string sessionId, DateTimeOffset nowUtc);
-    RenameSessionResult RenameSessionAsync(string userId, string sessionId, string? name);
-    (int Active, int Detached) GetAllSessionCounts();
-    IReadOnlyList<SessionRecord> GetAllActiveSessions();
+    Task<RenameSessionResult> RenameSessionAsync(string userId, string sessionId, string? name);
+    Task<IReadOnlyList<SessionRecord>> GetAllActiveSessions();
 }

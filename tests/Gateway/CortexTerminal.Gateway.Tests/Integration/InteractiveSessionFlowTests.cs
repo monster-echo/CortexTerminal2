@@ -183,7 +183,7 @@ public sealed class InteractiveSessionFlowTests : IClassFixture<GatewayApplicati
         created.Should().NotBeNull();
 
         var sessions = factory.Services.GetRequiredService<ISessionCoordinator>();
-        sessions.MarkSessionExited(created!.SessionId, 0, "completed");
+        await sessions.MarkSessionExited(created!.SessionId, 0, "completed");
 
         using var deleteResponse = await client.DeleteAsync($"/api/me/sessions/{Uri.EscapeDataString(created.SessionId)}");
         deleteResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);

@@ -64,7 +64,7 @@ public sealed class SessionCoordinatorTests
 
         result.IsSuccess.Should().BeFalse();
         result.ErrorCode.Should().Be("no-worker-available");
-        coordinator.GetSessionsForUser("user-1").Should().BeEmpty();
+        (await coordinator.GetSessionsForUser("user-1")).Should().BeEmpty();
     }
 
     [Fact]
@@ -85,8 +85,8 @@ public sealed class SessionCoordinatorTests
         var successfulUser = results[0].IsSuccess ? "user-a" : "user-b";
         var failedUser = successfulUser == "user-a" ? "user-b" : "user-a";
 
-        coordinator.GetSessionsForUser(successfulUser).Should().ContainSingle();
-        coordinator.GetSessionsForUser(failedUser).Should().BeEmpty();
+        (await coordinator.GetSessionsForUser(successfulUser)).Should().ContainSingle();
+        (await coordinator.GetSessionsForUser(failedUser)).Should().BeEmpty();
         workers.TryGetWorker("worker-1", out var worker).Should().BeTrue();
         worker.OwnerUserId.Should().Be(successfulUser);
     }

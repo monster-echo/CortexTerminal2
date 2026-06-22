@@ -321,33 +321,32 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
         }
     }
 
-    public void MarkSessionStartFailed(string sessionId, string reason)
+    public Task MarkSessionStartFailed(string sessionId, string reason)
     {
         lock (_sync)
         {
-            if (!_sessions.TryGetValue(sessionId, out var session))
+            if (_sessions.TryGetValue(sessionId, out var session))
             {
-                return;
+                _sessions[sessionId] = session with
+                {
+                    AttachmentState = SessionAttachmentState.Exited,
+                    AttachedClientConnectionId = null,
+                    ExitCode = null,
+                    ExitReason = reason,
+                    ReplayPending = false,
+                    LeaseExpiresAtUtc = null,
+                    LastActivityAtUtc = _timeProvider.GetUtcNow()
+                };
+
+                PersistSessionState(sessionId, "Exited", exitReason: reason);
             }
-
-            _sessions[sessionId] = session with
-            {
-                AttachmentState = SessionAttachmentState.Exited,
-                AttachedClientConnectionId = null,
-                ExitCode = null,
-                ExitReason = reason,
-                ReplayPending = false,
-                LeaseExpiresAtUtc = null,
-                LastActivityAtUtc = _timeProvider.GetUtcNow()
-            };
-
-            PersistSessionState(sessionId, "Exited", exitReason: reason);
         }
 
         _logger.LogInformation("session.start-failed {SessionId} reason={Reason}", sessionId, reason);
+        return Task.CompletedTask;
     }
 
-    public void RemoveSession(string sessionId)
+    public Task RemoveSession(string sessionId)
     {
         _logger.LogInformation("session.removed {SessionId}", sessionId);
 
@@ -366,56 +365,57 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
                 db.Sessions.Remove(entity);
             }
         }, $"RemoveSession:{sessionId}");
+
+        return Task.CompletedTask;
     }
 
-    public void MarkSessionExited(string sessionId, int exitCode, string reason)
+    public Task MarkSessionExited(string sessionId, int exitCode, string reason)
     {
         lock (_sync)
         {
-            if (!_sessions.TryGetValue(sessionId, out var session))
+            if (_sessions.TryGetValue(sessionId, out var session))
             {
-                return;
+                _sessions[sessionId] = session with
+                {
+                    AttachmentState = SessionAttachmentState.Exited,
+                    AttachedClientConnectionId = null,
+                    ExitCode = exitCode,
+                    ExitReason = reason,
+                    ReplayPending = false,
+                    LeaseExpiresAtUtc = null,
+                    LastActivityAtUtc = _timeProvider.GetUtcNow()
+                };
+
+                PersistSessionState(sessionId, "Exited", exitCode: exitCode, exitReason: reason);
             }
-
-            _sessions[sessionId] = session with
-            {
-                AttachmentState = SessionAttachmentState.Exited,
-                AttachedClientConnectionId = null,
-                ExitCode = exitCode,
-                ExitReason = reason,
-                ReplayPending = false,
-                LeaseExpiresAtUtc = null,
-                LastActivityAtUtc = _timeProvider.GetUtcNow()
-            };
-
-            PersistSessionState(sessionId, "Exited", exitCode: exitCode, exitReason: reason);
         }
 
         _logger.LogInformation("session.exited {SessionId} exitCode={ExitCode} reason={Reason}", sessionId, exitCode, reason);
+        return Task.CompletedTask;
     }
 
-    public void MarkReplayCompleted(string sessionId, string clientConnectionId)
+    public Task MarkReplayCompleted(string sessionId, string clientConnectionId)
     {
         lock (_sync)
         {
-            if (!_sessions.TryGetValue(sessionId, out var session) ||
-                session.AttachmentState != SessionAttachmentState.Attached ||
-                session.AttachedClientConnectionId != clientConnectionId)
+            if (_sessions.TryGetValue(sessionId, out var session) &&
+                session.AttachmentState == SessionAttachmentState.Attached &&
+                session.AttachedClientConnectionId == clientConnectionId)
             {
-                return;
+                _sessions[sessionId] = session with
+                {
+                    ReplayPending = false,
+                    LastActivityAtUtc = _timeProvider.GetUtcNow()
+                };
+
+                PersistSessionState(sessionId, "Attached", replayPending: false);
             }
-
-            _sessions[sessionId] = session with
-            {
-                ReplayPending = false,
-                LastActivityAtUtc = _timeProvider.GetUtcNow()
-            };
-
-            PersistSessionState(sessionId, "Attached", replayPending: false);
         }
+
+        return Task.CompletedTask;
     }
 
-    public int RebindActiveSessions(string userId, string workerId, string workerConnectionId)
+    public Task<int> RebindActiveSessions(string userId, string workerId, string workerConnectionId)
     {
         var reboundSessionIds = new List<string>();
 
@@ -453,10 +453,10 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
             }
         }
 
-        return reboundSessionIds.Count;
+        return Task.FromResult(reboundSessionIds.Count);
     }
 
-    public IReadOnlyList<SessionRecord> TransitionToRecovering(string workerId, string workerConnectionId)
+    public Task<IReadOnlyList<SessionRecord>> TransitionToRecovering(string workerId, string workerConnectionId)
     {
         var transitionedSessions = new List<SessionRecord>();
 
@@ -489,17 +489,10 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
             }
         }
 
-        return transitionedSessions;
+        return Task.FromResult<IReadOnlyList<SessionRecord>>(transitionedSessions);
     }
 
-    public IReadOnlyList<string> ExpireDetachedSessions(DateTimeOffset nowUtc)
-    {
-        // No-op: sessions are no longer expired due to client disconnect.
-        // Only Worker offline or process exit terminates a session.
-        return [];
-    }
-
-    public IReadOnlyList<string> ExpireRecoveringSessions(DateTimeOffset cutoffUtc)
+    public Task<IReadOnlyList<string>> ExpireRecoveringSessions(DateTimeOffset cutoffUtc)
     {
         var expiredSessionIds = new List<string>();
 
@@ -535,7 +528,7 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
             _logger.LogInformation("Expired {Count} recovering sessions due to recovery timeout", expiredSessionIds.Count);
         }
 
-        return expiredSessionIds;
+        return Task.FromResult<IReadOnlyList<string>>(expiredSessionIds);
     }
 
     public bool TryGetSession(string sessionId, out SessionRecord session)
@@ -578,13 +571,13 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
         return true;
     }
 
-    public RenameSessionResult RenameSessionAsync(string userId, string sessionId, string? name)
+    public Task<RenameSessionResult> RenameSessionAsync(string userId, string sessionId, string? name)
     {
         lock (_sync)
         {
             if (!_sessions.TryGetValue(sessionId, out var session) || session.UserId != userId)
             {
-                return RenameSessionResult.Failure("session-not-found");
+                return Task.FromResult(RenameSessionResult.Failure("session-not-found"));
             }
 
             _sessions[sessionId] = session with { Name = name };
@@ -599,39 +592,26 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
             }
         }, $"RenameSession:{sessionId}");
 
-        return RenameSessionResult.Success();
+        return Task.FromResult(RenameSessionResult.Success());
     }
 
-    public IReadOnlyList<SessionRecord> GetSessionsForUser(string userId)
+    public Task<IReadOnlyList<SessionRecord>> GetSessionsForUser(string userId)
     {
         lock (_sync)
         {
-            return _sessions.Values.Where(session => session.UserId == userId).ToArray();
+            return Task.FromResult<IReadOnlyList<SessionRecord>>(
+                _sessions.Values.Where(session => session.UserId == userId).ToArray());
         }
     }
 
-    public (int Active, int Detached) GetAllSessionCounts()
+    public Task<IReadOnlyList<SessionRecord>> GetAllActiveSessions()
     {
         lock (_sync)
         {
-            var active = 0;
-            var detached = 0;
-            foreach (var session in _sessions.Values)
-            {
-                if (session.AttachmentState == SessionAttachmentState.Attached) active++;
-                else if (session.AttachmentState == SessionAttachmentState.DetachedGracePeriod) detached++;
-            }
-            return (active, detached);
-        }
-    }
-
-    public IReadOnlyList<SessionRecord> GetAllActiveSessions()
-    {
-        lock (_sync)
-        {
-            return _sessions.Values
-                .Where(s => s.AttachmentState is SessionAttachmentState.Attached or SessionAttachmentState.DetachedGracePeriod)
-                .ToArray();
+            return Task.FromResult<IReadOnlyList<SessionRecord>>(
+                _sessions.Values
+                    .Where(s => s.AttachmentState is SessionAttachmentState.Attached or SessionAttachmentState.DetachedGracePeriod)
+                    .ToArray());
         }
     }
 

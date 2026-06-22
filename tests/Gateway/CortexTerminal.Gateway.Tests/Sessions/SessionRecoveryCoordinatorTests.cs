@@ -100,7 +100,7 @@ public sealed class SessionRecoveryCoordinatorTests
         await coordinator.RecoverActiveSessionsAsync();
 
         // No exception thrown, no sessions loaded
-        coordinator.GetSessionsForUser("user-1").Should().BeEmpty();
+        (await coordinator.GetSessionsForUser("user-1")).Should().BeEmpty();
     }
 
     [Fact]
@@ -117,7 +117,7 @@ public sealed class SessionRecoveryCoordinatorTests
         await db.SaveChangesAsync();
         await coordinator.RecoverActiveSessionsAsync();
 
-        var reboundCount = coordinator.RebindActiveSessions("user-1", "worker-1", "worker-conn-new");
+        var reboundCount = await coordinator.RebindActiveSessions("user-1", "worker-1", "worker-conn-new");
 
         reboundCount.Should().Be(1);
         coordinator.TryGetSession(sessionId, out var session).Should().BeTrue();
@@ -211,7 +211,7 @@ public sealed class SessionRecoveryCoordinatorTests
         };
 
         // Cutoff is 60 seconds ago - old session (2 min ago) should expire, recent should not
-        var expiredIds = coordinator.ExpireRecoveringSessions(now.AddSeconds(-60));
+        var expiredIds = await coordinator.ExpireRecoveringSessions(now.AddSeconds(-60));
 
         expiredIds.Should().ContainSingle().Which.Should().Be(oldSessionId);
         coordinator.TryGetSession(oldSessionId, out var expired).Should().BeTrue();
@@ -226,7 +226,7 @@ public sealed class SessionRecoveryCoordinatorTests
     {
         var (coordinator, _) = CreateCoordinator();
 
-        var expiredIds = coordinator.ExpireRecoveringSessions(DateTimeOffset.UtcNow);
+        var expiredIds = await coordinator.ExpireRecoveringSessions(DateTimeOffset.UtcNow);
 
         expiredIds.Should().BeEmpty();
     }
@@ -250,7 +250,7 @@ public sealed class SessionRecoveryCoordinatorTests
         recovering.AttachmentState.Should().Be(SessionAttachmentState.Recovering);
 
         // Step 2: Worker reconnects
-        var reboundCount = coordinator.RebindActiveSessions("user-1", "worker-1", "worker-conn-reconnected");
+        var reboundCount = await coordinator.RebindActiveSessions("user-1", "worker-1", "worker-conn-reconnected");
         reboundCount.Should().Be(1);
         coordinator.TryGetSession(sessionId, out var attached).Should().BeTrue();
         attached.AttachmentState.Should().Be(SessionAttachmentState.Attached);

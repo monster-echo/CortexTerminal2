@@ -109,7 +109,7 @@ public sealed class TerminalHub(
                 chunk => Clients.Caller.SendAsync("StdoutChunk", chunk, cancellationToken),
                 cancellationToken);
 
-            sessions.MarkReplayCompleted(request.SessionId, Context.ConnectionId);
+            await sessions.MarkReplayCompleted(request.SessionId, Context.ConnectionId);
         }
         catch
         {

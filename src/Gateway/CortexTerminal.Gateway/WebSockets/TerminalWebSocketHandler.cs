@@ -133,7 +133,7 @@ public sealed class TerminalWebSocketHandler
                 }, cancellationToken),
                 cancellationToken);
 
-            _sessions.MarkReplayCompleted(sessionId, connectionId);
+            await _sessions.MarkReplayCompleted(sessionId, connectionId);
 
             // Send "live" signal
             await SendJsonAsync(ws, new WsLiveFrame { SessionId = sessionId }, cancellationToken);

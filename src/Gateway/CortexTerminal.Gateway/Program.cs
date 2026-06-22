@@ -1427,10 +1427,10 @@ app.MapPost("/api/sessions", async (
             statusCode: StatusCodes.Status503ServiceUnavailable);
 }).RequireAuthorization();
 
-app.MapGet("/api/me/sessions", (ClaimsPrincipal user, ISessionCoordinator sessions) =>
+app.MapGet("/api/me/sessions", async (ClaimsPrincipal user, ISessionCoordinator sessions) =>
 {
     var userId = GetUserId(user);
-    var summaries = sessions.GetSessionsForUser(userId)
+    var summaries = (await sessions.GetSessionsForUser(userId))
         .OrderByDescending(session => session.LastActivityAtUtc)
         .Select(ToSessionSummaryResponse)
         .ToArray();
@@ -1438,11 +1438,11 @@ app.MapGet("/api/me/sessions", (ClaimsPrincipal user, ISessionCoordinator sessio
     return Results.Ok(summaries);
 }).RequireAuthorization();
 
-app.MapGet("/api/me/stats", (ClaimsPrincipal user, ISessionCoordinator sessions, IWorkerRegistry workers, CortexTerminal.Gateway.Stats.ISessionStatsService sessionStats) =>
+app.MapGet("/api/me/stats", async (ClaimsPrincipal user, ISessionCoordinator sessions, IWorkerRegistry workers, CortexTerminal.Gateway.Stats.ISessionStatsService sessionStats) =>
 {
     var userId = GetUserId(user);
-    var userSessions = sessions.GetSessionsForUser(userId);
-    var userWorkers = workers.GetAllWorkersForUserAsync(userId).GetAwaiter().GetResult();
+    var userSessions = await sessions.GetSessionsForUser(userId);
+    var userWorkers = await workers.GetAllWorkersForUserAsync(userId);
 
     return Results.Ok(new
     {
@@ -1580,7 +1580,7 @@ app.MapDelete("/api/me/sessions/{sessionId}", async (
     return Results.NoContent();
 }).RequireAuthorization();
 
-var renameSessionHandler = (string sessionId, RenameSessionRequest request, ClaimsPrincipal user, ISessionCoordinator sessions, IAuditLogStore auditLog) =>
+var renameSessionHandler = async (string sessionId, RenameSessionRequest request, ClaimsPrincipal user, ISessionCoordinator sessions, IAuditLogStore auditLog) =>
 {
     var userId = GetUserId(user);
 
@@ -1589,7 +1589,7 @@ var renameSessionHandler = (string sessionId, RenameSessionRequest request, Clai
         return Results.BadRequest(new { error = "Name must be 100 characters or less" });
     }
 
-    var result = sessions.RenameSessionAsync(userId, sessionId, request.Name);
+    var result = await sessions.RenameSessionAsync(userId, sessionId, request.Name);
     if (!result.IsSuccess)
     {
         return Results.NotFound();
@@ -1672,7 +1672,7 @@ app.MapGet("/api/admin/user-activity", async (ClaimsPrincipal user, IServiceProv
     using var scope = serviceProvider.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-    var liveSessions = sessions.GetAllActiveSessions()
+    var liveSessions = (await sessions.GetAllActiveSessions())
         .Where(s => s.AttachmentState == SessionAttachmentState.Attached)
         .ToArray();
     var liveSessionBytes = sessionStats.GetAllSessionBytes();
@@ -1829,7 +1829,7 @@ app.MapGet("/api/admin/sessions", async (ClaimsPrincipal user, IServiceProvider 
     var sessions = serviceProvider.GetRequiredService<CortexTerminal.Gateway.Sessions.ISessionCoordinator>();
     var workers = serviceProvider.GetRequiredService<CortexTerminal.Gateway.Workers.IWorkerRegistry>();
 
-    var activeSessions = sessions.GetAllActiveSessions();
+    var activeSessions = await sessions.GetAllActiveSessions();
 
     using var adminScope = serviceProvider.CreateScope();
     var adminDb = adminScope.ServiceProvider.GetRequiredService<CortexTerminal.Gateway.Data.AppDbContext>();
@@ -1926,7 +1926,7 @@ app.MapGet("/api/me/workers/{workerId}", async (string workerId, ClaimsPrincipal
         return Results.NotFound();
     }
 
-    var hostedSessions = sessions.GetSessionsForUser(userId)
+    var hostedSessions = (await sessions.GetSessionsForUser(userId))
         .Where(session => session.WorkerId == workerId)
         .OrderByDescending(session => session.LastActivityAtUtc)
         .Select(ToSessionSummaryResponse)

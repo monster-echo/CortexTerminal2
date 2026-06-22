@@ -16,9 +16,9 @@ public sealed class SessionLifecycleCoordinatorTests
         var detached = await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), "client-2", CancellationToken.None);
         var exited = await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), "client-3", CancellationToken.None);
         await coordinator.DetachSessionAsync("user-1", detached.Response!.SessionId, DateTimeOffset.UtcNow, CancellationToken.None);
-        coordinator.MarkSessionExited(exited.Response!.SessionId, 0, "completed");
+        await coordinator.MarkSessionExited(exited.Response!.SessionId, 0, "completed");
 
-        var reboundCount = coordinator.RebindActiveSessions("user-1", "worker-1", "worker-conn-2");
+        var reboundCount = await coordinator.RebindActiveSessions("user-1", "worker-1", "worker-conn-2");
 
         reboundCount.Should().Be(2);
         coordinator.TryGetSession(attached.Response!.SessionId, out var attachedSession).Should().BeTrue();
@@ -34,7 +34,7 @@ public sealed class SessionLifecycleCoordinatorTests
     {
         var coordinator = CreateCoordinator();
         var createResult = await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), "client-1", CancellationToken.None);
-        coordinator.MarkSessionExited(createResult.Response!.SessionId, 0, "completed");
+        await coordinator.MarkSessionExited(createResult.Response!.SessionId, 0, "completed");
 
         var result = await coordinator.DeleteSessionAsync("user-1", createResult.Response.SessionId, CancellationToken.None);
 
@@ -63,7 +63,7 @@ public sealed class SessionLifecycleCoordinatorTests
         var detached = await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), "client-2", CancellationToken.None);
         await coordinator.DetachSessionAsync("user-1", detached.Response!.SessionId, DateTimeOffset.UtcNow, CancellationToken.None);
 
-        var transitionedSessions = coordinator.TransitionToRecovering("worker-1", "worker-conn-1");
+        var transitionedSessions = await coordinator.TransitionToRecovering("worker-1", "worker-conn-1");
 
         transitionedSessions.Should().HaveCount(2);
 
@@ -84,7 +84,7 @@ public sealed class SessionLifecycleCoordinatorTests
         var coordinator = CreateCoordinator();
         await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), "client-1", CancellationToken.None);
 
-        var transitionedSessions = coordinator.TransitionToRecovering("worker-1", "worker-conn-1");
+        var transitionedSessions = await coordinator.TransitionToRecovering("worker-1", "worker-conn-1");
 
         transitionedSessions.Should().ContainSingle();
         transitionedSessions[0].AttachedClientConnectionId.Should().Be("client-1");
@@ -95,9 +95,9 @@ public sealed class SessionLifecycleCoordinatorTests
     {
         var coordinator = CreateCoordinator();
         var exited = await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), "client-1", CancellationToken.None);
-        coordinator.MarkSessionExited(exited.Response!.SessionId, 0, "completed");
+        await coordinator.MarkSessionExited(exited.Response!.SessionId, 0, "completed");
 
-        var transitionedSessions = coordinator.TransitionToRecovering("worker-1", "worker-conn-1");
+        var transitionedSessions = await coordinator.TransitionToRecovering("worker-1", "worker-conn-1");
 
         transitionedSessions.Should().BeEmpty();
         coordinator.TryGetSession(exited.Response!.SessionId, out var session).Should().BeTrue();
@@ -111,10 +111,10 @@ public sealed class SessionLifecycleCoordinatorTests
         var coordinator = CreateCoordinator();
         await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), "client-1", CancellationToken.None);
         // Rebind to a new connection
-        coordinator.RebindActiveSessions("user-1", "worker-1", "worker-conn-2");
+        await coordinator.RebindActiveSessions("user-1", "worker-1", "worker-conn-2");
 
         // Disconnect the OLD connection - should NOT transition since session is now on conn-2
-        var transitionedSessions = coordinator.TransitionToRecovering("worker-1", "worker-conn-1");
+        var transitionedSessions = await coordinator.TransitionToRecovering("worker-1", "worker-conn-1");
 
         transitionedSessions.Should().BeEmpty();
     }
@@ -128,7 +128,7 @@ public sealed class SessionLifecycleCoordinatorTests
         var coordinator = TestSessionFactory.CreateCoordinator(workers);
         await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), "client-1", CancellationToken.None);
 
-        var transitionedSessions = coordinator.TransitionToRecovering("worker-2", "worker-conn-2");
+        var transitionedSessions = await coordinator.TransitionToRecovering("worker-2", "worker-conn-2");
 
         transitionedSessions.Should().BeEmpty();
     }
@@ -139,8 +139,8 @@ public sealed class SessionLifecycleCoordinatorTests
         var coordinator = CreateCoordinator();
         var attached = await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), "client-1", CancellationToken.None);
 
-        coordinator.TransitionToRecovering("worker-1", "worker-conn-1");
-        var reboundCount = coordinator.RebindActiveSessions("user-1", "worker-1", "worker-conn-2");
+        await coordinator.TransitionToRecovering("worker-1", "worker-conn-1");
+        var reboundCount = await coordinator.RebindActiveSessions("user-1", "worker-1", "worker-conn-2");
 
         reboundCount.Should().Be(1);
         coordinator.TryGetSession(attached.Response!.SessionId, out var session).Should().BeTrue();

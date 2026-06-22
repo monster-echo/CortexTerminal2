@@ -14,7 +14,6 @@ public sealed class GatewayStatsService : IGatewayStatsService
     private readonly DateTimeOffset _startedAtUtc = DateTimeOffset.UtcNow;
 
     private readonly IWorkerRegistry _workers;
-    private readonly ISessionCoordinator _sessions;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly FailedAttemptTracker _failedAttempts;
 
@@ -24,12 +23,10 @@ public sealed class GatewayStatsService : IGatewayStatsService
 
     public GatewayStatsService(
         IWorkerRegistry workers,
-        ISessionCoordinator sessions,
         IServiceScopeFactory scopeFactory,
         FailedAttemptTracker failedAttempts)
     {
         _workers = workers;
-        _sessions = sessions;
         _scopeFactory = scopeFactory;
         _failedAttempts = failedAttempts;
     }
@@ -40,7 +37,6 @@ public sealed class GatewayStatsService : IGatewayStatsService
 
     public GatewayStatsSnapshot GetSnapshot()
     {
-        var (active, detached) = _sessions.GetAllSessionCounts();
         var onlineWorkers = _workers.GetOnlineCount();
         var connectedClients = Interlocked.CompareExchange(ref _connectedClients, 0, 0);
         var totalBytes = Interlocked.Read(ref _totalBytesTransferred);
@@ -50,12 +46,16 @@ public sealed class GatewayStatsService : IGatewayStatsService
 
         long totalUsers = 0;
         long totalSessions = 0;
+        int activeSessions = 0;
+        int detachedSessions = 0;
         try
         {
             using var scope = _scopeFactory.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<Data.AppDbContext>();
             totalUsers = db.Users.LongCount();
             totalSessions = db.Sessions.LongCount();
+            activeSessions = db.Sessions.Count(s => s.AttachmentState == "Attached");
+            detachedSessions = db.Sessions.Count(s => s.AttachmentState == "DetachedGracePeriod");
         }
         catch
         {
@@ -65,8 +65,8 @@ public sealed class GatewayStatsService : IGatewayStatsService
         return new GatewayStatsSnapshot(
             ConnectedClients: connectedClients,
             OnlineWorkers: onlineWorkers,
-            ActiveSessions: active,
-            DetachedSessions: detached,
+            ActiveSessions: activeSessions,
+            DetachedSessions: detachedSessions,
             TotalBytesTransferred: totalBytes,
             StartedAtUtc: _startedAtUtc,
             TotalUsers: totalUsers,
@@ -105,7 +105,18 @@ public sealed class GatewayStatsService : IGatewayStatsService
         var clients = Interlocked.CompareExchange(ref _connectedClients, 0, 0);
         var bytes = Interlocked.Read(ref _totalBytesTransferred);
         var onlineWorkers = _workers.GetOnlineCount();
-        var (active, _) = _sessions.GetAllSessionCounts();
+
+        int active;
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<Data.AppDbContext>();
+            active = db.Sessions.Count(s => s.AttachmentState == "Attached");
+        }
+        catch
+        {
+            active = 0;
+        }
 
         var point = new HourlyStatsPoint(
             Timestamp: DateTimeOffset.UtcNow,

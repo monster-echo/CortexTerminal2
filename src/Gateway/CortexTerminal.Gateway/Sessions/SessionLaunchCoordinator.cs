@@ -80,7 +80,7 @@ public sealed class SessionLaunchCoordinator(
         }
         catch
         {
-            sessions.MarkSessionStartFailed(session.SessionId, "worker-start-dispatch-failed");
+            await sessions.MarkSessionStartFailed(session.SessionId, "worker-start-dispatch-failed");
             return CreateSessionResult.Failure("worker-start-dispatch-failed");
         }
 

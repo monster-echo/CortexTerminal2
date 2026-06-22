@@ -28,11 +28,11 @@ public sealed class WorkerHub(
             ?? Context.UserIdentifier
             ?? "unknown";
 
-    public void RegisterWorker(string workerId)
+    public async Task RegisterWorker(string workerId)
     {
         var userId = GetUserId();
         workers.Register(workerId, Context.ConnectionId, ownerUserId: userId);
-        var reboundSessionCount = sessions.RebindActiveSessions(userId, workerId, Context.ConnectionId);
+        var reboundSessionCount = await sessions.RebindActiveSessions(userId, workerId, Context.ConnectionId);
         logger.LogInformation(
             "Worker {WorkerId} registered with connection {ConnectionId} by user {UserId}; rebound {SessionCount} active sessions.",
             workerId,
@@ -85,7 +85,7 @@ public sealed class WorkerHub(
             // This gives the worker (or a gateway restart) a 60s window to reconnect via
             // DetachedSessionExpiryService. Without this, a graceful gateway shutdown
             // would expire all sessions in DB and nothing could be recovered.
-            var transitionedSessions = sessions.TransitionToRecovering(workerId, connectionId);
+            var transitionedSessions = await sessions.TransitionToRecovering(workerId, connectionId);
             if (transitionedSessions.Count > 0)
             {
                 logger.LogInformation(
@@ -224,7 +224,7 @@ public sealed class WorkerHub(
             return;
         }
 
-        sessions.MarkSessionStartFailed(evt.SessionId, evt.Reason);
+        await sessions.MarkSessionStartFailed(evt.SessionId, evt.Reason);
         replayCoordinator.AbortReplay(evt.SessionId);
 
         if (session.AttachedClientConnectionId is not null)
@@ -242,7 +242,7 @@ public sealed class WorkerHub(
 
         var attachedClientConnectionId = session.AttachedClientConnectionId;
         replayCoordinator.AbortReplay(evt.SessionId);
-        sessions.RemoveSession(evt.SessionId);
+        await sessions.RemoveSession(evt.SessionId);
 
         if (attachedClientConnectionId is not null)
         {

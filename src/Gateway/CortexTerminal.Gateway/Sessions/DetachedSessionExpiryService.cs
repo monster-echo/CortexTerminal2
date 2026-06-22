@@ -15,7 +15,7 @@ public sealed class DetachedSessionExpiryService(
     {
         while (!stoppingToken.IsCancellationRequested)
         {
-            foreach (var sessionId in sessions.ExpireRecoveringSessions(timeProvider.GetUtcNow() - RecoveryTimeout))
+            foreach (var sessionId in await sessions.ExpireRecoveringSessions(timeProvider.GetUtcNow() - RecoveryTimeout))
             {
                 logger.LogInformation("session.expired {SessionId} reason=recovery-timeout", sessionId);
                 replayCoordinator.AbortReplay(sessionId);
