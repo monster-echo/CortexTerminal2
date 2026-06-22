@@ -9,10 +9,12 @@ public sealed class PostgresWorkerRegistry : IWorkerRegistry
 {
     private readonly ConcurrentDictionary<string, RegisteredWorker> _workers = new();
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly ILogger<PostgresWorkerRegistry> _logger;
 
-    public PostgresWorkerRegistry(IServiceScopeFactory scopeFactory)
+    public PostgresWorkerRegistry(IServiceScopeFactory scopeFactory, ILogger<PostgresWorkerRegistry> logger)
     {
         _scopeFactory = scopeFactory;
+        _logger = logger;
     }
 
     public void Register(string workerId, string connectionId, string? ownerUserId = null)
@@ -40,7 +42,7 @@ public sealed class PostgresWorkerRegistry : IWorkerRegistry
                     IsOnline = true
                 });
             }
-        });
+        }, $"Register:{workerId}");
     }
 
     public void Unregister(string workerId)
@@ -55,7 +57,7 @@ public sealed class PostgresWorkerRegistry : IWorkerRegistry
                 existing.IsOnline = false;
                 existing.LastSeenAtUtc = DateTimeOffset.UtcNow;
             }
-        });
+        }, $"Unregister:{workerId}");
     }
 
     public bool TryGetLeastBusy(out RegisteredWorker worker)
@@ -113,7 +115,7 @@ public sealed class PostgresWorkerRegistry : IWorkerRegistry
                         record.OwnerUserId = ownerUserId;
                         record.LastSeenAtUtc = DateTimeOffset.UtcNow;
                     }
-                });
+                }, $"SetWorkerOwner:{workerId}");
                 return true;
             }
         }
@@ -135,7 +137,7 @@ public sealed class PostgresWorkerRegistry : IWorkerRegistry
                 record.Version = metadata?.Version;
                 record.LastSeenAtUtc = DateTimeOffset.UtcNow;
             }
-        });
+        }, $"PersistMetadata:{workerId}");
     }
 
     public IReadOnlyList<RegisteredWorker> GetOnlineWorkersForUser(string userId)
@@ -158,7 +160,7 @@ public sealed class PostgresWorkerRegistry : IWorkerRegistry
 
     public IReadOnlyList<RegisteredWorker> GetAllOnline() => _workers.Values.ToArray();
 
-    private async Task PersistAsync(Func<AppDbContext, Task> action)
+    private async Task PersistAsync(Func<AppDbContext, Task> action, string operation)
     {
         try
         {
@@ -167,9 +169,9 @@ public sealed class PostgresWorkerRegistry : IWorkerRegistry
             await action(db);
             await db.SaveChangesAsync();
         }
-        catch
+        catch (Exception ex)
         {
-            // DB persistence failure should not block real-time operations
+            _logger.LogError(ex, "worker.persistence-failed {Operation}", operation);
         }
     }
 }

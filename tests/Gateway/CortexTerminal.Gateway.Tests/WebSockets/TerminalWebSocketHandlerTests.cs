@@ -68,10 +68,10 @@ public sealed class TerminalWebSocketHandlerTests
 
     private static async Task<(TerminalWebSocketHandler Handler, string SessionId)> CreateHandlerWithSessionAsync()
     {
-        var workers = new InMemoryWorkerRegistry();
+        var workers = TestSessionFactory.CreateWorkerRegistry();
         workers.Register("worker-ws-1", "worker-connection-1");
 
-        var sessions = new InMemorySessionCoordinator(workers, timeProvider: new FixedTimeProvider(DateTimeOffset.UnixEpoch));
+        var sessions = TestSessionFactory.CreateCoordinator(workers, timeProvider: new FixedTimeProvider(DateTimeOffset.UnixEpoch));
         var dispatcher = new NoOpWorkerCommandDispatcher();
         var launcher = new SessionLaunchCoordinator(sessions, dispatcher);
         var created = await launcher.CreateSessionAsync(

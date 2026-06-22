@@ -121,10 +121,10 @@ public sealed class SessionLifecycleCoordinatorTests
     [Fact]
     public async Task ExpireSessionsForWorkerConnection_DoesNotExpireOtherWorkersSessions()
     {
-        var workers = new InMemoryWorkerRegistry();
+        var workers = TestSessionFactory.CreateWorkerRegistry();
         workers.Register("worker-1", "worker-conn-1");
         workers.Register("worker-2", "worker-conn-2");
-        var coordinator = new InMemorySessionCoordinator(workers);
+        var coordinator = TestSessionFactory.CreateCoordinator(workers);
         await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), "client-1", CancellationToken.None);
 
         var expiredSessions = coordinator.ExpireSessionsForWorkerConnection("worker-2", "worker-conn-2");
@@ -142,10 +142,10 @@ public sealed class SessionLifecycleCoordinatorTests
         deleteResult.IsSuccess.Should().BeTrue();
     }
 
-    private static InMemorySessionCoordinator CreateCoordinator()
+    private static ISessionCoordinator CreateCoordinator()
     {
-        var workers = new InMemoryWorkerRegistry();
+        var workers = TestSessionFactory.CreateWorkerRegistry();
         workers.Register("worker-1", "worker-conn-1");
-        return new InMemorySessionCoordinator(workers);
+        return TestSessionFactory.CreateCoordinator(workers);
     }
 }

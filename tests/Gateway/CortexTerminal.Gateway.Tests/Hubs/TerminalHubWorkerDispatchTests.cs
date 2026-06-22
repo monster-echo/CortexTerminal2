@@ -17,9 +17,9 @@ public sealed class TerminalHubWorkerDispatchTests
     [Fact]
     public async Task CreateSession_DispatchesStartSessionToOwningWorker()
     {
-        var workers = new InMemoryWorkerRegistry();
+        var workers = TestSessionFactory.CreateWorkerRegistry();
         workers.Register("worker-1", "worker-conn-1");
-        var sessions = new InMemorySessionCoordinator(workers);
+        var sessions = TestSessionFactory.CreateCoordinator(workers);
         var replayCoordinator = new ReplayCoordinator();
         var workerClient = new RecordingClientProxy();
         var dispatcher = new SignalRWorkerCommandDispatcher(new TestHubContext<WorkerHub>(new Dictionary<string, IClientProxy>
@@ -40,9 +40,9 @@ public sealed class TerminalHubWorkerDispatchTests
     [Fact]
     public async Task CreateSession_WithSameClientRequestId_ReusesExistingSessionAndDispatchesOnce()
     {
-        var workers = new InMemoryWorkerRegistry();
+        var workers = TestSessionFactory.CreateWorkerRegistry();
         workers.Register("worker-1", "worker-conn-1");
-        var sessions = new InMemorySessionCoordinator(workers);
+        var sessions = TestSessionFactory.CreateCoordinator(workers);
         var replayCoordinator = new ReplayCoordinator();
         var workerClient = new RecordingClientProxy();
         var dispatcher = new SignalRWorkerCommandDispatcher(new TestHubContext<WorkerHub>(new Dictionary<string, IClientProxy>
@@ -65,9 +65,9 @@ public sealed class TerminalHubWorkerDispatchTests
     [Fact]
     public async Task CreateSession_WhenStartSessionDispatchFails_MarksSessionExitedAndReturnsFailure()
     {
-        var workers = new InMemoryWorkerRegistry();
+        var workers = TestSessionFactory.CreateWorkerRegistry();
         workers.Register("worker-1", "worker-conn-1");
-        var sessions = new InMemorySessionCoordinator(workers);
+        var sessions = TestSessionFactory.CreateCoordinator(workers);
         var replayCoordinator = new ReplayCoordinator();
         var dispatcher = new ThrowingWorkerCommandDispatcher("dispatch failed");
         var hub = CreateTerminalHub(sessions, replayCoordinator, TimeProvider.System, dispatcher);
@@ -85,9 +85,9 @@ public sealed class TerminalHubWorkerDispatchTests
     [Fact]
     public async Task ResizeSession_DispatchesToOwningWorkerOnly()
     {
-        var workers = new InMemoryWorkerRegistry();
+        var workers = TestSessionFactory.CreateWorkerRegistry();
         workers.Register("worker-1", "worker-conn-1");
-        var sessions = new InMemorySessionCoordinator(workers);
+        var sessions = TestSessionFactory.CreateCoordinator(workers);
         var replayCoordinator = new ReplayCoordinator();
         var workerClient = new RecordingClientProxy();
         var dispatcher = new SignalRWorkerCommandDispatcher(new TestHubContext<WorkerHub>(new Dictionary<string, IClientProxy>
@@ -117,9 +117,9 @@ public sealed class TerminalHubWorkerDispatchTests
     [InlineData(100, 1001)]
     public async Task ResizeSession_WithInvalidDimensions_DoesNotDispatchToWorker(int columns, int rows)
     {
-        var workers = new InMemoryWorkerRegistry();
+        var workers = TestSessionFactory.CreateWorkerRegistry();
         workers.Register("worker-1", "worker-conn-1");
-        var sessions = new InMemorySessionCoordinator(workers);
+        var sessions = TestSessionFactory.CreateCoordinator(workers);
         var replayCoordinator = new ReplayCoordinator();
         var workerClient = new RecordingClientProxy();
         var dispatcher = new SignalRWorkerCommandDispatcher(new TestHubContext<WorkerHub>(new Dictionary<string, IClientProxy>
@@ -144,9 +144,9 @@ public sealed class TerminalHubWorkerDispatchTests
     [Fact]
     public async Task ProbeLatency_DispatchesToOwningWorkerOnly()
     {
-        var workers = new InMemoryWorkerRegistry();
+        var workers = TestSessionFactory.CreateWorkerRegistry();
         workers.Register("worker-1", "worker-conn-1");
-        var sessions = new InMemorySessionCoordinator(workers);
+        var sessions = TestSessionFactory.CreateCoordinator(workers);
         var replayCoordinator = new ReplayCoordinator();
         var workerClient = new RecordingClientProxy();
         var dispatcher = new SignalRWorkerCommandDispatcher(new TestHubContext<WorkerHub>(new Dictionary<string, IClientProxy>
@@ -171,9 +171,9 @@ public sealed class TerminalHubWorkerDispatchTests
     [Fact]
     public async Task CloseSession_DispatchesToOwningWorkerOnly()
     {
-        var workers = new InMemoryWorkerRegistry();
+        var workers = TestSessionFactory.CreateWorkerRegistry();
         workers.Register("worker-1", "worker-conn-1");
-        var sessions = new InMemorySessionCoordinator(workers);
+        var sessions = TestSessionFactory.CreateCoordinator(workers);
         var replayCoordinator = new ReplayCoordinator();
         var workerClient = new RecordingClientProxy();
         var dispatcher = new SignalRWorkerCommandDispatcher(new TestHubContext<WorkerHub>(new Dictionary<string, IClientProxy>
@@ -205,9 +205,9 @@ public sealed class TerminalHubWorkerDispatchTests
             new NoOpStatsService(),
             NullLogger<TerminalHub>.Instance)!;
 
-    private static SessionRecord GetSingleSession(InMemorySessionCoordinator coordinator)
+    private static SessionRecord GetSingleSession(ISessionCoordinator coordinator)
     {
-        var sessions = (System.Collections.Concurrent.ConcurrentDictionary<string, SessionRecord>)typeof(InMemorySessionCoordinator)
+        var sessions = (System.Collections.Concurrent.ConcurrentDictionary<string, SessionRecord>)coordinator.GetType()
             .GetField("_sessions", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
             .GetValue(coordinator)!;
 

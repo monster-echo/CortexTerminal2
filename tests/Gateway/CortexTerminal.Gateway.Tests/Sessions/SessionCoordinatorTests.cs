@@ -4,6 +4,7 @@ using CortexTerminal.Gateway.Sessions;
 using CortexTerminal.Gateway.Workers;
 using FluentAssertions;
 using Xunit;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace CortexTerminal.Gateway.Tests.Sessions;
 
@@ -12,8 +13,8 @@ public sealed class SessionCoordinatorTests
     [Fact]
     public async Task CreateSessionAsync_WithoutAnyRegisteredWorker_ReturnsWorkerUnavailable()
     {
-        var workers = new InMemoryWorkerRegistry();
-        var coordinator = new InMemorySessionCoordinator(workers);
+        var workers = TestSessionFactory.CreateWorkerRegistry();
+        var coordinator = TestSessionFactory.CreateCoordinator(workers);
 
         var result = await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), clientConnectionId: null, CancellationToken.None);
 
@@ -24,9 +25,9 @@ public sealed class SessionCoordinatorTests
     [Fact]
     public async Task CreateSessionAsync_WithRegisteredWorker_ReturnsSuccess()
     {
-        var workers = new InMemoryWorkerRegistry();
+        var workers = TestSessionFactory.CreateWorkerRegistry();
         workers.Register("worker-1", "conn-1");
-        var coordinator = new InMemorySessionCoordinator(workers);
+        var coordinator = TestSessionFactory.CreateCoordinator(workers);
 
         var result = await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), clientConnectionId: null, CancellationToken.None);
 
@@ -39,9 +40,9 @@ public sealed class SessionCoordinatorTests
     [Fact]
     public async Task TryGetSession_AfterCreate_ReturnsTrue()
     {
-        var workers = new InMemoryWorkerRegistry();
+        var workers = TestSessionFactory.CreateWorkerRegistry();
         workers.Register("worker-1", "conn-1");
-        var coordinator = new InMemorySessionCoordinator(workers);
+        var coordinator = TestSessionFactory.CreateCoordinator(workers);
 
         var result = await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), clientConnectionId: null, CancellationToken.None);
         var found = coordinator.TryGetSession(result.Response!.SessionId, out var session);
@@ -57,7 +58,7 @@ public sealed class SessionCoordinatorTests
     public async Task CreateSessionAsync_WhenWorkerOwnershipClaimFails_ReturnsWorkerUnavailable()
     {
         var workers = new ClaimFailingWorkerRegistry();
-        var coordinator = new InMemorySessionCoordinator(workers);
+        var coordinator = TestSessionFactory.CreateCoordinator(workers);
 
         var result = await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), clientConnectionId: null, CancellationToken.None);
 
@@ -71,7 +72,7 @@ public sealed class SessionCoordinatorTests
     {
         var workers = new CoordinatedWorkerRegistry();
         workers.Register("worker-1", "conn-1");
-        var coordinator = new InMemorySessionCoordinator(workers);
+        var coordinator = TestSessionFactory.CreateCoordinator(workers);
 
         var userA = Task.Run(() => coordinator.CreateSessionAsync("user-a", new CreateSessionRequest("shell", 120, 40), clientConnectionId: null, CancellationToken.None));
         var userB = Task.Run(() => coordinator.CreateSessionAsync("user-b", new CreateSessionRequest("shell", 120, 40), clientConnectionId: null, CancellationToken.None));
@@ -143,7 +144,7 @@ public sealed class SessionCoordinatorTests
 
     private sealed class CoordinatedWorkerRegistry : IWorkerRegistry
     {
-        private readonly InMemoryWorkerRegistry _inner = new();
+        private readonly IWorkerRegistry _inner = TestSessionFactory.CreateWorkerRegistry();
         private readonly CountdownEvent _selectionBarrier = new(2);
 
         public void Register(string workerId, string connectionId, string? ownerUserId = null)

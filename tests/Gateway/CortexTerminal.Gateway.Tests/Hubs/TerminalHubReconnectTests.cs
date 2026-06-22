@@ -18,9 +18,9 @@ public sealed class TerminalHubReconnectTests
     [Fact]
     public async Task ReattachSession_SendsReattachedReplayAndCompletionInOrder()
     {
-        var workers = new InMemoryWorkerRegistry();
+        var workers = TestSessionFactory.CreateWorkerRegistry();
         workers.Register("worker-1", "worker-conn-1");
-        var sessions = new InMemorySessionCoordinator(workers);
+        var sessions = TestSessionFactory.CreateCoordinator(workers);
         var replayCoordinator = new ReplayCoordinator();
         var dispatcher = new ScrollbackWorkerCommandDispatcher(
             new TerminalChunk("dummy", "stdout", [0x01, 0x02]),
@@ -56,9 +56,9 @@ public sealed class TerminalHubReconnectTests
     [Fact]
     public async Task ReattachSession_ResumesLiveFanOutOnlyAfterReplayCompletes()
     {
-        var workers = new InMemoryWorkerRegistry();
+        var workers = TestSessionFactory.CreateWorkerRegistry();
         workers.Register("worker-1", "worker-conn-1");
-        var sessions = new InMemorySessionCoordinator(workers);
+        var sessions = TestSessionFactory.CreateCoordinator(workers);
         var replayCoordinator = new ReplayCoordinator();
         var dispatcher = new ScrollbackWorkerCommandDispatcher(
             new TerminalChunk("dummy", "stdout", [0xAA]));
@@ -109,9 +109,9 @@ public sealed class TerminalHubReconnectTests
     [Fact]
     public async Task ReattachSession_WhenReplayDeliveryFails_RevertsSessionToAttached()
     {
-        var workers = new InMemoryWorkerRegistry();
+        var workers = TestSessionFactory.CreateWorkerRegistry();
         workers.Register("worker-1", "worker-conn-1");
-        var sessions = new InMemorySessionCoordinator(workers);
+        var sessions = TestSessionFactory.CreateCoordinator(workers);
         var replayCoordinator = new ReplayCoordinator();
         var dispatcher = new ScrollbackWorkerCommandDispatcher(
             new TerminalChunk("dummy", "stdout", [0xAA]));
@@ -170,9 +170,10 @@ public sealed class TerminalHubReconnectTests
             workers,
             sessions,
             replayCoordinator,
-            new InMemoryAuditLogStore(),
+            new NullAuditLogStore(),
             new TestHubContext<TerminalHub>(terminalClients ?? new Dictionary<string, IClientProxy>()),
             new NoOpStatsService(),
+            new NoOpSessionStatsService(),
             NullLogger<WorkerHub>.Instance)!;
 
     private static async Task<T> InvokeAsync<T>(object instance, string methodName, params object?[] arguments)

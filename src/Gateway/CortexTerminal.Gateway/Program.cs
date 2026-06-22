@@ -240,6 +240,8 @@ builder.Services.AddSingleton<CaptchaService>();
 builder.Services.AddSingleton<FailedAttemptTracker>();
 builder.Services.AddSingleton<CortexTerminal.Gateway.Stats.IGatewayStatsService, CortexTerminal.Gateway.Stats.GatewayStatsService>();
 builder.Services.AddHostedService<CortexTerminal.Gateway.Stats.GatewayStatsBackgroundService>();
+builder.Services.AddSingleton<CortexTerminal.Gateway.Stats.ISessionStatsService, CortexTerminal.Gateway.Stats.SessionStatsService>();
+builder.Services.AddHostedService<CortexTerminal.Gateway.Stats.SessionStatsFlusher>();
 var phoneAuthOptions = new PhoneAuthOptions();
 builder.Configuration.GetSection("PhoneAuth").Bind(phoneAuthOptions);
 var appleOAuthOptions = new AppleOAuthOptions();
@@ -250,24 +252,24 @@ builder.Configuration.GetSection("HuaweiOAuth").Bind(huaweiOAuthOptions);
 var ttsOptions = new TtsOptions();
 builder.Configuration.GetSection("Tts").Bind(ttsOptions);
 
-var connectionString = builder.Configuration["GATEWAY_POSTGRES_CONNECTION_STRING"]
-    ?? builder.Configuration.GetConnectionString("DefaultConnection");
-if (!string.IsNullOrEmpty(connectionString))
+var useInMemory = builder.Configuration.GetValue<bool>("Database:UseInMemory");
+
+if (useInMemory)
 {
     builder.Services.AddDbContext<AppDbContext>(options =>
-        options.UseNpgsql(connectionString));
-    builder.Services.AddSingleton<IAuditLogStore, PostgresAuditLogStore>();
-    builder.Services.AddSingleton<IWorkerRegistry, PostgresWorkerRegistry>();
-    builder.Services.AddSingleton<ISessionCoordinator, PostgresSessionCoordinator>();
+        options.UseInMemoryDatabase("corterm_gateway"));
 }
 else
 {
+    var connectionString = builder.Configuration["GATEWAY_POSTGRES_CONNECTION_STRING"]
+        ?? builder.Configuration.GetConnectionString("DefaultConnection")
+        ?? throw new InvalidOperationException("PostgreSQL connection string is required. Set GATEWAY_POSTGRES_CONNECTION_STRING or ConnectionStrings:DefaultConnection.");
     builder.Services.AddDbContext<AppDbContext>(options =>
-        options.UseInMemoryDatabase("CortermDev"));
-    builder.Services.AddSingleton<IAuditLogStore, InMemoryAuditLogStore>();
-    builder.Services.AddSingleton<IWorkerRegistry, InMemoryWorkerRegistry>();
-    builder.Services.AddSingleton<ISessionCoordinator, InMemorySessionCoordinator>();
+        options.UseNpgsql(connectionString));
 }
+builder.Services.AddSingleton<IAuditLogStore, PostgresAuditLogStore>();
+builder.Services.AddSingleton<IWorkerRegistry, PostgresWorkerRegistry>();
+builder.Services.AddSingleton<ISessionCoordinator, PostgresSessionCoordinator>();
 
 var oAuthOptions = new OAuthOptions();
 builder.Configuration.GetSection("Auth").Bind(oAuthOptions);
@@ -283,35 +285,8 @@ forwardedHeadersOptions.KnownIPNetworks.Clear();
 forwardedHeadersOptions.KnownProxies.Clear();
 app.UseForwardedHeaders(forwardedHeadersOptions);
 
-// Seed test user for in-memory database (dev mode)
-if (string.IsNullOrEmpty(connectionString))
-{
-    using (var scope = app.Services.CreateScope())
-    {
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        if (!await db.Users.AnyAsync())
-        {
-            db.Users.Add(new User
-            {
-                Id = Guid.NewGuid().ToString("N"),
-                Username = "test",
-                Role = "admin",
-                Status = "active",
-                AuthProvider = "password",
-                AuthProviderId = "test",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword("test123"),
-                CreatedAtUtc = DateTimeOffset.UtcNow,
-                UpdatedAtUtc = DateTimeOffset.UtcNow,
-            });
-            await db.SaveChangesAsync();
-            var seedLogger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-            seedLogger.LogInformation("Seeded dev user: test / test123");
-        }
-    }
-}
-
-// Auto-migrate database schema
-if (!string.IsNullOrEmpty(connectionString))
+// Auto-migrate database schema (Postgres only — in-memory provider auto-creates)
+if (!useInMemory)
 {
     using (var scope = app.Services.CreateScope())
     {
@@ -319,8 +294,30 @@ if (!string.IsNullOrEmpty(connectionString))
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             await db.Database.MigrateAsync();
+        }
+        catch (Exception ex)
+        {
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+            logger.LogWarning(ex, "Failed to connect to PostgreSQL database.");
+        }
+    }
 
-            // Seed dev user if Users table is empty
+    // Recover active sessions from database after restart
+    {
+        var sessionCoordinator = app.Services.GetRequiredService<ISessionCoordinator>();
+        await sessionCoordinator.RecoverActiveSessionsAsync();
+        var recoveryLogger = app.Services.GetRequiredService<ILogger<Program>>();
+        recoveryLogger.LogInformation("Session recovery completed");
+    }
+}
+
+// Seed dev user if Users table is empty
+{
+    using (var scope = app.Services.CreateScope())
+    {
+        try
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             if (!await db.Users.AnyAsync())
             {
                 db.Users.Add(new User
@@ -343,17 +340,9 @@ if (!string.IsNullOrEmpty(connectionString))
         catch (Exception ex)
         {
             var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-            logger.LogWarning(ex, "Failed to connect to PostgreSQL database. Running without database persistence.");
+            logger.LogWarning(ex, "Failed to seed dev user.");
         }
     }
-}
-
-// Recover active sessions from database after restart
-{
-    var sessionCoordinator = app.Services.GetRequiredService<ISessionCoordinator>();
-    await sessionCoordinator.RecoverActiveSessionsAsync();
-    var recoveryLogger = app.Services.GetRequiredService<ILogger<Program>>();
-    recoveryLogger.LogInformation("Session recovery completed");
 }
 
 // Serve static files for the gateway console
@@ -990,7 +979,7 @@ app.MapPost("/api/auth/password/login", async (PasswordLoginRequest request, ISe
             user = normalizedPhone is null
                 ? await db.Users.FirstOrDefaultAsync(u => u.Username == input)
                 : await db.Users.FirstOrDefaultAsync(u => u.AuthProviderId == input
-                    || (u.AuthProviderId != null && EF.Functions.Like(u.AuthProviderId, "%" + normalizedPhone)));
+                    || (u.AuthProviderId != null && u.AuthProviderId.EndsWith(normalizedPhone)));
             storedHash = user?.PasswordHash;
         }
 
@@ -1001,6 +990,9 @@ app.MapPost("/api/auth/password/login", async (PasswordLoginRequest request, ISe
         }
 
         attemptTracker.RecordSuccess(clientIp);
+        user.LastLoginAtUtc = DateTimeOffset.UtcNow;
+        user.UpdatedAtUtc = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync();
         var jwt = CreateAccessToken(user.Username, user.Email, user.Role);
         return Results.Ok(new { accessToken = jwt, username = user.Username });
     }
@@ -1446,6 +1438,27 @@ app.MapGet("/api/me/sessions", (ClaimsPrincipal user, ISessionCoordinator sessio
     return Results.Ok(summaries);
 }).RequireAuthorization();
 
+app.MapGet("/api/me/stats", (ClaimsPrincipal user, ISessionCoordinator sessions, IWorkerRegistry workers, CortexTerminal.Gateway.Stats.ISessionStatsService sessionStats) =>
+{
+    var userId = GetUserId(user);
+    var userSessions = sessions.GetSessionsForUser(userId);
+    var userWorkers = workers.GetAllWorkersForUserAsync(userId).GetAwaiter().GetResult();
+
+    return Results.Ok(new
+    {
+        totalSessions = userSessions.Count,
+        activeSessions = userSessions.Count(s => s.AttachmentState == SessionAttachmentState.Attached),
+        detachedSessions = userSessions.Count(s => s.AttachmentState == SessionAttachmentState.DetachedGracePeriod),
+        exitedSessions = userSessions.Count(s => s.AttachmentState == SessionAttachmentState.Exited),
+        totalWorkers = userWorkers.Count,
+        onlineWorkers = userWorkers.Count(w => w.IsOnline),
+        bytesTransferred = sessionStats.GetUserBytes(userId),
+        mostRecentSessionAtUtc = userSessions.Count == 0
+            ? null
+            : userSessions.Max(s => (DateTimeOffset?)s.LastActivityAtUtc)
+    });
+}).RequireAuthorization();
+
 app.MapGet("/api/me/sessions/{sessionId}", async (string sessionId, ClaimsPrincipal user, ISessionCoordinator sessions, IWorkerRegistry workers) =>
 {
     if (!sessions.TryGetSession(sessionId, out var session))
@@ -1647,6 +1660,95 @@ app.MapGet("/api/admin/stats", async (ClaimsPrincipal user, IServiceProvider ser
         snapshot.ThreadCount,
         snapshot.FailedLoginIpCount,
         HourlyHistory = hourlyHistory
+    });
+}).RequireAuthorization();
+
+app.MapGet("/api/admin/user-activity", async (ClaimsPrincipal user, IServiceProvider serviceProvider, ISessionCoordinator sessions, CortexTerminal.Gateway.Stats.ISessionStatsService sessionStats) =>
+{
+    var userId = GetUserId(user);
+    if (!await IsAdmin(serviceProvider, userId))
+        return Results.Forbid();
+
+    using var scope = serviceProvider.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+    var liveSessions = sessions.GetAllActiveSessions()
+        .Where(s => s.AttachmentState == SessionAttachmentState.Attached)
+        .ToArray();
+    var liveSessionBytes = sessionStats.GetAllSessionBytes();
+    var onlineUserIds = liveSessions.Select(s => s.UserId).Distinct().ToHashSet();
+
+    var users = await db.Users
+        .Where(u => u.DeletedAtUtc == null)
+        .Select(u => new
+        {
+            u.Id,
+            u.Username,
+            u.DisplayName,
+            u.AvatarUrl,
+            u.Role,
+            u.Status,
+            u.LastLoginAtUtc
+        })
+        .ToListAsync();
+
+    var userSessionAggregates = await db.Sessions
+        .GroupBy(s => s.UserId)
+        .Select(g => new
+        {
+            UserId = g.Key,
+            TotalBytes = g.Sum(s => s.BytesIngested),
+            LastActivityAtUtc = g.Max(s => (DateTimeOffset?)s.LastActivityAtUtc)
+        })
+        .ToDictionaryAsync(a => a.UserId);
+
+    var userPayload = users.Select(u =>
+    {
+        userSessionAggregates.TryGetValue(u.Id, out var agg);
+        var liveForUser = liveSessions.Where(s => s.UserId == u.Id).ToArray();
+        return new
+        {
+            id = u.Id,
+            username = u.Username,
+            displayName = u.DisplayName,
+            avatarUrl = u.AvatarUrl,
+            role = u.Role,
+            status = u.Status,
+            isOnline = onlineUserIds.Contains(u.Id),
+            lastLoginAtUtc = u.LastLoginAtUtc,
+            activeSessionCount = liveForUser.Length,
+            bytesTransferredLive = liveForUser.Sum(s => liveSessionBytes.TryGetValue(s.SessionId, out var b) ? b : 0),
+            bytesTransferredTotal = agg?.TotalBytes ?? 0,
+            lastSessionActivityAtUtc = liveForUser.Length > 0
+                ? liveForUser.Max(s => s.LastActivityAtUtc)
+                : agg?.LastActivityAtUtc
+        };
+    }).ToArray();
+
+    var usernameById = users.ToDictionary(u => u.Id, u => u.Username);
+    var sessionPayload = liveSessions.Select(s =>
+    {
+        userSessionAggregates.TryGetValue(s.UserId, out var agg);
+        return new
+        {
+            sessionId = s.SessionId,
+            userId = s.UserId,
+            username = usernameById.TryGetValue(s.UserId, out var name) ? name : s.UserId,
+            workerId = s.WorkerId,
+            attachmentState = s.AttachmentState.ToString(),
+            createdAtUtc = s.CreatedAtUtc,
+            lastActivityAtUtc = s.LastActivityAtUtc,
+            bytesTransferredLive = liveSessionBytes.TryGetValue(s.SessionId, out var b) ? b : 0,
+            bytesTransferredTotal = agg?.TotalBytes ?? 0
+        };
+    }).ToArray();
+
+    return Results.Ok(new
+    {
+        onlineUserCount = onlineUserIds.Count,
+        activeSessionCount = liveSessions.Length,
+        users = userPayload,
+        sessions = sessionPayload
     });
 }).RequireAuthorization();
 
@@ -2175,6 +2277,7 @@ static async Task<User?> EnsureUser(IServiceProvider serviceProvider, string use
         existing.DisplayName = displayName ?? existing.DisplayName;
         existing.AvatarUrl = avatarUrl ?? existing.AvatarUrl;
         existing.UpdatedAtUtc = DateTimeOffset.UtcNow;
+        existing.LastLoginAtUtc = DateTimeOffset.UtcNow;
         if (email is not null) existingIdentity.Email = email;
         await db.SaveChangesAsync();
         return existing;
@@ -2200,6 +2303,7 @@ static async Task<User?> EnsureUser(IServiceProvider serviceProvider, string use
             linkedUser.DisplayName = displayName ?? linkedUser.DisplayName;
             linkedUser.AvatarUrl = avatarUrl ?? linkedUser.AvatarUrl;
             linkedUser.UpdatedAtUtc = DateTimeOffset.UtcNow;
+            linkedUser.LastLoginAtUtc = DateTimeOffset.UtcNow;
             await db.SaveChangesAsync();
             return linkedUser;
         }
@@ -2224,6 +2328,7 @@ static async Task<User?> EnsureUser(IServiceProvider serviceProvider, string use
             linkedUser.DisplayName = displayName ?? linkedUser.DisplayName;
             linkedUser.AvatarUrl = avatarUrl ?? linkedUser.AvatarUrl;
             linkedUser.UpdatedAtUtc = DateTimeOffset.UtcNow;
+            linkedUser.LastLoginAtUtc = DateTimeOffset.UtcNow;
             await db.SaveChangesAsync();
             return linkedUser;
         }
@@ -2253,7 +2358,8 @@ static async Task<User?> EnsureUser(IServiceProvider serviceProvider, string use
         Role = role,
         Status = "active",
         CreatedAtUtc = DateTimeOffset.UtcNow,
-        UpdatedAtUtc = DateTimeOffset.UtcNow
+        UpdatedAtUtc = DateTimeOffset.UtcNow,
+        LastLoginAtUtc = DateTimeOffset.UtcNow
     };
 
     db.Users.Add(newUser);

@@ -69,9 +69,9 @@ public sealed class InteractiveSessionFlowTests : IClassFixture<GatewayApplicati
     [Fact]
     public async Task CreateSession_WhenStartSessionDispatchFails_ReturnsUnavailableAndExitsSession()
     {
-        var workerRegistry = new InMemoryWorkerRegistry();
+        var workerRegistry = TestSessionFactory.CreateWorkerRegistry();
         workerRegistry.Register("worker-integration-1", "conn-integration-1");
-        var sessions = new InMemorySessionCoordinator(workerRegistry);
+        var sessions = TestSessionFactory.CreateCoordinator(workerRegistry);
         var sessionLaunchCoordinator = new SessionLaunchCoordinator(
             sessions,
             new ThrowingWorkerCommandDispatcher("dispatch failed"));
@@ -94,7 +94,7 @@ public sealed class InteractiveSessionFlowTests : IClassFixture<GatewayApplicati
     [Fact]
     public async Task CreateSession_WithSameClientRequestId_ReturnsSameSessionOnlyOnce()
     {
-        var workerRegistry = new InMemoryWorkerRegistry();
+        var workerRegistry = TestSessionFactory.CreateWorkerRegistry();
         workerRegistry.Register("worker-integration-1", "conn-integration-1");
         using var baseFactory = new GatewayApplicationFactory();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
@@ -102,7 +102,7 @@ public sealed class InteractiveSessionFlowTests : IClassFixture<GatewayApplicati
             builder.ConfigureServices(services =>
             {
                 services.AddSingleton<IWorkerRegistry>(workerRegistry);
-                services.AddSingleton<ISessionCoordinator>(new InMemorySessionCoordinator(workerRegistry));
+                services.AddSingleton<ISessionCoordinator>(TestSessionFactory.CreateCoordinator(workerRegistry));
                 services.AddSingleton<IWorkerCommandDispatcher, RecordingWorkerCommandDispatcher>();
                 services.AddSingleton<ISessionLaunchCoordinator>(serviceProvider =>
                     new SessionLaunchCoordinator(

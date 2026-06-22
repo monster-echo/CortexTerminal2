@@ -18,9 +18,9 @@ public sealed class WorkerHubTests
     [Fact]
     public async Task ForwardStdout_AfterSignalRSessionCreation_FansOutToCreatingClient()
     {
-        var workers = new InMemoryWorkerRegistry();
+        var workers = TestSessionFactory.CreateWorkerRegistry();
         workers.Register("worker-1", "worker-conn-1");
-        var sessions = new InMemorySessionCoordinator(workers);
+        var sessions = TestSessionFactory.CreateCoordinator(workers);
         var replayCoordinator = new ReplayCoordinator();
         var terminalHub = CreateTerminalHub(sessions, replayCoordinator, TimeProvider.System);
         terminalHub.Context = new TestHubCallerContext("client-1", "user-1");
@@ -47,9 +47,9 @@ public sealed class WorkerHubTests
     [Fact]
     public async Task ForwardStdout_WhenReplayPending_EnqueuesToPendingQueueWithoutFanOut()
     {
-        var workers = new InMemoryWorkerRegistry();
+        var workers = TestSessionFactory.CreateWorkerRegistry();
         workers.Register("worker-1", "worker-conn-1");
-        var sessions = new InMemorySessionCoordinator(workers);
+        var sessions = TestSessionFactory.CreateCoordinator(workers);
         var replayCoordinator = new ReplayCoordinator();
         var createResult = await sessions.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), clientConnectionId: null, CancellationToken.None);
         var sessionId = createResult.Response!.SessionId;
@@ -90,9 +90,9 @@ public sealed class WorkerHubTests
     [Fact]
     public async Task ForwardStdout_WithoutAttachedClient_DoesNotThrow()
     {
-        var workers = new InMemoryWorkerRegistry();
+        var workers = TestSessionFactory.CreateWorkerRegistry();
         workers.Register("worker-1", "worker-conn-1");
-        var sessions = new InMemorySessionCoordinator(workers);
+        var sessions = TestSessionFactory.CreateCoordinator(workers);
         var replayCoordinator = new ReplayCoordinator();
         var createResult = await sessions.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), clientConnectionId: null, CancellationToken.None);
         var sessionId = createResult.Response!.SessionId;
@@ -108,9 +108,9 @@ public sealed class WorkerHubTests
     [Fact]
     public async Task ForwardStdout_FromWrongWorker_DoesNotFanOut()
     {
-        var workers = new InMemoryWorkerRegistry();
+        var workers = TestSessionFactory.CreateWorkerRegistry();
         workers.Register("worker-1", "worker-conn-1");
-        var sessions = new InMemorySessionCoordinator(workers);
+        var sessions = TestSessionFactory.CreateCoordinator(workers);
         var replayCoordinator = new ReplayCoordinator();
         var terminalHub = CreateTerminalHub(sessions, replayCoordinator, TimeProvider.System);
         terminalHub.Context = new TestHubCallerContext("client-1", "user-1");
@@ -134,9 +134,9 @@ public sealed class WorkerHubTests
     [Fact]
     public async Task ForwardLatencyProbe_AttachedClient_ReceivesAck()
     {
-        var workers = new InMemoryWorkerRegistry();
+        var workers = TestSessionFactory.CreateWorkerRegistry();
         workers.Register("worker-1", "worker-conn-1");
-        var sessions = new InMemorySessionCoordinator(workers);
+        var sessions = TestSessionFactory.CreateCoordinator(workers);
         var replayCoordinator = new ReplayCoordinator();
         var terminalHub = CreateTerminalHub(sessions, replayCoordinator, TimeProvider.System);
         terminalHub.Context = new TestHubCallerContext("client-1", "user-1");
@@ -163,9 +163,9 @@ public sealed class WorkerHubTests
     [Fact]
     public async Task SessionExited_UpdatesSessionStateAndNotifiesAttachedClient()
     {
-        var workers = new InMemoryWorkerRegistry();
+        var workers = TestSessionFactory.CreateWorkerRegistry();
         workers.Register("worker-1", "worker-conn-1");
-        var sessions = new InMemorySessionCoordinator(workers);
+        var sessions = TestSessionFactory.CreateCoordinator(workers);
         var replayCoordinator = new ReplayCoordinator();
         var terminalHub = CreateTerminalHub(sessions, replayCoordinator, TimeProvider.System);
         terminalHub.Context = new TestHubCallerContext("client-1", "user-1");
@@ -190,9 +190,9 @@ public sealed class WorkerHubTests
     [Fact]
     public async Task RegisterWorker_RebindsActiveSessionsToLatestConnection()
     {
-        var workers = new InMemoryWorkerRegistry();
+        var workers = TestSessionFactory.CreateWorkerRegistry();
         workers.Register("worker-1", "worker-conn-1");
-        var sessions = new InMemorySessionCoordinator(workers);
+        var sessions = TestSessionFactory.CreateCoordinator(workers);
         var replayCoordinator = new ReplayCoordinator();
         var terminalHub = CreateTerminalHub(sessions, replayCoordinator, TimeProvider.System);
         terminalHub.Context = new TestHubCallerContext("client-1", "user-1");
@@ -213,9 +213,9 @@ public sealed class WorkerHubTests
     [Fact]
     public async Task SessionExited_AfterWorkerReconnect_UsesReboundConnection()
     {
-        var workers = new InMemoryWorkerRegistry();
+        var workers = TestSessionFactory.CreateWorkerRegistry();
         workers.Register("worker-1", "worker-conn-1");
-        var sessions = new InMemorySessionCoordinator(workers);
+        var sessions = TestSessionFactory.CreateCoordinator(workers);
         var replayCoordinator = new ReplayCoordinator();
         var terminalHub = CreateTerminalHub(sessions, replayCoordinator, TimeProvider.System);
         terminalHub.Context = new TestHubCallerContext("client-1", "user-1");
@@ -248,9 +248,10 @@ public sealed class WorkerHubTests
             workers,
             sessions,
             replayCoordinator,
-            new InMemoryAuditLogStore(),
+            new NullAuditLogStore(),
             new TestHubContext<TerminalHub>(terminalClients),
             new NoOpStatsService(),
+            new NoOpSessionStatsService(),
             NullLogger<WorkerHub>.Instance)!;
 
     private static TerminalHub CreateTerminalHub(ISessionCoordinator sessions, ReplayCoordinator replayCoordinator, TimeProvider timeProvider)
@@ -267,9 +268,9 @@ public sealed class WorkerHubTests
     [Fact]
     public async Task OnDisconnectedAsync_ExpiresAttachedSessionsAndNotifiesClients()
     {
-        var workers = new InMemoryWorkerRegistry();
+        var workers = TestSessionFactory.CreateWorkerRegistry();
         workers.Register("worker-1", "worker-conn-1");
-        var sessions = new InMemorySessionCoordinator(workers);
+        var sessions = TestSessionFactory.CreateCoordinator(workers);
         var replayCoordinator = new ReplayCoordinator();
         var terminalHub = CreateTerminalHub(sessions, replayCoordinator, TimeProvider.System);
         terminalHub.Context = new TestHubCallerContext("client-1", "user-1");
@@ -304,10 +305,10 @@ public sealed class WorkerHubTests
     [Fact]
     public async Task OnDisconnectedAsync_DoesNotExpireSessionsForOtherWorkers()
     {
-        var workers = new InMemoryWorkerRegistry();
+        var workers = TestSessionFactory.CreateWorkerRegistry();
         workers.Register("worker-1", "worker-conn-1");
         workers.Register("worker-2", "worker-conn-2");
-        var sessions = new InMemorySessionCoordinator(workers);
+        var sessions = TestSessionFactory.CreateCoordinator(workers);
         var replayCoordinator = new ReplayCoordinator();
         var terminalHub = CreateTerminalHub(sessions, replayCoordinator, TimeProvider.System);
         terminalHub.Context = new TestHubCallerContext("client-1", "user-1");
@@ -334,9 +335,9 @@ public sealed class WorkerHubTests
     [Fact]
     public async Task OnDisconnectedAsync_DoesNotExpireReboundSessions()
     {
-        var workers = new InMemoryWorkerRegistry();
+        var workers = TestSessionFactory.CreateWorkerRegistry();
         workers.Register("worker-1", "worker-conn-1");
-        var sessions = new InMemorySessionCoordinator(workers);
+        var sessions = TestSessionFactory.CreateCoordinator(workers);
         var replayCoordinator = new ReplayCoordinator();
         var terminalHub = CreateTerminalHub(sessions, replayCoordinator, TimeProvider.System);
         terminalHub.Context = new TestHubCallerContext("client-1", "user-1");
@@ -364,9 +365,9 @@ public sealed class WorkerHubTests
     [Fact]
     public async Task OnDisconnectedAsync_HandlesSessionsWithoutAttachedClient()
     {
-        var workers = new InMemoryWorkerRegistry();
+        var workers = TestSessionFactory.CreateWorkerRegistry();
         workers.Register("worker-1", "worker-conn-1");
-        var sessions = new InMemorySessionCoordinator(workers);
+        var sessions = TestSessionFactory.CreateCoordinator(workers);
         var replayCoordinator = new ReplayCoordinator();
         var createResult = await sessions.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), clientConnectionId: null, CancellationToken.None);
         var sessionId = createResult.Response!.SessionId;

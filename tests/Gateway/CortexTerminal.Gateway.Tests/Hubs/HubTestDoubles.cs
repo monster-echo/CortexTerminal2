@@ -103,6 +103,16 @@ internal sealed class NoOpStatsService : IGatewayStatsService
     public void CaptureSnapshot() { }
 }
 
+internal sealed class NoOpSessionStatsService : ISessionStatsService
+{
+    public void RecordBytes(string sessionId, string userId, int byteCount) { }
+    public long GetSessionBytes(string sessionId) => 0;
+    public long GetUserBytes(string userId) => 0;
+    public IReadOnlyDictionary<string, long> GetAllSessionBytes() => new Dictionary<string, long>();
+    public IReadOnlyDictionary<string, long> GetAllUserBytes() => new Dictionary<string, long>();
+    public Task FlushAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+}
+
 internal sealed class ThrowingWorkerCommandDispatcher(string message) : IWorkerCommandDispatcher
 {
     public Task StartSessionAsync(string workerConnectionId, StartSessionCommand command, CancellationToken cancellationToken)

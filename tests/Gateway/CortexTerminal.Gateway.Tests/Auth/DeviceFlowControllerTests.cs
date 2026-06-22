@@ -7,11 +7,10 @@ using FluentAssertions;
 using CortexTerminal.Contracts.Auth;
 using CortexTerminal.Contracts.Sessions;
 using CortexTerminal.Gateway.Data;
-using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.SignalR.Client;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using Xunit;
@@ -90,9 +89,8 @@ public sealed class GatewayApplicationFactory : WebApplicationFactory<Program>
     {
         builder.UseEnvironment("Development");
 
-        // Force in-memory DB so tests are hermetic. Program.cs picks InMemoryDatabase
-        // when ConnectionStrings:DefaultConnection is empty.
-        builder.UseSetting("ConnectionStrings:DefaultConnection", string.Empty);
+        // Use in-memory database for hermetic tests
+        builder.UseSetting("Database:UseInMemory", "true");
 
         // Create a temp wwwroot with a stub index.html so static file serving
         // tests work even when the real SPA build output is absent (e.g. in CI).
@@ -116,16 +114,19 @@ public sealed class GatewayApplicationFactory : WebApplicationFactory<Program>
     public HttpClient CreateAuthenticatedClient()
         => CreateAuthenticatedClient("test-user");
 
-    public HttpClient CreateAuthenticatedClient(string username)
+    public HttpClient CreateAuthenticatedClient(string username, string? role = null)
     {
         var client = CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false
         });
 
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", CreateAccessToken(username));
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", CreateAccessToken(username, role));
         return client;
     }
+
+    public HttpClient CreateAdminClient()
+        => CreateAuthenticatedClient("test-admin", "admin");
 
     public HubConnection CreateHubConnection(string path)
         => CreateHubConnection(path, accessToken: null);
@@ -157,13 +158,15 @@ public sealed class GatewayApplicationFactory : WebApplicationFactory<Program>
     public string CreateAccessToken()
         => CreateAccessToken("test-user");
 
-    public string CreateAccessToken(string username)
+    public string CreateAccessToken(string username, string? role = null)
     {
-        var claims = new[]
+        var claims = new System.Collections.Generic.List<System.Security.Claims.Claim>
         {
             new System.Security.Claims.Claim(JwtRegisteredClaimNames.Sub, username),
             new System.Security.Claims.Claim("oi_tkn_typ", "access_token")
         };
+        if (!string.IsNullOrEmpty(role))
+            claims.Add(new System.Security.Claims.Claim("role", role));
         var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("gateway-auth-signing-key-minimum-32b"));
         var credentials = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);
         var token = new JwtSecurityToken(

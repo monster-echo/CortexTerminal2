@@ -157,15 +157,15 @@ public sealed class ReattachSessionCoordinatorTests
         corruptedSession.LeaseExpiresAtUtc.Should().BeNull();
     }
 
-    private static InMemorySessionCoordinator CreateCoordinator()
+    private static ISessionCoordinator CreateCoordinator()
     {
-        var workers = new InMemoryWorkerRegistry();
+        var workers = TestSessionFactory.CreateWorkerRegistry();
         workers.Register("worker-1", "worker-conn-1");
-        return new InMemorySessionCoordinator(workers);
+        return TestSessionFactory.CreateCoordinator(workers);
     }
 
-    private static ConcurrentDictionary<string, SessionRecord> GetSessions(InMemorySessionCoordinator coordinator)
-        => (ConcurrentDictionary<string, SessionRecord>)typeof(InMemorySessionCoordinator)
+    private static ConcurrentDictionary<string, SessionRecord> GetSessions(ISessionCoordinator coordinator)
+        => (ConcurrentDictionary<string, SessionRecord>)coordinator.GetType()
             .GetField("_sessions", BindingFlags.Instance | BindingFlags.NonPublic)!
             .GetValue(coordinator)!;
 }

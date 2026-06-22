@@ -80,7 +80,7 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
                         tracked.AttachedClientConnectionId = null;
                     }
                 }
-            });
+            }, $"RecoverActiveSessions:{entities.Count}");
 
             _logger.LogInformation("Recovered {Count} active sessions from database", entities.Count);
         }
@@ -149,7 +149,7 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
                 AttachmentState = "Attached",
                 AttachedClientConnectionId = clientConnectionId
             });
-        });
+        }, $"CreateSession:{sessionId}");
 
         _logger.LogInformation("session.created {SessionId} worker={WorkerId} user={UserId}", sessionId, worker.WorkerId, userId);
 
@@ -206,7 +206,7 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
             {
                 db.Sessions.Remove(entity);
             }
-        });
+        }, $"DeleteSession:{sessionId}");
 
         _logger.LogInformation("session.deleted {SessionId} user={UserId}", sessionId, userId);
 
@@ -365,7 +365,7 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
             {
                 db.Sessions.Remove(entity);
             }
-        });
+        }, $"RemoveSession:{sessionId}");
     }
 
     public void MarkSessionExited(string sessionId, int exitCode, string reason)
@@ -573,7 +573,7 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
             {
                 entity.LastActivityAtUtc = nowUtc;
             }
-        });
+        }, $"TouchSessionActivity:{sessionId}");
 
         return true;
     }
@@ -597,7 +597,7 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
             {
                 entity.Name = name;
             }
-        });
+        }, $"RenameSession:{sessionId}");
 
         return RenameSessionResult.Success();
     }
@@ -657,10 +657,10 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
             entity.LastActivityAtUtc = _timeProvider.GetUtcNow();
             if (replayPending.HasValue)
                 entity.ReplayPending = replayPending.Value;
-        });
+        }, $"PersistSessionState:{attachmentState}:{sessionId}");
     }
 
-    private async Task PersistAsync(Func<AppDbContext, Task> action)
+    private async Task PersistAsync(Func<AppDbContext, Task> action, string operation)
     {
         try
         {
@@ -669,9 +669,9 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
             await action(db);
             await db.SaveChangesAsync();
         }
-        catch
+        catch (Exception ex)
         {
-            // DB persistence failure should not block real-time operations
+            _logger.LogError(ex, "session.persistence-failed {Operation}", operation);
         }
     }
 }

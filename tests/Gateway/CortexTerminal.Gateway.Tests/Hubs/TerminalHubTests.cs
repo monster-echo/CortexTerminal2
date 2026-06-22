@@ -16,7 +16,7 @@ public sealed class TerminalHubTests
     [Fact]
     public void WorkerRegistry_RegisterAndRetrieve_Works()
     {
-        var registry = new InMemoryWorkerRegistry();
+        var registry = TestSessionFactory.CreateWorkerRegistry();
         registry.Register("w-1", "conn-abc");
 
         registry.TryGetLeastBusy(out var worker).Should().BeTrue();
@@ -27,14 +27,14 @@ public sealed class TerminalHubTests
     [Fact]
     public void WorkerRegistry_Empty_ReturnsFalse()
     {
-        var registry = new InMemoryWorkerRegistry();
+        var registry = TestSessionFactory.CreateWorkerRegistry();
         registry.TryGetLeastBusy(out _).Should().BeFalse();
     }
 
     [Fact]
     public void WorkerRegistry_Unregister_RemovesWorker()
     {
-        var registry = new InMemoryWorkerRegistry();
+        var registry = TestSessionFactory.CreateWorkerRegistry();
         registry.Register("w-1", "conn-abc");
         registry.Unregister("w-1");
 
@@ -44,9 +44,9 @@ public sealed class TerminalHubTests
     [Fact]
     public async Task WriteInput_WhenSessionIsDetached_ThrowsHubException()
     {
-        var workers = new InMemoryWorkerRegistry();
+        var workers = TestSessionFactory.CreateWorkerRegistry();
         workers.Register("worker-1", "worker-conn-1");
-        var sessions = new InMemorySessionCoordinator(workers);
+        var sessions = TestSessionFactory.CreateCoordinator(workers);
         var replayCoordinator = new ReplayCoordinator();
         var createResult = await sessions.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), "client-1", CancellationToken.None);
         var sessionId = createResult.Response!.SessionId;
@@ -68,9 +68,9 @@ public sealed class TerminalHubTests
     [Fact]
     public async Task WriteInput_WhenCallerDoesNotOwnAttachedSession_ThrowsHubException()
     {
-        var workers = new InMemoryWorkerRegistry();
+        var workers = TestSessionFactory.CreateWorkerRegistry();
         workers.Register("worker-1", "worker-conn-1");
-        var sessions = new InMemorySessionCoordinator(workers);
+        var sessions = TestSessionFactory.CreateCoordinator(workers);
         var replayCoordinator = new ReplayCoordinator();
         var createResult = await sessions.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), "client-1", CancellationToken.None);
         var sessionId = createResult.Response!.SessionId;

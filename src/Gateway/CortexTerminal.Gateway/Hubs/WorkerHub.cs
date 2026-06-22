@@ -19,6 +19,7 @@ public sealed class WorkerHub(
     IAuditLogStore auditLog,
     IHubContext<TerminalHub> terminalHubContext,
     IGatewayStatsService stats,
+    ISessionStatsService sessionStats,
     ILogger<WorkerHub> logger) : Hub
 {
     private string GetUserId()
@@ -134,6 +135,7 @@ public sealed class WorkerHub(
 
         sessions.TouchSessionActivity(chunk.SessionId, DateTimeOffset.UtcNow);
         stats.RecordBytesTransferred(chunk.Payload.Length);
+        sessionStats.RecordBytes(chunk.SessionId, session.UserId, chunk.Payload.Length);
 
         if (session.ReplayPending)
         {
@@ -174,6 +176,7 @@ public sealed class WorkerHub(
         }
 
         stats.RecordBytesTransferred(chunk.Payload.Length);
+        sessionStats.RecordBytes(chunk.SessionId, session.UserId, chunk.Payload.Length);
 
         if (session.ReplayPending)
         {

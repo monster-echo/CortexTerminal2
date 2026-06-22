@@ -19,9 +19,9 @@ public sealed class DetachedSessionExpiryServiceTests
     {
         // Detach now only clears the client connection; sessions stay Attached.
         // The background service only expires Recovering sessions.
-        var workers = new InMemoryWorkerRegistry();
+        var workers = TestSessionFactory.CreateWorkerRegistry();
         workers.Register("worker-1", "worker-conn-1");
-        var sessions = new InMemorySessionCoordinator(workers);
+        var sessions = TestSessionFactory.CreateCoordinator(workers);
         var replayCoordinator = new ReplayCoordinator();
         var createResult = await sessions.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), clientConnectionId: null, CancellationToken.None);
         var sessionId = createResult.Response!.SessionId;
@@ -43,8 +43,8 @@ public sealed class DetachedSessionExpiryServiceTests
     [Fact]
     public async Task ExecuteAsync_WhenStoppingTokenIsCancelledDuringDelay_StopsCleanly()
     {
-        var workers = new InMemoryWorkerRegistry();
-        var sessions = new InMemorySessionCoordinator(workers);
+        var workers = TestSessionFactory.CreateWorkerRegistry();
+        var sessions = TestSessionFactory.CreateCoordinator(workers);
         var replayCoordinator = new ReplayCoordinator();
         var service = CreateService(sessions, replayCoordinator, TimeProvider.System);
         var executeAsync = service.GetType().GetMethod("ExecuteAsync", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -64,15 +64,15 @@ public sealed class DetachedSessionExpiryServiceTests
     [Fact]
     public async Task BackgroundService_ExpiresRecoveringSessionsAfterTimeout()
     {
-        var workers = new InMemoryWorkerRegistry();
+        var workers = TestSessionFactory.CreateWorkerRegistry();
         workers.Register("worker-1", "worker-conn-1");
-        var sessions = new InMemorySessionCoordinator(workers);
+        var sessions = TestSessionFactory.CreateCoordinator(workers);
         var replayCoordinator = new ReplayCoordinator();
 
         // Manually inject a Recovering session via reflection
         var createResult = await sessions.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), clientConnectionId: null, CancellationToken.None);
         var sessionId = createResult.Response!.SessionId;
-        var sessionsDict = (ConcurrentDictionary<string, SessionRecord>)typeof(InMemorySessionCoordinator)
+        var sessionsDict = (ConcurrentDictionary<string, SessionRecord>)sessions.GetType()
             .GetField("_sessions", BindingFlags.Instance | BindingFlags.NonPublic)!
             .GetValue(sessions)!;
         sessionsDict[sessionId] = sessionsDict[sessionId] with
