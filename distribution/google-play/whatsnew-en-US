@@ -1,1 +1,1 @@
-Fix Android build failure; restore status/navigation bar tint on API ≤ 34.
+Internal diagnostic build: investigate Xunfei/Doubao/9-grid numeric IME input issues.

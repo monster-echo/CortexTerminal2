@@ -302,6 +302,40 @@ export default function TerminalSessionPage({
     };
     terminalRef.current.addEventListener("beforeinput", onBeforeInput, true);
 
+    // === TEMP IME TRACE — remove after collecting logs (see plan) ===
+    const imeTextarea = terminalRef.current?.querySelector<HTMLTextAreaElement>(
+      ".xterm-helper-textarea",
+    );
+    const traceFn = (label: string) => (ev: Event) => {
+      const ie = ev as InputEvent;
+      const ce = ev as CompositionEvent;
+      const inputType = (ie as InputEvent).inputType;
+      const data = (ie as InputEvent).data ?? ce.data;
+      console.log(`[IME] ${label}`, {
+        type: ev.type,
+        inputType,
+        data,
+        isComposing: (ie as InputEvent).isComposing,
+        composed: (ie as InputEvent).composed,
+        target: (ev.target as HTMLElement | null)?.tagName,
+        phase: ev.eventPhase,
+        ts: Date.now(),
+      });
+    };
+    const imeTraceEvents = [
+      ["beforeinput", traceFn("bi")],
+      ["input", traceFn("in")],
+      ["compositionstart", traceFn("cs")],
+      ["compositionupdate", traceFn("cu")],
+      ["compositionend", traceFn("ce")],
+      ["keydown", traceFn("kd")],
+      ["keyup", traceFn("ku")],
+    ] as const;
+    for (const [type, fn] of imeTraceEvents) {
+      imeTextarea?.addEventListener(type, fn as EventListener, true);
+    }
+    // === END TEMP IME TRACE ===
+
     term.open(terminalRef.current);
 
     // xterm.js creates a hidden textarea (.xterm-helper-textarea) for keyboard input.
@@ -393,6 +427,14 @@ export default function TerminalSessionPage({
       observer.disconnect();
       textareaObserver.disconnect();
       terminalRef.current?.removeEventListener("beforeinput", onBeforeInput, true);
+      // === TEMP IME TRACE cleanup ===
+      const imeTextarea = terminalRef.current?.querySelector<HTMLTextAreaElement>(
+        ".xterm-helper-textarea",
+      );
+      for (const [type, fn] of imeTraceEvents) {
+        imeTextarea?.removeEventListener(type, fn as EventListener, true);
+      }
+      // === END TEMP IME TRACE cleanup ===
       inputDataDisposable.dispose();
       selectionDisposable.dispose();
       resizeDisposable.dispose();
