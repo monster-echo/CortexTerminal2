@@ -75,9 +75,17 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         }));
 
         _logger.LogInformation("Worker {WorkerId} is starting.", _workerId);
-        await _gatewayClient.StartAsync(cancellationToken);
-        await RegisterWorkerAsync(cancellationToken);
-        Console.WriteLine("  Connected. Press Ctrl+C to stop.");
+        try
+        {
+            await _gatewayClient.StartAsync(cancellationToken);
+            await RegisterWorkerAsync(cancellationToken);
+            Console.WriteLine("  Connected. Press Ctrl+C to stop.");
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning("Worker {WorkerId} initial connection failed ({Error}), entering reconnect loop.", _workerId, ex.Message);
+            _ = ReconnectLoopAsync();
+        }
     }
 
     private async Task ReconnectLoopAsync()
