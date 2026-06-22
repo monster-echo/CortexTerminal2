@@ -147,7 +147,7 @@ public sealed partial class AppBridge(ILogger<AppBridge> logger) : IBridgeContra
         }
         catch (Exception ex)
         {
-            LogDiag($"[BRIDGE] {operationName} FAIL in {stopwatch.ElapsedMilliseconds}ms: {ex.Message}");
+            LogDiag($"[BRIDGE] {operationName} FAIL in {stopwatch.ElapsedMilliseconds}ms: {ex}");
             RecordOperation(operationName, stopwatch.ElapsedMilliseconds, false, ex.Message);
             return JsonSerializer.Serialize(new { error = ex.Message }, _jsonOptions);
         }
@@ -166,7 +166,7 @@ public sealed partial class AppBridge(ILogger<AppBridge> logger) : IBridgeContra
         }
         catch (Exception ex)
         {
-            LogDiag($"[BRIDGE] {operationName} FAIL in {stopwatch.ElapsedMilliseconds}ms: {ex.Message}");
+            LogDiag($"[BRIDGE] {operationName} FAIL in {stopwatch.ElapsedMilliseconds}ms: {ex}");
             RecordOperation(operationName, stopwatch.ElapsedMilliseconds, false, ex.Message);
             return JsonSerializer.Serialize(new { error = ex.Message }, _jsonOptions);
         }

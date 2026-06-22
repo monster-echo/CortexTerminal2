@@ -109,11 +109,18 @@
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.0" />
 	</ItemGroup>
 
-	<!-- Firebase (avoid umbrella package) -->
+	<!-- Firebase (avoid umbrella package; Analytics uses native bindings due to Plugin.Firebase .NET 10 incompatibility) -->
 	<ItemGroup Condition="'$(TargetFramework)' == 'net10.0-android' Or '$(TargetFramework)' == 'net10.0-ios'">
-		<PackageReference Include="Plugin.Firebase.Analytics" Version="4.0.0" />
 		<PackageReference Include="Plugin.Firebase.Crashlytics" Version="4.0.0" />
 		<PackageReference Include="Plugin.Firebase.CloudMessaging" Version="4.0.0" />
+	</ItemGroup>
+
+	<!-- Native Firebase Analytics bindings (bypass Plugin.Firebase.Analytics which NPEs on .NET 10) -->
+	<ItemGroup Condition="'$(TargetFramework)' == 'net10.0-android'">
+		<PackageReference Include="Xamarin.Firebase.Analytics" Version="121.5.1" />
+	</ItemGroup>
+	<ItemGroup Condition="'$(TargetFramework)' == 'net10.0-ios'">
+		<PackageReference Include="AdamE.Firebase.iOS.Analytics" Version="12.10.0" />
 	</ItemGroup>
 
 	<!-- Serilog -->
