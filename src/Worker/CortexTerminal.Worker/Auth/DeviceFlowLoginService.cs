@@ -1,8 +1,11 @@
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using CortexTerminal.Contracts.Auth;
 
 namespace CortexTerminal.Worker.Auth;
+
+public sealed record RefreshTokenResponse(string AccessToken);
 
 public sealed class DeviceFlowLoginService
 {
@@ -81,13 +84,13 @@ public sealed class DeviceFlowLoginService
 
     public async Task<string?> RefreshTokenAsync(string currentToken, CancellationToken cancellationToken)
     {
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/auth/refresh");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", currentToken);
+
         HttpResponseMessage response;
         try
         {
-            response = await _httpClient.PostAsJsonAsync(
-                "/api/auth/refresh",
-                new { accessToken = currentToken },
-                cancellationToken);
+            response = await _httpClient.SendAsync(request, cancellationToken);
         }
         catch (HttpRequestException)
         {
@@ -99,7 +102,8 @@ public sealed class DeviceFlowLoginService
             if (!response.IsSuccessStatusCode)
                 return null;
 
-            var result = await response.Content.ReadFromJsonAsync<RefreshTokenResponse>(cancellationToken: cancellationToken);
+            var result = await response.Content.ReadFromJsonAsync(
+                WorkerJsonContext.Default.RefreshTokenResponse, cancellationToken);
             if (result?.AccessToken is null)
                 return null;
 
@@ -107,6 +111,4 @@ public sealed class DeviceFlowLoginService
             return result.AccessToken;
         }
     }
-
-    private sealed record RefreshTokenResponse(string AccessToken);
 }

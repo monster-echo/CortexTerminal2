@@ -52,8 +52,13 @@ public sealed class DeviceFlowLoginServiceTests : IAsyncDisposable
             await context.Response.WriteAsJsonAsync(new { error = "invalid_request" });
         });
 
-        app.MapPost("/api/auth/refresh", () =>
-            Results.Ok(new { accessToken = "refreshed-token" }));
+        app.MapPost("/api/auth/refresh", (HttpContext context) =>
+        {
+            var authHeader = context.Request.Headers.Authorization.ToString();
+            if (string.IsNullOrEmpty(authHeader) || !authHeader.StartsWith("Bearer ", StringComparison.Ordinal))
+                return Results.Unauthorized();
+            return Results.Ok(new RefreshTokenResponse("refreshed-token"));
+        });
 
         app.StartAsync().GetAwaiter().GetResult();
         _server = app.GetTestServer();

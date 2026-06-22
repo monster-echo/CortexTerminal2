@@ -5,6 +5,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using CortexTerminal.Worker.Auth;
+using CortexTerminal.Worker.Logging;
 using CortexTerminal.Worker.Pty;
 using CortexTerminal.Worker.Registration;
 using CortexTerminal.Worker.Runtime;
@@ -13,6 +14,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Console;
 
 var installDir = AppContext.BaseDirectory;
 var version = Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3) ?? "0.0.0";
@@ -384,12 +386,8 @@ rootCommand.SetAction(async (ParseResult parseResult, CancellationToken cancella
     Console.WriteLine($"  Worker:  {workerId}");
 
     var builder = Host.CreateApplicationBuilder();
-
-    // Suppress verbose framework logging — only show warnings and errors from framework,
-    // but allow Information level from our own code
-    builder.Logging.AddFilter("Microsoft", LogLevel.Warning);
-    builder.Logging.AddFilter("System", LogLevel.Warning);
-    builder.Logging.SetMinimumLevel(LogLevel.Information);
+    builder.Configuration.SetBasePath(installDir);
+    builder.Logging.AddConsoleFormatter<CliConsoleFormatter, SimpleConsoleFormatterOptions>();
 
     builder.Services.AddSingleton<IPtyHost, UnixPtyHost>();
     builder.Services.AddSingleton<IWorkerGatewayClient>(_ =>
