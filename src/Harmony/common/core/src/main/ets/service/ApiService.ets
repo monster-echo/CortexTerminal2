@@ -57,7 +57,7 @@ export class ApiService {
 
   static async renameSession(sessionId: string, name: string): Promise<void> {
     const body: Record<string, string> = { 'name': name }
-    await ApiService.patch(`/api/me/sessions/${encodeURIComponent(sessionId)}`, body as Object)
+    await ApiService.put(`/api/me/sessions/${encodeURIComponent(sessionId)}`, body as Object)
   }
 
   // ── Worker APIs ───────────────────────────────────────────────────
@@ -93,12 +93,12 @@ export class ApiService {
     return await ApiService.get('/api/me/profile') as Record<string, Object>
   }
 
-  static async changePassword(currentPassword: string, newPassword: string): Promise<void> {
-    const body: Record<string, Object> = {
-      'currentPassword': currentPassword,
-      'newPassword': newPassword
+  static async changePassword(newPassword: string, currentPassword: string): Promise<void> {
+    const body: Record<string, Object> = { 'newPassword': newPassword }
+    if (currentPassword.length > 0) {
+      body['currentPassword'] = currentPassword
     }
-    await ApiService.post('/api/me/password/change', body as Object)
+    await ApiService.put('/api/me/password', body as Object)
   }
 
   static async deleteAccount(): Promise<void> {
@@ -251,7 +251,7 @@ export class ApiService {
     })
   }
 
-  private static async patch(path: string, body: Object, requiresAuth: boolean = true,
+  private static async put(path: string, body: Object, requiresAuth: boolean = true,
     isRetry: boolean = false): Promise<Object> {
     const url = `${ApiService.gatewayUrl}${path}`
     const headers: Record<string, string> = ApiService.buildHeaders(requiresAuth)
@@ -313,8 +313,8 @@ export class ApiService {
         return await ApiService.get(path, requiresAuth, true)
       } else if (method === 'DELETE') {
         return await ApiService.del(path, requiresAuth, true)
-      } else if (method === 'PATCH') {
-        return await ApiService.patch(path, body!, requiresAuth, true)
+      } else if (method === 'PUT') {
+        return await ApiService.put(path, body!, requiresAuth, true)
       } else {
         return await ApiService.post(path, body!, requiresAuth, undefined, true)
       }

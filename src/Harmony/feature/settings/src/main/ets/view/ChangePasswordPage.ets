@@ -4,44 +4,55 @@ import { ApiService, I18n, PageLayout, showI18nToast, AnalyticsService, Analytic
 export struct ChangePasswordPage {
   @Consume('pageStack') pageStack: NavPathStack
 
-  aboutToAppear() {
-    AnalyticsService.onPageStart('ChangePassword')
-  }
-
   @State currentPassword: string = ''
   @State newPassword: string = ''
   @State confirmPassword: string = ''
   @State isLoading: boolean = false
   @State errorMessage: string = ''
   @State successMessage: string = ''
+  @State hasPassword: boolean = true
+
+  aboutToAppear() {
+    AnalyticsService.onPageStart('ChangePassword')
+    this.loadProfile()
+  }
+
+  private async loadProfile() {
+    try {
+      const profile = await ApiService.getProfile()
+      this.hasPassword = (profile['hasPassword'] as boolean) ?? true
+    } catch (_e) {}
+  }
 
   build() {
     PageLayout({ title: I18n.get('security.change_password') }) {
         Column() {
-          Column() {
-            Text(I18n.get('security.current_password'))
-              .fontSize(14)
-              .fontColor($r('app.color.terminal_on_surface_variant'))
-              .width('100%')
-              .margin({ bottom: 6 })
+          if (this.hasPassword) {
+            Column() {
+              Text(I18n.get('security.current_password'))
+                .fontSize(14)
+                .fontColor($r('app.color.terminal_on_surface_variant'))
+                .width('100%')
+                .margin({ bottom: 6 })
 
-            TextInput({ text: this.currentPassword, placeholder: I18n.get('security.current_password') })
-              .type(InputType.Password)
-              .width('100%')
-              .height(44)
-              .borderRadius(8)
-              .backgroundColor($r('app.color.terminal_surface_container_high'))
-              .fontColor($r('app.color.terminal_primary'))
-              .placeholderColor($r('app.color.terminal_on_surface_variant'))
-              .onChange((value: string) => {
-                this.currentPassword = value
-              })
+              TextInput({ text: this.currentPassword, placeholder: I18n.get('security.current_password') })
+                .type(InputType.Password)
+                .width('100%')
+                .height(44)
+                .borderRadius(8)
+                .backgroundColor($r('app.color.terminal_surface_container_high'))
+                .fontColor($r('app.color.terminal_primary'))
+                .placeholderColor($r('app.color.terminal_on_surface_variant'))
+                .onChange((value: string) => {
+                  this.currentPassword = value
+                })
+            }
+            .width('100%')
+            .padding(14)
+            .borderRadius(12)
+            .backgroundColor($r('app.color.terminal_surface_container'))
+            .margin({ bottom: 8 })
           }
-          .width('100%')
-          .padding(14)
-          .borderRadius(12)
-          .backgroundColor($r('app.color.terminal_surface_container'))
-          .margin({ bottom: 8 })
 
           Column() {
             Text(I18n.get('security.new_password'))
@@ -132,7 +143,7 @@ export struct ChangePasswordPage {
     this.errorMessage = ''
     this.successMessage = ''
 
-    if (this.currentPassword.length === 0) {
+    if (this.hasPassword && this.currentPassword.length === 0) {
       this.errorMessage = I18n.get('security.current_password')
       return
     }
@@ -147,7 +158,7 @@ export struct ChangePasswordPage {
 
     this.isLoading = true
     try {
-      await ApiService.changePassword(this.currentPassword, this.newPassword)
+      await ApiService.changePassword(this.newPassword, this.hasPassword ? this.currentPassword : '')
       this.successMessage = I18n.get('security.change_password') + ' ✓'
       AnalyticsService.onEvent(AnalyticsEvent.PASSWORD_CHANGE)
       showI18nToast('security.password_changed')
