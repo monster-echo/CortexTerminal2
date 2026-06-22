@@ -56,70 +56,71 @@ public sealed class SessionLifecycleCoordinatorTests
     }
 
     [Fact]
-    public async Task ExpireSessionsForWorkerConnection_ExpiresAttachedAndDetachedSessions()
+    public async Task TransitionToRecovering_TransitionsAttachedAndDetachedSessions()
     {
         var coordinator = CreateCoordinator();
         var attached = await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), "client-1", CancellationToken.None);
         var detached = await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), "client-2", CancellationToken.None);
         await coordinator.DetachSessionAsync("user-1", detached.Response!.SessionId, DateTimeOffset.UtcNow, CancellationToken.None);
 
-        var expiredSessions = coordinator.ExpireSessionsForWorkerConnection("worker-1", "worker-conn-1");
+        var transitionedSessions = coordinator.TransitionToRecovering("worker-1", "worker-conn-1");
 
-        expiredSessions.Should().HaveCount(2);
+        transitionedSessions.Should().HaveCount(2);
 
         coordinator.TryGetSession(attached.Response!.SessionId, out var attachedSession).Should().BeTrue();
-        attachedSession.AttachmentState.Should().Be(SessionAttachmentState.Expired);
-        attachedSession.ExitReason.Should().Be("worker-offline");
+        attachedSession.AttachmentState.Should().Be(SessionAttachmentState.Recovering);
+        attachedSession.ExitReason.Should().BeNull();
+        attachedSession.WorkerConnectionId.Should().BeEmpty();
         attachedSession.AttachedClientConnectionId.Should().BeNull();
 
         coordinator.TryGetSession(detached.Response!.SessionId, out var detachedSession).Should().BeTrue();
-        detachedSession.AttachmentState.Should().Be(SessionAttachmentState.Expired);
-        detachedSession.ExitReason.Should().Be("worker-offline");
+        detachedSession.AttachmentState.Should().Be(SessionAttachmentState.Recovering);
+        detachedSession.ExitReason.Should().BeNull();
     }
 
     [Fact]
-    public async Task ExpireSessionsForWorkerConnection_ReturnsOriginalRecordsWithClientConnectionIds()
+    public async Task TransitionToRecovering_ReturnsOriginalRecordsWithClientConnectionIds()
     {
         var coordinator = CreateCoordinator();
         await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), "client-1", CancellationToken.None);
 
-        var expiredSessions = coordinator.ExpireSessionsForWorkerConnection("worker-1", "worker-conn-1");
+        var transitionedSessions = coordinator.TransitionToRecovering("worker-1", "worker-conn-1");
 
-        expiredSessions.Should().ContainSingle();
-        expiredSessions[0].AttachedClientConnectionId.Should().Be("client-1");
+        transitionedSessions.Should().ContainSingle();
+        transitionedSessions[0].AttachedClientConnectionId.Should().Be("client-1");
     }
 
     [Fact]
-    public async Task ExpireSessionsForWorkerConnection_DoesNotExpireAlreadyExitedSessions()
+    public async Task TransitionToRecovering_DoesNotTransitionAlreadyExitedSessions()
     {
         var coordinator = CreateCoordinator();
         var exited = await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), "client-1", CancellationToken.None);
         coordinator.MarkSessionExited(exited.Response!.SessionId, 0, "completed");
 
-        var expiredSessions = coordinator.ExpireSessionsForWorkerConnection("worker-1", "worker-conn-1");
+        var transitionedSessions = coordinator.TransitionToRecovering("worker-1", "worker-conn-1");
 
-        expiredSessions.Should().BeEmpty();
+        transitionedSessions.Should().BeEmpty();
         coordinator.TryGetSession(exited.Response!.SessionId, out var session).Should().BeTrue();
         session.AttachmentState.Should().Be(SessionAttachmentState.Exited);
         session.ExitReason.Should().Be("completed");
     }
 
     [Fact]
-    public async Task ExpireSessionsForWorkerConnection_DoesNotExpireSessionsWithDifferentConnectionId()
+    public async Task TransitionToRecovering_DoesNotTransitionSessionsWithDifferentConnectionId()
     {
         var coordinator = CreateCoordinator();
         await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), "client-1", CancellationToken.None);
         // Rebind to a new connection
         coordinator.RebindActiveSessions("user-1", "worker-1", "worker-conn-2");
 
-        // Disconnect the OLD connection - should NOT expire since session is now on conn-2
-        var expiredSessions = coordinator.ExpireSessionsForWorkerConnection("worker-1", "worker-conn-1");
+        // Disconnect the OLD connection - should NOT transition since session is now on conn-2
+        var transitionedSessions = coordinator.TransitionToRecovering("worker-1", "worker-conn-1");
 
-        expiredSessions.Should().BeEmpty();
+        transitionedSessions.Should().BeEmpty();
     }
 
     [Fact]
-    public async Task ExpireSessionsForWorkerConnection_DoesNotExpireOtherWorkersSessions()
+    public async Task TransitionToRecovering_DoesNotTransitionOtherWorkersSessions()
     {
         var workers = TestSessionFactory.CreateWorkerRegistry();
         workers.Register("worker-1", "worker-conn-1");
@@ -127,9 +128,24 @@ public sealed class SessionLifecycleCoordinatorTests
         var coordinator = TestSessionFactory.CreateCoordinator(workers);
         await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), "client-1", CancellationToken.None);
 
-        var expiredSessions = coordinator.ExpireSessionsForWorkerConnection("worker-2", "worker-conn-2");
+        var transitionedSessions = coordinator.TransitionToRecovering("worker-2", "worker-conn-2");
 
-        expiredSessions.Should().BeEmpty();
+        transitionedSessions.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task TransitionToRecovering_FollowedByRebindRestoresSessionsToAttached()
+    {
+        var coordinator = CreateCoordinator();
+        var attached = await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), "client-1", CancellationToken.None);
+
+        coordinator.TransitionToRecovering("worker-1", "worker-conn-1");
+        var reboundCount = coordinator.RebindActiveSessions("user-1", "worker-1", "worker-conn-2");
+
+        reboundCount.Should().Be(1);
+        coordinator.TryGetSession(attached.Response!.SessionId, out var session).Should().BeTrue();
+        session.AttachmentState.Should().Be(SessionAttachmentState.Attached);
+        session.WorkerConnectionId.Should().Be("worker-conn-2");
     }
 
     [Fact]

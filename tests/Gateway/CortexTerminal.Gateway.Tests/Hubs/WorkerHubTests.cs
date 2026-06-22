@@ -266,7 +266,7 @@ public sealed class WorkerHubTests
             NullLogger<TerminalHub>.Instance)!;
 
     [Fact]
-    public async Task OnDisconnectedAsync_ExpiresAttachedSessionsAndNotifiesClients()
+    public async Task OnDisconnectedAsync_TransitionsAttachedSessionsToRecovering()
     {
         var workers = TestSessionFactory.CreateWorkerRegistry();
         workers.Register("worker-1", "worker-conn-1");
@@ -290,14 +290,12 @@ public sealed class WorkerHubTests
         await workerHub.OnDisconnectedAsync(null);
 
         sessions.TryGetSession(sessionId, out var session).Should().BeTrue();
-        session.AttachmentState.Should().Be(SessionAttachmentState.Expired);
-        session.ExitReason.Should().Be("worker-offline");
+        session.AttachmentState.Should().Be(SessionAttachmentState.Recovering);
+        session.ExitReason.Should().BeNull();
+        session.WorkerConnectionId.Should().BeEmpty();
         session.AttachedClientConnectionId.Should().BeNull();
 
-        client.Invocations.Should().ContainSingle(i => i.Method == "SessionExpired");
-        var expiredEvent = client.Invocations[0].Arguments[0].Should().BeOfType<SessionExpiredEvent>().Subject;
-        expiredEvent.SessionId.Should().Be(sessionId);
-        expiredEvent.Reason.Should().Be("worker-offline");
+        client.Invocations.Should().BeEmpty();
 
         workers.TryGetWorker("worker-1", out _).Should().BeFalse();
     }
@@ -379,7 +377,7 @@ public sealed class WorkerHubTests
         await workerHub.Invoking(hub => hub.OnDisconnectedAsync(null)).Should().NotThrowAsync();
 
         sessions.TryGetSession(sessionId, out var session).Should().BeTrue();
-        session.AttachmentState.Should().Be(SessionAttachmentState.Expired);
-        session.ExitReason.Should().Be("worker-offline");
+        session.AttachmentState.Should().Be(SessionAttachmentState.Recovering);
+        session.ExitReason.Should().BeNull();
     }
 }
