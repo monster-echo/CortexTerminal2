@@ -6,10 +6,13 @@ using System.Text;
 using FluentAssertions;
 using CortexTerminal.Contracts.Auth;
 using CortexTerminal.Contracts.Sessions;
+using CortexTerminal.Gateway.Data;
 using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.SignalR.Client;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using Xunit;
 
@@ -87,6 +90,10 @@ public sealed class GatewayApplicationFactory : WebApplicationFactory<Program>
     {
         builder.UseEnvironment("Development");
 
+        // Force in-memory DB so tests are hermetic. Program.cs picks InMemoryDatabase
+        // when ConnectionStrings:DefaultConnection is empty.
+        builder.UseSetting("ConnectionStrings:DefaultConnection", string.Empty);
+
         // Create a temp wwwroot with a stub index.html so static file serving
         // tests work even when the real SPA build output is absent (e.g. in CI).
         _testWebRoot = Path.Combine(Path.GetTempPath(), $"corterm-test-wwwroot-{Guid.NewGuid():N}");
@@ -107,27 +114,54 @@ public sealed class GatewayApplicationFactory : WebApplicationFactory<Program>
     }
 
     public HttpClient CreateAuthenticatedClient()
+        => CreateAuthenticatedClient("test-user");
+
+    public HttpClient CreateAuthenticatedClient(string username)
     {
         var client = CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false
         });
 
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", CreateAccessToken());
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", CreateAccessToken(username));
         return client;
     }
 
     public HubConnection CreateHubConnection(string path)
         => CreateHubConnection(path, accessToken: null);
 
+    /// <summary>
+    /// Run a query against the in-memory AppDbContext. The host must already be running
+    /// (i.e. CreateClient/CreateAuthenticatedClient has been called) so Services is populated.
+    /// </summary>
+    public async Task<T> QueryAsync<T>(Func<AppDbContext, Task<T>> action)
+    {
+        using var scope = Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        return await action(db);
+    }
+
+    /// <summary>
+    /// Seed the in-memory AppDbContext with custom data before a test runs.
+    /// </summary>
+    public async Task SeedAsync(Func<AppDbContext, Task> action)
+    {
+        using var scope = Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await action(db);
+    }
+
     public HubConnection CreateAuthenticatedHubConnection(string path)
         => CreateHubConnection(path, CreateAccessToken());
 
     public string CreateAccessToken()
+        => CreateAccessToken("test-user");
+
+    public string CreateAccessToken(string username)
     {
         var claims = new[]
         {
-            new System.Security.Claims.Claim(JwtRegisteredClaimNames.Sub, "test-user"),
+            new System.Security.Claims.Claim(JwtRegisteredClaimNames.Sub, username),
             new System.Security.Claims.Claim("oi_tkn_typ", "access_token")
         };
         var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("gateway-auth-signing-key-minimum-32b"));
