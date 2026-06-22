@@ -69,18 +69,20 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
                 }
             }
 
-            _ = PersistAsync(async db =>
+            using (var persistScope = _scopeFactory.CreateScope())
             {
+                var persistDb = persistScope.ServiceProvider.GetRequiredService<AppDbContext>();
                 foreach (var entity in entities)
                 {
-                    var tracked = await db.Sessions.FindAsync(entity.SessionId);
+                    var tracked = await persistDb.Sessions.FindAsync(entity.SessionId);
                     if (tracked is not null)
                     {
                         tracked.AttachmentState = "Recovering";
                         tracked.AttachedClientConnectionId = null;
                     }
                 }
-            }, $"RecoverActiveSessions:{entities.Count}");
+                await persistDb.SaveChangesAsync();
+            }
 
             _logger.LogInformation("Recovered {Count} active sessions from database", entities.Count);
         }
@@ -90,7 +92,7 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
         }
     }
 
-    public Task<CreateSessionResult> CreateSessionAsync(string userId, CreateSessionRequest request, string? clientConnectionId, CancellationToken cancellationToken)
+    public async Task<CreateSessionResult> CreateSessionAsync(string userId, CreateSessionRequest request, string? clientConnectionId, CancellationToken cancellationToken)
     {
         RegisteredWorker worker;
 
@@ -99,7 +101,7 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
             if (!_workers.TryGetWorker(request.WorkerId, out var requested) ||
                 (requested.OwnerUserId is not null && requested.OwnerUserId != userId))
             {
-                return Task.FromResult(CreateSessionResult.Failure("worker-not-found"));
+                return CreateSessionResult.Failure("worker-not-found");
             }
             worker = requested;
         }
@@ -107,14 +109,14 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
         {
             if (!_workers.TryGetLeastBusyForUser(userId, out var leastBusy))
             {
-                return Task.FromResult(CreateSessionResult.Failure("no-worker-available"));
+                return CreateSessionResult.Failure("no-worker-available");
             }
             worker = leastBusy;
         }
 
         if (!_workers.SetWorkerOwner(worker.WorkerId, userId))
         {
-            return Task.FromResult(CreateSessionResult.Failure("no-worker-available"));
+            return CreateSessionResult.Failure("no-worker-available");
         }
 
         var now = _timeProvider.GetUtcNow();
@@ -130,18 +132,15 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
             now,
             AttachedClientConnectionId: clientConnectionId);
 
-        lock (_sync)
+        using (var scope = _scopeFactory.CreateScope())
         {
-            _sessions[sessionId] = record;
-        }
-
-        _ = PersistAsync(async db =>
-        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             db.Sessions.Add(new SessionRecordEntity
             {
                 SessionId = sessionId,
                 UserId = userId,
                 WorkerId = worker.WorkerId,
+                WorkerConnectionId = worker.ConnectionId,
                 Columns = request.Columns,
                 Rows = request.Rows,
                 CreatedAtUtc = now,
@@ -149,48 +148,71 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
                 AttachmentState = "Attached",
                 AttachedClientConnectionId = clientConnectionId
             });
-        }, $"CreateSession:{sessionId}");
+            await db.SaveChangesAsync();
+        }
+
+        lock (_sync)
+        {
+            _sessions[sessionId] = record;
+        }
 
         _logger.LogInformation("session.created {SessionId} worker={WorkerId} user={UserId}", sessionId, worker.WorkerId, userId);
 
-        return Task.FromResult(CreateSessionResult.Success(new CreateSessionResponse(sessionId, worker.WorkerId)));
+        return CreateSessionResult.Success(new CreateSessionResponse(sessionId, worker.WorkerId));
     }
 
-    public Task DetachSessionAsync(string userId, string sessionId, DateTimeOffset detachedAtUtc, CancellationToken cancellationToken)
+    public async Task DetachSessionAsync(string userId, string sessionId, DateTimeOffset detachedAtUtc, CancellationToken cancellationToken)
     {
+        SessionRecord? staged = null;
+
         lock (_sync)
         {
             if (!_sessions.TryGetValue(sessionId, out var session) || session.UserId != userId)
             {
-                return Task.CompletedTask;
+                return;
             }
 
-            // Session stays Attached — only clear the client connection.
-            // The session remains alive as long as the Worker/PTY is running.
-            // Client can Reattach at any time.
-            _sessions[sessionId] = session with
+            staged = session with
             {
                 AttachedClientConnectionId = null,
                 ReplayPending = false,
                 LastActivityAtUtc = detachedAtUtc
             };
-
-            PersistSessionState(sessionId, "Attached",
-                attachedClientConnectionId: null);
-
-            _logger.LogInformation("session.client-detached {SessionId} user={UserId}", sessionId, userId);
         }
 
-        return Task.CompletedTask;
-    }
+        await PersistSessionStateAsync(sessionId, "Attached",
+            attachedClientConnectionId: null,
+            lastActivityAtUtc: detachedAtUtc);
 
-    public Task<DeleteSessionResult> DeleteSessionAsync(string userId, string sessionId, CancellationToken cancellationToken)
-    {
         lock (_sync)
         {
-            if (!_sessions.TryGetValue(sessionId, out var session) || session.UserId != userId)
+            if (staged is not null) _sessions[sessionId] = staged;
+        }
+
+        _logger.LogInformation("session.client-detached {SessionId} user={UserId}", sessionId, userId);
+    }
+
+    public async Task<DeleteSessionResult> DeleteSessionAsync(string userId, string sessionId, CancellationToken cancellationToken)
+    {
+        bool owned;
+        lock (_sync)
+        {
+            owned = _sessions.TryGetValue(sessionId, out var session) && session.UserId == userId;
+        }
+
+        if (!owned)
+        {
+            return DeleteSessionResult.Failure("session-not-found");
+        }
+
+        using (var scope = _scopeFactory.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var entity = await db.Sessions.FindAsync(sessionId);
+            if (entity is not null && string.Equals(entity.UserId, userId, StringComparison.Ordinal))
             {
-                return Task.FromResult(DeleteSessionResult.Failure("session-not-found"));
+                db.Sessions.Remove(entity);
+                await db.SaveChangesAsync();
             }
         }
 
@@ -199,56 +221,50 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
             _sessions.TryRemove(sessionId, out _);
         }
 
-        _ = PersistAsync(async db =>
-        {
-            var entity = await db.Sessions.FindAsync(sessionId);
-            if (entity is not null && string.Equals(entity.UserId, userId, StringComparison.Ordinal))
-            {
-                db.Sessions.Remove(entity);
-            }
-        }, $"DeleteSession:{sessionId}");
-
         _logger.LogInformation("session.deleted {SessionId} user={UserId}", sessionId, userId);
 
-        return Task.FromResult(DeleteSessionResult.Success());
+        return DeleteSessionResult.Success();
     }
 
-    public Task<ReattachSessionResult> ReattachSessionAsync(
+    public async Task<ReattachSessionResult> ReattachSessionAsync(
         string userId,
         ReattachSessionRequest request,
         string clientConnectionId,
         DateTimeOffset nowUtc,
         CancellationToken cancellationToken)
     {
+        SessionRecord? staged = null;
+        string? dbState = null;
+        string? dbClient = null;
+        bool? dbReplay = null;
+        string logMessage = "";
+        ReattachSessionResult result;
+
         lock (_sync)
         {
             if (!_sessions.TryGetValue(request.SessionId, out var session) || session.UserId != userId)
             {
-                return Task.FromResult(ReattachSessionResult.Failure("session-not-found"));
+                return ReattachSessionResult.Failure("session-not-found");
             }
 
             if (session.AttachmentState == SessionAttachmentState.Attached)
             {
-                _sessions[request.SessionId] = session with
+                staged = session with
                 {
                     AttachedClientConnectionId = clientConnectionId,
                     LeaseExpiresAtUtc = null,
                     ReplayPending = true,
                     LastActivityAtUtc = nowUtc
                 };
-
-                PersistSessionState(request.SessionId, "Attached",
-                    attachedClientConnectionId: clientConnectionId,
-                    replayPending: true);
-
-                _logger.LogInformation("session.reattached {SessionId} client={ClientConnectionId} (displaced existing)", request.SessionId, clientConnectionId);
-
-                return Task.FromResult(ReattachSessionResult.Success());
+                dbState = "Attached";
+                dbClient = clientConnectionId;
+                dbReplay = true;
+                logMessage = $"session.reattached {request.SessionId} client={clientConnectionId} (displaced existing)";
+                result = ReattachSessionResult.Success();
             }
-
-            if (session.AttachmentState == SessionAttachmentState.Recovering)
+            else if (session.AttachmentState == SessionAttachmentState.Recovering)
             {
-                _sessions[request.SessionId] = session with
+                staged = session with
                 {
                     AttachmentState = SessionAttachmentState.Attached,
                     AttachedClientConnectionId = clientConnectionId,
@@ -256,23 +272,18 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
                     ReplayPending = false,
                     LastActivityAtUtc = nowUtc
                 };
-
-                PersistSessionState(request.SessionId, "Attached",
-                    attachedClientConnectionId: clientConnectionId);
-
-                _logger.LogInformation("Reattach: {SessionId} Recovering → Attached (client={ClientConnectionId})", request.SessionId, clientConnectionId);
-
-                return Task.FromResult(ReattachSessionResult.Success());
+                dbState = "Attached";
+                dbClient = clientConnectionId;
+                logMessage = $"Reattach: {request.SessionId} Recovering → Attached (client={clientConnectionId})";
+                result = ReattachSessionResult.Success();
             }
-
-            if (session.AttachmentState != SessionAttachmentState.DetachedGracePeriod)
+            else if (session.AttachmentState != SessionAttachmentState.DetachedGracePeriod)
             {
-                return Task.FromResult(ReattachSessionResult.Failure("session-expired"));
+                return ReattachSessionResult.Failure("session-expired");
             }
-
-            if (!session.LeaseExpiresAtUtc.HasValue)
+            else if (!session.LeaseExpiresAtUtc.HasValue)
             {
-                _sessions[request.SessionId] = session with
+                staged = session with
                 {
                     AttachmentState = SessionAttachmentState.Expired,
                     AttachedClientConnectionId = null,
@@ -280,15 +291,12 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
                     ReplayPending = false,
                     LastActivityAtUtc = nowUtc
                 };
-
-                PersistSessionState(request.SessionId, "Expired");
-
-                return Task.FromResult(ReattachSessionResult.Failure("session-detached-without-lease"));
+                dbState = "Expired";
+                result = ReattachSessionResult.Failure("session-detached-without-lease");
             }
-
-            if (session.LeaseExpiresAtUtc.Value <= nowUtc)
+            else if (session.LeaseExpiresAtUtc.Value <= nowUtc)
             {
-                _sessions[request.SessionId] = session with
+                staged = session with
                 {
                     AttachmentState = SessionAttachmentState.Expired,
                     AttachedClientConnectionId = null,
@@ -296,57 +304,87 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
                     ReplayPending = false,
                     LastActivityAtUtc = nowUtc
                 };
-
-                PersistSessionState(request.SessionId, "Expired");
-
-                return Task.FromResult(ReattachSessionResult.Failure("session-expired"));
+                dbState = "Expired";
+                result = ReattachSessionResult.Failure("session-expired");
             }
-
-            _sessions[request.SessionId] = session with
+            else
             {
-                AttachmentState = SessionAttachmentState.Attached,
-                AttachedClientConnectionId = clientConnectionId,
-                LeaseExpiresAtUtc = null,
-                ReplayPending = true,
-                LastActivityAtUtc = nowUtc
-            };
-
-            PersistSessionState(request.SessionId, "Attached",
-                attachedClientConnectionId: clientConnectionId,
-                replayPending: true);
-
-            _logger.LogInformation("session.reattached {SessionId} client={ClientConnectionId} (from DetachedGracePeriod)", request.SessionId, clientConnectionId);
-
-            return Task.FromResult(ReattachSessionResult.Success());
+                staged = session with
+                {
+                    AttachmentState = SessionAttachmentState.Attached,
+                    AttachedClientConnectionId = clientConnectionId,
+                    LeaseExpiresAtUtc = null,
+                    ReplayPending = true,
+                    LastActivityAtUtc = nowUtc
+                };
+                dbState = "Attached";
+                dbClient = clientConnectionId;
+                dbReplay = true;
+                logMessage = $"session.reattached {request.SessionId} client={clientConnectionId} (from DetachedGracePeriod)";
+                result = ReattachSessionResult.Success();
+            }
         }
-    }
 
-    public Task MarkSessionStartFailed(string sessionId, string reason)
-    {
+        if (dbState is not null)
+        {
+            await PersistSessionStateAsync(request.SessionId, dbState,
+                attachedClientConnectionId: dbClient,
+                leaseExpiresAtUtc: null,
+                replayPending: dbReplay,
+                lastActivityAtUtc: nowUtc);
+        }
+
         lock (_sync)
         {
-            if (_sessions.TryGetValue(sessionId, out var session))
-            {
-                _sessions[sessionId] = session with
-                {
-                    AttachmentState = SessionAttachmentState.Exited,
-                    AttachedClientConnectionId = null,
-                    ExitCode = null,
-                    ExitReason = reason,
-                    ReplayPending = false,
-                    LeaseExpiresAtUtc = null,
-                    LastActivityAtUtc = _timeProvider.GetUtcNow()
-                };
+            if (staged is not null) _sessions[request.SessionId] = staged;
+        }
 
-                PersistSessionState(sessionId, "Exited", exitReason: reason);
-            }
+        if (logMessage.Length > 0)
+        {
+            _logger.LogInformation("{Message}", logMessage);
+        }
+
+        return result;
+    }
+
+    public async Task MarkSessionStartFailed(string sessionId, string reason)
+    {
+        SessionRecord? staged = null;
+        DateTimeOffset nowUtc;
+
+        lock (_sync)
+        {
+            if (!_sessions.TryGetValue(sessionId, out var session)) return;
+            nowUtc = _timeProvider.GetUtcNow();
+            staged = session with
+            {
+                AttachmentState = SessionAttachmentState.Exited,
+                AttachedClientConnectionId = null,
+                ExitCode = null,
+                ExitReason = reason,
+                ReplayPending = false,
+                LeaseExpiresAtUtc = null,
+                LastActivityAtUtc = nowUtc
+            };
+        }
+
+        await PersistSessionStateAsync(sessionId, "Exited",
+            attachedClientConnectionId: null,
+            exitCode: null,
+            exitReason: reason,
+            leaseExpiresAtUtc: null,
+            replayPending: false,
+            lastActivityAtUtc: nowUtc);
+
+        lock (_sync)
+        {
+            if (staged is not null) _sessions[sessionId] = staged;
         }
 
         _logger.LogInformation("session.start-failed {SessionId} reason={Reason}", sessionId, reason);
-        return Task.CompletedTask;
     }
 
-    public Task RemoveSession(string sessionId)
+    public async Task RemoveSession(string sessionId)
     {
         _logger.LogInformation("session.removed {SessionId}", sessionId);
 
@@ -357,67 +395,93 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
 
         _lastTouchBySession.TryRemove(sessionId, out _);
 
-        _ = PersistAsync(async db =>
+        using var scope = _scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var entity = await db.Sessions.FindAsync(sessionId);
+        if (entity is not null)
         {
-            var entity = await db.Sessions.FindAsync(sessionId);
-            if (entity is not null)
-            {
-                db.Sessions.Remove(entity);
-            }
-        }, $"RemoveSession:{sessionId}");
-
-        return Task.CompletedTask;
+            db.Sessions.Remove(entity);
+            await db.SaveChangesAsync();
+        }
     }
 
-    public Task MarkSessionExited(string sessionId, int exitCode, string reason)
+    public async Task MarkSessionExited(string sessionId, int exitCode, string reason)
     {
+        SessionRecord? staged = null;
+        DateTimeOffset nowUtc;
+
         lock (_sync)
         {
-            if (_sessions.TryGetValue(sessionId, out var session))
+            if (!_sessions.TryGetValue(sessionId, out var session)) return;
+            nowUtc = _timeProvider.GetUtcNow();
+            staged = session with
             {
-                _sessions[sessionId] = session with
-                {
-                    AttachmentState = SessionAttachmentState.Exited,
-                    AttachedClientConnectionId = null,
-                    ExitCode = exitCode,
-                    ExitReason = reason,
-                    ReplayPending = false,
-                    LeaseExpiresAtUtc = null,
-                    LastActivityAtUtc = _timeProvider.GetUtcNow()
-                };
+                AttachmentState = SessionAttachmentState.Exited,
+                AttachedClientConnectionId = null,
+                ExitCode = exitCode,
+                ExitReason = reason,
+                ReplayPending = false,
+                LeaseExpiresAtUtc = null,
+                LastActivityAtUtc = nowUtc
+            };
+        }
 
-                PersistSessionState(sessionId, "Exited", exitCode: exitCode, exitReason: reason);
-            }
+        await PersistSessionStateAsync(sessionId, "Exited",
+            attachedClientConnectionId: null,
+            exitCode: exitCode,
+            exitReason: reason,
+            leaseExpiresAtUtc: null,
+            replayPending: false,
+            lastActivityAtUtc: nowUtc);
+
+        lock (_sync)
+        {
+            if (staged is not null) _sessions[sessionId] = staged;
         }
 
         _logger.LogInformation("session.exited {SessionId} exitCode={ExitCode} reason={Reason}", sessionId, exitCode, reason);
-        return Task.CompletedTask;
     }
 
-    public Task MarkReplayCompleted(string sessionId, string clientConnectionId)
+    public async Task MarkReplayCompleted(string sessionId, string clientConnectionId)
     {
+        SessionRecord? staged = null;
+        DateTimeOffset nowUtc;
+
         lock (_sync)
         {
-            if (_sessions.TryGetValue(sessionId, out var session) &&
-                session.AttachmentState == SessionAttachmentState.Attached &&
-                session.AttachedClientConnectionId == clientConnectionId)
+            if (!_sessions.TryGetValue(sessionId, out var session) ||
+                session.AttachmentState != SessionAttachmentState.Attached ||
+                session.AttachedClientConnectionId != clientConnectionId)
             {
-                _sessions[sessionId] = session with
-                {
-                    ReplayPending = false,
-                    LastActivityAtUtc = _timeProvider.GetUtcNow()
-                };
-
-                PersistSessionState(sessionId, "Attached", replayPending: false);
+                return;
             }
+            nowUtc = _timeProvider.GetUtcNow();
+            staged = session with
+            {
+                ReplayPending = false,
+                LastActivityAtUtc = nowUtc
+            };
         }
 
-        return Task.CompletedTask;
+        await PersistSessionStateAsync(sessionId, "Attached",
+            replayPending: false,
+            lastActivityAtUtc: nowUtc);
+
+        lock (_sync)
+        {
+            if (_sessions.TryGetValue(sessionId, out var current) &&
+                current.AttachmentState == SessionAttachmentState.Attached &&
+                current.AttachedClientConnectionId == clientConnectionId &&
+                staged is not null)
+            {
+                _sessions[sessionId] = staged;
+            }
+        }
     }
 
-    public Task<int> RebindActiveSessions(string userId, string workerId, string workerConnectionId)
+    public async Task<int> RebindActiveSessions(string userId, string workerId, string workerConnectionId)
     {
-        var reboundSessionIds = new List<string>();
+        var stagedUpdates = new List<(string SessionId, SessionRecord Staged, bool WasRecovering)>();
 
         lock (_sync)
         {
@@ -430,15 +494,12 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
 
                 if (session.AttachmentState == SessionAttachmentState.Recovering)
                 {
-                    _sessions[sessionId] = session with
+                    stagedUpdates.Add((sessionId, session with
                     {
                         WorkerConnectionId = workerConnectionId,
                         AttachmentState = SessionAttachmentState.Attached,
                         LastActivityAtUtc = _timeProvider.GetUtcNow()
-                    };
-                    reboundSessionIds.Add(sessionId);
-                    PersistSessionState(sessionId, "Attached");
-                    _logger.LogInformation("Rebind: {SessionId} Recovering → Attached (worker={WorkerId})", sessionId, workerId);
+                    }, WasRecovering: true));
                     continue;
                 }
 
@@ -448,17 +509,36 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
                     continue;
                 }
 
-                _sessions[sessionId] = session with { WorkerConnectionId = workerConnectionId };
-                reboundSessionIds.Add(sessionId);
+                stagedUpdates.Add((sessionId, session with { WorkerConnectionId = workerConnectionId }, WasRecovering: false));
             }
         }
 
-        return Task.FromResult(reboundSessionIds.Count);
+        foreach (var (sessionId, staged, wasRecovering) in stagedUpdates)
+        {
+            await PersistSessionStateAsync(sessionId, "Attached",
+                workerConnectionId: workerConnectionId,
+                lastActivityAtUtc: staged.LastActivityAtUtc);
+
+            if (wasRecovering)
+            {
+                _logger.LogInformation("Rebind: {SessionId} Recovering → Attached (worker={WorkerId})", sessionId, workerId);
+            }
+        }
+
+        lock (_sync)
+        {
+            foreach (var (sessionId, staged, _) in stagedUpdates)
+            {
+                _sessions[sessionId] = staged;
+            }
+        }
+
+        return stagedUpdates.Count;
     }
 
-    public Task<IReadOnlyList<SessionRecord>> TransitionToRecovering(string workerId, string workerConnectionId)
+    public async Task<IReadOnlyList<SessionRecord>> TransitionToRecovering(string workerId, string workerConnectionId)
     {
-        var transitionedSessions = new List<SessionRecord>();
+        var stagedUpdates = new List<(string SessionId, SessionRecord Original, SessionRecord Staged)>();
 
         lock (_sync)
         {
@@ -471,9 +551,7 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
                     continue;
                 }
 
-                transitionedSessions.Add(session);
-
-                _sessions[session.SessionId] = session with
+                stagedUpdates.Add((session.SessionId, session, session with
                 {
                     AttachmentState = SessionAttachmentState.Recovering,
                     WorkerConnectionId = "",
@@ -481,20 +559,35 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
                     LeaseExpiresAtUtc = null,
                     ReplayPending = false,
                     LastActivityAtUtc = _timeProvider.GetUtcNow()
-                };
-
-                PersistSessionState(session.SessionId, "Recovering",
-                    attachedClientConnectionId: null);
-                _logger.LogInformation("session.recovering {SessionId} reason=worker-disconnect worker={WorkerId}", session.SessionId, workerId);
+                }));
             }
         }
 
-        return Task.FromResult<IReadOnlyList<SessionRecord>>(transitionedSessions);
+        foreach (var (sessionId, _, staged) in stagedUpdates)
+        {
+            await PersistSessionStateAsync(sessionId, "Recovering",
+                attachedClientConnectionId: null,
+                workerConnectionId: "",
+                leaseExpiresAtUtc: null,
+                replayPending: false,
+                lastActivityAtUtc: staged.LastActivityAtUtc);
+            _logger.LogInformation("session.recovering {SessionId} reason=worker-disconnect worker={WorkerId}", sessionId, workerId);
+        }
+
+        lock (_sync)
+        {
+            foreach (var (sessionId, _, staged) in stagedUpdates)
+            {
+                _sessions[sessionId] = staged;
+            }
+        }
+
+        return stagedUpdates.Select(u => u.Original).ToList();
     }
 
-    public Task<IReadOnlyList<string>> ExpireRecoveringSessions(DateTimeOffset cutoffUtc)
+    public async Task<IReadOnlyList<string>> ExpireRecoveringSessions(DateTimeOffset cutoffUtc)
     {
-        var expiredSessionIds = new List<string>();
+        var stagedUpdates = new List<(string SessionId, SessionRecord Staged)>();
 
         lock (_sync)
         {
@@ -506,7 +599,7 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
                     continue;
                 }
 
-                _sessions[session.SessionId] = session with
+                stagedUpdates.Add((session.SessionId, session with
                 {
                     AttachmentState = SessionAttachmentState.Expired,
                     AttachedClientConnectionId = null,
@@ -515,20 +608,36 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
                     ExitReason = "recovery-timeout",
                     ReplayPending = false,
                     LastActivityAtUtc = _timeProvider.GetUtcNow()
-                };
-                expiredSessionIds.Add(session.SessionId);
-
-                PersistSessionState(session.SessionId, "Expired", exitReason: "recovery-timeout");
-                _logger.LogWarning("Recovery timeout: {SessionId} Recovering → Expired (worker={WorkerId})", session.SessionId, session.WorkerId);
+                }));
             }
         }
 
-        if (expiredSessionIds.Count > 0)
+        foreach (var (sessionId, staged) in stagedUpdates)
         {
-            _logger.LogInformation("Expired {Count} recovering sessions due to recovery timeout", expiredSessionIds.Count);
+            await PersistSessionStateAsync(sessionId, "Expired",
+                attachedClientConnectionId: null,
+                exitCode: null,
+                exitReason: "recovery-timeout",
+                leaseExpiresAtUtc: null,
+                replayPending: false,
+                lastActivityAtUtc: staged.LastActivityAtUtc);
+            _logger.LogWarning("Recovery timeout: {SessionId} Recovering → Expired (worker={WorkerId})", sessionId, staged.WorkerId);
         }
 
-        return Task.FromResult<IReadOnlyList<string>>(expiredSessionIds);
+        lock (_sync)
+        {
+            foreach (var (sessionId, staged) in stagedUpdates)
+            {
+                _sessions[sessionId] = staged;
+            }
+        }
+
+        if (stagedUpdates.Count > 0)
+        {
+            _logger.LogInformation("Expired {Count} recovering sessions due to recovery timeout", stagedUpdates.Count);
+        }
+
+        return stagedUpdates.Select(u => u.SessionId).ToList();
     }
 
     public bool TryGetSession(string sessionId, out SessionRecord session)
@@ -559,40 +668,51 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
             _sessions[sessionId] = session with { LastActivityAtUtc = nowUtc };
         }
 
-        _ = PersistAsync(async db =>
-        {
-            var entity = await db.Sessions.FindAsync(sessionId);
-            if (entity is not null)
-            {
-                entity.LastActivityAtUtc = nowUtc;
-            }
-        }, $"TouchSessionActivity:{sessionId}");
+        _ = TouchSessionInDbAsync(sessionId, nowUtc);
 
         return true;
     }
 
-    public Task<RenameSessionResult> RenameSessionAsync(string userId, string sessionId, string? name)
+    private async Task TouchSessionInDbAsync(string sessionId, DateTimeOffset nowUtc)
     {
+        using var scope = _scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var entity = await db.Sessions.FindAsync(sessionId);
+        if (entity is not null)
+        {
+            entity.LastActivityAtUtc = nowUtc;
+            await db.SaveChangesAsync();
+        }
+    }
+
+    public async Task<RenameSessionResult> RenameSessionAsync(string userId, string sessionId, string? name)
+    {
+        SessionRecord? staged = null;
+
         lock (_sync)
         {
             if (!_sessions.TryGetValue(sessionId, out var session) || session.UserId != userId)
             {
-                return Task.FromResult(RenameSessionResult.Failure("session-not-found"));
+                return RenameSessionResult.Failure("session-not-found");
             }
-
-            _sessions[sessionId] = session with { Name = name };
+            staged = session with { Name = name };
         }
 
-        _ = PersistAsync(async db =>
+        using var scope = _scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var entity = await db.Sessions.FindAsync(sessionId);
+        if (entity is not null && string.Equals(entity.UserId, userId, StringComparison.Ordinal))
         {
-            var entity = await db.Sessions.FindAsync(sessionId);
-            if (entity is not null)
-            {
-                entity.Name = name;
-            }
-        }, $"RenameSession:{sessionId}");
+            entity.Name = name;
+            await db.SaveChangesAsync();
+        }
 
-        return Task.FromResult(RenameSessionResult.Success());
+        lock (_sync)
+        {
+            if (staged is not null) _sessions[sessionId] = staged;
+        }
+
+        return RenameSessionResult.Success();
     }
 
     public Task<IReadOnlyList<SessionRecord>> GetSessionsForUser(string userId)
@@ -615,43 +735,36 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
         }
     }
 
-    private void PersistSessionState(
+    private async Task PersistSessionStateAsync(
         string sessionId,
         string attachmentState,
         string? attachedClientConnectionId = null,
+        string? workerConnectionId = null,
         DateTimeOffset? leaseExpiresAtUtc = null,
         int? exitCode = null,
         string? exitReason = null,
-        bool? replayPending = null)
+        bool? replayPending = null,
+        DateTimeOffset? lastActivityAtUtc = null,
+        string? name = null)
     {
-        _ = PersistAsync(async db =>
-        {
-            var entity = await db.Sessions.FindAsync(sessionId);
-            if (entity is null) return;
+        using var scope = _scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var entity = await db.Sessions.FindAsync(sessionId);
+        if (entity is null) return;
 
-            entity.AttachmentState = attachmentState;
-            entity.AttachedClientConnectionId = attachedClientConnectionId;
-            entity.LeaseExpiresAtUtc = leaseExpiresAtUtc;
-            entity.ExitCode = exitCode;
-            entity.ExitReason = exitReason;
-            entity.LastActivityAtUtc = _timeProvider.GetUtcNow();
-            if (replayPending.HasValue)
-                entity.ReplayPending = replayPending.Value;
-        }, $"PersistSessionState:{attachmentState}:{sessionId}");
-    }
-
-    private async Task PersistAsync(Func<AppDbContext, Task> action, string operation)
-    {
-        try
-        {
-            using var scope = _scopeFactory.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            await action(db);
-            await db.SaveChangesAsync();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "session.persistence-failed {Operation}", operation);
-        }
+        entity.AttachmentState = attachmentState;
+        entity.AttachedClientConnectionId = attachedClientConnectionId;
+        if (workerConnectionId is not null)
+            entity.WorkerConnectionId = workerConnectionId;
+        entity.LeaseExpiresAtUtc = leaseExpiresAtUtc;
+        entity.ExitCode = exitCode;
+        entity.ExitReason = exitReason;
+        if (lastActivityAtUtc.HasValue)
+            entity.LastActivityAtUtc = lastActivityAtUtc.Value;
+        if (replayPending.HasValue)
+            entity.ReplayPending = replayPending.Value;
+        if (name is not null)
+            entity.Name = name;
+        await db.SaveChangesAsync();
     }
 }
