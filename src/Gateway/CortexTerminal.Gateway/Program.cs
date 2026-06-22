@@ -977,8 +977,13 @@ app.MapPost("/api/auth/password/login", async (PasswordLoginRequest request, ISe
         }
         else
         {
-            // Legacy fallback: Users.PasswordHash by Username (for users created before Phase 1)
-            user = await db.Users.FirstOrDefaultAsync(u => u.Username == input);
+            // Legacy fallback: Users.PasswordHash by Username, or by auth_provider_id
+            // when the input looks like a phone number (covers OAuth-registered users
+            // who set a password before Phase 1 and don't have a password identity yet).
+            user = normalizedPhone is null
+                ? await db.Users.FirstOrDefaultAsync(u => u.Username == input)
+                : await db.Users.FirstOrDefaultAsync(u => u.AuthProviderId == input
+                    || (u.AuthProviderId != null && EF.Functions.Like(u.AuthProviderId, "%" + normalizedPhone)));
             storedHash = user?.PasswordHash;
         }
 
