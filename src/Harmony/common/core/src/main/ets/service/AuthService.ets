@@ -14,9 +14,17 @@ export class AuthService {
     AuthState.setSession((response['accessToken'] as string) ?? '', (response['username'] as string) ?? 'huawei')
   }
 
-  static async loginWithPassword(username: string, password: string): Promise<void> {
-    const response = await ApiService.loginWithPassword(username, password)
+  static async loginWithPassword(username: string, password: string, captchaToken: string = ''): Promise<void> {
+    const response = await ApiService.loginWithPassword(username, password, captchaToken)
     AuthState.setSession((response['accessToken'] as string) ?? '', (response['username'] as string) ?? username)
+  }
+
+  static async getCaptchaChallenge(): Promise<Record<string, Object>> {
+    return await ApiService.getCaptchaChallenge()
+  }
+
+  static async verifyCaptcha(id: string, x: number): Promise<string> {
+    return await ApiService.verifyCaptcha(id, x)
   }
 
   static async activateWorker(activationCode: string): Promise<void> {

@@ -5,12 +5,13 @@
  * Step 1: createAuthorizationWithHuaweiIDRequest → anonymous phone
  * Step 2: LoginWithHuaweiIDButton → Authorization Code
  */
-import { AuthService, I18n, RouteName, showToast, AnalyticsService, lightHaptic, clickHaptic } from '@rwecho/core'
+import { AuthService, I18n, RouteName, showToast, AnalyticsService, lightHaptic, clickHaptic, AuthError, AuthErrorKind } from '@rwecho/core'
 import { authentication, loginComponentManager, LoginWithHuaweiIDButton } from '@kit.AccountKit'
 import { util } from '@kit.ArkTS'
 import { BusinessError } from '@kit.BasicServicesKit'
 import { common } from '@kit.AbilityKit'
 import { resourceManager } from '@kit.LocalizationKit'
+import { SliderCaptchaDialog } from './SliderCaptchaDialog'
 
 const TERMS_TAG = 'terms'
 const PRIVACY_TAG = 'privacy'
@@ -26,8 +27,12 @@ export struct LoginPage {
   @State password: string = ''
   @State anonymousPhone: string = ''
   @State isAgreementAccepted: boolean = false
+  @State captchaToken: string = ''
   @StorageLink('language') currentLang: string = 'en'
   @Consume('pageStack') pageStack: NavPathStack
+
+  private pendingUsername: string = ''
+  private pendingPassword: string = ''
   privacyText: loginComponentManager.PrivacyText[] = [
     { text: I18n.get('auth.login.agree_read'), type: loginComponentManager.TextType.PLAIN_TEXT } as loginComponentManager.PrivacyText,
     { text: '《' + I18n.get('auth.login.terms') + '》', tag: TERMS_TAG, type: loginComponentManager.TextType.RICH_TEXT } as loginComponentManager.PrivacyText,
@@ -96,6 +101,23 @@ export struct LoginPage {
     autoCancel: false,
     alignment: DialogAlignment.Center,
     backgroundColor: $r('app.color.terminal_surface_container'),
+    cornerRadius: 16
+  })
+
+  private captchaDialogController: CustomDialogController = new CustomDialogController({
+    builder: SliderCaptchaDialog({
+      onSuccess: (token: string) => {
+        this.captchaToken = token
+        this.handlePasswordLogin(true)
+      },
+      onCancel: () => {
+        this.captchaToken = ''
+        this.isPasswordLoading = false
+      }
+    }),
+    autoCancel: false,
+    alignment: DialogAlignment.Center,
+    backgroundColor: Color.Transparent,
     cornerRadius: 16
   })
 
@@ -501,24 +523,38 @@ export struct LoginPage {
     }
   }
 
-  private async handlePasswordLogin() {
-    if (!this.isAgreementAccepted) {
-      this.agreementDialogController.open()
-      return
-    }
-    if (this.username.length === 0 || this.password.length === 0) {
-      this.errorMessage = I18n.get('auth.login.enter_credentials')
-      return
+  private async handlePasswordLogin(isRetry: boolean = false) {
+    if (!isRetry) {
+      if (!this.isAgreementAccepted) {
+        this.agreementDialogController.open()
+        return
+      }
+      if (this.username.length === 0 || this.password.length === 0) {
+        this.errorMessage = I18n.get('auth.login.enter_credentials')
+        return
+      }
+      this.pendingUsername = this.username
+      this.pendingPassword = this.password
     }
 
     this.isPasswordLoading = true
     this.errorMessage = ''
     try {
-      await AuthService.loginWithPassword(this.username, this.password)
+      await AuthService.loginWithPassword(this.pendingUsername, this.pendingPassword, this.captchaToken)
       this.isPasswordLoading = false
       AuthService.navigateHome(this.pageStack)
     } catch (err) {
-      this.errorMessage = (err as Error).message || I18n.get('auth.login.error')
+      const e = err as Error
+      // Any login failure clears the captchaToken:
+      //   - CAPTCHA_REQUIRED: old token is invalid/expired
+      //   - Wrong password / network: prevent unlimited retries within the 5-min token window
+      this.captchaToken = ''
+      if (e instanceof AuthError && e.kind === AuthErrorKind.CAPTCHA_REQUIRED) {
+        this.isPasswordLoading = false
+        this.captchaDialogController.open()
+        return
+      }
+      this.errorMessage = e.message || I18n.get('auth.login.error')
       this.isPasswordLoading = false
     }
   }

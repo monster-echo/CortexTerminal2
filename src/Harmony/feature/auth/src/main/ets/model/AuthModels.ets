@@ -74,3 +74,16 @@ export class OAuthCallbackRequest {
 export class WorkerActivateRequest {
   code: string = ''
 }
+
+/**
+ * Slider captcha challenge from `GET /api/auth/captcha/challenge`.
+ * Backend returns camelCase: { id, backgroundImage, sliderImage, y }
+ * `backgroundImage` and `sliderImage` are raw base64 PNG (no data URI prefix).
+ */
+@Observed
+export class CaptchaChallenge {
+  id: string = ''
+  backgroundImage: string = ''
+  sliderImage: string = ''
+  y: number = 0
+}

@@ -14,6 +14,7 @@ export { RouteName } from './src/main/ets/constants/RouteName'
 export { ApiService } from './src/main/ets/service/ApiService'
 export { AuthService } from './src/main/ets/service/AuthService'
 export { AuthState } from './src/main/ets/service/AuthState'
+export { AuthError, AuthErrorKind } from './src/main/ets/service/AuthError'
 export { AnalyticsService, AnalyticsEvent } from './src/main/ets/service/AnalyticsService'
 export { CrashService } from './src/main/ets/service/CrashService'
 

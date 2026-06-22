@@ -44,6 +44,13 @@ export const enStrings: Record<string, string> = {
   'auth.activate.button': 'Activate',
   'auth.activate.success': 'Activated successfully!',
   'auth.activate.skip': 'Skip',
+  'auth.captcha.title': 'Security Verification',
+  'auth.captcha.hint': 'Drag the slider to complete the puzzle above',
+  'auth.captcha.failed': 'Verification failed, please retry',
+  'auth.captcha.success': 'Verified',
+  'auth.captcha.verifying': 'Verifying...',
+  'auth.captcha.load_failed': 'Failed to load captcha',
+  'auth.captcha.required': 'Slide verification required to continue',
 
   // ── Session ───────────────────────────────────────────────────────
   'session.home.title': 'Sessions',

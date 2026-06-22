@@ -8,6 +8,7 @@
 import { http } from '@kit.NetworkKit'
 import { SessionInfo, SessionCreateRequest, SessionCreateResponse } from '../model/SessionModels'
 import { WorkerInfo, GatewayInfo } from '../model/SharedModels'
+import { AuthError, AuthErrorKind } from './AuthError'
 
 export class ApiService {
   private static isRefreshing: boolean = false
@@ -116,12 +117,32 @@ export class ApiService {
     return await ApiService.post('/api/auth/huawei/quick-login', body as Object, false) as Record<string, Object>
   }
 
-  static async loginWithPassword(username: string, password: string): Promise<Record<string, Object>> {
+  static async loginWithPassword(username: string, password: string, captchaToken: string = ''): Promise<Record<string, Object>> {
     const body: Record<string, string> = {
       'username': username,
       'password': password
     }
+    if (captchaToken.length > 0) {
+      body['captchaToken'] = captchaToken
+    }
     return await ApiService.post('/api/auth/password/login', body as Object, false) as Record<string, Object>
+  }
+
+  static async getCaptchaChallenge(): Promise<Record<string, Object>> {
+    return await ApiService.get('/api/auth/captcha/challenge', false) as Record<string, Object>
+  }
+
+  static async verifyCaptcha(id: string, x: number): Promise<string> {
+    if (x <= 0) {
+      throw new Error('Captcha x must be > 0')
+    }
+    const body: Record<string, Object> = { 'id': id, 'x': x }
+    const resp = await ApiService.post('/api/auth/captcha/verify', body as Object, false) as Record<string, Object>
+    const token = (resp['captchaToken'] as string) ?? ''
+    if (token.length === 0) {
+      throw new Error('No captchaToken in response')
+    }
+    return token
   }
 
   static async verifyActivationCode(userCode: string): Promise<void> {
@@ -208,10 +229,15 @@ export class ApiService {
             reject(retryErr)
           }
         } else {
-          const errorMsg = (data.result as Record<string, string>)?.error ||
-            (data.result as Record<string, string>)?.message ||
-            `Request failed (${data.responseCode})`
-          reject(new Error(errorMsg))
+          const resultRecord = data.result as Record<string, string>
+          const errField = resultRecord?.error ||
+            resultRecord?.message ||
+            ''
+          if (data.responseCode === 403 && errField === 'CAPTCHA_REQUIRED') {
+            reject(new AuthError(AuthErrorKind.CAPTCHA_REQUIRED, errField, 403))
+          } else {
+            reject(new Error(errField.length > 0 ? errField : `Request failed (${data.responseCode})`))
+          }
         }
         httpRequest.destroy()
       })

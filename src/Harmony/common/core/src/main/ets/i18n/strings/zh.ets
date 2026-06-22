@@ -44,6 +44,13 @@ export const zhStrings: Record<string, string> = {
   'auth.activate.button': '激活',
   'auth.activate.success': '激活成功！',
   'auth.activate.skip': '跳过',
+  'auth.captcha.title': '安全验证',
+  'auth.captcha.hint': '请按住滑块，拖动完成上方拼图',
+  'auth.captcha.failed': '验证失败，请重试',
+  'auth.captcha.success': '验证通过',
+  'auth.captcha.verifying': '验证中...',
+  'auth.captcha.load_failed': '验证码加载失败',
+  'auth.captcha.required': '需要进行滑块验证以继续',
 
   // ── Session ───────────────────────────────────────────────────────
   'session.home.title': '会话',
