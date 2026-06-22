@@ -27,7 +27,6 @@ export struct LoginPage {
   @State password: string = ''
   @State anonymousPhone: string = ''
   @State isAgreementAccepted: boolean = false
-  @State captchaToken: string = ''
   @StorageLink('language') currentLang: string = 'en'
   @Consume('pageStack') pageStack: NavPathStack
 
@@ -107,11 +106,9 @@ export struct LoginPage {
   private captchaDialogController: CustomDialogController = new CustomDialogController({
     builder: SliderCaptchaDialog({
       onSuccess: (token: string) => {
-        this.captchaToken = token
-        this.handlePasswordLogin(true)
+        this.handlePasswordLogin(token)
       },
       onCancel: () => {
-        this.captchaToken = ''
         this.isPasswordLoading = false
       }
     }),
@@ -523,8 +520,8 @@ export struct LoginPage {
     }
   }
 
-  private async handlePasswordLogin(isRetry: boolean = false) {
-    if (!isRetry) {
+  private async handlePasswordLogin(captchaToken: string = '') {
+    if (captchaToken === '') {
       if (!this.isAgreementAccepted) {
         this.agreementDialogController.open()
         return
@@ -540,15 +537,11 @@ export struct LoginPage {
     this.isPasswordLoading = true
     this.errorMessage = ''
     try {
-      await AuthService.loginWithPassword(this.pendingUsername, this.pendingPassword, this.captchaToken)
+      await AuthService.loginWithPassword(this.pendingUsername, this.pendingPassword, captchaToken)
       this.isPasswordLoading = false
       AuthService.navigateHome(this.pageStack)
     } catch (err) {
       const e = err as Error
-      // Any login failure clears the captchaToken:
-      //   - CAPTCHA_REQUIRED: old token is invalid/expired
-      //   - Wrong password / network: prevent unlimited retries within the 5-min token window
-      this.captchaToken = ''
       if (e instanceof AuthError && e.kind === AuthErrorKind.CAPTCHA_REQUIRED) {
         this.isPasswordLoading = false
         this.captchaDialogController.open()
