@@ -120,7 +120,7 @@ export struct LoginPage {
             this.HuaweiLoginEntry()
           }
 
-          if (this.errorMessage.length > 0) {
+          if (this.loginMode === 'huawei' && this.errorMessage.length > 0) {
             this.ErrorBanner()
           }
         }
