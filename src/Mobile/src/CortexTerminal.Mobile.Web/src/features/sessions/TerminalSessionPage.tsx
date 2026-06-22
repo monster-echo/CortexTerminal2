@@ -162,6 +162,9 @@ export default function TerminalSessionPage({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleKeyRef = useRef<any>(null);
   const recentInputRef = useRef<{ data: string; time: number }>({ data: "", time: 0 });
+  // Tracks the last observed value of xterm's helper textarea so we can compute
+  // how many chars an iOS dictation deleteContentBackward actually removed.
+  const lastTextareaValueRef = useRef<string>("");
 
   const {
     keyboardVisible: vvKeyboardVisible,
@@ -284,11 +287,13 @@ export default function TerminalSessionPage({
     xtermRef.current = term;
     fitAddonRef.current = fitAddon;
 
-    // iOS WKWebView 9-grid pinyin IME drops numeric keys: keydown (keyCode=229) returns early
-    // without emitting, then input(insertText, composed=true) is blocked by xterm's _keyDownSeen
-    // gate in CoreBrowserTerminal._inputEvent. Listen on the container (capture) and forward the
-    // dropped data. The 26-key path emits via onData first; dedup by 50ms window + matching data.
-    // See xterm.js upstream issues #5835 and #5887 (both unfixed as of 6.1.0-beta.219).
+    // iOS dictation & 9-grid pinyin numeric candidates both send input(insertText, composed=true)
+    // which xterm's _inputEvent gate (composed && _keyDownSeen) refuses. Capture them here and
+    // forward. Dictation's per-char insertText / deleteContentBackward / final whole-string is
+    // streamed as-is — the PTY line editor (readline) handles backspace undo itself. No JS-side
+    // buffering, no latency. deleteContentBackward doesn't say how many chars it removed, so we
+    // compute it from the textarea value delta in a separate input listener below.
+    // See xterm.js issues #5835 / #5887 (still open in 6.x).
     const onBeforeInput = (ev: Event) => {
       const ie = ev as InputEvent;
       if (ie.inputType !== "insertText") return;
@@ -302,41 +307,28 @@ export default function TerminalSessionPage({
     };
     terminalRef.current.addEventListener("beforeinput", onBeforeInput, true);
 
-    // === TEMP IME TRACE — remove after collecting logs (see plan) ===
-    const imeTextarea = terminalRef.current?.querySelector<HTMLTextAreaElement>(
-      ".xterm-helper-textarea",
-    );
-    const traceFn = (label: string) => (ev: Event) => {
-      const ie = ev as InputEvent;
-      const ce = ev as CompositionEvent;
-      const inputType = (ie as InputEvent).inputType;
-      const data = (ie as InputEvent).data ?? ce.data;
-      console.log(`[IME] ${label}`, {
-        type: ev.type,
-        inputType,
-        data,
-        isComposing: (ie as InputEvent).isComposing,
-        composed: (ie as InputEvent).composed,
-        target: (ev.target as HTMLElement | null)?.tagName,
-        phase: ev.eventPhase,
-        ts: Date.now(),
-      });
-    };
-    const imeTraceEvents = [
-      ["beforeinput", traceFn("bi")],
-      ["input", traceFn("in")],
-      ["compositionstart", traceFn("cs")],
-      ["compositionupdate", traceFn("cu")],
-      ["compositionend", traceFn("ce")],
-      ["keydown", traceFn("kd")],
-      ["keyup", traceFn("ku")],
-    ] as const;
-    for (const [type, fn] of imeTraceEvents) {
-      imeTextarea?.addEventListener(type, fn as EventListener, true);
-    }
-    // === END TEMP IME TRACE ===
-
     term.open(terminalRef.current);
+
+    // deleteContentBackward-as-backspace forwarding is iOS-only: Android's physical keyboard
+    // emits \x7f via xterm's keydown path, so listening to `input` here would double-send.
+    const imeTextarea =
+      platformLabel === "ios"
+        ? terminalRef.current?.querySelector<HTMLTextAreaElement>(".xterm-helper-textarea")
+        : null;
+    if (imeTextarea) lastTextareaValueRef.current = imeTextarea.value;
+    const onTextareaInput = (ev: Event) => {
+      const ie = ev as InputEvent;
+      const textarea = ev.target as HTMLTextAreaElement;
+      const currentValue = textarea.value;
+      if (ie.inputType === "deleteContentBackward") {
+        const deleted = lastTextareaValueRef.current.length - currentValue.length;
+        if (deleted > 0) {
+          handleKeyRef.current?.("\x7f".repeat(deleted));
+        }
+      }
+      lastTextareaValueRef.current = currentValue;
+    };
+    imeTextarea?.addEventListener("input", onTextareaInput, true);
 
     // xterm.js creates a hidden textarea (.xterm-helper-textarea) for keyboard input.
     // Set autocomplete="off" to suppress iOS keyboard autocomplete suggestions.
@@ -378,7 +370,10 @@ export default function TerminalSessionPage({
     });
 
     const inputDataDisposable = term.onData((data) => {
-      recentInputRef.current = { data, time: Date.now() };
+      const now = Date.now();
+      const recent = recentInputRef.current;
+      if (now - recent.time < 50 && recent.data === data) return;
+      recentInputRef.current = { data, time: now };
       handleKeyRef.current?.(data);
     });
 
@@ -427,14 +422,7 @@ export default function TerminalSessionPage({
       observer.disconnect();
       textareaObserver.disconnect();
       terminalRef.current?.removeEventListener("beforeinput", onBeforeInput, true);
-      // === TEMP IME TRACE cleanup ===
-      const imeTextarea = terminalRef.current?.querySelector<HTMLTextAreaElement>(
-        ".xterm-helper-textarea",
-      );
-      for (const [type, fn] of imeTraceEvents) {
-        imeTextarea?.removeEventListener(type, fn as EventListener, true);
-      }
-      // === END TEMP IME TRACE cleanup ===
+      imeTextarea?.removeEventListener("input", onTextareaInput, true);
       inputDataDisposable.dispose();
       selectionDisposable.dispose();
       resizeDisposable.dispose();
