@@ -962,11 +962,18 @@ app.MapPost("/api/auth/password/login", async (PasswordLoginRequest request, ISe
         var input = request.Username;
         var normalizedPhone = NormalizePhone(input);
 
-        // Phase 1 multi-auth: query UserIdentity (provider='password') across username/email/phone.
+        // Phase 1 multi-auth: prefer exact match on AuthProviderId/Email so a username
+        // like "hw_17701565543" doesn't get misrouted by NormalizePhone to another user
+        // whose password identity happens to share the same phone_normalized.
         var identity = await db.UserIdentities.FirstOrDefaultAsync(i =>
             i.AuthProvider == "password"
-            && (i.AuthProviderId == input || i.Email == input
-                || (normalizedPhone != null && i.PhoneNormalized == normalizedPhone)));
+            && (i.AuthProviderId == input || i.Email == input));
+
+        if (identity is null && normalizedPhone is not null)
+        {
+            identity = await db.UserIdentities.FirstOrDefaultAsync(i =>
+                i.AuthProvider == "password" && i.PhoneNormalized == normalizedPhone);
+        }
 
         User? user;
         string? storedHash;
