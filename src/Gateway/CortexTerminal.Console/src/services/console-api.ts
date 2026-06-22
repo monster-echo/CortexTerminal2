@@ -106,6 +106,51 @@ export interface GatewayStats {
   hourlyHistory: HourlyStatsPoint[]
 }
 
+export interface MyStats {
+  totalSessions: number
+  activeSessions: number
+  detachedSessions: number
+  exitedSessions: number
+  totalWorkers: number
+  onlineWorkers: number
+  bytesTransferred: number
+  mostRecentSessionAtUtc: string | null
+}
+
+export interface AdminUserActivityUser {
+  id: string
+  username: string
+  displayName: string | null
+  avatarUrl: string | null
+  role: 'admin' | 'user'
+  status: 'active' | 'disabled'
+  isOnline: boolean
+  lastLoginAtUtc: string | null
+  activeSessionCount: number
+  bytesTransferredLive: number
+  bytesTransferredTotal: number
+  lastSessionActivityAtUtc: string | null
+}
+
+export interface AdminUserActivitySession {
+  sessionId: string
+  userId: string
+  username: string
+  workerId: string
+  attachmentState: 'Attached' | 'DetachedGracePeriod' | 'Expired' | 'Exited'
+  createdAtUtc: string
+  lastActivityAtUtc: string
+  bytesTransferredLive: number
+  bytesTransferredTotal: number
+}
+
+export interface AdminUserActivity {
+  onlineUserCount: number
+  activeSessionCount: number
+  users: AdminUserActivityUser[]
+  sessions: AdminUserActivitySession[]
+}
+
 export interface HourlyStatsPoint {
   timestamp: string
   connectedClients: number
@@ -207,6 +252,8 @@ export interface ConsoleApi {
   getAdminAuditStats(period?: string): Promise<AuditStats>
   getAdminSessions(): Promise<AdminSessionSummary[]>
   getAdminWorkers(): Promise<AdminWorkerSummary[]>
+  getMyStats(): Promise<MyStats>
+  getAdminUserActivity(): Promise<AdminUserActivity>
 }
 
 type FetchFn = (input: string, init?: RequestInit) => Promise<Response>
@@ -486,6 +533,12 @@ export function createConsoleApi(
     },
     getAdminWorkers() {
       return request<AdminWorkerSummary[]>('/api/admin/workers')
+    },
+    getMyStats() {
+      return request<MyStats>('/api/me/stats')
+    },
+    getAdminUserActivity() {
+      return request<AdminUserActivity>('/api/admin/user-activity')
     },
   }
 }

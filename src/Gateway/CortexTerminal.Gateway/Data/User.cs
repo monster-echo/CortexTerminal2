@@ -58,4 +58,7 @@ public class User
     [Required]
     [Column("updated_at_utc")]
     public DateTimeOffset UpdatedAtUtc { get; set; } = DateTimeOffset.UtcNow;
+
+    [Column("last_login_at_utc")]
+    public DateTimeOffset? LastLoginAtUtc { get; set; }
 }

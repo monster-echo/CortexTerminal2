@@ -55,4 +55,8 @@ public class SessionRecordEntity
     [Column("name")]
     [StringLength(100)]
     public string? Name { get; set; }
+
+    [Required]
+    [Column("bytes_ingested")]
+    public long BytesIngested { get; set; }
 }
