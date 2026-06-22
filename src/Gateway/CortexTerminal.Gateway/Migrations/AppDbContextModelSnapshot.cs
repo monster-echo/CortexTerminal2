@@ -65,7 +65,7 @@ namespace CortexTerminal.Gateway.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("AuditLogs");
+                    b.ToTable("AuditLogs", (string)null);
                 });
 
             modelBuilder.Entity("CortexTerminal.Gateway.Data.SessionRecordEntity", b =>
@@ -140,7 +140,7 @@ namespace CortexTerminal.Gateway.Migrations
 
                     b.HasIndex("WorkerId");
 
-                    b.ToTable("Sessions");
+                    b.ToTable("Sessions", (string)null);
                 });
 
             modelBuilder.Entity("CortexTerminal.Gateway.Data.User", b =>
@@ -219,7 +219,7 @@ namespace CortexTerminal.Gateway.Migrations
 
                     b.HasIndex("AuthProvider", "AuthProviderId");
 
-                    b.ToTable("Users");
+                    b.ToTable("Users", (string)null);
                 });
 
             modelBuilder.Entity("CortexTerminal.Gateway.Data.UserIdentity", b =>
@@ -270,7 +270,7 @@ namespace CortexTerminal.Gateway.Migrations
                     b.HasIndex("AuthProvider", "AuthProviderId")
                         .IsUnique();
 
-                    b.ToTable("UserIdentities");
+                    b.ToTable("UserIdentities", (string)null);
                 });
 
             modelBuilder.Entity("CortexTerminal.Gateway.Data.WorkerRecord", b =>
@@ -321,7 +321,7 @@ namespace CortexTerminal.Gateway.Migrations
 
                     b.HasIndex("OwnerUserId");
 
-                    b.ToTable("Workers");
+                    b.ToTable("Workers", (string)null);
                 });
 #pragma warning restore 612, 618
         }
