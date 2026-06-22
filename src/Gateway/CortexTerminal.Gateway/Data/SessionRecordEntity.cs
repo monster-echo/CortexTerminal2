@@ -17,6 +17,9 @@ public class SessionRecordEntity
     [Column("worker_id")]
     public string WorkerId { get; set; } = "";
 
+    [Column("worker_connection_id")]
+    public string? WorkerConnectionId { get; set; }
+
     [Required]
     [Column("columns")]
     public int Columns { get; set; }
