@@ -2028,8 +2028,10 @@ app.MapDelete("/api/me/account", async (ClaimsPrincipal user, IServiceProvider s
     if (dbUser.Status == "deleted")
         return Results.NotFound(new { error = "User not found" });
 
-    // Revoke Apple token if applicable
-    if (dbUser.AuthProvider == "apple" && !string.IsNullOrEmpty(dbUser.AppleRefreshToken))
+    // Revoke Apple token if applicable (UserIdentity is source of truth; legacy Users.AuthProvider is fallback)
+    var hasAppleIdentity = await db.UserIdentities.AnyAsync(i => i.UserId == dbUser.Id && i.AuthProvider == "apple")
+        || dbUser.AuthProvider == "apple";
+    if (hasAppleIdentity && !string.IsNullOrEmpty(dbUser.AppleRefreshToken))
     {
         try
         {
@@ -2238,8 +2240,6 @@ static async Task<User?> EnsureUser(IServiceProvider serviceProvider, string use
         AvatarUrl = avatarUrl,
         Role = role,
         Status = "active",
-        AuthProvider = authProvider,
-        AuthProviderId = authProviderId,
         CreatedAtUtc = DateTimeOffset.UtcNow,
         UpdatedAtUtc = DateTimeOffset.UtcNow
     };
