@@ -3,7 +3,6 @@ using CortexTerminal.Contracts.Sessions;
 using CortexTerminal.Gateway.Data;
 using CortexTerminal.Gateway.Workers;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace CortexTerminal.Gateway.Sessions;
 
@@ -14,82 +13,84 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
     private readonly ConcurrentDictionary<string, DateTimeOffset> _lastTouchBySession = new();
     private readonly object _sync = new();
     private readonly TimeProvider _timeProvider;
-    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IDbContextFactory<AppDbContext> _contextFactory;
 
     private readonly ILogger<PostgresSessionCoordinator> _logger;
 
     public PostgresSessionCoordinator(
         IWorkerRegistry workers,
-        IServiceScopeFactory scopeFactory,
+        IDbContextFactory<AppDbContext> contextFactory,
         ILogger<PostgresSessionCoordinator> logger,
         TimeProvider? timeProvider = null)
     {
         _workers = workers;
-        _scopeFactory = scopeFactory;
+        _contextFactory = contextFactory;
         _logger = logger;
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     public async Task RecoverActiveSessionsAsync()
     {
-        try
-        {
-            using var scope = _scopeFactory.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var recoverableStates = new[] { "Attached", "DetachedGracePeriod", "Recovering" };
 
-            var recoverableStates = new[] { "Attached", "DetachedGracePeriod" };
-            var entities = await db.Sessions
+        List<SessionRecordEntity> entities;
+        await using (var db = await _contextFactory.CreateDbContextAsync())
+        {
+            entities = await db.Sessions
                 .Where(e => recoverableStates.Contains(e.AttachmentState))
                 .ToListAsync();
-
-            if (entities.Count == 0) return;
-
-            var now = _timeProvider.GetUtcNow();
-
-            lock (_sync)
-            {
-                foreach (var entity in entities)
-                {
-                    var record = new SessionRecord(
-                        entity.SessionId,
-                        entity.UserId,
-                        entity.WorkerId,
-                        WorkerConnectionId: "",
-                        entity.Columns,
-                        entity.Rows,
-                        entity.CreatedAtUtc,
-                        LastActivityAtUtc: now,
-                        AttachmentState: SessionAttachmentState.Recovering,
-                        AttachedClientConnectionId: null,
-                        LeaseExpiresAtUtc: null,
-                        Name: entity.Name);
-
-                    _sessions[entity.SessionId] = record;
-                    _logger.LogInformation("session.recovering {SessionId} worker={WorkerId} user={UserId}", entity.SessionId, entity.WorkerId, entity.UserId);
-                }
-            }
-
-            using (var persistScope = _scopeFactory.CreateScope())
-            {
-                var persistDb = persistScope.ServiceProvider.GetRequiredService<AppDbContext>();
-                foreach (var entity in entities)
-                {
-                    var tracked = await persistDb.Sessions.FindAsync(entity.SessionId);
-                    if (tracked is not null)
-                    {
-                        tracked.AttachmentState = "Recovering";
-                        tracked.AttachedClientConnectionId = null;
-                    }
-                }
-                await persistDb.SaveChangesAsync();
-            }
-
-            _logger.LogInformation("Recovered {Count} active sessions from database", entities.Count);
         }
-        catch (Exception ex)
+
+        if (entities.Count == 0) return;
+
+        var now = _timeProvider.GetUtcNow();
+        var toPersist = new List<SessionRecordEntity>(entities.Count);
+
+        lock (_sync)
         {
-            _logger.LogWarning(ex, "Failed to recover sessions from database");
+            foreach (var entity in entities)
+            {
+                var wasRecovering = entity.AttachmentState == "Recovering";
+                var record = new SessionRecord(
+                    entity.SessionId,
+                    entity.UserId,
+                    entity.WorkerId,
+                    WorkerConnectionId: entity.WorkerConnectionId ?? "",
+                    entity.Columns,
+                    entity.Rows,
+                    entity.CreatedAtUtc,
+                    LastActivityAtUtc: wasRecovering ? entity.LastActivityAtUtc : now,
+                    AttachmentState: SessionAttachmentState.Recovering,
+                    AttachedClientConnectionId: null,
+                    LeaseExpiresAtUtc: null,
+                    Name: entity.Name);
+
+                _sessions[entity.SessionId] = record;
+                _logger.LogInformation("session.recovering {SessionId} worker={WorkerId} user={UserId}", entity.SessionId, entity.WorkerId, entity.UserId);
+
+                if (!wasRecovering)
+                {
+                    entity.AttachmentState = "Recovering";
+                    entity.AttachedClientConnectionId = null;
+                    toPersist.Add(entity);
+                }
+            }
         }
+
+        if (toPersist.Count > 0)
+        {
+            await using var persistDb = await _contextFactory.CreateDbContextAsync();
+            foreach (var entity in toPersist)
+            {
+                var tracked = await persistDb.Sessions.FindAsync(entity.SessionId);
+                if (tracked is null) continue;
+                tracked.AttachmentState = "Recovering";
+                tracked.AttachedClientConnectionId = null;
+            }
+            await persistDb.SaveChangesAsync();
+        }
+
+        _logger.LogInformation("Recovered {Count} active sessions from database", entities.Count);
     }
 
     public async Task<CreateSessionResult> CreateSessionAsync(string userId, CreateSessionRequest request, string? clientConnectionId, CancellationToken cancellationToken)
@@ -132,9 +133,8 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
             now,
             AttachedClientConnectionId: clientConnectionId);
 
-        using (var scope = _scopeFactory.CreateScope())
+        await using (var db = await _contextFactory.CreateDbContextAsync(cancellationToken))
         {
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             db.Sessions.Add(new SessionRecordEntity
             {
                 SessionId = sessionId,
@@ -148,7 +148,7 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
                 AttachmentState = "Attached",
                 AttachedClientConnectionId = clientConnectionId
             });
-            await db.SaveChangesAsync();
+            await db.SaveChangesAsync(cancellationToken);
         }
 
         lock (_sync)
@@ -182,7 +182,8 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
 
         await PersistSessionStateAsync(sessionId, "Attached",
             attachedClientConnectionId: null,
-            lastActivityAtUtc: detachedAtUtc);
+            lastActivityAtUtc: detachedAtUtc,
+            cancellationToken: cancellationToken);
 
         lock (_sync)
         {
@@ -205,15 +206,12 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
             return DeleteSessionResult.Failure("session-not-found");
         }
 
-        using (var scope = _scopeFactory.CreateScope())
+        await using var db = await _contextFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await db.Sessions.FindAsync(sessionId, cancellationToken);
+        if (entity is not null && string.Equals(entity.UserId, userId, StringComparison.Ordinal))
         {
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var entity = await db.Sessions.FindAsync(sessionId);
-            if (entity is not null && string.Equals(entity.UserId, userId, StringComparison.Ordinal))
-            {
-                db.Sessions.Remove(entity);
-                await db.SaveChangesAsync();
-            }
+            db.Sessions.Remove(entity);
+            await db.SaveChangesAsync(cancellationToken);
         }
 
         lock (_sync)
@@ -331,7 +329,8 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
                 attachedClientConnectionId: dbClient,
                 leaseExpiresAtUtc: null,
                 replayPending: dbReplay,
-                lastActivityAtUtc: nowUtc);
+                lastActivityAtUtc: nowUtc,
+                cancellationToken: cancellationToken);
         }
 
         lock (_sync)
@@ -395,8 +394,7 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
 
         _lastTouchBySession.TryRemove(sessionId, out _);
 
-        using var scope = _scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await using var db = await _contextFactory.CreateDbContextAsync();
         var entity = await db.Sessions.FindAsync(sessionId);
         if (entity is not null)
         {
@@ -675,8 +673,7 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
 
     private async Task TouchSessionInDbAsync(string sessionId, DateTimeOffset nowUtc)
     {
-        using var scope = _scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await using var db = await _contextFactory.CreateDbContextAsync();
         var entity = await db.Sessions.FindAsync(sessionId);
         if (entity is not null)
         {
@@ -698,8 +695,7 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
             staged = session with { Name = name };
         }
 
-        using var scope = _scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await using var db = await _contextFactory.CreateDbContextAsync();
         var entity = await db.Sessions.FindAsync(sessionId);
         if (entity is not null && string.Equals(entity.UserId, userId, StringComparison.Ordinal))
         {
@@ -715,24 +711,48 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
         return RenameSessionResult.Success();
     }
 
-    public Task<IReadOnlyList<SessionRecord>> GetSessionsForUser(string userId)
+    public async Task<IReadOnlyList<SessionRecord>> GetSessionsForUser(string userId)
     {
-        lock (_sync)
-        {
-            return Task.FromResult<IReadOnlyList<SessionRecord>>(
-                _sessions.Values.Where(session => session.UserId == userId).ToArray());
-        }
+        await using var db = await _contextFactory.CreateDbContextAsync();
+        var entities = await db.Sessions
+            .Where(s => s.UserId == userId)
+            .ToListAsync();
+
+        return entities.Select(MapEntityToRecord).ToArray();
     }
 
-    public Task<IReadOnlyList<SessionRecord>> GetAllActiveSessions()
+    public async Task<IReadOnlyList<SessionRecord>> GetAllActiveSessions()
     {
-        lock (_sync)
-        {
-            return Task.FromResult<IReadOnlyList<SessionRecord>>(
-                _sessions.Values
-                    .Where(s => s.AttachmentState is SessionAttachmentState.Attached or SessionAttachmentState.DetachedGracePeriod)
-                    .ToArray());
-        }
+        await using var db = await _contextFactory.CreateDbContextAsync();
+        var entities = await db.Sessions
+            .Where(s => s.AttachmentState == "Attached" || s.AttachmentState == "DetachedGracePeriod")
+            .ToListAsync();
+
+        return entities.Select(MapEntityToRecord).ToArray();
+    }
+
+    private static SessionRecord MapEntityToRecord(SessionRecordEntity entity)
+    {
+        var state = Enum.TryParse<SessionAttachmentState>(entity.AttachmentState, ignoreCase: false, out var parsed)
+            ? parsed
+            : SessionAttachmentState.Attached;
+
+        return new SessionRecord(
+            entity.SessionId,
+            entity.UserId,
+            entity.WorkerId,
+            entity.WorkerConnectionId ?? "",
+            entity.Columns,
+            entity.Rows,
+            entity.CreatedAtUtc,
+            entity.LastActivityAtUtc,
+            state,
+            entity.AttachedClientConnectionId,
+            entity.LeaseExpiresAtUtc,
+            entity.ExitCode,
+            entity.ExitReason,
+            entity.ReplayPending,
+            entity.Name);
     }
 
     private async Task PersistSessionStateAsync(
@@ -745,11 +765,11 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
         string? exitReason = null,
         bool? replayPending = null,
         DateTimeOffset? lastActivityAtUtc = null,
-        string? name = null)
+        string? name = null,
+        CancellationToken cancellationToken = default)
     {
-        using var scope = _scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var entity = await db.Sessions.FindAsync(sessionId);
+        await using var db = await _contextFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await db.Sessions.FindAsync(sessionId, cancellationToken);
         if (entity is null) return;
 
         entity.AttachmentState = attachmentState;
@@ -765,6 +785,6 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
             entity.ReplayPending = replayPending.Value;
         if (name is not null)
             entity.Name = name;
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(cancellationToken);
     }
 }

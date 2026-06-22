@@ -273,17 +273,17 @@ public sealed class SessionRecoveryCoordinatorTests
     {
         var services = new ServiceCollection();
         var dbId = $"recovery_test_{Guid.NewGuid():N}";
-        services.AddDbContext<AppDbContext>(options =>
+        services.AddDbContextFactory<AppDbContext>(options =>
             options.UseInMemoryDatabase(dbId));
         var serviceProvider = services.BuildServiceProvider();
 
-        var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
+        var contextFactory = serviceProvider.GetRequiredService<IDbContextFactory<AppDbContext>>();
         var db = serviceProvider.GetRequiredService<AppDbContext>();
         var workers = TestSessionFactory.CreateWorkerRegistry();
         workers.Register("worker-1", "worker-conn-1");
         var logger = LoggerFactory.Create(_ => { }).CreateLogger<PostgresSessionCoordinator>();
 
-        var coordinator = new PostgresSessionCoordinator(workers, scopeFactory, logger);
+        var coordinator = new PostgresSessionCoordinator(workers, contextFactory, logger);
         return (coordinator, db);
     }
 }

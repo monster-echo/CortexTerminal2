@@ -1,5 +1,7 @@
+using CortexTerminal.Gateway.Data;
 using CortexTerminal.Gateway.Stats;
 using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -10,9 +12,12 @@ public sealed class SessionStatsServiceTests
     private static SessionStatsService CreateService()
     {
         var services = new ServiceCollection();
+        var dbName = $"stats-test-{Guid.NewGuid():N}";
+        services.AddDbContextFactory<AppDbContext>(options =>
+            options.UseInMemoryDatabase(dbName));
         var provider = services.BuildServiceProvider();
-        var scopeFactory = provider.GetRequiredService<IServiceScopeFactory>();
-        return new SessionStatsService(scopeFactory);
+        var contextFactory = provider.GetRequiredService<IDbContextFactory<AppDbContext>>();
+        return new SessionStatsService(contextFactory);
     }
 
     [Fact]

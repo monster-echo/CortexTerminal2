@@ -122,9 +122,8 @@ public sealed class WorkerHub(
         stats.RecordBytesTransferred(chunk.Payload.Length);
         sessionStats.RecordBytes(chunk.SessionId, session.UserId, chunk.Payload.Length);
 
-        if (session.ReplayPending)
+        if (session.ReplayPending && replayCoordinator.TryEnqueue(chunk.SessionId, chunk))
         {
-            replayCoordinator.TryEnqueue(chunk.SessionId, chunk);
             return;
         }
 
@@ -163,9 +162,8 @@ public sealed class WorkerHub(
         stats.RecordBytesTransferred(chunk.Payload.Length);
         sessionStats.RecordBytes(chunk.SessionId, session.UserId, chunk.Payload.Length);
 
-        if (session.ReplayPending)
+        if (session.ReplayPending && replayCoordinator.TryEnqueue(chunk.SessionId, chunk))
         {
-            replayCoordinator.TryEnqueue(chunk.SessionId, chunk);
             return;
         }
 

@@ -1,9 +1,10 @@
 using System.Diagnostics;
 using System.Threading;
 using CortexTerminal.Gateway.Auth;
+using CortexTerminal.Gateway.Data;
 using CortexTerminal.Gateway.Sessions;
 using CortexTerminal.Gateway.Workers;
-using Microsoft.Extensions.DependencyInjection;
+using Microsoft.EntityFrameworkCore;
 
 namespace CortexTerminal.Gateway.Stats;
 
@@ -14,7 +15,7 @@ public sealed class GatewayStatsService : IGatewayStatsService
     private readonly DateTimeOffset _startedAtUtc = DateTimeOffset.UtcNow;
 
     private readonly IWorkerRegistry _workers;
-    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IDbContextFactory<AppDbContext> _contextFactory;
     private readonly FailedAttemptTracker _failedAttempts;
 
     private readonly HourlyStatsPoint[] _hourlyHistory = new HourlyStatsPoint[24];
@@ -23,11 +24,11 @@ public sealed class GatewayStatsService : IGatewayStatsService
 
     public GatewayStatsService(
         IWorkerRegistry workers,
-        IServiceScopeFactory scopeFactory,
+        IDbContextFactory<AppDbContext> contextFactory,
         FailedAttemptTracker failedAttempts)
     {
         _workers = workers;
-        _scopeFactory = scopeFactory;
+        _contextFactory = contextFactory;
         _failedAttempts = failedAttempts;
     }
 
@@ -48,18 +49,12 @@ public sealed class GatewayStatsService : IGatewayStatsService
         long totalSessions = 0;
         int activeSessions = 0;
         int detachedSessions = 0;
-        try
+        using (var db = _contextFactory.CreateDbContext())
         {
-            using var scope = _scopeFactory.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<Data.AppDbContext>();
             totalUsers = db.Users.LongCount();
             totalSessions = db.Sessions.LongCount();
             activeSessions = db.Sessions.Count(s => s.AttachmentState == "Attached");
             detachedSessions = db.Sessions.Count(s => s.AttachmentState == "DetachedGracePeriod");
-        }
-        catch
-        {
-            // DB unavailable in some configurations
         }
 
         return new GatewayStatsSnapshot(
@@ -107,15 +102,9 @@ public sealed class GatewayStatsService : IGatewayStatsService
         var onlineWorkers = _workers.GetOnlineCount();
 
         int active;
-        try
+        using (var db = _contextFactory.CreateDbContext())
         {
-            using var scope = _scopeFactory.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<Data.AppDbContext>();
             active = db.Sessions.Count(s => s.AttachmentState == "Attached");
-        }
-        catch
-        {
-            active = 0;
         }
 
         var point = new HourlyStatsPoint(

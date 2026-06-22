@@ -9,27 +9,24 @@ namespace CortexTerminal.Gateway.Tests;
 
 internal static class TestSessionFactory
 {
-    public static IServiceScopeFactory CreateScopeFactory()
+    private static IDbContextFactory<AppDbContext> CreateContextFactory()
     {
+        var dbName = $"test-{Guid.NewGuid():N}";
         var services = new ServiceCollection();
-        services.AddDbContext<AppDbContext>(options =>
-            options.UseInMemoryDatabase($"test-{Guid.NewGuid():N}"));
-        return services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
+        services.AddDbContextFactory<AppDbContext>(options =>
+            options.UseInMemoryDatabase(dbName));
+        return services.BuildServiceProvider().GetRequiredService<IDbContextFactory<AppDbContext>>();
     }
 
     public static PostgresWorkerRegistry CreateWorkerRegistry()
-    {
-        return new PostgresWorkerRegistry(
-            CreateScopeFactory(),
+        => new(
+            CreateContextFactory(),
             LoggerFactory.Create(_ => { }).CreateLogger<PostgresWorkerRegistry>());
-    }
 
     public static PostgresSessionCoordinator CreateCoordinator(IWorkerRegistry workers, TimeProvider? timeProvider = null)
-    {
-        return new PostgresSessionCoordinator(
+        => new(
             workers,
-            CreateScopeFactory(),
+            CreateContextFactory(),
             LoggerFactory.Create(_ => { }).CreateLogger<PostgresSessionCoordinator>(),
             timeProvider);
-    }
 }

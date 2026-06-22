@@ -1,16 +1,15 @@
 using CortexTerminal.Gateway.Data;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace CortexTerminal.Gateway.Audit;
 
 public sealed class PostgresAuditLogStore : IAuditLogStore
 {
-    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IDbContextFactory<AppDbContext> _contextFactory;
 
-    public PostgresAuditLogStore(IServiceScopeFactory scopeFactory)
+    public PostgresAuditLogStore(IDbContextFactory<AppDbContext> contextFactory)
     {
-        _scopeFactory = scopeFactory;
+        _contextFactory = contextFactory;
     }
 
     public void Record(AuditLogEntry entry)
@@ -20,8 +19,7 @@ public sealed class PostgresAuditLogStore : IAuditLogStore
 
     private async Task RecordAsync(AuditLogEntry entry)
     {
-        using var scope = _scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await using var db = await _contextFactory.CreateDbContextAsync();
         db.AuditLogs.Add(new Data.AuditLog
         {
             Id = entry.Id,
@@ -39,8 +37,7 @@ public sealed class PostgresAuditLogStore : IAuditLogStore
         int? page, int? pageSize, string? actionType,
         string? userId, DateTimeOffset? fromDate, DateTimeOffset? toDate)
     {
-        using var scope = _scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await using var db = await _contextFactory.CreateDbContextAsync();
 
         var query = db.AuditLogs.AsQueryable();
 

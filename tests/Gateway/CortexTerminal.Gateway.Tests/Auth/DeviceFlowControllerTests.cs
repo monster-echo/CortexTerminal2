@@ -89,8 +89,10 @@ public sealed class GatewayApplicationFactory : WebApplicationFactory<Program>
     {
         builder.UseEnvironment("Development");
 
-        // Use in-memory database for hermetic tests
+        // Use in-memory database for hermetic tests — each factory gets a unique DB name
+        // so tests in different classes don't leak Attached sessions into each other.
         builder.UseSetting("Database:UseInMemory", "true");
+        builder.UseSetting("Database:InMemoryDbName", $"corterm_gateway_test_{Guid.NewGuid():N}");
 
         // Create a temp wwwroot with a stub index.html so static file serving
         // tests work even when the real SPA build output is absent (e.g. in CI).

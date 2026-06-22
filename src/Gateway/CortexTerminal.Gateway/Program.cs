@@ -256,15 +256,16 @@ var useInMemory = builder.Configuration.GetValue<bool>("Database:UseInMemory");
 
 if (useInMemory)
 {
-    builder.Services.AddDbContext<AppDbContext>(options =>
-        options.UseInMemoryDatabase("corterm_gateway"));
+    var inMemoryDbName = builder.Configuration["Database:InMemoryDbName"] ?? "corterm_gateway";
+    builder.Services.AddDbContextFactory<AppDbContext>(options =>
+        options.UseInMemoryDatabase(inMemoryDbName));
 }
 else
 {
     var connectionString = builder.Configuration["GATEWAY_POSTGRES_CONNECTION_STRING"]
         ?? builder.Configuration.GetConnectionString("DefaultConnection")
         ?? throw new InvalidOperationException("PostgreSQL connection string is required. Set GATEWAY_POSTGRES_CONNECTION_STRING or ConnectionStrings:DefaultConnection.");
-    builder.Services.AddDbContext<AppDbContext>(options =>
+    builder.Services.AddDbContextFactory<AppDbContext>(options =>
         options.UseNpgsql(connectionString));
 }
 builder.Services.AddSingleton<IAuditLogStore, PostgresAuditLogStore>();

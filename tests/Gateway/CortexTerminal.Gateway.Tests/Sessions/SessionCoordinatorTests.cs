@@ -35,6 +35,9 @@ public sealed class SessionCoordinatorTests
         result.Response.Should().NotBeNull();
         result.Response!.SessionId.Should().StartWith("sess_");
         result.Response.WorkerId.Should().Be("worker-1");
+
+        var sessions = await coordinator.GetSessionsForUser("user-1");
+        sessions.Should().ContainSingle();
     }
 
     [Fact]

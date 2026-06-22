@@ -2,7 +2,6 @@ using System.Collections.Concurrent;
 using System.Threading;
 using CortexTerminal.Gateway.Data;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace CortexTerminal.Gateway.Stats;
 
@@ -10,11 +9,11 @@ public sealed class SessionStatsService : ISessionStatsService
 {
     private readonly ConcurrentDictionary<string, long> _sessionBytes = new();
     private readonly ConcurrentDictionary<string, long> _userBytes = new();
-    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IDbContextFactory<AppDbContext> _contextFactory;
 
-    public SessionStatsService(IServiceScopeFactory scopeFactory)
+    public SessionStatsService(IDbContextFactory<AppDbContext> contextFactory)
     {
-        _scopeFactory = scopeFactory;
+        _contextFactory = contextFactory;
     }
 
     public void RecordBytes(string sessionId, string userId, int byteCount)
@@ -41,8 +40,7 @@ public sealed class SessionStatsService : ISessionStatsService
         var snapshot = _sessionBytes.ToArray();
         _sessionBytes.Clear();
 
-        using var scope = _scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await using var db = await _contextFactory.CreateDbContextAsync(cancellationToken);
 
         foreach (var (sessionId, delta) in snapshot)
         {

@@ -1,19 +1,18 @@
 using System.Collections.Concurrent;
 using CortexTerminal.Gateway.Data;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace CortexTerminal.Gateway.Workers;
 
 public sealed class PostgresWorkerRegistry : IWorkerRegistry
 {
     private readonly ConcurrentDictionary<string, RegisteredWorker> _workers = new();
-    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IDbContextFactory<AppDbContext> _contextFactory;
     private readonly ILogger<PostgresWorkerRegistry> _logger;
 
-    public PostgresWorkerRegistry(IServiceScopeFactory scopeFactory, ILogger<PostgresWorkerRegistry> logger)
+    public PostgresWorkerRegistry(IDbContextFactory<AppDbContext> contextFactory, ILogger<PostgresWorkerRegistry> logger)
     {
-        _scopeFactory = scopeFactory;
+        _contextFactory = contextFactory;
         _logger = logger;
     }
 
@@ -147,8 +146,7 @@ public sealed class PostgresWorkerRegistry : IWorkerRegistry
 
     public async Task<IReadOnlyList<WorkerRecord>> GetAllWorkersForUserAsync(string userId)
     {
-        using var scope = _scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await using var db = await _contextFactory.CreateDbContextAsync();
         return await db.Workers
             .Where(w => w.OwnerUserId == userId)
             .OrderByDescending(w => w.IsOnline)
@@ -164,8 +162,7 @@ public sealed class PostgresWorkerRegistry : IWorkerRegistry
     {
         try
         {
-            using var scope = _scopeFactory.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await using var db = await _contextFactory.CreateDbContextAsync();
             await action(db);
             await db.SaveChangesAsync();
         }
