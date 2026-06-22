@@ -482,7 +482,8 @@ app.MapGet("/api/me/profile", async (ClaimsPrincipal userPrincipal, IServiceProv
             email = user.Email,
             role = user.Role,
             displayName = user.DisplayName,
-            hasPassword = !string.IsNullOrEmpty(user.PasswordHash),
+            hasPassword = await db.UserIdentities.AnyAsync(i => i.UserId == user.Id && i.AuthProvider == "password" && i.PasswordHash != null)
+                || !string.IsNullOrEmpty(user.PasswordHash),
             avatarUrl = user.AvatarData != null
                 ? $"/api/users/{user.Id}/avatar"
                 : user.AvatarUrl,
@@ -674,13 +675,29 @@ app.MapPut("/api/me/password", async (ChangePasswordRequest request, ClaimsPrinc
         if (user is null)
             return Results.NotFound(new { error = "User not found" });
 
-        if (!string.IsNullOrEmpty(user.PasswordHash))
+        // Read current password: prefer UserIdentity (new), fall back to Users.PasswordHash (legacy)
+        var passwordIdentity = await db.UserIdentities.FirstOrDefaultAsync(i => i.UserId == user.Id && i.AuthProvider == "password");
+        var currentHash = passwordIdentity?.PasswordHash ?? user.PasswordHash;
+        if (!string.IsNullOrEmpty(currentHash))
         {
-            if (string.IsNullOrEmpty(request.CurrentPassword) || !BCrypt.Net.BCrypt.Verify(request.CurrentPassword, user.PasswordHash))
+            if (string.IsNullOrEmpty(request.CurrentPassword) || !BCrypt.Net.BCrypt.Verify(request.CurrentPassword, currentHash))
                 return Results.BadRequest(new { error = "Current password is incorrect" });
         }
 
-        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+        var newHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+        if (passwordIdentity is null)
+        {
+            passwordIdentity = new UserIdentity
+            {
+                UserId = user.Id,
+                AuthProvider = "password",
+                AuthProviderId = user.Username,
+                CreatedAtUtc = DateTimeOffset.UtcNow
+            };
+            db.UserIdentities.Add(passwordIdentity);
+        }
+        passwordIdentity.PasswordHash = newHash;
+
         user.UpdatedAtUtc = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync();
         return Results.Ok(new { success = true });
@@ -942,8 +959,30 @@ app.MapPost("/api/auth/password/login", async (PasswordLoginRequest request, ISe
         using var scope = scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        var user = await db.Users.FirstOrDefaultAsync(u => u.Username == request.Username);
-        if (user is null || user.Status == "disabled" || user.Status == "deleted" || string.IsNullOrEmpty(user.PasswordHash) || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
+        var input = request.Username;
+        var normalizedPhone = NormalizePhone(input);
+
+        // Phase 1 multi-auth: query UserIdentity (provider='password') across username/email/phone.
+        var identity = await db.UserIdentities.FirstOrDefaultAsync(i =>
+            i.AuthProvider == "password"
+            && (i.AuthProviderId == input || i.Email == input
+                || (normalizedPhone != null && i.PhoneNormalized == normalizedPhone)));
+
+        User? user;
+        string? storedHash;
+        if (identity is not null)
+        {
+            user = await db.Users.FirstOrDefaultAsync(u => u.Id == identity.UserId);
+            storedHash = identity.PasswordHash;
+        }
+        else
+        {
+            // Legacy fallback: Users.PasswordHash by Username (for users created before Phase 1)
+            user = await db.Users.FirstOrDefaultAsync(u => u.Username == input);
+            storedHash = user?.PasswordHash;
+        }
+
+        if (user is null || user.Status == "disabled" || user.Status == "deleted" || string.IsNullOrEmpty(storedHash) || !BCrypt.Net.BCrypt.Verify(request.Password, storedHash))
         {
             attemptTracker.RecordFailure(clientIp);
             return Results.Json(new { error = "Invalid username or password" }, statusCode: 401);
@@ -983,8 +1022,9 @@ app.MapPost("/api/auth/password/register", async (PasswordRegisterRequest reques
         if (dbUser is null)
             return Results.Problem("Failed to create user");
 
-        // Update password hash
-        dbUser.PasswordHash = passwordHash;
+        // Write password hash to the password UserIdentity row (Phase 1 of multi-auth migration)
+        var passwordIdentity = await db.UserIdentities.FirstAsync(i => i.UserId == dbUser.Id && i.AuthProvider == "password");
+        passwordIdentity.PasswordHash = passwordHash;
         dbUser.UpdatedAtUtc = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync();
 

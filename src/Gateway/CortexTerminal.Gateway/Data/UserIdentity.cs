@@ -27,6 +27,9 @@ public class UserIdentity
     [Column("phone_normalized")]
     public string? PhoneNormalized { get; set; }
 
+    [Column("password_hash")]
+    public string? PasswordHash { get; set; }
+
     [Required]
     [Column("created_at_utc")]
     public DateTimeOffset CreatedAtUtc { get; set; } = DateTimeOffset.UtcNow;
