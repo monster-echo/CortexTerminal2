@@ -65,7 +65,7 @@ namespace CortexTerminal.Gateway.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("AuditLogs", (string)null);
+                    b.ToTable("AuditLogs");
                 });
 
             modelBuilder.Entity("CortexTerminal.Gateway.Data.SessionRecordEntity", b =>
@@ -82,6 +82,10 @@ namespace CortexTerminal.Gateway.Migrations
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("attachment_state");
+
+                    b.Property<long>("BytesIngested")
+                        .HasColumnType("bigint")
+                        .HasColumnName("bytes_ingested");
 
                     b.Property<int>("Columns")
                         .HasColumnType("integer")
@@ -140,7 +144,7 @@ namespace CortexTerminal.Gateway.Migrations
 
                     b.HasIndex("WorkerId");
 
-                    b.ToTable("Sessions", (string)null);
+                    b.ToTable("Sessions");
                 });
 
             modelBuilder.Entity("CortexTerminal.Gateway.Data.User", b =>
@@ -189,6 +193,10 @@ namespace CortexTerminal.Gateway.Migrations
                         .HasColumnType("text")
                         .HasColumnName("email");
 
+                    b.Property<DateTimeOffset?>("LastLoginAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_login_at_utc");
+
                     b.Property<string>("PasswordHash")
                         .HasColumnType("text")
                         .HasColumnName("password_hash");
@@ -219,7 +227,7 @@ namespace CortexTerminal.Gateway.Migrations
 
                     b.HasIndex("AuthProvider", "AuthProviderId");
 
-                    b.ToTable("Users", (string)null);
+                    b.ToTable("Users");
                 });
 
             modelBuilder.Entity("CortexTerminal.Gateway.Data.UserIdentity", b =>
@@ -270,7 +278,7 @@ namespace CortexTerminal.Gateway.Migrations
                     b.HasIndex("AuthProvider", "AuthProviderId")
                         .IsUnique();
 
-                    b.ToTable("UserIdentities", (string)null);
+                    b.ToTable("UserIdentities");
                 });
 
             modelBuilder.Entity("CortexTerminal.Gateway.Data.WorkerRecord", b =>
@@ -321,7 +329,7 @@ namespace CortexTerminal.Gateway.Migrations
 
                     b.HasIndex("OwnerUserId");
 
-                    b.ToTable("Workers", (string)null);
+                    b.ToTable("Workers");
                 });
 #pragma warning restore 612, 618
         }

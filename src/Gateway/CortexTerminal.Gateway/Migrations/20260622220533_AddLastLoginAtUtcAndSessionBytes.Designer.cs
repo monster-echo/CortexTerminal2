@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CortexTerminal.Gateway.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260622071510_AddLastLoginAtUtcAndSessionBytes")]
+    [Migration("20260622220533_AddLastLoginAtUtcAndSessionBytes")]
     partial class AddLastLoginAtUtcAndSessionBytes
     {
         /// <inheritdoc />

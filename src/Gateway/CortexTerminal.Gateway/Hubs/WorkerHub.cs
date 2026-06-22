@@ -81,35 +81,20 @@ public sealed class WorkerHub(
             workers.Unregister(workerId);
             logger.LogInformation("Worker {WorkerId} disconnected (connection {ConnectionId}).", workerId, connectionId);
 
-            // Expire all sessions tied to this specific worker connection
-            var expiredSessions = sessions.ExpireSessionsForWorkerConnection(workerId, connectionId);
-            if (expiredSessions.Count > 0)
+            // Move sessions to Recovering instead of expiring them outright.
+            // This gives the worker (or a gateway restart) a 60s window to reconnect via
+            // DetachedSessionExpiryService. Without this, a graceful gateway shutdown
+            // would expire all sessions in DB and nothing could be recovered.
+            var transitionedSessions = sessions.TransitionToRecovering(workerId, connectionId);
+            if (transitionedSessions.Count > 0)
             {
                 logger.LogInformation(
-                    "Expired {SessionCount} sessions for disconnected worker {WorkerId} (connection {ConnectionId}).",
-                    expiredSessions.Count, workerId, connectionId);
+                    "Transitioned {SessionCount} sessions to Recovering for disconnected worker {WorkerId} (connection {ConnectionId}).",
+                    transitionedSessions.Count, workerId, connectionId);
 
-                foreach (var session in expiredSessions)
+                foreach (var session in transitionedSessions)
                 {
                     replayCoordinator.AbortReplay(session.SessionId);
-
-                    if (session.AttachedClientConnectionId is not null)
-                    {
-                        try
-                        {
-                            await DeliverToClientAsync(
-                                session,
-                                "SessionExpired",
-                                new SessionExpiredEvent(session.SessionId, "worker-offline"),
-                                new WsExpiredFrame { SessionId = session.SessionId, Reason = "worker-offline" });
-                        }
-                        catch (Exception ex)
-                        {
-                            logger.LogWarning(ex,
-                                "Failed to notify client {ClientId} about expired session {SessionId}.",
-                                session.AttachedClientConnectionId, session.SessionId);
-                        }
-                    }
                 }
             }
         }

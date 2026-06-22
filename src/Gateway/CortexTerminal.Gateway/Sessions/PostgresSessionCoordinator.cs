@@ -456,9 +456,9 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
         return reboundSessionIds.Count;
     }
 
-    public IReadOnlyList<SessionRecord> ExpireSessionsForWorkerConnection(string workerId, string workerConnectionId)
+    public IReadOnlyList<SessionRecord> TransitionToRecovering(string workerId, string workerConnectionId)
     {
-        var expiredSessions = new List<SessionRecord>();
+        var transitionedSessions = new List<SessionRecord>();
 
         lock (_sync)
         {
@@ -471,25 +471,25 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
                     continue;
                 }
 
-                expiredSessions.Add(session);
+                transitionedSessions.Add(session);
 
                 _sessions[session.SessionId] = session with
                 {
-                    AttachmentState = SessionAttachmentState.Expired,
+                    AttachmentState = SessionAttachmentState.Recovering,
+                    WorkerConnectionId = "",
                     AttachedClientConnectionId = null,
                     LeaseExpiresAtUtc = null,
-                    ExitCode = null,
-                    ExitReason = "worker-offline",
                     ReplayPending = false,
                     LastActivityAtUtc = _timeProvider.GetUtcNow()
                 };
 
-                PersistSessionState(session.SessionId, "Expired", exitReason: "worker-offline");
-                _logger.LogInformation("session.expired {SessionId} reason=worker-offline worker={WorkerId}", session.SessionId, workerId);
+                PersistSessionState(session.SessionId, "Recovering",
+                    attachedClientConnectionId: null);
+                _logger.LogInformation("session.recovering {SessionId} reason=worker-disconnect worker={WorkerId}", session.SessionId, workerId);
             }
         }
 
-        return expiredSessions;
+        return transitionedSessions;
     }
 
     public IReadOnlyList<string> ExpireDetachedSessions(DateTimeOffset nowUtc)
