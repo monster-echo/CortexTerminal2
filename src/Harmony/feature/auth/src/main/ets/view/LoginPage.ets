@@ -5,7 +5,7 @@
  * Step 1: createAuthorizationWithHuaweiIDRequest → anonymous phone
  * Step 2: LoginWithHuaweiIDButton → Authorization Code
  */
-import { AuthService, I18n, AppConstants, RouteName, showToast, AnalyticsService, lightHaptic, clickHaptic } from '@rwecho/core'
+import { AuthService, I18n, RouteName, showToast, AnalyticsService, lightHaptic, clickHaptic } from '@rwecho/core'
 import { authentication, loginComponentManager, LoginWithHuaweiIDButton } from '@kit.AccountKit'
 import { util } from '@kit.ArkTS'
 import { BusinessError } from '@kit.BasicServicesKit'
@@ -443,11 +443,14 @@ export struct LoginPage {
   // ── Handlers ────────────────────────────────────────────────────
 
   private handlePrivacyTagClick(tag: string) {
-    const gatewayUrl = AppStorage.get<string>('gatewayUrl') || AppConstants.DEFAULT_GATEWAY_URL
     if (tag === TERMS_TAG) {
-      this.openExternal(gatewayUrl + '/terms')
+      const url = (this.getUIContext()?.getHostContext() as common.UIAbilityContext)
+        .resourceManager.getStringByNameSync('terms_of_service_url')
+      this.openExternal(url)
     } else if (tag === PRIVACY_TAG) {
-      this.openExternal(gatewayUrl + '/privacy')
+      const url = (this.getUIContext()?.getHostContext() as common.UIAbilityContext)
+        .resourceManager.getStringByNameSync('privacy_policy_url')
+      this.openExternal(url)
     } else if (tag === HUAWEI_AUTH_TAG) {
       this.openExternal(this.getHuaweiAuthTermsUrl())
     }

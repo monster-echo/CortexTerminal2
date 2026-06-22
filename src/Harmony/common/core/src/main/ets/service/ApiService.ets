@@ -13,7 +13,7 @@ export class ApiService {
   private static isRefreshing: boolean = false
 
   private static get gatewayUrl(): string {
-    return AppStorage.get<string>('gatewayUrl') || ''
+    return AppStorage.get<string>('gatewayUrl') as string
   }
 
   private static get authToken(): string {

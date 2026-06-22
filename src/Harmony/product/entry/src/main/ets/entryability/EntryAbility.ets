@@ -11,7 +11,7 @@ import { window, KeyboardAvoidMode } from '@kit.ArkUI'
 import { webview } from '@kit.ArkWeb'
 import { hilog } from '@kit.PerformanceAnalysisKit'
 import { bundleManager } from '@kit.AbilityKit'
-import { AppConstants, AnalyticsService, AnalyticsEvent, CrashService } from '@rwecho/core'
+import { AnalyticsService, AnalyticsEvent, CrashService } from '@rwecho/core'
 import { DynamicsRouter } from 'routermodule'
 
 const TAG = 'EntryAbility'
@@ -177,7 +177,7 @@ export default class EntryAbility extends UIAbility {
         PersistentStorage.persistProp('authToken', '')
         PersistentStorage.persistProp('isLoggedIn', false)
         PersistentStorage.persistProp('userInfo', '')
-        PersistentStorage.persistProp('gatewayUrl', AppConstants.DEFAULT_GATEWAY_URL)
+        PersistentStorage.persistProp('gatewayUrl', this.context.resourceManager.getStringByNameSync('gateway_url'))
         PersistentStorage.persistProp('themeMode', 'system')
         PersistentStorage.persistProp('language', 'en')
         PersistentStorage.persistProp('firstLaunchDone', false)

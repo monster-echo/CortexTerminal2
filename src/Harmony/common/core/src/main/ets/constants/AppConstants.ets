@@ -7,11 +7,6 @@
  */
 
 export class AppConstants {
-  // ── Gateway ──────────────────────────────────────────────────────
-
-  /** Default API gateway base URL */
-  static readonly DEFAULT_GATEWAY_URL: string = 'https://corterm.rwecho.top'
-
   // ── WebSocket ────────────────────────────────────────────────────
 
   /** Interval between WebSocket ping frames (ms) */

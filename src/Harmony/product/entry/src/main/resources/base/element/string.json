@@ -83,6 +83,10 @@
     { "name": "activate_code_placeholder", "value": "XXXX-XXXX" },
     { "name": "activate_button", "value": "Activate" },
     { "name": "activate_skip", "value": "Skip for now" },
-    { "name": "activate_success", "value": "Worker activated successfully!" }
+    { "name": "activate_success", "value": "Worker activated successfully!" },
+
+    { "name": "gateway_url", "value": "https://corterm.rwecho.top" },
+    { "name": "terms_of_service_url", "value": "https://corterm.rwecho.top/terms" },
+    { "name": "privacy_policy_url", "value": "https://corterm.rwecho.top/privacy" }
   ]
 }

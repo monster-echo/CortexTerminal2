@@ -1,5 +1,5 @@
 import { common, ConfigurationConstant } from '@kit.AbilityKit'
-import { ApiService, AuthService, AuthState, I18n, RouteName, AppConstants, showI18nToast, showToast, AnalyticsService, AnalyticsEvent, lightHaptic, clickHaptic, heavyHaptic } from '@rwecho/core'
+import { ApiService, AuthService, AuthState, I18n, RouteName, showI18nToast, showToast, AnalyticsService, AnalyticsEvent, lightHaptic, clickHaptic, heavyHaptic } from '@rwecho/core'
 
 @Component
 export struct SettingsPage {
@@ -12,10 +12,6 @@ export struct SettingsPage {
   aboutToAppear() {
     AnalyticsService.onPageStart('settings/Page')
     this.loadProfile()
-  }
-
-  private get gatewayUrl(): string {
-    return AppStorage.get<string>('gatewayUrl') || AppConstants.DEFAULT_GATEWAY_URL
   }
 
   build() {
@@ -112,7 +108,9 @@ export struct SettingsPage {
               .fontColor($r('app.color.terminal_secondary'))
               .onClick(() => {
                 lightHaptic()
-                this.openExternal(this.gatewayUrl + '/terms')
+                const url = (this.getUIContext()?.getHostContext() as common.UIAbilityContext)
+                  .resourceManager.getStringByNameSync('terms_of_service_url')
+                this.openExternal(url)
               })
 
             Text(' | ')
@@ -124,7 +122,9 @@ export struct SettingsPage {
               .fontColor($r('app.color.terminal_secondary'))
               .onClick(() => {
                 lightHaptic()
-                this.openExternal(this.gatewayUrl + '/privacy')
+                const url = (this.getUIContext()?.getHostContext() as common.UIAbilityContext)
+                  .resourceManager.getStringByNameSync('privacy_policy_url')
+                this.openExternal(url)
               })
           }
 
