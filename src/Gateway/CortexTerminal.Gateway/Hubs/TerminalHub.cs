@@ -124,6 +124,12 @@ public sealed class TerminalHub(
     public async Task WriteInput(WriteInputFrame frame)
     {
         var session = RequireOwnedSession(frame.SessionId);
+        logger.LogInformation(
+            "WriteInput: session={SessionId} user={UserId} client={ClientId} {ByteCount}B",
+            frame.SessionId,
+            Context.UserIdentifier,
+            Context.ConnectionId,
+            frame.Payload?.Length ?? 0);
         await workerCommands.WriteInputAsync(session.WorkerConnectionId, frame, Context.ConnectionAborted);
     }
 
