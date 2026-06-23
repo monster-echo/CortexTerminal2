@@ -487,7 +487,6 @@ export default function TerminalSessionPage({
         setStatusMessage(t("terminal.reattached"));
       }
       if (event.type === "terminal.replayCompleted") {
-        term?.reset();
         setStatusMessage(t("terminal.live"));
         if (loadingRef.current) {
           loadingRef.current = false;
