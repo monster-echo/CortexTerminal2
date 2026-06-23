@@ -13,6 +13,66 @@ class TerminalLine {
   }
 }
 
+@CustomDialog
+struct RenameDialog {
+  controller: CustomDialogController
+  initialName: string = ''
+  @State textInput: string = ''
+  onConfirm: (newName: string) => void = () => {}
+
+  aboutToAppear() {
+    this.textInput = this.initialName
+  }
+
+  build() {
+    Column() {
+      Text(I18n.get('session.rename_title'))
+        .fontSize(18)
+        .fontWeight(FontWeight.Bold)
+        .fontColor($r('app.color.terminal_primary'))
+        .margin({ bottom: 16 })
+
+      TextInput({ text: $$this.textInput, placeholder: I18n.get('session.rename_placeholder') })
+        .height(48)
+        .borderRadius(8)
+        .backgroundColor($r('app.color.terminal_surface_container_high'))
+        .fontColor($r('app.color.terminal_primary'))
+        .placeholderColor($r('app.color.terminal_on_surface_variant'))
+        .fontSize(16)
+        .selectAll(true)
+
+      Row({ space: 12 }) {
+        Button(I18n.get('common.cancel'))
+          .height(44)
+          .borderRadius(8)
+          .backgroundColor(Color.Transparent)
+          .fontColor($r('app.color.terminal_on_surface_variant'))
+          .border({ width: 1, color: $r('app.color.terminal_outline_variant') })
+          .layoutWeight(1)
+          .onClick(() => { clickHaptic(); this.controller.close() })
+
+        Button(I18n.get('common.confirm'))
+          .height(44)
+          .borderRadius(24)
+          .backgroundColor($r('app.color.terminal_secondary_container'))
+          .fontColor($r('app.color.terminal_on_secondary_container'))
+          .layoutWeight(1)
+          .onClick(() => {
+            clickHaptic()
+            this.onConfirm(this.textInput.trim())
+            this.controller.close()
+          })
+      }
+      .margin({ top: 20 })
+    }
+    .padding(24)
+    .borderRadius(16)
+    .backgroundColor($r('app.color.terminal_surface_container_highest'))
+    .width('80%')
+    .constraintSize({ maxWidth: 320 })
+  }
+}
+
 @Component
 export struct SessionHomePage {
   @State allSessions: SessionInfo[] = []
@@ -21,11 +81,14 @@ export struct SessionHomePage {
   @State errorMessage: string = ''
   @State isRefreshing: boolean = false
   @State showCreateSheet: boolean = false
-  @State showRenameDialog: boolean = false
-  @State renameTarget: SessionInfo = new SessionInfo()
-  @State renameInput: string = ''
   @Consume('pageStack') pageStack: NavPathStack
   @StorageLink('triggerCreateSession') @Watch('onCreateTriggered') createTrigger: boolean = false
+  private renameDialog: CustomDialogController = new CustomDialogController({
+    builder: RenameDialog({ initialName: '', onConfirm: (_n: string) => {} }),
+    autoCancel: true,
+    alignment: DialogAlignment.Center,
+    customStyle: true
+  })
 
   onCreateTriggered() {
     if (this.createTrigger) {
@@ -150,9 +213,6 @@ export struct SessionHomePage {
       showClose: true,
       onDisappear: () => { this.showCreateSheet = false }
     })
-    .bindContentCover($$this.showRenameDialog, this.RenameDialogContent(), {
-      modalTransition: ModalTransition.NONE
-    })
   }
 
   @Builder
@@ -194,57 +254,6 @@ export struct SessionHomePage {
       .backgroundColor($r('app.color.terminal_surface_container_high'))
       .onClick(() => { clickHaptic(); this.confirmDelete(session) })
     }
-  }
-
-  @Builder
-  RenameDialogContent() {
-    Column() {
-      Column() {
-        Text(I18n.get('session.rename_title'))
-          .fontSize(18)
-          .fontWeight(FontWeight.Bold)
-          .fontColor($r('app.color.terminal_primary'))
-          .margin({ bottom: 16 })
-
-        TextInput({ text: $$this.renameInput, placeholder: I18n.get('session.rename_placeholder') })
-          .height(48)
-          .borderRadius(8)
-          .backgroundColor($r('app.color.terminal_surface_container_high'))
-          .fontColor($r('app.color.terminal_primary'))
-          .placeholderColor($r('app.color.terminal_on_surface_variant'))
-          .fontSize(16)
-          .selectAll(true)
-
-        Row({ space: 12 }) {
-          Button(I18n.get('common.cancel'))
-            .height(44)
-            .borderRadius(8)
-            .backgroundColor(Color.Transparent)
-            .fontColor($r('app.color.terminal_on_surface_variant'))
-            .border({ width: 1, color: $r('app.color.terminal_outline_variant') })
-            .layoutWeight(1)
-            .onClick(() => { this.showRenameDialog = false })
-
-          Button(I18n.get('common.confirm'))
-            .height(44)
-            .borderRadius(24)
-            .backgroundColor($r('app.color.terminal_secondary_container'))
-            .fontColor($r('app.color.terminal_on_secondary_container'))
-            .layoutWeight(1)
-            .onClick(() => { this.confirmRename() })
-        }
-        .margin({ top: 20 })
-      }
-      .padding(24)
-      .borderRadius(16)
-      .backgroundColor($r('app.color.terminal_surface_container_highest'))
-    }
-    .width('100%')
-    .height('100%')
-    .justifyContent(FlexAlign.Center)
-    .backgroundColor('#80000000')
-    .padding({ left: 32, right: 32 })
-    .onClick(() => { this.showRenameDialog = false })
   }
 
   @Builder
@@ -300,21 +309,26 @@ export struct SessionHomePage {
   }
 
   private openRenameDialog(session: SessionInfo) {
-    this.renameTarget = session
-    this.renameInput = session.name
-    this.showRenameDialog = true
+    this.renameDialog = new CustomDialogController({
+      builder: RenameDialog({
+        initialName: session.name,
+        onConfirm: (newName: string) => { this.applyRename(session, newName) }
+      }),
+      autoCancel: true,
+      alignment: DialogAlignment.Center,
+      customStyle: true
+    })
+    this.renameDialog.open()
   }
 
-  private async confirmRename() {
-    const newName = this.renameInput.trim()
-    if (newName.length === 0 || newName === this.renameTarget.name) {
-      this.showRenameDialog = false
+  private async applyRename(session: SessionInfo, newName: string) {
+    if (newName.length === 0 || newName === session.name) {
       return
     }
     try {
-      await SessionService.renameSession(this.renameTarget.id, newName)
+      await SessionService.renameSession(session.id, newName)
       this.allSessions = this.allSessions.map((s: SessionInfo): SessionInfo => {
-        if (s.id === this.renameTarget.id) {
+        if (s.id === session.id) {
           const updated = new SessionInfo()
           updated.id = s.id
           updated.sessionId = s.sessionId
@@ -340,7 +354,6 @@ export struct SessionHomePage {
         confirm: { value: I18n.get('common.confirm'), action: () => {} }
       })
     }
-    this.showRenameDialog = false
   }
 
   private async loadData() {
