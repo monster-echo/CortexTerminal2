@@ -62,10 +62,14 @@ public sealed class TerminalGatewayService
         {
             try
             {
-                await connection.InvokeAsync<ReattachSessionResult>(
+                var result = await connection.InvokeAsync<ReattachSessionResult>(
                     "ReattachSession",
                     new ReattachSessionRequest(sessionId),
                     CancellationToken.None);
+                if (!result.IsSuccess)
+                {
+                    await PushEventAsync(new { type = "terminal.closed", sessionId, reason = result.ErrorCode ?? "session_gone" });
+                }
             }
             catch (Exception ex)
             {
