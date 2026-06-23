@@ -16,7 +16,7 @@ public sealed class WorkerSessionRuntimeTests
     {
         var process = new ControlledPtyProcess();
         var gateway = new FakeWorkerGatewayClient();
-        var runtime = new WorkerSessionRuntime("sess-1", new ControlledPtyHost(process), gateway, NullLogger<WorkerSessionRuntime>.Instance);
+        var runtime = new WorkerSessionRuntime("sess-1", new ControlledPtyHost(process), gateway, NullLogger<WorkerSessionRuntime>.Instance, 5 * 1024 * 1024);
 
         await runtime.StartAsync(120, 40, CancellationToken.None);
         await process.EmitStdoutAsync([0x6F, 0x6B]);
@@ -39,7 +39,7 @@ public sealed class WorkerSessionRuntimeTests
     {
         var process = new ControlledPtyProcess();
         var gateway = new FakeWorkerGatewayClient();
-        var runtime = new WorkerSessionRuntime("sess-1", new ControlledPtyHost(process), gateway, NullLogger<WorkerSessionRuntime>.Instance);
+        var runtime = new WorkerSessionRuntime("sess-1", new ControlledPtyHost(process), gateway, NullLogger<WorkerSessionRuntime>.Instance, 5 * 1024 * 1024);
 
         await runtime.StartAsync(120, 40, CancellationToken.None);
         await runtime.WriteInputAsync([0x03], CancellationToken.None);
@@ -57,7 +57,7 @@ public sealed class WorkerSessionRuntimeTests
     {
         var process = new ControlledPtyProcess();
         var gateway = new FakeWorkerGatewayClient();
-        var runtime = new WorkerSessionRuntime("sess-1", new ControlledPtyHost(process), gateway, NullLogger<WorkerSessionRuntime>.Instance);
+        var runtime = new WorkerSessionRuntime("sess-1", new ControlledPtyHost(process), gateway, NullLogger<WorkerSessionRuntime>.Instance, 5 * 1024 * 1024);
 
         runtime.Terminated += _ => throw new InvalidOperationException("boom");
 

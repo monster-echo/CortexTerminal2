@@ -97,7 +97,7 @@ public sealed class TerminalHubTests
             replayCoordinator,
             timeProvider,
             new NoOpWorkerCommandDispatcher(),
-            new SessionLaunchCoordinator(sessions, new NoOpWorkerCommandDispatcher()),
+            new SessionLaunchCoordinator(sessions, new NoOpWorkerCommandDispatcher(), new ScrollbackSettings(), TestSessionFactory.CreatePreferenceService()),
             new NoOpStatsService(),
             NullLogger<TerminalHub>.Instance)!;
 }

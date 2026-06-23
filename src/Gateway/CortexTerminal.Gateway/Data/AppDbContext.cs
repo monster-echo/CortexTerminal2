@@ -9,6 +9,7 @@ public class AppDbContext : DbContext
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<WorkerRecord> Workers => Set<WorkerRecord>();
     public DbSet<SessionRecordEntity> Sessions => Set<SessionRecordEntity>();
+    public DbSet<UserPreference> UserPreferences => Set<UserPreference>();
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
@@ -47,6 +48,12 @@ public class AppDbContext : DbContext
             entity.HasIndex(e => e.WorkerId);
             entity.HasIndex(e => e.AttachmentState);
             entity.HasIndex(e => e.CreatedAtUtc);
+        });
+
+        modelBuilder.Entity<UserPreference>(entity =>
+        {
+            entity.HasIndex(e => new { e.UserId, e.Key }).IsUnique();
+            entity.HasIndex(e => e.UserId);
         });
     }
 }

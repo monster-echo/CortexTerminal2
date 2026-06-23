@@ -156,7 +156,7 @@ public sealed class TerminalHubReconnectTests
             replayCoordinator,
             timeProvider,
             dispatcher,
-            new SessionLaunchCoordinator(sessions, dispatcher),
+            new SessionLaunchCoordinator(sessions, dispatcher, new ScrollbackSettings(), TestSessionFactory.CreatePreferenceService()),
             new NoOpStatsService(),
             NullLogger<TerminalHub>.Instance)!;
 

@@ -242,6 +242,7 @@ builder.Services.AddSignalR(options => options.MaximumReceiveMessageSize = 8 * 1
 builder.Services.AddSingleton<IUserIdProvider, SubClaimUserIdProvider>();
 builder.Services.AddSingleton<IWorkerCommandDispatcher, SignalRWorkerCommandDispatcher>();
 builder.Services.AddSingleton<ISessionLaunchCoordinator, SessionLaunchCoordinator>();
+builder.Services.AddSingleton<UserPreferenceService>();
 builder.Services.AddSingleton<InMemoryDeviceFlowStore>();
 builder.Services.AddSingleton<ReplayCoordinator>();
 builder.Services.AddSingleton(TimeProvider.System);
@@ -265,6 +266,15 @@ var huaweiOAuthOptions = new HuaweiOAuthOptions();
 builder.Configuration.GetSection("HuaweiOAuth").Bind(huaweiOAuthOptions);
 var ttsOptions = new TtsOptions();
 builder.Configuration.GetSection("Tts").Bind(ttsOptions);
+
+var scrollbackSettings = new ScrollbackSettings();
+builder.Configuration.GetSection("Scrollback").Bind(scrollbackSettings);
+var scrollbackEnvBytes = Environment.GetEnvironmentVariable("CORTERM_SCROLLBACK_BYTES");
+if (int.TryParse(scrollbackEnvBytes, out var envMaxBytes) && envMaxBytes > 0)
+{
+    scrollbackSettings.MaxBytesOverride = envMaxBytes;
+}
+builder.Services.AddSingleton(scrollbackSettings);
 
 var useInMemory = builder.Configuration.GetValue<bool>("Database:UseInMemory");
 
@@ -473,6 +483,8 @@ app.MapGet("/api/me/profile", async (ClaimsPrincipal userPrincipal, IServiceProv
         var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
         using var scope = scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var prefService = scope.ServiceProvider.GetRequiredService<UserPreferenceService>();
+        var scrollback = scope.ServiceProvider.GetRequiredService<ScrollbackSettings>();
         var user = await db.Users.FindAsync(userId);
         if (user is null)
             user = await db.Users.FirstOrDefaultAsync(u => u.Username == userId);
@@ -491,12 +503,69 @@ app.MapGet("/api/me/profile", async (ClaimsPrincipal userPrincipal, IServiceProv
             avatarUrl = user.AvatarData != null
                 ? $"/api/users/{user.Id}/avatar"
                 : user.AvatarUrl,
+            scrollbackMaxBytes = await prefService.GetScrollbackMaxBytesAsync(user.Id, CancellationToken.None)
+                ?? scrollback.MaxBytes,
+            scrollbackMinAllowedBytes = scrollback.MinAllowedBytes,
+            scrollbackMaxAllowedBytes = scrollback.MaxAllowedBytes,
         });
     }
     catch (InvalidOperationException)
     {
         return Results.Ok(new { id = userId, username = userId, role = "admin" });
     }
+}).RequireAuthorization();
+
+app.MapGet("/api/me/preferences", async (ClaimsPrincipal userPrincipal, IServiceProvider serviceProvider) =>
+{
+    var userId = GetUserId(userPrincipal);
+    var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
+    using var scope = scopeFactory.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var prefService = scope.ServiceProvider.GetRequiredService<UserPreferenceService>();
+    var scrollback = scope.ServiceProvider.GetRequiredService<ScrollbackSettings>();
+
+    var user = await db.Users.FindAsync(userId);
+    if (user is null)
+        user = await db.Users.FirstOrDefaultAsync(u => u.Username == userId);
+    if (user is null)
+        return Results.NotFound(new { error = "User not found" });
+
+    var raw = await prefService.GetScrollbackMaxBytesAsync(user.Id, CancellationToken.None);
+    return Results.Ok(new
+    {
+        scrollbackMaxBytes = raw ?? scrollback.MaxBytes,
+        scrollbackMaxBytesConfigured = raw is not null,
+        scrollbackMinAllowedBytes = scrollback.MinAllowedBytes,
+        scrollbackMaxAllowedBytes = scrollback.MaxAllowedBytes,
+    });
+}).RequireAuthorization();
+
+app.MapPut("/api/me/preferences", async (UpdatePreferencesRequest body, ClaimsPrincipal userPrincipal, IServiceProvider serviceProvider) =>
+{
+    var userId = GetUserId(userPrincipal);
+    var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
+    using var scope = scopeFactory.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var prefService = scope.ServiceProvider.GetRequiredService<UserPreferenceService>();
+    var scrollback = scope.ServiceProvider.GetRequiredService<ScrollbackSettings>();
+
+    var user = await db.Users.FindAsync(userId);
+    if (user is null)
+        user = await db.Users.FirstOrDefaultAsync(u => u.Username == userId);
+    if (user is null)
+        return Results.NotFound(new { error = "User not found" });
+
+    if (body.ScrollbackMaxBytes < scrollback.MinAllowedBytes
+        || body.ScrollbackMaxBytes > scrollback.MaxAllowedBytes)
+    {
+        return Results.BadRequest(new
+        {
+            error = $"scrollbackMaxBytes must be between {scrollback.MinAllowedBytes} and {scrollback.MaxAllowedBytes}",
+        });
+    }
+
+    await prefService.SetScrollbackMaxBytesAsync(user.Id, body.ScrollbackMaxBytes, CancellationToken.None);
+    return Results.Ok(new { success = true });
 }).RequireAuthorization();
 
 // --- Identity Management API ---
@@ -1912,18 +1981,27 @@ app.MapGet("/api/me/workers", async (ClaimsPrincipal user, IWorkerRegistry worke
     var allWorkers = await workers.GetAllWorkersForUserAsync(userId);
 
     var summaries = allWorkers
-        .Select(w => new
+        .Select(w =>
         {
-            w.WorkerId,
-            Name = w.Name ?? w.Hostname ?? w.WorkerId,
-            w.Hostname,
-            w.OperatingSystem,
-            w.Architecture,
-            w.Version,
-            Address = (string?)null,
-            w.IsOnline,
-            w.LastSeenAtUtc,
-            SessionCount = 0
+            var metrics = workers.GetMetrics(w.WorkerId);
+            return new
+            {
+                w.WorkerId,
+                Name = w.Name ?? w.Hostname ?? w.WorkerId,
+                w.Hostname,
+                w.OperatingSystem,
+                w.Architecture,
+                w.Version,
+                Address = (string?)null,
+                w.IsOnline,
+                w.LastSeenAtUtc,
+                SessionCount = 0,
+                CpuUsagePercent = metrics?.CpuUsagePercent,
+                MemoryUsagePercent = metrics?.MemoryUsagePercent,
+                MemoryUsedBytes = metrics?.MemoryUsedBytes,
+                MemoryTotalBytes = metrics?.MemoryTotalBytes,
+                MetricsUpdatedAtUtc = metrics?.CapturedAtUtc
+            };
         })
         .ToArray();
 
@@ -1947,6 +2025,8 @@ app.MapGet("/api/me/workers/{workerId}", async (string workerId, ClaimsPrincipal
         .Select(ToSessionSummaryResponse)
         .ToArray();
 
+    var metricsSnapshot = workers.GetMetrics(workerRecord.WorkerId);
+
     return Results.Ok(new
     {
         workerRecord.WorkerId,
@@ -1959,7 +2039,12 @@ app.MapGet("/api/me/workers/{workerId}", async (string workerId, ClaimsPrincipal
         workerRecord.IsOnline,
         workerRecord.LastSeenAtUtc,
         SessionCount = hostedSessions.Length,
-        Sessions = hostedSessions
+        Sessions = hostedSessions,
+        CpuUsagePercent = metricsSnapshot?.CpuUsagePercent,
+        MemoryUsagePercent = metricsSnapshot?.MemoryUsagePercent,
+        MemoryUsedBytes = metricsSnapshot?.MemoryUsedBytes,
+        MemoryTotalBytes = metricsSnapshot?.MemoryTotalBytes,
+        MetricsUpdatedAtUtc = metricsSnapshot?.CapturedAtUtc
     });
 }).RequireAuthorization();
 
@@ -2459,6 +2544,7 @@ record ChangePasswordRequest(string? CurrentPassword, string NewPassword);
 record LinkPhoneIdentityRequest(string Phone, string Code);
 record SendPhoneLinkCodeRequest(string Phone);
 record RenameSessionRequest(string? Name);
+record UpdatePreferencesRequest(int ScrollbackMaxBytes);
 
 internal sealed class SubClaimUserIdProvider : IUserIdProvider
 {

@@ -74,7 +74,9 @@ public sealed class InteractiveSessionFlowTests : IClassFixture<GatewayApplicati
         var sessions = TestSessionFactory.CreateCoordinator(workerRegistry);
         var sessionLaunchCoordinator = new SessionLaunchCoordinator(
             sessions,
-            new ThrowingWorkerCommandDispatcher("dispatch failed"));
+            new ThrowingWorkerCommandDispatcher("dispatch failed"),
+            new ScrollbackSettings(),
+            TestSessionFactory.CreatePreferenceService());
 
         var payload = await sessionLaunchCoordinator.CreateSessionAsync(
             "test-user",
@@ -107,7 +109,9 @@ public sealed class InteractiveSessionFlowTests : IClassFixture<GatewayApplicati
                 services.AddSingleton<ISessionLaunchCoordinator>(serviceProvider =>
                     new SessionLaunchCoordinator(
                         serviceProvider.GetRequiredService<ISessionCoordinator>(),
-                        serviceProvider.GetRequiredService<IWorkerCommandDispatcher>()));
+                        serviceProvider.GetRequiredService<IWorkerCommandDispatcher>(),
+                        new ScrollbackSettings(),
+                        serviceProvider.GetRequiredService<UserPreferenceService>()));
             });
         });
 

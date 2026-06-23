@@ -100,7 +100,7 @@ public sealed class WorkerGatewayClientTests
         await connection.InvokeAsync("DispatchCommands");
         await Task.WhenAll(startTcs.Task, writeTcs.Task, probeTcs.Task, resizeTcs.Task, closeTcs.Task);
 
-        start.Should().BeEquivalentTo(new StartSessionCommand("sess-1", 120, 40));
+        start.Should().BeEquivalentTo(new StartSessionCommand("sess-1", 120, 40, 5 * 1024 * 1024));
         write.Should().BeEquivalentTo(new WriteInputFrame("sess-1", [0x0A]));
         probe.Should().BeEquivalentTo(new LatencyProbeFrame("sess-1", "probe-1"));
         resize.Should().BeEquivalentTo(new ResizePtyRequest("sess-1", 90, 30));
@@ -195,7 +195,7 @@ internal sealed class TestWorkerHub(TestWorkerHubState state) : Hub
 
     public Task DispatchCommands()
         => Task.WhenAll(
-            Clients.Caller.SendAsync("StartSession", new StartSessionCommand("sess-1", 120, 40)),
+            Clients.Caller.SendAsync("StartSession", new StartSessionCommand("sess-1", 120, 40, 5 * 1024 * 1024)),
             Clients.Caller.SendAsync("WriteInput", new WriteInputFrame("sess-1", [0x0A])),
             Clients.Caller.SendAsync("ProbeLatency", new LatencyProbeFrame("sess-1", "probe-1")),
             Clients.Caller.SendAsync("ResizeSession", new ResizePtyRequest("sess-1", 90, 30)),

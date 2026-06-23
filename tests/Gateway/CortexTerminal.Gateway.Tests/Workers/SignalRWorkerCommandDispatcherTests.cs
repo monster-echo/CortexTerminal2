@@ -22,11 +22,11 @@ public sealed class SignalRWorkerCommandDispatcherTests
         });
         var dispatcher = new SignalRWorkerCommandDispatcher(hubContext);
 
-        await dispatcher.StartSessionAsync("worker-1", new StartSessionCommand("sess-1", 120, 40), CancellationToken.None);
+        await dispatcher.StartSessionAsync("worker-1", new StartSessionCommand("sess-1", 120, 40, 5 * 1024 * 1024), CancellationToken.None);
 
         workerClient.Invocations.Should().ContainSingle()
             .Which.Method.Should().Be("StartSession");
-        workerClient.Invocations[0].Arguments[0].Should().BeEquivalentTo(new StartSessionCommand("sess-1", 120, 40));
+        workerClient.Invocations[0].Arguments[0].Should().BeEquivalentTo(new StartSessionCommand("sess-1", 120, 40, 5 * 1024 * 1024));
     }
 
     [Fact]

@@ -65,8 +65,15 @@ public sealed class WorkerHub(
             info.Architecture,
             info.MachineName,
             info.Version));
-        logger.LogInformation("Worker {WorkerId} updated info: hostname={Hostname}, os={OS}, arch={Arch}, version={Version}.",
-            worker.WorkerId, info.Hostname, info.OperatingSystem, info.Architecture, info.Version);
+        workers.UpdateMetrics(worker.WorkerId, new WorkerMetrics(
+            info.CpuUsagePercent,
+            info.MemoryUsagePercent,
+            info.MemoryUsedBytes,
+            info.MemoryTotalBytes,
+            info.MetricsUpdatedAtUtc));
+        logger.LogInformation("Worker {WorkerId} updated info: hostname={Hostname}, os={OS}, arch={Arch}, version={Version}, cpu={Cpu}%, mem={Mem}%.",
+            worker.WorkerId, info.Hostname, info.OperatingSystem, info.Architecture, info.Version,
+            info.CpuUsagePercent, info.MemoryUsagePercent);
     }
 
     public override async Task OnDisconnectedAsync(Exception? exception)

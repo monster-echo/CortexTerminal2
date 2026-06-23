@@ -143,6 +143,8 @@ public sealed class SessionCoordinatorTests
         public IReadOnlyList<RegisteredWorker> GetAllOnline() => [_worker];
         public Task<IReadOnlyList<WorkerRecord>> GetAllWorkersForUserAsync(string userId)
             => Task.FromResult<IReadOnlyList<WorkerRecord>>(Array.Empty<WorkerRecord>());
+        public void UpdateMetrics(string workerId, WorkerMetrics? metrics) { }
+        public WorkerMetrics? GetMetrics(string workerId) => null;
     }
 
     private sealed class CoordinatedWorkerRegistry : IWorkerRegistry
@@ -194,5 +196,9 @@ public sealed class SessionCoordinatorTests
         public IReadOnlyList<RegisteredWorker> GetAllOnline() => _inner.GetAllOnline();
         public Task<IReadOnlyList<WorkerRecord>> GetAllWorkersForUserAsync(string userId)
             => _inner.GetAllWorkersForUserAsync(userId);
+        public void UpdateMetrics(string workerId, WorkerMetrics? metrics)
+            => _inner.UpdateMetrics(workerId, metrics);
+        public WorkerMetrics? GetMetrics(string workerId)
+            => _inner.GetMetrics(workerId);
     }
 }

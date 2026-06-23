@@ -20,19 +20,13 @@ public sealed class WorkerSessionRuntime : IAsyncDisposable
         string sessionId,
         IPtyHost ptyHost,
         IWorkerGatewayClient gatewayClient,
-        ILogger<WorkerSessionRuntime> logger)
+        ILogger<WorkerSessionRuntime> logger,
+        int maxBytes)
     {
         SessionId = sessionId;
         GatewayClient = gatewayClient;
         _logger = logger;
-        _session = new PtySession(ptyHost, new ScrollbackBuffer(ResolveScrollbackBytes()));
-    }
-
-    private static int ResolveScrollbackBytes()
-    {
-        var env = Environment.GetEnvironmentVariable("CORTERM_SCROLLBACK_BYTES");
-        if (int.TryParse(env, out var bytes) && bytes > 0) return bytes;
-        return 5 * 1024 * 1024;
+        _session = new PtySession(ptyHost, new ScrollbackBuffer(maxBytes));
     }
 
     public string SessionId { get; }

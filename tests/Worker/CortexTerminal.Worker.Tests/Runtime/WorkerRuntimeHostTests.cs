@@ -23,7 +23,7 @@ public sealed class WorkerRuntimeHostTests
         await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(process), NullLoggerFactory.Instance, NewLifetime());
 
         await host.StartAsync(CancellationToken.None);
-        await gateway.RaiseStartSessionAsync(new StartSessionCommand("sess-1", 120, 40));
+        await gateway.RaiseStartSessionAsync(new StartSessionCommand("sess-1", 120, 40, 5 * 1024 * 1024));
         await gateway.RaiseWriteInputAsync(new WriteInputFrame("sess-1", [0x01]));
         await gateway.RaiseLatencyProbeAsync(new LatencyProbeFrame("sess-1", "probe-1"));
         await gateway.RaiseResizeSessionAsync(new ResizePtyRequest("sess-1", 100, 45));
@@ -45,7 +45,7 @@ public sealed class WorkerRuntimeHostTests
         await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()), NullLoggerFactory.Instance, NewLifetime());
 
         await host.StartAsync(CancellationToken.None);
-        await gateway.RaiseStartSessionAsync(new StartSessionCommand("sess-1", 120, 40));
+        await gateway.RaiseStartSessionAsync(new StartSessionCommand("sess-1", 120, 40, 5 * 1024 * 1024));
         await gateway.RaiseReconnectedAsync("reconnected");
 
         gateway.RegisteredWorkerIds.Should().Equal("worker-1", "worker-1");
@@ -59,8 +59,8 @@ public sealed class WorkerRuntimeHostTests
         await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()), NullLoggerFactory.Instance, NewLifetime());
 
         await host.StartAsync(CancellationToken.None);
-        await gateway.RaiseStartSessionAsync(new StartSessionCommand("sess-1", 120, 40));
-        await gateway.RaiseStartSessionAsync(new StartSessionCommand("sess-1", 80, 24));
+        await gateway.RaiseStartSessionAsync(new StartSessionCommand("sess-1", 120, 40, 5 * 1024 * 1024));
+        await gateway.RaiseStartSessionAsync(new StartSessionCommand("sess-1", 80, 24, 5 * 1024 * 1024));
 
         host.ActiveSessionCount.Should().Be(1);
         gateway.StartFailedEvents.Should().ContainSingle()
@@ -79,7 +79,7 @@ public sealed class WorkerRuntimeHostTests
             NewLifetime());
 
         await host.StartAsync(CancellationToken.None);
-        await gateway.RaiseStartSessionAsync(new StartSessionCommand("sess-1", 120, 40));
+        await gateway.RaiseStartSessionAsync(new StartSessionCommand("sess-1", 120, 40, 5 * 1024 * 1024));
 
         gateway.StartFailedEvents.Should().ContainSingle()
             .Which.Should().BeEquivalentTo(new SessionStartFailedEvent("sess-1", "pty-start-failed"));
@@ -100,7 +100,7 @@ public sealed class WorkerRuntimeHostTests
         await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(process), NullLoggerFactory.Instance, NewLifetime());
 
         await host.StartAsync(CancellationToken.None);
-        await gateway.RaiseStartSessionAsync(new StartSessionCommand("sess-1", 120, 40));
+        await gateway.RaiseStartSessionAsync(new StartSessionCommand("sess-1", 120, 40, 5 * 1024 * 1024));
         await gateway.RaiseResizeSessionAsync(new ResizePtyRequest("sess-1", columns, rows));
 
         host.ActiveSessionCount.Should().Be(1);

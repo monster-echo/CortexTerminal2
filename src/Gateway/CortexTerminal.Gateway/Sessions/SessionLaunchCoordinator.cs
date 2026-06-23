@@ -8,7 +8,9 @@ namespace CortexTerminal.Gateway.Sessions;
 
 public sealed class SessionLaunchCoordinator(
     ISessionCoordinator sessions,
-    IWorkerCommandDispatcher workerCommands) : ISessionLaunchCoordinator
+    IWorkerCommandDispatcher workerCommands,
+    ScrollbackSettings scrollbackSettings,
+    UserPreferenceService preferences) : ISessionLaunchCoordinator
 {
     private readonly ConcurrentDictionary<string, Lazy<Task<CreateSessionResult>>> _launches = new();
 
@@ -69,9 +71,15 @@ public sealed class SessionLaunchCoordinator(
 
         try
         {
+            var prefBytes = await preferences.GetScrollbackMaxBytesAsync(userId, cancellationToken);
+            var maxBytes = Math.Clamp(
+                prefBytes ?? scrollbackSettings.MaxBytes,
+                scrollbackSettings.MinAllowedBytes,
+                scrollbackSettings.MaxAllowedBytes);
+
             await workerCommands.StartSessionAsync(
                 session.WorkerConnectionId,
-                new StartSessionCommand(session.SessionId, session.Columns, session.Rows),
+                new StartSessionCommand(session.SessionId, session.Columns, session.Rows, maxBytes),
                 cancellationToken);
         }
         catch (OperationCanceledException)

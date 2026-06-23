@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using CortexTerminal.Contracts.Sessions;
 using CortexTerminal.Contracts.Streaming;
+using CortexTerminal.Worker.Metrics;
 using CortexTerminal.Worker.Pty;
 using CortexTerminal.Worker.Registration;
 using Microsoft.Extensions.Hosting;
@@ -20,20 +21,26 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
     private readonly ILogger<WorkerRuntimeHost> _logger;
     private readonly ILoggerFactory _loggerFactory;
     private readonly IHostApplicationLifetime _lifetime;
+    private readonly LinuxSystemMetricsCollector? _metricsCollector;
+    private readonly TimeSpan _metricsInterval;
     private readonly ConcurrentDictionary<string, WorkerSessionRuntime> _sessions = [];
     private readonly List<IDisposable> _subscriptions = [];
     private readonly TimeSpan _reconnectInterval;
     private CancellationTokenSource? _reconnectCts;
+    private CancellationTokenSource? _metricsCts;
 
     private static readonly TimeSpan DefaultReconnectInterval = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan DefaultMetricsInterval = TimeSpan.FromSeconds(5);
 
     public WorkerRuntimeHost(
         string workerId,
         IWorkerGatewayClient gatewayClient,
         IPtyHost ptyHost,
         ILoggerFactory loggerFactory,
-        IHostApplicationLifetime lifetime)
-        : this(workerId, gatewayClient, ptyHost, loggerFactory, lifetime, DefaultReconnectInterval) { }
+        IHostApplicationLifetime lifetime,
+        LinuxSystemMetricsCollector? metricsCollector = null,
+        TimeSpan? metricsInterval = null)
+        : this(workerId, gatewayClient, ptyHost, loggerFactory, lifetime, DefaultReconnectInterval, metricsCollector, metricsInterval) { }
 
     internal WorkerRuntimeHost(
         string workerId,
@@ -41,7 +48,9 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         IPtyHost ptyHost,
         ILoggerFactory loggerFactory,
         IHostApplicationLifetime lifetime,
-        TimeSpan reconnectInterval)
+        TimeSpan reconnectInterval,
+        LinuxSystemMetricsCollector? metricsCollector = null,
+        TimeSpan? metricsInterval = null)
     {
         _workerId = workerId;
         _gatewayClient = gatewayClient;
@@ -50,6 +59,8 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         _lifetime = lifetime;
         _logger = loggerFactory.CreateLogger<WorkerRuntimeHost>();
         _reconnectInterval = reconnectInterval;
+        _metricsCollector = metricsCollector;
+        _metricsInterval = metricsInterval ?? DefaultMetricsInterval;
     }
 
     public int ActiveSessionCount => _sessions.Count;
@@ -83,6 +94,7 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         {
             await _gatewayClient.StartAsync(cancellationToken);
             await RegisterWorkerAsync(cancellationToken);
+            StartMetricsLoop();
             Console.WriteLine("  Connected. Press Ctrl+C to stop.");
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -96,6 +108,63 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
             _logger.LogWarning("Worker {WorkerId} initial connection failed ({Error}), entering reconnect loop.", _workerId, ex.Message);
             _ = ReconnectLoopAsync();
         }
+    }
+
+    private void StartMetricsLoop()
+    {
+        if (_metricsCollector is null) return;
+        _metricsCts?.Cancel();
+        _metricsCts?.Dispose();
+        _metricsCts = new CancellationTokenSource();
+        _ = MetricsLoopAsync(_metricsCts.Token);
+    }
+
+    private async Task MetricsLoopAsync(CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Starting metrics loop for worker {WorkerId}, interval={Interval}s.", _workerId, _metricsInterval.TotalSeconds);
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                await Task.Delay(_metricsInterval, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+
+            try
+            {
+                var snapshot = await _metricsCollector!.SnapshotAsync(cancellationToken);
+                if (snapshot is null) continue;
+                var frame = BuildWorkerInfoFrame(snapshot);
+                await _gatewayClient.SendWorkerInfoAsync(frame, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to sample or report metrics for worker {WorkerId}.", _workerId);
+            }
+        }
+    }
+
+    private WorkerInfoFrame BuildWorkerInfoFrame(WorkerMetricsSnapshot? snapshot)
+    {
+        return new WorkerInfoFrame(
+            _workerId,
+            Environment.MachineName,
+            RuntimeInformation.OSDescription,
+            RuntimeInformation.OSArchitecture.ToString(),
+            Environment.MachineName,
+            Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3),
+            snapshot?.CpuUsagePercent,
+            snapshot?.MemoryUsagePercent,
+            snapshot?.MemoryUsedBytes,
+            snapshot?.MemoryTotalBytes,
+            snapshot?.CapturedAtUtc);
     }
 
     private async Task ReconnectLoopAsync()
@@ -152,6 +221,7 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
     {
         _logger.LogInformation("Worker {WorkerId} is stopping.", _workerId);
         _reconnectCts?.Cancel();
+        _metricsCts?.Cancel();
         foreach (var subscription in _subscriptions)
         {
             subscription.Dispose();
@@ -183,13 +253,20 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         _logger.LogInformation("Registering worker {WorkerId}.", _workerId);
         await _gatewayClient.RegisterAsync(_workerId, cancellationToken);
 
-        var info = new WorkerInfoFrame(
-            _workerId,
-            Environment.MachineName,
-            RuntimeInformation.OSDescription,
-            RuntimeInformation.OSArchitecture.ToString(),
-            Environment.MachineName,
-            Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3));
+        WorkerMetricsSnapshot? snapshot = null;
+        if (_metricsCollector is not null)
+        {
+            try
+            {
+                snapshot = await _metricsCollector.SnapshotAsync(cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to capture initial metrics for {WorkerId}.", _workerId);
+            }
+        }
+
+        var info = BuildWorkerInfoFrame(snapshot);
 
         try
         {
@@ -216,7 +293,8 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
             command.SessionId,
             _ptyHost,
             _gatewayClient,
-            _loggerFactory.CreateLogger<WorkerSessionRuntime>());
+            _loggerFactory.CreateLogger<WorkerSessionRuntime>(),
+            command.MaxBytes);
 
 
         runtime.Terminated += RemoveSessionAsync;

@@ -17,6 +17,8 @@ public interface IWorkerRegistry
     Task<IReadOnlyList<WorkerRecord>> GetAllWorkersForUserAsync(string userId);
     int GetOnlineCount();
     IReadOnlyList<RegisteredWorker> GetAllOnline();
+    void UpdateMetrics(string workerId, WorkerMetrics? metrics);
+    WorkerMetrics? GetMetrics(string workerId);
 }
 
 public sealed record RegisteredWorker(
@@ -31,3 +33,10 @@ public sealed record WorkerMetadata(
     string? Architecture = null,
     string? Name = null,
     string? Version = null);
+
+public sealed record WorkerMetrics(
+    double? CpuUsagePercent = null,
+    double? MemoryUsagePercent = null,
+    ulong? MemoryUsedBytes = null,
+    ulong? MemoryTotalBytes = null,
+    DateTimeOffset? CapturedAtUtc = null);

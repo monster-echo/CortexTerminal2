@@ -7,6 +7,7 @@ namespace CortexTerminal.Gateway.Workers;
 public sealed class PostgresWorkerRegistry : IWorkerRegistry
 {
     private readonly ConcurrentDictionary<string, RegisteredWorker> _workers = new();
+    private readonly ConcurrentDictionary<string, WorkerMetrics> _metrics = new();
     private readonly IDbContextFactory<AppDbContext> _contextFactory;
     private readonly ILogger<PostgresWorkerRegistry> _logger;
 
@@ -47,6 +48,7 @@ public sealed class PostgresWorkerRegistry : IWorkerRegistry
     public void Unregister(string workerId)
     {
         _workers.TryRemove(workerId, out _);
+        _metrics.TryRemove(workerId, out _);
 
         _ = PersistAsync(async db =>
         {
@@ -58,6 +60,19 @@ public sealed class PostgresWorkerRegistry : IWorkerRegistry
             }
         }, $"Unregister:{workerId}");
     }
+
+    public void UpdateMetrics(string workerId, WorkerMetrics? metrics)
+    {
+        if (metrics is null)
+        {
+            _metrics.TryRemove(workerId, out _);
+            return;
+        }
+        _metrics[workerId] = metrics;
+    }
+
+    public WorkerMetrics? GetMetrics(string workerId)
+        => _metrics.TryGetValue(workerId, out var m) ? m : null;
 
     public bool TryGetLeastBusy(out RegisteredWorker worker)
     {

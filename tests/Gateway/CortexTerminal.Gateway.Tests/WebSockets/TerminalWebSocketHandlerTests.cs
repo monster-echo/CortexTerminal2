@@ -73,7 +73,7 @@ public sealed class TerminalWebSocketHandlerTests
 
         var sessions = TestSessionFactory.CreateCoordinator(workers, timeProvider: new FixedTimeProvider(DateTimeOffset.UnixEpoch));
         var dispatcher = new NoOpWorkerCommandDispatcher();
-        var launcher = new SessionLaunchCoordinator(sessions, dispatcher);
+        var launcher = new SessionLaunchCoordinator(sessions, dispatcher, new ScrollbackSettings(), TestSessionFactory.CreatePreferenceService());
         var created = await launcher.CreateSessionAsync(
             "test-user",
             new CreateSessionRequest("shell", 120, 40),

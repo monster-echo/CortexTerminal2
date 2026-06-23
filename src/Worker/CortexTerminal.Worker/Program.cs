@@ -426,7 +426,22 @@ rootCommand.SetAction(async (ParseResult parseResult, CancellationToken cancella
         services.GetRequiredService<IWorkerGatewayClient>(),
         services.GetRequiredService<IPtyHost>(),
         services.GetRequiredService<ILoggerFactory>(),
-        services.GetRequiredService<IHostApplicationLifetime>()));
+        services.GetRequiredService<IHostApplicationLifetime>(),
+        ResolveMetricsCollectorOrNull(services)));
+
+    static CortexTerminal.Worker.Metrics.LinuxSystemMetricsCollector? ResolveMetricsCollectorOrNull(IServiceProvider services)
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) return null;
+        try
+        {
+            return new CortexTerminal.Worker.Metrics.LinuxSystemMetricsCollector(
+                services.GetRequiredService<ILogger<CortexTerminal.Worker.Metrics.LinuxSystemMetricsCollector>>());
+        }
+        catch (PlatformNotSupportedException)
+        {
+            return null;
+        }
+    }
 
     await builder.Build().RunAsync(cancellationToken);
 });

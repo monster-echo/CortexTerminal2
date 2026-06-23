@@ -29,4 +29,7 @@ internal static class TestSessionFactory
             CreateContextFactory(),
             LoggerFactory.Create(_ => { }).CreateLogger<PostgresSessionCoordinator>(),
             timeProvider);
+
+    public static UserPreferenceService CreatePreferenceService()
+        => new(CreateContextFactory());
 }

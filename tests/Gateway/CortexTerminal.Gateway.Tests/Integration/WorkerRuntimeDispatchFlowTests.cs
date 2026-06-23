@@ -44,7 +44,7 @@ public sealed class WorkerRuntimeDispatchFlowTests : IClassFixture<GatewayApplic
         createResponse.Should().NotBeNull();
 
         var dispatched = await startSessionTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        dispatched.Should().BeEquivalentTo(new StartSessionCommand(createResponse!.SessionId, 120, 40));
+        dispatched.Should().BeEquivalentTo(new StartSessionCommand(createResponse!.SessionId, 120, 40, 5 * 1024 * 1024));
     }
 
     [Fact]

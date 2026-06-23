@@ -176,7 +176,7 @@ public sealed class ContractSerializationTests
     [Fact]
     public void StartSessionCommand_RoundTrips_WithMessagePack()
     {
-        var frame = new StartSessionCommand("s-789", 100, 30);
+        var frame = new StartSessionCommand("s-789", 100, 30, 5 * 1024 * 1024);
         var clone = RoundTrip(frame);
 
         clone.Should().Be(frame);
