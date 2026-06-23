@@ -195,24 +195,15 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
 
     public async Task<DeleteSessionResult> DeleteSessionAsync(string userId, string sessionId, CancellationToken cancellationToken)
     {
-        bool owned;
-        lock (_sync)
-        {
-            owned = _sessions.TryGetValue(sessionId, out var session) && session.UserId == userId;
-        }
-
-        if (!owned)
+        await using var db = await _contextFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await db.Sessions.FindAsync(sessionId, cancellationToken);
+        if (entity is null || !string.Equals(entity.UserId, userId, StringComparison.Ordinal))
         {
             return DeleteSessionResult.Failure("session-not-found");
         }
 
-        await using var db = await _contextFactory.CreateDbContextAsync(cancellationToken);
-        var entity = await db.Sessions.FindAsync(sessionId, cancellationToken);
-        if (entity is not null && string.Equals(entity.UserId, userId, StringComparison.Ordinal))
-        {
-            db.Sessions.Remove(entity);
-            await db.SaveChangesAsync(cancellationToken);
-        }
+        db.Sessions.Remove(entity);
+        await db.SaveChangesAsync(cancellationToken);
 
         lock (_sync)
         {
