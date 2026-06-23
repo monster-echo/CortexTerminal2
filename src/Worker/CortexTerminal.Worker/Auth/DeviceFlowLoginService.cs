@@ -99,6 +99,11 @@ public sealed class DeviceFlowLoginService
 
         using (response)
         {
+            // 401 = token rejected by gateway (expired or revoked). Not recoverable
+            // by retrying — caller must exit so user can re-login.
+            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                throw new UnauthorizedAccessException("Token rejected by gateway.");
+
             if (!response.IsSuccessStatusCode)
                 return null;
 

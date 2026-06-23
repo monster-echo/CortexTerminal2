@@ -417,14 +417,16 @@ rootCommand.SetAction(async (ParseResult parseResult, CancellationToken cancella
         var httpClient = sp.GetRequiredService<HttpClient>();
         var logger = sp.GetRequiredService<ILogger<TokenRefreshService>>();
         var configuration = sp.GetRequiredService<IConfiguration>();
-        return new TokenRefreshService(httpClient, tokenStore, () => currentToken, t => currentToken = t, configuration, logger);
+        var lifetime = sp.GetRequiredService<IHostApplicationLifetime>();
+        return new TokenRefreshService(httpClient, tokenStore, () => currentToken, t => currentToken = t, configuration, lifetime, logger);
     });
 
     builder.Services.AddHostedService(services => new WorkerRuntimeHost(
         workerId,
         services.GetRequiredService<IWorkerGatewayClient>(),
         services.GetRequiredService<IPtyHost>(),
-        services.GetRequiredService<ILoggerFactory>()));
+        services.GetRequiredService<ILoggerFactory>(),
+        services.GetRequiredService<IHostApplicationLifetime>()));
 
     await builder.Build().RunAsync(cancellationToken);
 });

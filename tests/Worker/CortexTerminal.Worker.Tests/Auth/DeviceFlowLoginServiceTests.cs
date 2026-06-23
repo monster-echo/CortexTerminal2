@@ -57,6 +57,9 @@ public sealed class DeviceFlowLoginServiceTests : IAsyncDisposable
             var authHeader = context.Request.Headers.Authorization.ToString();
             if (string.IsNullOrEmpty(authHeader) || !authHeader.StartsWith("Bearer ", StringComparison.Ordinal))
                 return Results.Unauthorized();
+            var token = authHeader["Bearer ".Length..];
+            if (token == "rejected-token")
+                return Results.Unauthorized();
             return Results.Ok(new RefreshTokenResponse("refreshed-token"));
         });
 
@@ -106,5 +109,16 @@ public sealed class DeviceFlowLoginServiceTests : IAsyncDisposable
         var result = await service.RefreshTokenAsync("old-token", CancellationToken.None);
 
         result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task RefreshTokenAsync_WhenServerReturns401_ThrowsUnauthorized()
+    {
+        var httpClient = _server.CreateClient();
+        var service = new DeviceFlowLoginService(httpClient, _tokenStore);
+
+        var act = () => service.RefreshTokenAsync("rejected-token", CancellationToken.None);
+
+        await act.Should().ThrowAsync<UnauthorizedAccessException>();
     }
 }

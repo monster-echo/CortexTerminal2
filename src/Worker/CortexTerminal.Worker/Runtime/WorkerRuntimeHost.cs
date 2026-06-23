@@ -19,6 +19,7 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
     private readonly IPtyHost _ptyHost;
     private readonly ILogger<WorkerRuntimeHost> _logger;
     private readonly ILoggerFactory _loggerFactory;
+    private readonly IHostApplicationLifetime _lifetime;
     private readonly ConcurrentDictionary<string, WorkerSessionRuntime> _sessions = [];
     private readonly List<IDisposable> _subscriptions = [];
     private readonly TimeSpan _reconnectInterval;
@@ -30,20 +31,23 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         string workerId,
         IWorkerGatewayClient gatewayClient,
         IPtyHost ptyHost,
-        ILoggerFactory loggerFactory)
-        : this(workerId, gatewayClient, ptyHost, loggerFactory, DefaultReconnectInterval) { }
+        ILoggerFactory loggerFactory,
+        IHostApplicationLifetime lifetime)
+        : this(workerId, gatewayClient, ptyHost, loggerFactory, lifetime, DefaultReconnectInterval) { }
 
     internal WorkerRuntimeHost(
         string workerId,
         IWorkerGatewayClient gatewayClient,
         IPtyHost ptyHost,
         ILoggerFactory loggerFactory,
+        IHostApplicationLifetime lifetime,
         TimeSpan reconnectInterval)
     {
         _workerId = workerId;
         _gatewayClient = gatewayClient;
         _ptyHost = ptyHost;
         _loggerFactory = loggerFactory;
+        _lifetime = lifetime;
         _logger = loggerFactory.CreateLogger<WorkerRuntimeHost>();
         _reconnectInterval = reconnectInterval;
     }
@@ -83,6 +87,12 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            if (IsUnauthorized(ex))
+            {
+                _logger.LogCritical(ex, "Worker {WorkerId} rejected by gateway during initial connect (401). Re-login required. Stopping worker.", _workerId);
+                _lifetime.StopApplication();
+                return;
+            }
             _logger.LogWarning("Worker {WorkerId} initial connection failed ({Error}), entering reconnect loop.", _workerId, ex.Message);
             _ = ReconnectLoopAsync();
         }
@@ -115,11 +125,27 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
                 _logger.LogInformation("Worker {WorkerId} reconnected successfully.", _workerId);
                 return;
             }
-            catch (Exception ex)
+            catch (Exception ex) when (IsUnauthorized(ex))
+            {
+                _logger.LogCritical(ex, "Worker {WorkerId} rejected by gateway during reconnect (401). Re-login required. Stopping worker.", _workerId);
+                _lifetime.StopApplication();
+                return;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 _logger.LogWarning(ex, "Worker {WorkerId} reconnect failed, retrying...", _workerId);
             }
         }
+    }
+
+    private static bool IsUnauthorized(Exception ex)
+    {
+        for (var e = ex; e is not null; e = e.InnerException)
+        {
+            if (e is HttpRequestException hre && hre.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                return true;
+        }
+        return false;
     }
 
     public async Task StopAsync(CancellationToken cancellationToken)

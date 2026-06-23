@@ -11,6 +11,7 @@ public sealed class TokenRefreshService : BackgroundService
     private readonly Func<string> _getCurrentToken;
     private readonly Action<string> _setCurrentToken;
     private readonly TimeSpan _refreshInterval;
+    private readonly IHostApplicationLifetime _lifetime;
     private readonly ILogger<TokenRefreshService> _logger;
 
     public TokenRefreshService(
@@ -19,6 +20,7 @@ public sealed class TokenRefreshService : BackgroundService
         Func<string> getCurrentToken,
         Action<string> setCurrentToken,
         IConfiguration configuration,
+        IHostApplicationLifetime lifetime,
         ILogger<TokenRefreshService> logger)
     {
         _loginService = new DeviceFlowLoginService(httpClient, tokenStore);
@@ -27,6 +29,7 @@ public sealed class TokenRefreshService : BackgroundService
         _setCurrentToken = setCurrentToken;
         var intervalSeconds = configuration.GetValue<int?>("Worker:RefreshIntervalSeconds") ?? 86400;
         _refreshInterval = TimeSpan.FromSeconds(intervalSeconds);
+        _lifetime = lifetime;
         _logger = logger;
     }
 
@@ -52,6 +55,12 @@ public sealed class TokenRefreshService : BackgroundService
                     _setCurrentToken(refreshed);
                     _logger.LogInformation("Token refreshed successfully.");
                 }
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogCritical(ex, "Token rejected by gateway during refresh. Re-login required. Stopping worker.");
+                _lifetime.StopApplication();
+                return;
             }
             catch (Exception ex)
             {

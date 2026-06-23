@@ -1,22 +1,26 @@
 using System.Collections.Concurrent;
+using System.Net;
 using CortexTerminal.Contracts.Sessions;
 using CortexTerminal.Contracts.Streaming;
 using CortexTerminal.Worker.Pty;
 using CortexTerminal.Worker.Registration;
 using CortexTerminal.Worker.Runtime;
 using FluentAssertions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace CortexTerminal.Worker.Tests.Runtime;
 
 public sealed class WorkerRuntimeHostTests
 {
+    private static FakeHostApplicationLifetime NewLifetime() => new();
+
     [Fact]
     public async Task StartAsync_RegistersWorkerAndRoutesInboundCommands()
     {
         var process = new ControlledPtyProcess();
         var gateway = new FakeWorkerGatewayClient();
-        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(process), NullLoggerFactory.Instance);
+        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(process), NullLoggerFactory.Instance, NewLifetime());
 
         await host.StartAsync(CancellationToken.None);
         await gateway.RaiseStartSessionAsync(new StartSessionCommand("sess-1", 120, 40));
@@ -38,7 +42,7 @@ public sealed class WorkerRuntimeHostTests
     public async Task Reconnected_ReRegistersWithoutDuplicatingTrackedSessions()
     {
         var gateway = new FakeWorkerGatewayClient();
-        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()), NullLoggerFactory.Instance);
+        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()), NullLoggerFactory.Instance, NewLifetime());
 
         await host.StartAsync(CancellationToken.None);
         await gateway.RaiseStartSessionAsync(new StartSessionCommand("sess-1", 120, 40));
@@ -52,7 +56,7 @@ public sealed class WorkerRuntimeHostTests
     public async Task DuplicateStart_ForwardsStartFailureWithoutReplacingActiveSession()
     {
         var gateway = new FakeWorkerGatewayClient();
-        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()), NullLoggerFactory.Instance);
+        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()), NullLoggerFactory.Instance, NewLifetime());
 
         await host.StartAsync(CancellationToken.None);
         await gateway.RaiseStartSessionAsync(new StartSessionCommand("sess-1", 120, 40));
@@ -71,7 +75,8 @@ public sealed class WorkerRuntimeHostTests
             "worker-1",
             gateway,
             new ThrowingPtyHost(new PtySupportException("pty-start-failed", "spawn exploded")),
-            NullLoggerFactory.Instance);
+            NullLoggerFactory.Instance,
+            NewLifetime());
 
         await host.StartAsync(CancellationToken.None);
         await gateway.RaiseStartSessionAsync(new StartSessionCommand("sess-1", 120, 40));
@@ -92,7 +97,7 @@ public sealed class WorkerRuntimeHostTests
     {
         var process = new ControlledPtyProcess();
         var gateway = new FakeWorkerGatewayClient();
-        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(process), NullLoggerFactory.Instance);
+        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(process), NullLoggerFactory.Instance, NewLifetime());
 
         await host.StartAsync(CancellationToken.None);
         await gateway.RaiseStartSessionAsync(new StartSessionCommand("sess-1", 120, 40));
@@ -110,7 +115,7 @@ public sealed class WorkerRuntimeHostTests
 
         await using var host = new WorkerRuntimeHost(
             "worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()),
-            NullLoggerFactory.Instance, TimeSpan.FromMilliseconds(50));
+            NullLoggerFactory.Instance, NewLifetime(), TimeSpan.FromMilliseconds(50));
 
         await host.StartAsync(CancellationToken.None);
         gateway.RegisteredWorkerIds.Should().ContainSingle(); // initial register
@@ -135,7 +140,7 @@ public sealed class WorkerRuntimeHostTests
 
         await using var host = new WorkerRuntimeHost(
             "worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()),
-            NullLoggerFactory.Instance, TimeSpan.FromMilliseconds(50));
+            NullLoggerFactory.Instance, NewLifetime(), TimeSpan.FromMilliseconds(50));
 
         await host.StartAsync(CancellationToken.None);
         var startCountBefore = gateway.StartCallCount;
@@ -160,7 +165,7 @@ public sealed class WorkerRuntimeHostTests
 
         await using var host = new WorkerRuntimeHost(
             "worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()),
-            NullLoggerFactory.Instance, TimeSpan.FromMilliseconds(50));
+            NullLoggerFactory.Instance, NewLifetime(), TimeSpan.FromMilliseconds(50));
 
         await host.StartAsync(CancellationToken.None);
         gateway.RegisteredWorkerIds.Clear();
@@ -180,11 +185,54 @@ public sealed class WorkerRuntimeHostTests
         gateway.RegisteredWorkerIds.Should().ContainSingle();
     }
 
+    [Fact(Timeout = 10000)]
+    public async Task ReconnectLoop_WhenGatewayReturns401_StopsApplication()
+    {
+        var gateway = new FakeWorkerGatewayClient();
+        var lifetime = NewLifetime();
+
+        await using var host = new WorkerRuntimeHost(
+            "worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()),
+            NullLoggerFactory.Instance, lifetime, TimeSpan.FromMilliseconds(50));
+
+        await host.StartAsync(CancellationToken.None);
+
+        // Make every reconnect attempt throw 401
+        gateway.StartAsyncResult = () => throw new HttpRequestException(
+            "Response status code does not indicate success: 401 (Unauthorized).",
+            null,
+            HttpStatusCode.Unauthorized);
+
+        await gateway.RaiseClosedAsync();
+
+        // StopApplication should be called quickly
+        await lifetime.StopCalled.WaitAsync(TimeSpan.FromSeconds(5));
+        lifetime.StopCallCount.Should().Be(1);
+    }
+
+    [Fact(Timeout = 10000)]
+    public async Task InitialConnect_WhenGatewayReturns401_StopsApplication()
+    {
+        var gateway = new FakeWorkerGatewayClient();
+        var lifetime = NewLifetime();
+
+        gateway.StartAsyncResult = () => throw new HttpRequestException(
+            "401", null, HttpStatusCode.Unauthorized);
+
+        await using var host = new WorkerRuntimeHost(
+            "worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()),
+            NullLoggerFactory.Instance, lifetime);
+
+        await host.StartAsync(CancellationToken.None);
+
+        lifetime.StopCallCount.Should().Be(1);
+    }
+
     [Fact]
     public async Task Upgrade_RejectedWhenPlatformMismatches()
     {
         var gateway = new FakeWorkerGatewayClient();
-        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()), NullLoggerFactory.Instance);
+        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()), NullLoggerFactory.Instance, NewLifetime());
 
         await host.StartAsync(CancellationToken.None);
 
@@ -208,7 +256,7 @@ public sealed class WorkerRuntimeHostTests
     public async Task Upgrade_AcceptedWhenPlatformMatches()
     {
         var gateway = new FakeWorkerGatewayClient();
-        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()), NullLoggerFactory.Instance);
+        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()), NullLoggerFactory.Instance, NewLifetime());
 
         await host.StartAsync(CancellationToken.None);
 
@@ -470,4 +518,31 @@ internal sealed class ThrowingPtyHost(Exception exception) : IPtyHost
 {
     public Task<IPtyProcess> StartAsync(int columns, int rows, CancellationToken cancellationToken)
         => Task.FromException<IPtyProcess>(exception);
+}
+
+internal sealed class FakeHostApplicationLifetime : IHostApplicationLifetime
+{
+    private readonly CancellationTokenSource _started = new();
+    private readonly CancellationTokenSource _stopping = new();
+    private readonly CancellationTokenSource _stopped = new();
+    private readonly TaskCompletionSource _stopCalled = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public CancellationToken ApplicationStarted => _started.Token;
+    public CancellationToken ApplicationStopping => _stopping.Token;
+    public CancellationToken ApplicationStopped => _stopped.Token;
+    public int StopCallCount { get; private set; }
+    public Task StopCalled => _stopCalled.Task;
+
+    public FakeHostApplicationLifetime()
+    {
+        _started.Cancel();
+    }
+
+    public void StopApplication()
+    {
+        StopCallCount++;
+        _stopping.Cancel();
+        _stopped.Cancel();
+        _stopCalled.TrySetResult();
+    }
 }
