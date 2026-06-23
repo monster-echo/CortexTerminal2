@@ -84,11 +84,15 @@ string CreateWorkerAccessToken(string username)
         new Claim("role", "worker")
     };
     var credentials = new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey)), SecurityAlgorithms.HmacSha256);
+    var lifetimeMinutes = builder.Configuration.GetValue<double?>("Auth:WorkerTokenLifetimeMinutes");
+    var expiry = lifetimeMinutes is { } mins
+        ? DateTime.UtcNow.AddMinutes(mins)
+        : DateTime.UtcNow.AddDays(30);
     var token = new JwtSecurityToken(
         issuer: "https://gateway.local/",
         audience: gatewayAudiences[0],
         claims: claims,
-        expires: DateTime.UtcNow.AddDays(30),
+        expires: expiry,
         signingCredentials: credentials);
     token.Header["typ"] = "at+jwt";
 
@@ -190,6 +194,12 @@ builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
+        // JwtBearer in .NET 10 uses JsonWebTokenHandler by default, which rewrites
+        // short claim names like "role"/"sub" to long URI forms. Code that reads
+        // claims by literal name (HasClaim("role", ...), FindFirstValue("sub"))
+        // depends on the literal form, so disable inbound mapping.
+        options.MapInboundClaims = false;
+
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
@@ -226,6 +236,10 @@ builder.Services
 builder.Services.AddAuthorization();
 builder.Services.AddControllers();
 builder.Services.AddSignalR(options => options.MaximumReceiveMessageSize = 8 * 1024 * 1024).AddMessagePackProtocol();
+// Default IUserIdProvider looks for ClaimTypes.NameIdentifier, but with MapInboundClaims
+// disabled the sub claim stays literal. Hubs use Context.UserIdentifier for ownership
+// checks, so resolve from sub explicitly.
+builder.Services.AddSingleton<IUserIdProvider, SubClaimUserIdProvider>();
 builder.Services.AddSingleton<IWorkerCommandDispatcher, SignalRWorkerCommandDispatcher>();
 builder.Services.AddSingleton<ISessionLaunchCoordinator, SessionLaunchCoordinator>();
 builder.Services.AddSingleton<InMemoryDeviceFlowStore>();
@@ -2445,6 +2459,12 @@ record ChangePasswordRequest(string? CurrentPassword, string NewPassword);
 record LinkPhoneIdentityRequest(string Phone, string Code);
 record SendPhoneLinkCodeRequest(string Phone);
 record RenameSessionRequest(string? Name);
+
+internal sealed class SubClaimUserIdProvider : IUserIdProvider
+{
+    public string? GetUserId(HubConnectionContext connection)
+        => connection.User?.FindFirstValue(JwtRegisteredClaimNames.Sub);
+}
 
 internal sealed class LatestVersionCache
 {

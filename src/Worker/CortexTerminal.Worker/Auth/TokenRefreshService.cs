@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -9,6 +10,7 @@ public sealed class TokenRefreshService : BackgroundService
     private readonly IWorkerTokenStore _tokenStore;
     private readonly Func<string> _getCurrentToken;
     private readonly Action<string> _setCurrentToken;
+    private readonly TimeSpan _refreshInterval;
     private readonly ILogger<TokenRefreshService> _logger;
 
     public TokenRefreshService(
@@ -16,12 +18,15 @@ public sealed class TokenRefreshService : BackgroundService
         IWorkerTokenStore tokenStore,
         Func<string> getCurrentToken,
         Action<string> setCurrentToken,
+        IConfiguration configuration,
         ILogger<TokenRefreshService> logger)
     {
         _loginService = new DeviceFlowLoginService(httpClient, tokenStore);
         _tokenStore = tokenStore;
         _getCurrentToken = getCurrentToken;
         _setCurrentToken = setCurrentToken;
+        var intervalSeconds = configuration.GetValue<int?>("Worker:RefreshIntervalSeconds") ?? 86400;
+        _refreshInterval = TimeSpan.FromSeconds(intervalSeconds);
         _logger = logger;
     }
 
@@ -31,7 +36,7 @@ public sealed class TokenRefreshService : BackgroundService
         {
             try
             {
-                await Task.Delay(TimeSpan.FromHours(24), stoppingToken);
+                await Task.Delay(_refreshInterval, stoppingToken);
             }
             catch (OperationCanceledException)
             {
