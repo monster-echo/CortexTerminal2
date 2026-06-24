@@ -82,6 +82,12 @@ Navigate to `http://localhost:5045`, log in, and start a terminal session.
       </a>
       <br/>Google Play
     </td>
+    <td align="center">
+      <a href="https://appgallery.huawei.com/app/detail?id=top.rwecho.cortexterminal">
+        <img src="docs/corterm_appgallery_qr.png" width="120" height="120" alt="Get it on Huawei AppGallery" />
+      </a>
+      <br/>AppGallery
+    </td>
   </tr>
 </table>
 
