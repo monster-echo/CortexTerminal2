@@ -499,7 +499,19 @@
     "sessions": "会话数",
     "lastSeen": "最近活跃",
     "statusOnline": "在线",
-    "statusOffline": "离线"
+    "statusOffline": "离线",
+    "updateAvailable": "可更新",
+    "upgrade": {
+      "title": "更新工作节点",
+      "description": "将 <strong>{{name}}</strong> 从 <code>v{{currentVersion}}</code> 更新到 <code>v{{targetVersion}}</code>？工作节点将会重启。",
+      "button": "更新到 v{{version}}",
+      "confirm": "更新",
+      "cancel": "取消",
+      "sending": "正在更新 {{name}}…",
+      "sent": "更新命令已发送，工作节点即将重启。",
+      "failed": "更新失败：{{message}}",
+      "upToDate": "已是最新版本。"
+    }
   },
   "activate": {
     "title": "激活 Worker",

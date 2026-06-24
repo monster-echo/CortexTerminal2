@@ -44,7 +44,20 @@ export const WorkerSummarySchema = z.object({
 
 export const WorkerSummariesSchema = z.array(WorkerSummarySchema);
 
+export const GatewayInfoSchema = z.object({
+  version: z.string(),
+  latestWorkerVersion: z.string().nullable().optional(),
+  latestGatewayVersion: z.string().nullable().optional(),
+});
+
+export const UpgradeWorkerResultSchema = z.object({
+  message: z.string(),
+  targetVersion: z.string().nullable().optional(),
+});
+
 export type SessionStatus = z.infer<typeof SessionStatusSchema>;
 export type TerminalSession = z.infer<typeof TerminalSessionSchema>;
 export type WorkerStatus = z.infer<typeof WorkerStatusSchema>;
 export type WorkerSummary = z.infer<typeof WorkerSummarySchema>;
+export type GatewayInfo = z.infer<typeof GatewayInfoSchema>;
+export type UpgradeWorkerResult = z.infer<typeof UpgradeWorkerResultSchema>;

@@ -53,6 +53,7 @@ const selectSetAuthLoading = (s: AuthState) => s.setLoading;
 const selectSetWorkers = (s: SessionState) => s.setWorkers;
 const selectSetSessions = (s: SessionState) => s.setSessions;
 const selectSetGatewayLoaded = (s: SessionState) => s.setGatewayLoaded;
+const selectSetLatestWorkerVersion = (s: SessionState) => s.setLatestWorkerVersion;
 const selectIsInitializing = (s: AppStoreState) => s.isInitializing;
 
 setupIonicReact({
@@ -116,6 +117,7 @@ export default function App({
   const setWorkers = useSessionStore(selectSetWorkers);
   const setSessions = useSessionStore(selectSetSessions);
   const setGatewayLoaded = useSessionStore(selectSetGatewayLoaded);
+  const setLatestWorkerVersion = useSessionStore(selectSetLatestWorkerVersion);
 
   useEffect(() => {
     if (initialData?.platform) {
@@ -321,7 +323,7 @@ export default function App({
     };
   }, []);
 
-  // Preload gateway data (workers + sessions) after bootstrap completes.
+  // Preload gateway data (workers + sessions + gateway info) after bootstrap completes.
   // Separate from bootstrap() so failures don't affect system initialization.
   useEffect(() => {
     if (isInitializing || authLoading || !isLoggedIn) return;
@@ -329,13 +331,15 @@ export default function App({
 
     const preloadGateway = async () => {
       try {
-        const [workers, sessions] = await Promise.all([
+        const [workers, sessions, gatewayInfo] = await Promise.all([
           terminalBridge.listWorkers(),
           terminalBridge.listSessions(),
+          terminalBridge.getGatewayInfo(),
         ]);
         if (cancelled) return;
         setWorkers(workers);
         setSessions(sessions);
+        setLatestWorkerVersion(gatewayInfo.latestWorkerVersion ?? null);
       } catch (e) {
         console.warn("[App] Failed to preload gateway state:", e);
       } finally {
@@ -345,7 +349,7 @@ export default function App({
 
     preloadGateway();
     return () => { cancelled = true; };
-  }, [isInitializing, authLoading, isLoggedIn, setWorkers, setSessions, setGatewayLoaded]);
+  }, [isInitializing, authLoading, isLoggedIn, setWorkers, setSessions, setGatewayLoaded, setLatestWorkerVersion]);
 
   const requireAuth = (Component: React.ComponentType<any>, props?: any) => {
     if (authLoading) {

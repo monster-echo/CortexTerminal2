@@ -135,6 +135,12 @@ public interface IBridgeContract
     [BridgeMethod]
     Task<string> RenameTerminalSessionAsync(string sessionId, string name);
 
+    [BridgeMethod]
+    Task<string> GetGatewayInfoAsync();
+
+    [BridgeMethod]
+    Task<string> UpgradeTerminalWorkerAsync(string workerId);
+
     // 认证
     [BridgeMethod]
     Task<string> GetCaptchaChallengeAsync();

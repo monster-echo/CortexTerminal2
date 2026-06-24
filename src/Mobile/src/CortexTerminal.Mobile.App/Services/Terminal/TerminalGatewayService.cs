@@ -113,6 +113,27 @@ public sealed class TerminalGatewayService
         return result;
     }
 
+    public async Task<GatewayInfoDto> GetGatewayInfoAsync(CancellationToken cancellationToken)
+    {
+        var token = await RequireTokenAsync(cancellationToken);
+        using var request = CreateRequest(HttpMethod.Get, "/api/gateway/info", token);
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<GatewayInfoDto>(cancellationToken)
+            ?? throw new InvalidOperationException("Gateway returned an empty info response.");
+    }
+
+    public async Task<UpgradeWorkerResultDto> UpgradeWorkerAsync(string workerId, CancellationToken cancellationToken)
+    {
+        var token = await RequireTokenAsync(cancellationToken);
+        using var request = CreateRequest(HttpMethod.Post, $"/api/me/workers/{Uri.EscapeDataString(workerId)}/upgrade", token);
+        request.Content = JsonContent.Create(new { });
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<UpgradeWorkerResultDto>(cancellationToken)
+            ?? throw new InvalidOperationException("Gateway returned an empty upgrade response.");
+    }
+
     public async Task<CreateSessionResponse> CreateSessionAsync(int columns, int rows, string? workerId, CancellationToken cancellationToken)
     {
         using var request = CreateRequest(HttpMethod.Post, "/api/sessions", await RequireTokenAsync(cancellationToken));
@@ -467,6 +488,15 @@ public sealed class TerminalGatewayService
         bool IsOnline,
         DateTimeOffset? LastSeenAtUtc,
         int SessionCount);
+
+    public sealed record GatewayInfoDto(
+        string Version,
+        string? LatestWorkerVersion,
+        string? LatestGatewayVersion);
+
+    public sealed record UpgradeWorkerResultDto(
+        string Message,
+        string? TargetVersion);
 
     private static void LogDiag(string message)
     {

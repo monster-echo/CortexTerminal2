@@ -1,7 +1,9 @@
 import { HasClipboardTextSchema, ReadClipboardTextSchema, SuccessResponseSchema } from "../../schemas/bridgeSchema";
 import {
+  GatewayInfoSchema,
   TerminalSessionSchema,
   TerminalSessionsSchema,
+  UpgradeWorkerResultSchema,
   WorkerSummariesSchema,
 } from "../../schemas/sessionSchema";
 import { invoke } from "../runtime";
@@ -36,6 +38,13 @@ export const terminalBridge = {
     invoke("DeleteTerminalSessionAsync", SuccessResponseSchema, [sessionId], { timeoutMs: 15000 }),
   renameSession: (sessionId: string, name: string) =>
     invoke("RenameTerminalSessionAsync", SuccessResponseSchema, [sessionId, name], { timeoutMs: 15000 }),
+  getGatewayInfo: () =>
+    invoke("GetGatewayInfoAsync", GatewayInfoSchema, [], { timeoutMs: 15000 }),
+  upgradeWorker: (workerId: string) =>
+    invoke("UpgradeTerminalWorkerAsync", UpgradeWorkerResultSchema, [workerId], {
+      timeoutMs: 45000,
+      retries: 1,
+    }),
   hasClipboardText: () =>
     invoke("HasClipboardTextAsync", HasClipboardTextSchema, [], { timeoutMs: 3000 }),
   readClipboardText: () =>

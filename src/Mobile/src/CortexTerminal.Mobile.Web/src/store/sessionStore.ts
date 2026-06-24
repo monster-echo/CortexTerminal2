@@ -5,9 +5,11 @@ export interface SessionState {
   recentSessions: TerminalSession[];
   workers: WorkerSummary[];
   isGatewayLoaded: boolean;
+  latestWorkerVersion: string | null;
   setSessions: (sessions: TerminalSession[]) => void;
   setWorkers: (workers: WorkerSummary[]) => void;
   setGatewayLoaded: (value: boolean) => void;
+  setLatestWorkerVersion: (version: string | null) => void;
   removeSession: (sessionId: string) => void;
   renameSession: (sessionId: string, name: string) => void;
 }
@@ -16,6 +18,7 @@ export const useSessionStore = create<SessionState>((set) => ({
   recentSessions: [],
   workers: [],
   isGatewayLoaded: false,
+  latestWorkerVersion: null,
   setSessions: (recentSessions) =>
     set((state) => {
       return {
@@ -24,6 +27,7 @@ export const useSessionStore = create<SessionState>((set) => ({
     }),
   setWorkers: (workers) => set({ workers }),
   setGatewayLoaded: (isGatewayLoaded) => set({ isGatewayLoaded }),
+  setLatestWorkerVersion: (latestWorkerVersion) => set({ latestWorkerVersion }),
 
   removeSession: (sessionId) =>
     set((state) => {

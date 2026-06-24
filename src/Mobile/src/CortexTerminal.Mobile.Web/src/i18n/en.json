@@ -499,7 +499,19 @@
     "sessions": "Sessions",
     "lastSeen": "Last Seen",
     "statusOnline": "Online",
-    "statusOffline": "Offline"
+    "statusOffline": "Offline",
+    "updateAvailable": "Update",
+    "upgrade": {
+      "title": "Update worker",
+      "description": "Update <strong>{{name}}</strong> from <code>v{{currentVersion}}</code> to <code>v{{targetVersion}}</code>? The worker will restart.",
+      "button": "Update to v{{version}}",
+      "confirm": "Update",
+      "cancel": "Cancel",
+      "sending": "Updating {{name}}...",
+      "sent": "Upgrade command sent. The worker will restart shortly.",
+      "failed": "Upgrade failed: {{message}}",
+      "upToDate": "Already up to date."
+    }
   },
   "activate": {
     "title": "Activate Worker",
