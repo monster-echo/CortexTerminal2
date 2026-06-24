@@ -161,10 +161,7 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
             Environment.MachineName,
             Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3),
             snapshot?.CpuUsagePercent,
-            snapshot?.MemoryUsagePercent,
-            snapshot?.MemoryUsedBytes,
-            snapshot?.MemoryTotalBytes,
-            snapshot?.CapturedAtUtc);
+            snapshot?.MemoryUsagePercent);
     }
 
     private async Task ReconnectLoopAsync()

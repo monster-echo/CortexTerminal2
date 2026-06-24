@@ -1997,10 +1997,7 @@ app.MapGet("/api/me/workers", async (ClaimsPrincipal user, IWorkerRegistry worke
                 w.LastSeenAtUtc,
                 SessionCount = 0,
                 CpuUsagePercent = metrics?.CpuUsagePercent,
-                MemoryUsagePercent = metrics?.MemoryUsagePercent,
-                MemoryUsedBytes = metrics?.MemoryUsedBytes,
-                MemoryTotalBytes = metrics?.MemoryTotalBytes,
-                MetricsUpdatedAtUtc = metrics?.CapturedAtUtc
+                MemoryUsagePercent = metrics?.MemoryUsagePercent
             };
         })
         .ToArray();
@@ -2041,10 +2038,7 @@ app.MapGet("/api/me/workers/{workerId}", async (string workerId, ClaimsPrincipal
         SessionCount = hostedSessions.Length,
         Sessions = hostedSessions,
         CpuUsagePercent = metricsSnapshot?.CpuUsagePercent,
-        MemoryUsagePercent = metricsSnapshot?.MemoryUsagePercent,
-        MemoryUsedBytes = metricsSnapshot?.MemoryUsedBytes,
-        MemoryTotalBytes = metricsSnapshot?.MemoryTotalBytes,
-        MetricsUpdatedAtUtc = metricsSnapshot?.CapturedAtUtc
+        MemoryUsagePercent = metricsSnapshot?.MemoryUsagePercent
     });
 }).RequireAuthorization();
 

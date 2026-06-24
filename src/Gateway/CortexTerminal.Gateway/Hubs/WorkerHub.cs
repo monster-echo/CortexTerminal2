@@ -67,10 +67,7 @@ public sealed class WorkerHub(
             info.Version));
         workers.UpdateMetrics(worker.WorkerId, new WorkerMetrics(
             info.CpuUsagePercent,
-            info.MemoryUsagePercent,
-            info.MemoryUsedBytes,
-            info.MemoryTotalBytes,
-            info.MetricsUpdatedAtUtc));
+            info.MemoryUsagePercent));
         logger.LogInformation("Worker {WorkerId} updated info: hostname={Hostname}, os={OS}, arch={Arch}, version={Version}, cpu={Cpu}%, mem={Mem}%.",
             worker.WorkerId, info.Hostname, info.OperatingSystem, info.Architecture, info.Version,
             info.CpuUsagePercent, info.MemoryUsagePercent);

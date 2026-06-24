@@ -36,7 +36,4 @@ public sealed record WorkerMetadata(
 
 public sealed record WorkerMetrics(
     double? CpuUsagePercent = null,
-    double? MemoryUsagePercent = null,
-    ulong? MemoryUsedBytes = null,
-    ulong? MemoryTotalBytes = null,
-    DateTimeOffset? CapturedAtUtc = null);
+    double? MemoryUsagePercent = null);

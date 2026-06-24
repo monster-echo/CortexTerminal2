@@ -403,6 +403,8 @@ export class ApiService {
     worker.activeSessions = sessionCount
     worker.sessionCount = sessionCount
     worker.maxSessions = Math.max(sessionCount, 1)
+    worker.cpuUsage = (data['cpuUsagePercent'] as number) ?? 0
+    worker.memoryUsage = (data['memoryUsagePercent'] as number) ?? 0
     worker.lastSeenAt = ApiService.readDate(data['lastSeenAtUtc'])
     return worker
   }

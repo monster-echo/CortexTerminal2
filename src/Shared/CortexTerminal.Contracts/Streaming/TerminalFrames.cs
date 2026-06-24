@@ -88,10 +88,7 @@ public sealed record WorkerInfoFrame(
     [property: Key(4)] string? MachineName,
     [property: Key(5)] string? Version,
     [property: Key(6)] double? CpuUsagePercent = null,
-    [property: Key(7)] double? MemoryUsagePercent = null,
-    [property: Key(8)] ulong? MemoryUsedBytes = null,
-    [property: Key(9)] ulong? MemoryTotalBytes = null,
-    [property: Key(10)] DateTimeOffset? MetricsUpdatedAtUtc = null);
+    [property: Key(7)] double? MemoryUsagePercent = null);
 
 [MessagePackObject]
 public sealed record UpgradeWorkerCommand(
