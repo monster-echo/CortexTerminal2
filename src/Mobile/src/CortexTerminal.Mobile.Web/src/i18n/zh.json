@@ -572,14 +572,14 @@
     "step1Mac": "Step 1 — 安装 Worker (macOS / Linux)",
     "step1Win": "Step 1 — 安装 Worker (Windows)",
     "step2Activate": "Step 2 — 激活 Worker",
-    "autoActivate": "# 安装后终端会自动启动激活流程：",
-    "openLink": "# 打开链接 → 输入终端显示的激活码 → 完成",
+    "autoActivate": "# 在终端上运行 corterm login，屏幕上会显示激活码",
+    "openLink": "# 复制激活码，回到 App 点击下方按钮输入",
     "step3Start": "Step 3 — 开始使用",
     "backRefresh": "# Worker 激活后自动连接，回到这里点击「刷新检测」",
     "createSession": "# 看到 Worker 上线后即可创建 Session，开始远程终端",
     "ready": "  Done! Your terminal is ready.",
     "enterCode": "输入激活码",
-    "visitLabel": "  访问：",
+    "visitLabel": "  打开 App → 设置 → 激活工作节点",
     "enterCodeLabel": "  输入激活码："
   },
   "workerInstall": {
@@ -589,8 +589,8 @@
     "installHint": "# 在需要远程访问的电脑/服务器上执行以下命令即可安装",
     "autoLogin": "# 安装完成后会自动提示登录",
     "activateTitle": "cortex login — 激活 Worker",
-    "activateGuide": "# 安装成功后，终端会显示激活引导：",
-    "activateHint": "# 在浏览器中打开上方链接，输入终端显示的激活码即可",
+    "activateGuide": "# 在终端上运行 corterm login，屏幕上会显示激活码",
+    "activateHint": "# 复制激活码，在 App 的「设置 → 激活工作节点」输入即可",
     "readyTitle": "Corterm — 就绪",
     "autoConnect": "# 激活成功后 Worker 会自动连接 Gateway",
     "backRefresh": "# 回到本页面刷新，Worker 会出现在列表中",
@@ -598,7 +598,7 @@
     "enterCode": "输入激活码",
     "bashTitle": "bash — macOS / Linux",
     "powershellTitle": "PowerShell — Windows",
-    "authVisit": "  要激活此 Worker，请访问：",
+    "authVisit": "  打开 App → 设置 → 激活工作节点，输入激活码：",
     "enterCodeLabel": "  输入激活码："
   },
   "components": {

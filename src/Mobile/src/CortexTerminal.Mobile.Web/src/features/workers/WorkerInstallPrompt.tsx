@@ -1,13 +1,13 @@
 import { IonButton, IonIcon } from "@ionic/react";
-import { checkmarkOutline, copyOutline, keyOutline } from "ionicons/icons";
+import { checkmarkOutline, copyOutline, keyOutline, arrowForwardOutline } from "ionicons/icons";
 import { useState } from "react";
+import { useHistory } from "react-router";
 import { useTranslation } from "react-i18next";
 
 const bashInstallCommand =
   "curl -fsSL https://corterm.rwecho.top/install.sh | sh";
 const psInstallCommand =
   'powershell -Command "irm https://corterm.rwecho.top/install.ps1 | iex"';
-const activateUrl = "https://corterm.rwecho.top/activate";
 
 async function copyToClipboard(text: string) {
   await navigator.clipboard?.writeText(text);
@@ -114,6 +114,7 @@ function TerminalBlock({ title, children }: TerminalBlockProps) {
 
 export default function WorkerInstallPrompt() {
   const { t } = useTranslation();
+  const history = useHistory();
 
   return (
     <div style={{ paddingBottom: 24 }}>
@@ -162,10 +163,17 @@ export default function WorkerInstallPrompt() {
         <div style={{ marginBottom: 8 }}>
           <span style={successStyle}>{t("workerInstall.authVisit")}</span>
         </div>
-        <div style={{ marginBottom: 8, display: "flex", alignItems: "center" }}>
-          <span style={successStyle}> {activateUrl}</span>
-          <CopyBtn text={activateUrl} />
-        </div>
+        <IonButton
+          expand="block"
+          color="primary"
+          routerLink="/activate"
+          routerDirection="forward"
+          style={{ margin: "8px 0 0" }}
+        >
+          <IonIcon slot="start" icon={keyOutline} />
+          <span>{t("workerInstall.enterCode")}</span>
+          <IonIcon slot="end" icon={arrowForwardOutline} />
+        </IonButton>
       </TerminalBlock>
 
       {/* Done */}

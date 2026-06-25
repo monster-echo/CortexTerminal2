@@ -572,14 +572,14 @@
     "step1Mac": "Step 1 — Install Worker (macOS / Linux)",
     "step1Win": "Step 1 — Install Worker (Windows)",
     "step2Activate": "Step 2 — Activate Worker",
-    "autoActivate": "# After installation, the terminal will automatically start the activation flow:",
-    "openLink": "# Open the link → enter the activation code shown in terminal → done",
+    "autoActivate": "# Run corterm login on the terminal, it will show an activation code",
+    "openLink": "# Copy the code and tap the button below to activate in this App",
     "step3Start": "Step 3 — Get Started",
     "backRefresh": "# Once the Worker is activated and connected, come back here and tap Refresh.",
     "createSession": "# When the Worker shows online, you can create a Session and start the remote terminal.",
     "ready": "  Done! Your terminal is ready.",
     "enterCode": "Enter Activation Code",
-    "visitLabel": "  Visit: ",
+    "visitLabel": "  Open App → Settings → Activate Worker",
     "enterCodeLabel": "  Enter code: "
   },
   "workerInstall": {
@@ -589,8 +589,8 @@
     "installHint": "# Run the following command on the machine you want to access remotely.",
     "autoLogin": "# After installation, you will be prompted to log in automatically.",
     "activateTitle": "cortex login — Activate Worker",
-    "activateGuide": "# After installation, the terminal will display the activation guide:",
-    "activateHint": "# Open the link above in a browser and enter the activation code shown in the terminal.",
+    "activateGuide": "# Run corterm login on the terminal, it will show an activation code",
+    "activateHint": "# Copy the code and activate in this App via Settings → Activate Worker",
     "readyTitle": "Corterm — Ready",
     "autoConnect": "# Once activated, the Worker will automatically connect to the Gateway.",
     "backRefresh": "# Refresh this page and the Worker will appear in the list.",
@@ -598,7 +598,7 @@
     "enterCode": "Enter Activation Code",
     "bashTitle": "bash — macOS / Linux",
     "powershellTitle": "PowerShell — Windows",
-    "authVisit": "  To authenticate this worker, visit:",
+    "authVisit": "  Open App → Settings → Activate Worker, enter the code:",
     "enterCodeLabel": "  Enter code: "
   },
   "components": {
