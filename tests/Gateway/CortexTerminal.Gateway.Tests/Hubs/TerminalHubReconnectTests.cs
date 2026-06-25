@@ -139,10 +139,10 @@ public sealed class TerminalHubReconnectTests
         await action.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage("replay failed");
         sessions.TryGetSession(sessionId, out var session).Should().BeTrue();
-        session.AttachmentState.Should().Be(SessionAttachmentState.Attached);
+        session.AttachmentState.Should().Be(SessionAttachmentState.DetachedGracePeriod);
         session.AttachedClientConnectionId.Should().BeNull();
         session.ReplayPending.Should().BeFalse();
-        session.LeaseExpiresAtUtc.Should().BeNull();
+        session.LeaseExpiresAtUtc.Should().NotBeNull();
     }
 
     private static TerminalHub CreateTerminalHub(
@@ -165,7 +165,12 @@ public sealed class TerminalHubReconnectTests
         ISessionCoordinator sessions,
         ReplayCoordinator replayCoordinator,
         IReadOnlyDictionary<string, IClientProxy>? terminalClients = null)
-        => (WorkerHub)Activator.CreateInstance(
+    {
+        var storage = new CortexTerminal.Gateway.Tests.Sessions.Fakes.FakeArtifactStorage();
+        var dispatcher = new CortexTerminal.Gateway.Tests.Sessions.Fakes.RecordingArtifactCommandDispatcher();
+        var hub = new CortexTerminal.Gateway.Tests.Sessions.Fakes.ArtifactTestHubContext();
+        var (_, _, artifacts) = TestSessionFactory.CreateArtifactService(workers, storage, hub, dispatcher);
+        return (WorkerHub)Activator.CreateInstance(
             typeof(WorkerHub),
             workers,
             sessions,
@@ -174,7 +179,9 @@ public sealed class TerminalHubReconnectTests
             new TestHubContext<TerminalHub>(terminalClients ?? new Dictionary<string, IClientProxy>()),
             new NoOpStatsService(),
             new NoOpSessionStatsService(),
+            artifacts,
             NullLogger<WorkerHub>.Instance)!;
+    }
 
     private static async Task<T> InvokeAsync<T>(object instance, string methodName, params object?[] arguments)
     {

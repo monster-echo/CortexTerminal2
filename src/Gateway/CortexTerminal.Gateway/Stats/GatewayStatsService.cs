@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Threading;
 using CortexTerminal.Gateway.Auth;
@@ -12,6 +13,7 @@ public sealed class GatewayStatsService : IGatewayStatsService
 {
     private int _connectedClients;
     private long _totalBytesTransferred;
+    private readonly ConcurrentDictionary<string, DateTime> _httpActiveUsers = new();
     private readonly DateTimeOffset _startedAtUtc = DateTimeOffset.UtcNow;
 
     private readonly IWorkerRegistry _workers;
@@ -35,6 +37,7 @@ public sealed class GatewayStatsService : IGatewayStatsService
     public void ClientConnected() => Interlocked.Increment(ref _connectedClients);
     public void ClientDisconnected() => Interlocked.Decrement(ref _connectedClients);
     public void RecordBytesTransferred(int byteCount) => Interlocked.Add(ref _totalBytesTransferred, byteCount);
+    public void TouchHttpUser(string userId) => _httpActiveUsers[userId] = DateTime.UtcNow;
 
     public GatewayStatsSnapshot GetSnapshot()
     {
@@ -65,6 +68,7 @@ public sealed class GatewayStatsService : IGatewayStatsService
             TotalBytesTransferred: totalBytes,
             StartedAtUtc: _startedAtUtc,
             TotalUsers: totalUsers,
+            HttpActiveUserCount: GetHttpActiveUserCount(),
             TotalSessions: totalSessions,
             AllocatedMemoryBytes: process.WorkingSet64,
             GcGen0Collections: GC.CollectionCount(0),
@@ -119,5 +123,14 @@ public sealed class GatewayStatsService : IGatewayStatsService
             _hourlyIndex = (_hourlyIndex + 1) % 24;
             _hourlyHistory[_hourlyIndex] = point;
         }
+    }
+
+    private int GetHttpActiveUserCount()
+    {
+        var cutoff = DateTime.UtcNow.AddMinutes(-5);
+        foreach (var kv in _httpActiveUsers)
+            if (kv.Value < cutoff)
+                _httpActiveUsers.TryRemove(kv.Key, out _);
+        return _httpActiveUsers.Count;
     }
 }

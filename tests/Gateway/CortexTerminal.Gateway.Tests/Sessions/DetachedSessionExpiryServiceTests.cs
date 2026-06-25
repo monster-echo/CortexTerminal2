@@ -36,7 +36,8 @@ public sealed class DetachedSessionExpiryServiceTests
         await service.StopAsync(CancellationToken.None);
 
         sessions.TryGetSession(sessionId, out var session).Should().BeTrue();
-        session.AttachmentState.Should().Be(SessionAttachmentState.Attached);
+        session.AttachmentState.Should().Be(SessionAttachmentState.DetachedGracePeriod);
+        session.LeaseExpiresAtUtc.Should().Be(detachedAtUtc.AddMinutes(5));
         session.AttachedClientConnectionId.Should().BeNull();
     }
 

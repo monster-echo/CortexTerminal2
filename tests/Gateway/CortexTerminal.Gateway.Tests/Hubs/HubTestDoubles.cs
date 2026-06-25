@@ -97,6 +97,7 @@ internal sealed class NoOpStatsService : IGatewayStatsService
 {
     public void ClientConnected() { }
     public void ClientDisconnected() { }
+    public void TouchHttpUser(string userId) { }
     public void RecordBytesTransferred(int byteCount) { }
     public GatewayStatsSnapshot GetSnapshot() => throw new NotSupportedException();
     public IReadOnlyList<HourlyStatsPoint> GetHourlyHistory(int hours) => [];

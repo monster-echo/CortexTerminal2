@@ -179,6 +179,20 @@ public record WsLatencyAckFrame
     public required long ServerTime { get; init; }
 }
 
+public record WsArtifactChangedFrame
+{
+    [JsonPropertyName("type")]
+    public string Type => "artifactChanged";
+    [JsonPropertyName("sessionId")]
+    public required string SessionId { get; init; }
+    [JsonPropertyName("artifactId")]
+    public required string ArtifactId { get; init; }
+    [JsonPropertyName("changeType")]
+    public required string ChangeType { get; init; }
+    [JsonPropertyName("artifact")]
+    public object? Artifact { get; init; }
+}
+
 /// <summary>
 /// Polymorphic deserialization wrapper for incoming client frames.
 /// </summary>

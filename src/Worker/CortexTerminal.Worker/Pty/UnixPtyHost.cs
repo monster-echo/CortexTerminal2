@@ -4,9 +4,24 @@ namespace CortexTerminal.Worker.Pty;
 
 public sealed class UnixPtyHost : IPtyHost
 {
-    public async Task<IPtyProcess> StartAsync(int columns, int rows, CancellationToken cancellationToken)
+    public Task<IPtyProcess> StartAsync(int columns, int rows, CancellationToken cancellationToken)
+        => StartAsync(columns, rows, new Dictionary<string, string>(), cancellationToken);
+
+    public async Task<IPtyProcess> StartAsync(int columns, int rows, IReadOnlyDictionary<string, string> environmentVariables, CancellationToken cancellationToken)
     {
         var (app, commandLine) = ResolveShellLaunch();
+        var environment = new Dictionary<string, string>
+        {
+            ["TERM"] = "xterm-256color",
+            ["COLUMNS"] = columns.ToString(),
+            ["LINES"] = rows.ToString(),
+            ["LANG"] = OperatingSystem.IsWindows() ? string.Empty : "en_US.UTF-8",
+        };
+        foreach (var pair in environmentVariables)
+        {
+            environment[pair.Key] = pair.Value;
+        }
+
         var options = new PtyOptions
         {
             Name = "CortexTerminal.Worker",
@@ -15,13 +30,7 @@ public sealed class UnixPtyHost : IPtyHost
             Cwd = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
             App = app,
             CommandLine = commandLine,
-            Environment = new Dictionary<string, string>
-            {
-                ["TERM"] = "xterm-256color",
-                ["COLUMNS"] = columns.ToString(),
-                ["LINES"] = rows.ToString(),
-                ["LANG"] = OperatingSystem.IsWindows() ? string.Empty : "en_US.UTF-8",
-            },
+            Environment = environment,
         };
 
         try

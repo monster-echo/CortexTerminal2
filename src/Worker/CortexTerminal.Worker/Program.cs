@@ -388,6 +388,7 @@ rootCommand.SetAction(async (ParseResult parseResult, CancellationToken cancella
     var builder = Host.CreateApplicationBuilder();
     builder.Configuration.AddJsonFile(Path.Combine(installDir, "appsettings.json"), optional: true, reloadOnChange: true);
     builder.Logging.AddConsoleFormatter<CliConsoleFormatter, SimpleConsoleFormatterOptions>();
+    builder.Logging.AddConsole(options => options.FormatterName = "cli");
 
     builder.Services.AddSingleton<IPtyHost, UnixPtyHost>();
     builder.Services.AddSingleton<IWorkerGatewayClient>(_ =>

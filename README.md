@@ -95,13 +95,73 @@ Navigate to `http://localhost:5045`, log in, and start a terminal session.
 
 .NET 10 (Gateway / Worker) · React 19 + xterm.js (Console) · .NET MAUI + Ionic (Mobile) · SignalR + MessagePack
 
+## Running Tests
+
+Unit tests run on every push via CI. Run them locally:
+
+```bash
+dotnet test tests/Gateway/CortexTerminal.Gateway.Tests --configuration Release --filter "Category!=Integration"
+dotnet test tests/Worker/CortexTerminal.Worker.Tests --configuration Release --filter "Category!=Integration"
+```
+
+S3-compatible storage integration tests are opt-in (tagged `Category=Integration`). Boot MinIO locally and then run the filter:
+
+```bash
+bash scripts/start-test-minio.sh
+dotnet test tests/Gateway --filter "Category=Integration"
+```
+
+The script uses Podman by default (Docker works too) and provisions a `corterm-artifacts-test` bucket separate from production. Override credentials via `CORTERM_TEST_S3_*` environment variables if needed.
+
 ## Roadmap
 
-- [ ] **File Transfer** -- Upload and download files directly through the terminal session
+- [x] **File Transfer** -- Bidirectional file exchange between Console and Worker via S3 presigned URLs (see below)
 - [ ] **Port Forwarding** -- Tunnel local ports to remote machines via the Gateway
 - [ ] **Structured Output** -- Render common command outputs (`top`, `ps`, `docker ps`) as interactive cards instead of raw text
 - [ ] **Multi-tab Terminal** -- Open multiple sessions in a single browser tab
 - [ ] **Command Snippets** -- Save and reuse frequently used commands across sessions
+
+## Session Artifacts (File Transfer)
+
+Corterm ships with a WeChat-File-Helper-style file feed for every terminal session. Files flow Console ↔ Worker through S3-compatible storage (AWS S3, MinIO, Cloudflare R2). The Gateway brokers presigned URLs and never relays file bytes -- bandwidth stays cheap on the hosted plan.
+
+**Asymmetric sync:**
+
+- Console uploads land in `$CORTERM_ARTIFACTS_DIR` on the Worker instantly so the shell (and AI agents like Claude Code) can read them.
+- Worker outputs (`echo foo > $CORTERM_ARTIFACTS_DIR/log.txt`) appear as Worker-side bubbles in real time via SignalR. Nothing auto-downloads to your phone -- tap a bubble to fetch on demand.
+
+**Expiration:** every artifact has a 7-day TTL. Terminating a session tightens its artifacts to a 24h grace window. A background sweep cleans S3 + DB.
+
+### Configuration
+
+Gateway `appsettings.json`:
+
+```json
+"Storage": {
+  "Endpoint": "https://s3.amazonaws.com",
+  "Bucket": "corterm-artifacts",
+  "Region": "us-east-1",
+  "AccessKey": "...",
+  "SecretKey": "...",
+  "ForcePathStyle": false,
+  "PresignedUrlTtl": "00:05:00",
+  "MaxArtifactSizeBytes": 52428800,
+  "MaxArtifactAgeDays": 7,
+  "GracePeriodHours": 24
+}
+```
+
+For self-hosted MinIO:
+
+```bash
+docker compose -f deploy/docker-compose.minio.yml up -d
+```
+
+Then point `Storage:Endpoint` at `http://localhost:9000` and set `ForcePathStyle: true`.
+
+### Worker contract
+
+PTY processes inherit `CORTERM_ARTIFACTS_DIR=~/.corterm/sessions/{sessionId}/artifacts/`. The Worker auto-uploads files written there and auto-downloads files uploaded from the Console. **The Worker never holds S3 credentials** -- it asks the Gateway for presigned URLs, same as the Console.
 
 ## License
 

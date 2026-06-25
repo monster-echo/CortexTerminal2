@@ -249,6 +249,20 @@ export struct TerminalPage {
           lightHaptic()
           this.showSessionDetail()
         })
+
+        Button() {
+          SymbolGlyph($r('sys.symbol.paperplane'))
+            .fontSize(18)
+            .fontColor([$r('app.color.terminal_primary')])
+        }
+        .width(40)
+        .height(40)
+        .borderRadius(20)
+        .backgroundColor(Color.Transparent)
+        .onClick(() => {
+          clickHaptic()
+          this.openArtifacts()
+        })
       }
       .width('100%')
       .height(52)
@@ -664,5 +678,10 @@ export struct TerminalPage {
     this.transport.sendDetach()
     this.stateManager.setState(TerminalState.Detached)
     this.pageStack.replacePath({ name: RouteName.SESSION_HOME })
+  }
+
+  private openArtifacts() {
+    const param: Record<string, string> = { 'sessionId': this.sessionId }
+    this.pageStack.pushPath({ name: RouteName.ARTIFACTS_PAGE, param })
   }
 }

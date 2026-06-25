@@ -70,6 +70,7 @@ public sealed class TerminalWebSocketHandler
 
         // Register this WS connection for output forwarding
         TerminalWebSocketConnectionRegistry.Register(sessionId, connectionId, ws);
+        TerminalWebSocketConnectionRegistry.RegisterUser(userId, connectionId, ws);
         _stats.ClientConnected();
 
         try
@@ -171,6 +172,7 @@ public sealed class TerminalWebSocketHandler
             _replayCoordinator.AbortReplay(sessionId);
             _stats.ClientDisconnected();
             TerminalWebSocketConnectionRegistry.Unregister(sessionId, connectionId);
+            TerminalWebSocketConnectionRegistry.UnregisterUser(userId, connectionId);
 
             // Detach the session
             try
@@ -368,15 +370,26 @@ public sealed class TerminalWebSocketHandler
 public static class TerminalWebSocketConnectionRegistry
 {
     private static readonly ConcurrentDictionary<(string SessionId, string ConnectionId), WebSocket> _connections = new();
+    private static readonly ConcurrentDictionary<(string UserId, string ConnectionId), WebSocket> _userConnections = new();
 
     public static void Register(string sessionId, string connectionId, WebSocket ws)
     {
         _connections[(sessionId, connectionId)] = ws;
     }
 
+    public static void RegisterUser(string userId, string connectionId, WebSocket ws)
+    {
+        _userConnections[(userId, connectionId)] = ws;
+    }
+
     public static void Unregister(string sessionId, string connectionId)
     {
         _connections.TryRemove((sessionId, connectionId), out _);
+    }
+
+    public static void UnregisterUser(string userId, string connectionId)
+    {
+        _userConnections.TryRemove((userId, connectionId), out _);
     }
 
     /// <summary>
@@ -418,5 +431,35 @@ public static class TerminalWebSocketConnectionRegistry
     public static bool HasConnection(string sessionId)
     {
         return _connections.Keys.Any(k => k.SessionId == sessionId);
+    }
+
+    /// <summary>
+    /// Send a frame to every active WebSocket connection owned by a given user.
+    /// Used for user-scoped broadcasts like artifact change notifications.
+    /// </summary>
+    public static async Task SendToUserAsync(string userId, object frame, CancellationToken cancellationToken)
+    {
+        var json = JsonSerializer.Serialize(frame, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+        var bytes = Encoding.UTF8.GetBytes(json);
+        var segment = new ArraySegment<byte>(bytes);
+
+        foreach (var key in _userConnections.Keys.Where(k => k.UserId == userId).ToList())
+        {
+            if (_userConnections.TryGetValue(key, out var ws) && ws.State == WebSocketState.Open)
+            {
+                try
+                {
+                    await ws.SendAsync(segment, WebSocketMessageType.Text, true, cancellationToken);
+                }
+                catch (WebSocketException)
+                {
+                    _userConnections.TryRemove(key, out _);
+                }
+            }
+            else
+            {
+                _userConnections.TryRemove(key, out _);
+            }
+        }
     }
 }

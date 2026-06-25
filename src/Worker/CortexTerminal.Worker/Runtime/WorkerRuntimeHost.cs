@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using CortexTerminal.Contracts.Sessions;
 using CortexTerminal.Contracts.Streaming;
+using CortexTerminal.Worker.Artifacts;
 using CortexTerminal.Worker.Metrics;
 using CortexTerminal.Worker.Pty;
 using CortexTerminal.Worker.Registration;
@@ -18,6 +19,9 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
     private readonly string _workerId;
     private readonly IWorkerGatewayClient _gatewayClient;
     private readonly IPtyHost _ptyHost;
+    private readonly HttpClient _httpClient;
+    private readonly ArtifactMirror _artifactMirror;
+    private readonly long _maxArtifactSizeBytes;
     private readonly ILogger<WorkerRuntimeHost> _logger;
     private readonly ILoggerFactory _loggerFactory;
     private readonly IHostApplicationLifetime _lifetime;
@@ -31,6 +35,7 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
 
     private static readonly TimeSpan DefaultReconnectInterval = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan DefaultMetricsInterval = TimeSpan.FromSeconds(5);
+    private const long DefaultMaxArtifactSizeBytes = 50 * 1024 * 1024;
 
     public WorkerRuntimeHost(
         string workerId,
@@ -40,12 +45,15 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         IHostApplicationLifetime lifetime,
         LinuxSystemMetricsCollector? metricsCollector = null,
         TimeSpan? metricsInterval = null)
-        : this(workerId, gatewayClient, ptyHost, loggerFactory, lifetime, DefaultReconnectInterval, metricsCollector, metricsInterval) { }
+        : this(workerId, gatewayClient, ptyHost, new HttpClient(), new ArtifactMirror(new HttpClient(), loggerFactory.CreateLogger<ArtifactMirror>()), DefaultMaxArtifactSizeBytes, loggerFactory, lifetime, DefaultReconnectInterval, metricsCollector, metricsInterval) { }
 
     internal WorkerRuntimeHost(
         string workerId,
         IWorkerGatewayClient gatewayClient,
         IPtyHost ptyHost,
+        HttpClient httpClient,
+        ArtifactMirror artifactMirror,
+        long maxArtifactSizeBytes,
         ILoggerFactory loggerFactory,
         IHostApplicationLifetime lifetime,
         TimeSpan reconnectInterval,
@@ -55,6 +63,9 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         _workerId = workerId;
         _gatewayClient = gatewayClient;
         _ptyHost = ptyHost;
+        _httpClient = httpClient;
+        _artifactMirror = artifactMirror;
+        _maxArtifactSizeBytes = maxArtifactSizeBytes;
         _loggerFactory = loggerFactory;
         _lifetime = lifetime;
         _logger = loggerFactory.CreateLogger<WorkerRuntimeHost>();
@@ -77,6 +88,7 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         _subscriptions.Add(_gatewayClient.OnCloseSession(HandleCloseSessionAsync));
         _subscriptions.Add(_gatewayClient.OnUpgradeWorker(HandleUpgradeWorkerAsync));
         _subscriptions.Add(_gatewayClient.OnRequestScrollback(HandleRequestScrollbackAsync));
+        _subscriptions.Add(_gatewayClient.OnNotifyArtifactUploaded(HandleNotifyArtifactUploadedAsync));
         _subscriptions.Add(_gatewayClient.OnReconnected(connectionId =>
         {
             _logger.LogInformation("Worker {WorkerId} reconnected to gateway, connection={ConnectionId}.", _workerId, connectionId);
@@ -286,12 +298,24 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
             return;
         }
 
+        ArtifactPaths.EnsureSessionArtifactsDir(command.SessionId);
+        var artifactsDir = ArtifactPaths.GetSessionArtifactsDir(command.SessionId);
+        var artifactSync = new ArtifactSyncService(
+            command.SessionId,
+            artifactsDir,
+            _gatewayClient,
+            _httpClient,
+            _maxArtifactSizeBytes,
+            _loggerFactory.CreateLogger<ArtifactSyncService>());
+
         var runtime = new WorkerSessionRuntime(
             command.SessionId,
             _ptyHost,
             _gatewayClient,
             _loggerFactory.CreateLogger<WorkerSessionRuntime>(),
-            command.MaxBytes);
+            command.MaxBytes,
+            artifactsDir,
+            artifactSync);
 
 
         runtime.Terminated += RemoveSessionAsync;
@@ -300,6 +324,7 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         {
             await runtime.CloseAsync(CancellationToken.None);
             await runtime.DisposeAsync();
+            ArtifactPaths.DeleteSessionDir(command.SessionId);
             await _gatewayClient.ForwardStartFailedAsync(
                 new SessionStartFailedEvent(command.SessionId, "duplicate-session"),
                 CancellationToken.None);
@@ -316,6 +341,7 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
             _sessions.TryRemove(command.SessionId, out _);
             await runtime.CloseAsync(CancellationToken.None);
             await runtime.DisposeAsync();
+            ArtifactPaths.DeleteSessionDir(command.SessionId);
             _logger.LogError(exception, "Failed to start session {SessionId}.", command.SessionId);
             var reason = exception is PtySupportException ptySupportException
                 ? ptySupportException.ErrorCode
@@ -324,6 +350,17 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
                 new SessionStartFailedEvent(command.SessionId, reason),
                 CancellationToken.None);
         }
+    }
+
+    private Task HandleNotifyArtifactUploadedAsync(NotifyArtifactUploadedFrame frame)
+    {
+        if (!_sessions.ContainsKey(frame.SessionId))
+        {
+            _logger.LogDebug("NotifyArtifactUploaded for unknown session {SessionId}; ignoring.", frame.SessionId);
+            return Task.CompletedTask;
+        }
+        _ = _artifactMirror.DownloadFromGatewayAsync(frame, CancellationToken.None);
+        return Task.CompletedTask;
     }
 
     private Task HandleWriteInputAsync(WriteInputFrame frame)
@@ -365,6 +402,7 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         {
             await runtime.CloseAsync(CancellationToken.None);
             await runtime.DisposeAsync();
+            ArtifactPaths.DeleteSessionDir(request.SessionId);
             return;
         }
 
@@ -378,6 +416,7 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         if (_sessions.TryRemove(sessionId, out var runtime))
         {
             await runtime.DisposeAsync();
+            ArtifactPaths.DeleteSessionDir(sessionId);
         }
     }
 

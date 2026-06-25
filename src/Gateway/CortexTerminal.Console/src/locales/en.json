@@ -211,7 +211,20 @@
       "empty": "No events recorded yet."
     },
     "fullscreen": "Fullscreen",
-    "exitFullscreen": "Exit Fullscreen"
+    "exitFullscreen": "Exit Fullscreen",
+    "artifacts": {
+      "button": "Files",
+      "title": "Session files",
+      "description": "Files exchanged between you and the worker for this session.",
+      "empty": "No files yet. Upload one and it will land on the worker instantly.",
+      "upload": "Upload file",
+      "uploadSuccess": "File uploaded.",
+      "download": "Download",
+      "downloading": "Downloading...",
+      "me": "Me",
+      "worker": "Worker",
+      "workerUploaded": "Worker uploaded {{filename}}"
+    }
   },
   "workers": {
     "title": "Workers",

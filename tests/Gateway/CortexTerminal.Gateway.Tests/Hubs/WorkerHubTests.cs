@@ -243,7 +243,12 @@ public sealed class WorkerHubTests
         ISessionCoordinator sessions,
         ReplayCoordinator replayCoordinator,
         IReadOnlyDictionary<string, IClientProxy> terminalClients)
-        => (WorkerHub)Activator.CreateInstance(
+    {
+        var storage = new CortexTerminal.Gateway.Tests.Sessions.Fakes.FakeArtifactStorage();
+        var dispatcher = new CortexTerminal.Gateway.Tests.Sessions.Fakes.RecordingArtifactCommandDispatcher();
+        var hub = new CortexTerminal.Gateway.Tests.Sessions.Fakes.ArtifactTestHubContext();
+        var (_, _, artifacts) = TestSessionFactory.CreateArtifactService(workers, storage, hub, dispatcher);
+        return (WorkerHub)Activator.CreateInstance(
             typeof(WorkerHub),
             workers,
             sessions,
@@ -252,7 +257,9 @@ public sealed class WorkerHubTests
             new TestHubContext<TerminalHub>(terminalClients),
             new NoOpStatsService(),
             new NoOpSessionStatsService(),
+            artifacts,
             NullLogger<WorkerHub>.Instance)!;
+    }
 
     private static TerminalHub CreateTerminalHub(ISessionCoordinator sessions, ReplayCoordinator replayCoordinator, TimeProvider timeProvider)
         => (TerminalHub)Activator.CreateInstance(

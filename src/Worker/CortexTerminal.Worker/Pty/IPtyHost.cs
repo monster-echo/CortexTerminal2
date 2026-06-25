@@ -3,6 +3,7 @@ namespace CortexTerminal.Worker.Pty;
 public interface IPtyHost
 {
     Task<IPtyProcess> StartAsync(int columns, int rows, CancellationToken cancellationToken);
+    Task<IPtyProcess> StartAsync(int columns, int rows, IReadOnlyDictionary<string, string> environmentVariables, CancellationToken cancellationToken);
 }
 
 public interface IPtyProcess : IAsyncDisposable

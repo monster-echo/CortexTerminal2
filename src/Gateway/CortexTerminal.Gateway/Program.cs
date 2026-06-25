@@ -11,6 +11,7 @@ using CortexTerminal.Gateway.Auth;
 using CortexTerminal.Gateway.Data;
 using CortexTerminal.Gateway.Hubs;
 using CortexTerminal.Gateway.Sessions;
+using CortexTerminal.Gateway.Storage;
 using CortexTerminal.Gateway.WebSockets;
 using CortexTerminal.Gateway.Tts;
 using CortexTerminal.Gateway.Workers;
@@ -275,6 +276,12 @@ if (int.TryParse(scrollbackEnvBytes, out var envMaxBytes) && envMaxBytes > 0)
     scrollbackSettings.MaxBytesOverride = envMaxBytes;
 }
 builder.Services.AddSingleton(scrollbackSettings);
+
+builder.Services.Configure<ArtifactStorageOptions>(builder.Configuration.GetSection(ArtifactStorageOptions.SectionName));
+builder.Services.AddSingleton<IArtifactStorage, S3CompatibleArtifactStorage>();
+builder.Services.AddSingleton<IArtifactCommandDispatcher, SignalRArtifactCommandDispatcher>();
+builder.Services.AddSingleton<ArtifactService>();
+builder.Services.AddHostedService<ArtifactCleanupHostedService>();
 
 var useInMemory = builder.Configuration.GetValue<bool>("Database:UseInMemory");
 
@@ -1626,6 +1633,7 @@ app.MapDelete("/api/me/sessions/{sessionId}", async (
     ISessionCoordinator sessions,
     IWorkerRegistry workers,
     IWorkerCommandDispatcher workerCommands,
+    ArtifactService artifacts,
     IAuditLogStore auditLog,
     CancellationToken cancellationToken) =>
 {
@@ -1650,6 +1658,9 @@ app.MapDelete("/api/me/sessions/{sessionId}", async (
             _ => SessionOperationError(StatusCodes.Status409Conflict, "Session could not be deleted.")
         };
     }
+
+    // Tighten artifact TTLs to grace window so the UI updates and the cleanup service can finish them off.
+    await artifacts.OnSessionTerminatedAsync(sessionId, cancellationToken);
 
     auditLog.Record(new AuditLogEntry(
         Id: Guid.NewGuid().ToString("N"),
@@ -1723,6 +1734,7 @@ app.MapGet("/api/admin/stats", async (ClaimsPrincipal user, IServiceProvider ser
         return Results.Forbid();
 
     var stats = serviceProvider.GetRequiredService<CortexTerminal.Gateway.Stats.IGatewayStatsService>();
+    stats.TouchHttpUser(userId);
     var snapshot = stats.GetSnapshot();
     var hourlyHistory = stats.GetHourlyHistory(24);
 
@@ -1743,7 +1755,8 @@ app.MapGet("/api/admin/stats", async (ClaimsPrincipal user, IServiceProvider ser
         snapshot.GcGen2Collections,
         snapshot.ThreadCount,
         snapshot.FailedLoginIpCount,
-        HourlyHistory = hourlyHistory
+        HourlyHistory = hourlyHistory,
+        snapshot.HttpActiveUserCount
     });
 }).RequireAuthorization();
 
@@ -1753,12 +1766,12 @@ app.MapGet("/api/admin/user-activity", async (ClaimsPrincipal user, IServiceProv
     if (!await IsAdmin(serviceProvider, userId))
         return Results.Forbid();
 
+    serviceProvider.GetRequiredService<CortexTerminal.Gateway.Stats.IGatewayStatsService>().TouchHttpUser(userId);
+
     using var scope = serviceProvider.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-    var liveSessions = (await sessions.GetAllActiveSessions())
-        .Where(s => s.AttachmentState == SessionAttachmentState.Attached)
-        .ToArray();
+    var liveSessions = (await sessions.GetAllActiveSessions()).ToArray();
     var liveSessionBytes = sessionStats.GetAllSessionBytes();
     var onlineUserIds = liveSessions.Select(s => s.UserId).Distinct().ToHashSet();
 
@@ -2336,6 +2349,54 @@ app.MapDelete("/api/users/{userId}", async (string userId, ClaimsPrincipal user,
         TargetId: userId
     ));
 
+    return Results.Ok();
+}).RequireAuthorization();
+
+// ---- Artifacts ----
+app.MapGet("/api/sessions/{sessionId}/artifacts", async (string sessionId, ClaimsPrincipal user, ArtifactService artifacts) =>
+{
+    var userId = GetUserId(user);
+    var rows = await artifacts.ListAsync(userId, sessionId, CancellationToken.None);
+    return Results.Ok(rows);
+}).RequireAuthorization();
+
+app.MapPost("/api/sessions/{sessionId}/artifacts", async (string sessionId, CreateArtifactRequest body, ClaimsPrincipal user, ArtifactService artifacts) =>
+{
+    var userId = GetUserId(user);
+    var request = body with { SessionId = sessionId, Origin = ArtifactOrigin.Console };
+    UploadUrlResponse resp;
+    try { resp = await artifacts.CreateForConsoleUploadAsync(userId, request, CancellationToken.None); }
+    catch (UnauthorizedAccessException) { return Results.Forbid(); }
+    catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
+    catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
+    return Results.Ok(resp);
+}).RequireAuthorization();
+
+app.MapPost("/api/sessions/{sessionId}/artifacts/{artifactId}/complete", async (string sessionId, string artifactId, CompleteArtifactRequest body, ClaimsPrincipal user, ArtifactService artifacts) =>
+{
+    var userId = GetUserId(user);
+    try { await artifacts.CompleteConsoleUploadAsync(userId, artifactId, body.ContentSha256, CancellationToken.None); }
+    catch (UnauthorizedAccessException) { return Results.Forbid(); }
+    catch (InvalidOperationException ex) { return Results.BadRequest(new { error = ex.Message }); }
+    return Results.Ok(new CompleteArtifactAck(Success: true, Error: null));
+}).RequireAuthorization();
+
+app.MapGet("/api/sessions/{sessionId}/artifacts/{artifactId}/download", async (string sessionId, string artifactId, ClaimsPrincipal user, ArtifactService artifacts) =>
+{
+    var userId = GetUserId(user);
+    DownloadUrlResponse resp;
+    try { resp = await artifacts.GetDownloadUrlAsync(userId, artifactId, CancellationToken.None); }
+    catch (UnauthorizedAccessException) { return Results.Forbid(); }
+    catch (InvalidOperationException ex) { return Results.BadRequest(new { error = ex.Message }); }
+    return Results.Ok(resp);
+}).RequireAuthorization();
+
+app.MapDelete("/api/sessions/{sessionId}/artifacts/{artifactId}", async (string sessionId, string artifactId, ClaimsPrincipal user, ArtifactService artifacts) =>
+{
+    var userId = GetUserId(user);
+    try { await artifacts.DeleteAsync(userId, artifactId, CancellationToken.None); }
+    catch (UnauthorizedAccessException) { return Results.Forbid(); }
+    catch (InvalidOperationException ex) { return Results.BadRequest(new { error = ex.Message }); }
     return Results.Ok();
 }).RequireAuthorization();
 

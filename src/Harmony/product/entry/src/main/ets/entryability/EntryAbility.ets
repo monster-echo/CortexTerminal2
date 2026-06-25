@@ -75,6 +75,7 @@ export default class EntryAbility extends UIAbility {
       appVersion = bundleInfo.versionName
     } catch (_e) {}
     AppStorage.setOrCreate('appVersion', appVersion)
+    AppStorage.setOrCreate('filesDir', this.context.filesDir)
     AppStorage.setOrCreate('currentBreakpoint', 'sm')
     AppStorage.setOrCreate('windowWidth', 0)
     AppStorage.setOrCreate('windowHeight', 0)

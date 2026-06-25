@@ -1,3 +1,4 @@
+using CortexTerminal.Contracts.Sessions;
 using CortexTerminal.Contracts.Streaming;
 using CortexTerminal.Gateway.Audit;
 using CortexTerminal.Gateway.Sessions;
@@ -20,6 +21,7 @@ public sealed class WorkerHub(
     IHubContext<TerminalHub> terminalHubContext,
     IGatewayStatsService stats,
     ISessionStatsService sessionStats,
+    ArtifactService artifacts,
     ILogger<WorkerHub> logger) : Hub
 {
     private string GetUserId()
@@ -250,6 +252,56 @@ public sealed class WorkerHub(
         {
             await DeliverToClientAsync(session, "SessionExited", evt, new WsExitedFrame { SessionId = evt.SessionId, ExitCode = evt.ExitCode, Reason = evt.Reason });
         }
+    }
+
+    /// <summary>
+    /// Worker-side RPC: apply for a presigned PUT URL so the worker can upload a file its
+    /// FileSystemWatcher detected to S3 without ever holding S3 credentials. Gateway creates
+    /// a Pending artifact row and returns the URL + artifactId. The worker follows up with
+    /// <see cref="CompleteArtifactUpload"/>.
+    /// </summary>
+    public async Task<UploadUrlResponse> RequestArtifactUploadUrl(CreateArtifactRequest request)
+    {
+        var worker = workers.FindByConnectionId(Context.ConnectionId)
+            ?? throw new HubException("Worker not registered");
+        if (string.IsNullOrEmpty(worker.OwnerUserId)) throw new HubException("Worker has no owner");
+        return await artifacts.CreateForWorkerUploadAsync(Context.ConnectionId, worker.OwnerUserId!, request, Context.ConnectionAborted);
+    }
+
+    /// <summary>
+    /// Worker-side RPC: report that an artifact has been fully PUT to S3. Gateway HEADs the
+    /// object to verify, flips status to Ready, fans out ArtifactChanged(created), and pushes
+    /// the new artifact to every Console/WS connection owned by the user.
+    /// </summary>
+    public async Task<CompleteArtifactAck> CompleteArtifactUpload(CompleteArtifactRequest request)
+    {
+        var worker = workers.FindByConnectionId(Context.ConnectionId)
+            ?? throw new HubException("Worker not registered");
+        if (string.IsNullOrEmpty(worker.OwnerUserId)) throw new HubException("Worker has no owner");
+        try
+        {
+            await artifacts.CompleteWorkerUploadAsync(Context.ConnectionId, worker.OwnerUserId!, request.ArtifactId, request.ContentSha256, Context.ConnectionAborted);
+            return new CompleteArtifactAck(Success: true, Error: null);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "CompleteArtifactUpload failed for {ArtifactId}.", request.ArtifactId);
+            return new CompleteArtifactAck(Success: false, Error: ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Worker-side RPC: the worker's FileSystemWatcher noticed the local mirror was modified or
+    /// deleted out-of-band (e.g. user/agent rewrote or removed the file). Gateway propagates the
+    /// change so the Console side stays in sync. Currently we treat this as a hint and re-route
+    /// through the upload pipeline; deletion events mark the row Deleted and broadcast.
+    /// </summary>
+    public async Task ReportArtifactDeleted(ReportArtifactDeletedFrame frame)
+    {
+        var worker = workers.FindByConnectionId(Context.ConnectionId);
+        if (worker is null) return;
+        if (!sessions.TryGetSession(frame.SessionId, out var session) || session.WorkerConnectionId != Context.ConnectionId) return;
+        await artifacts.DeleteByWorkerAsync(frame.SessionId, frame.Filename, Context.ConnectionAborted);
     }
 
     /// <summary>

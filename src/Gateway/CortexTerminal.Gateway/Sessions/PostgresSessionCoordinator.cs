@@ -164,6 +164,7 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
     public async Task DetachSessionAsync(string userId, string sessionId, DateTimeOffset detachedAtUtc, CancellationToken cancellationToken)
     {
         SessionRecord? staged = null;
+        var leaseExpiresAtUtc = detachedAtUtc.AddMinutes(5);
 
         lock (_sync)
         {
@@ -174,14 +175,17 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
 
             staged = session with
             {
+                AttachmentState = SessionAttachmentState.DetachedGracePeriod,
                 AttachedClientConnectionId = null,
+                LeaseExpiresAtUtc = leaseExpiresAtUtc,
                 ReplayPending = false,
                 LastActivityAtUtc = detachedAtUtc
             };
         }
 
-        await PersistSessionStateAsync(sessionId, "Attached",
+        await PersistSessionStateAsync(sessionId, "DetachedGracePeriod",
             attachedClientConnectionId: null,
+            leaseExpiresAtUtc: leaseExpiresAtUtc,
             lastActivityAtUtc: detachedAtUtc,
             cancellationToken: cancellationToken);
 
@@ -712,14 +716,16 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
         return entities.Select(MapEntityToRecord).ToArray();
     }
 
-    public async Task<IReadOnlyList<SessionRecord>> GetAllActiveSessions()
+    public Task<IReadOnlyList<SessionRecord>> GetAllActiveSessions()
     {
-        await using var db = await _contextFactory.CreateDbContextAsync();
-        var entities = await db.Sessions
-            .Where(s => s.AttachmentState == "Attached" || s.AttachmentState == "DetachedGracePeriod")
-            .ToListAsync();
-
-        return entities.Select(MapEntityToRecord).ToArray();
+        lock (_sync)
+        {
+            var result = _sessions.Values
+                .Where(s => s.AttachmentState == SessionAttachmentState.Attached
+                         || s.AttachmentState == SessionAttachmentState.DetachedGracePeriod)
+                .ToArray();
+            return Task.FromResult<IReadOnlyList<SessionRecord>>(result);
+        }
     }
 
     private static SessionRecord MapEntityToRecord(SessionRecordEntity entity)

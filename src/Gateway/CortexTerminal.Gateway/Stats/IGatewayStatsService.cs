@@ -5,6 +5,7 @@ public interface IGatewayStatsService
     void ClientConnected();
     void ClientDisconnected();
     void RecordBytesTransferred(int byteCount);
+    void TouchHttpUser(string userId);
     GatewayStatsSnapshot GetSnapshot();
     IReadOnlyList<HourlyStatsPoint> GetHourlyHistory(int hours);
     void CaptureSnapshot();
@@ -24,7 +25,8 @@ public sealed record GatewayStatsSnapshot(
     int GcGen1Collections,
     int GcGen2Collections,
     int ThreadCount,
-    int FailedLoginIpCount);
+    int FailedLoginIpCount,
+    int HttpActiveUserCount);
 
 public sealed record HourlyStatsPoint(
     DateTimeOffset Timestamp,

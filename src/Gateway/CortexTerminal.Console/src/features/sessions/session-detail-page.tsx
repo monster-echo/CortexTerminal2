@@ -20,6 +20,7 @@ import { ConfirmDialog } from '@/components/confirm-dialog'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { SessionDetailsSheet } from './session-details-sheet'
+import { ArtifactFeedSheet } from './artifact-feed-sheet'
 
 export function SessionDetailPage(props: { sessionId: string }) {
   const { sessionId } = props
@@ -225,6 +226,8 @@ export function SessionDetailPage(props: { sessionId: string }) {
               latencyState={latencyState}
             />
           )}
+
+          {!isMobile && <ArtifactFeedSheet sessionId={sessionId} />}
         </div>
       </Header>
       <Main fluid className='flex min-h-0 flex-1 flex-col overflow-hidden py-0'>

@@ -12,6 +12,7 @@
     "@rwecho/terminal": "file:../../feature/terminal",
     "@rwecho/worker": "file:../../feature/worker",
     "@rwecho/settings": "file:../../feature/settings",
+    "@rwecho/artifacts": "file:../../feature/artifacts",
     "routermodule": "file:../../common/routermodule"
   }
 }

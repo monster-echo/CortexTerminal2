@@ -10,6 +10,7 @@ public class AppDbContext : DbContext
     public DbSet<WorkerRecord> Workers => Set<WorkerRecord>();
     public DbSet<SessionRecordEntity> Sessions => Set<SessionRecordEntity>();
     public DbSet<UserPreference> UserPreferences => Set<UserPreference>();
+    public DbSet<ArtifactEntity> Artifacts => Set<ArtifactEntity>();
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
@@ -54,6 +55,14 @@ public class AppDbContext : DbContext
         {
             entity.HasIndex(e => new { e.UserId, e.Key }).IsUnique();
             entity.HasIndex(e => e.UserId);
+        });
+
+        modelBuilder.Entity<ArtifactEntity>(entity =>
+        {
+            entity.HasIndex(e => new { e.SessionId, e.Filename }).IsUnique();
+            entity.HasIndex(e => e.OwnerUserId);
+            entity.HasIndex(e => e.ExpiresAtUtc);
+            entity.HasIndex(e => e.SessionId);
         });
     }
 }

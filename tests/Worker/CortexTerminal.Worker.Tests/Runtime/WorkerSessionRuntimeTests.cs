@@ -78,6 +78,9 @@ internal sealed class ControlledPtyHost(ControlledPtyProcess process) : IPtyHost
         StartRequests.Add((columns, rows));
         return Task.FromResult<IPtyProcess>(process);
     }
+
+    public Task<IPtyProcess> StartAsync(int columns, int rows, IReadOnlyDictionary<string, string> environmentVariables, CancellationToken cancellationToken)
+        => StartAsync(columns, rows, cancellationToken);
 }
 
 internal sealed class QueuePtyHost(params ControlledPtyProcess[] processes) : IPtyHost
@@ -93,6 +96,9 @@ internal sealed class QueuePtyHost(params ControlledPtyProcess[] processes) : IP
 
         return Task.FromResult<IPtyProcess>(_processes.Dequeue());
     }
+
+    public Task<IPtyProcess> StartAsync(int columns, int rows, IReadOnlyDictionary<string, string> environmentVariables, CancellationToken cancellationToken)
+        => StartAsync(columns, rows, cancellationToken);
 }
 
 internal sealed class ControlledPtyProcess : IPtyProcess

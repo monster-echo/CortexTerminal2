@@ -45,6 +45,9 @@ public sealed class WorkerGatewayClient : IWorkerGatewayClient
     public IDisposable OnRequestScrollback(Func<string, IReadOnlyList<TerminalChunk>> handler)
         => _connection.On<string, IReadOnlyList<TerminalChunk>>("RequestScrollback", handler);
 
+    public IDisposable OnNotifyArtifactUploaded(Func<NotifyArtifactUploadedFrame, Task> handler)
+        => _connection.On<NotifyArtifactUploadedFrame>("NotifyArtifactUploaded", handler);
+
     public IDisposable OnReconnected(Func<string?, Task> handler)
     {
         lock (_sync)
@@ -94,6 +97,15 @@ public sealed class WorkerGatewayClient : IWorkerGatewayClient
 
     public Task SendWorkerInfoAsync(WorkerInfoFrame info, CancellationToken ct)
         => _connection.InvokeAsync("UpdateWorkerInfo", info, ct);
+
+    public Task<UploadUrlResponse> RequestArtifactUploadUrlAsync(CreateArtifactRequest request, CancellationToken ct)
+        => _connection.InvokeAsync<UploadUrlResponse>("RequestArtifactUploadUrl", request, ct);
+
+    public Task<CompleteArtifactAck> CompleteArtifactUploadAsync(CompleteArtifactRequest request, CancellationToken ct)
+        => _connection.InvokeAsync<CompleteArtifactAck>("CompleteArtifactUpload", request, ct);
+
+    public Task ReportArtifactDeletedAsync(ReportArtifactDeletedFrame frame, CancellationToken ct)
+        => _connection.SendAsync("ReportArtifactDeleted", frame, ct);
 
     public ValueTask DisposeAsync() => _connection.DisposeAsync();
 

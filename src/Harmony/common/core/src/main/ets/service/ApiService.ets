@@ -61,6 +61,74 @@ export class ApiService {
     await ApiService.put(`/api/me/sessions/${encodeURIComponent(sessionId)}`, body as Object)
   }
 
+  // ── Artifact APIs ────────────────────────────────────────────────
+
+  static async listArtifacts(sessionId: string): Promise<Object[]> {
+    return await ApiService.get(`/api/sessions/${encodeURIComponent(sessionId)}/artifacts`) as Object[]
+  }
+
+  static async createArtifactUpload(sessionId: string, filename: string, sizeBytes: number,
+    contentSha256: string): Promise<Record<string, Object>> {
+    const body: Record<string, Object> = {
+      'filename': filename,
+      'sizeBytes': sizeBytes,
+      'contentSha256': contentSha256,
+      'origin': 'console',
+      'sessionId': sessionId
+    }
+    return await ApiService.post(
+      `/api/sessions/${encodeURIComponent(sessionId)}/artifacts`,
+      body as Object) as Record<string, Object>
+  }
+
+  static async completeArtifactUpload(sessionId: string, artifactId: string,
+    contentSha256: string): Promise<void> {
+    const body: Record<string, Object> = {
+      'artifactId': artifactId,
+      'contentSha256': contentSha256
+    }
+    await ApiService.post(
+      `/api/sessions/${encodeURIComponent(sessionId)}/artifacts/${encodeURIComponent(artifactId)}/complete`,
+      body as Object)
+  }
+
+  static async deleteArtifact(sessionId: string, artifactId: string): Promise<void> {
+    await ApiService.del(
+      `/api/sessions/${encodeURIComponent(sessionId)}/artifacts/${encodeURIComponent(artifactId)}`)
+  }
+
+  static async getArtifactDownloadUrl(sessionId: string, artifactId: string): Promise<string> {
+    const resp = await ApiService.get(
+      `/api/sessions/${encodeURIComponent(sessionId)}/artifacts/${encodeURIComponent(artifactId)}/download`
+    ) as Record<string, Object>
+    return (resp['downloadUrl'] as string) ?? ''
+  }
+
+  static async putBinaryToS3(uploadUrl: string, buffer: ArrayBuffer): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      const httpRequest = http.createHttp()
+      httpRequest.request(uploadUrl, {
+        method: http.RequestMethod.PUT,
+        header: { 'Content-Type': 'application/octet-stream' },
+        extraData: buffer,
+        expectDataType: http.HttpDataType.STRING,
+        connectTimeout: 30000,
+        readTimeout: 30000
+      }, (err, data) => {
+        if (err) {
+          reject(new Error((err as Error).message || 'S3 upload failed'))
+          return
+        }
+        if (data.responseCode >= 200 && data.responseCode < 300) {
+          resolve()
+        } else {
+          reject(new Error(`S3 upload failed (${data.responseCode})`))
+        }
+        httpRequest.destroy()
+      })
+    })
+  }
+
   // ── Worker APIs ───────────────────────────────────────────────────
 
   static async listWorkers(): Promise<WorkerInfo[]> {

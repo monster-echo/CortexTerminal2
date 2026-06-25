@@ -2,11 +2,13 @@ using System.Collections.Concurrent;
 using System.Net;
 using CortexTerminal.Contracts.Sessions;
 using CortexTerminal.Contracts.Streaming;
+using CortexTerminal.Worker.Artifacts;
 using CortexTerminal.Worker.Pty;
 using CortexTerminal.Worker.Registration;
 using CortexTerminal.Worker.Runtime;
 using FluentAssertions;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace CortexTerminal.Worker.Tests.Runtime;
@@ -115,6 +117,9 @@ public sealed class WorkerRuntimeHostTests
 
         await using var host = new WorkerRuntimeHost(
             "worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()),
+            new HttpClient(),
+            new ArtifactMirror(new HttpClient(), NullLogger<ArtifactMirror>.Instance),
+            50 * 1024 * 1024,
             NullLoggerFactory.Instance, NewLifetime(), TimeSpan.FromMilliseconds(50));
 
         await host.StartAsync(CancellationToken.None);
@@ -140,6 +145,9 @@ public sealed class WorkerRuntimeHostTests
 
         await using var host = new WorkerRuntimeHost(
             "worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()),
+            new HttpClient(),
+            new ArtifactMirror(new HttpClient(), NullLogger<ArtifactMirror>.Instance),
+            50 * 1024 * 1024,
             NullLoggerFactory.Instance, NewLifetime(), TimeSpan.FromMilliseconds(50));
 
         await host.StartAsync(CancellationToken.None);
@@ -165,6 +173,9 @@ public sealed class WorkerRuntimeHostTests
 
         await using var host = new WorkerRuntimeHost(
             "worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()),
+            new HttpClient(),
+            new ArtifactMirror(new HttpClient(), NullLogger<ArtifactMirror>.Instance),
+            50 * 1024 * 1024,
             NullLoggerFactory.Instance, NewLifetime(), TimeSpan.FromMilliseconds(50));
 
         await host.StartAsync(CancellationToken.None);
@@ -193,6 +204,9 @@ public sealed class WorkerRuntimeHostTests
 
         await using var host = new WorkerRuntimeHost(
             "worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()),
+            new HttpClient(),
+            new ArtifactMirror(new HttpClient(), NullLogger<ArtifactMirror>.Instance),
+            50 * 1024 * 1024,
             NullLoggerFactory.Instance, lifetime, TimeSpan.FromMilliseconds(50));
 
         await host.StartAsync(CancellationToken.None);
@@ -423,6 +437,18 @@ internal sealed class FakeWorkerGatewayClient : IWorkerGatewayClient
     public Task SendWorkerInfoAsync(WorkerInfoFrame info, CancellationToken ct)
         => Task.CompletedTask;
 
+    public IDisposable OnNotifyArtifactUploaded(Func<NotifyArtifactUploadedFrame, Task> handler)
+        => new DelegateDisposable(() => { });
+
+    public Task<UploadUrlResponse> RequestArtifactUploadUrlAsync(CreateArtifactRequest request, CancellationToken ct)
+        => throw new NotSupportedException();
+
+    public Task<CompleteArtifactAck> CompleteArtifactUploadAsync(CompleteArtifactRequest request, CancellationToken ct)
+        => throw new NotSupportedException();
+
+    public Task ReportArtifactDeletedAsync(ReportArtifactDeletedFrame frame, CancellationToken ct)
+        => throw new NotSupportedException();
+
     public async Task RaiseStartSessionAsync(StartSessionCommand command)
     {
         foreach (var handler in _startHandlers)
@@ -517,6 +543,9 @@ internal sealed class DelegateDisposable(Action dispose) : IDisposable
 internal sealed class ThrowingPtyHost(Exception exception) : IPtyHost
 {
     public Task<IPtyProcess> StartAsync(int columns, int rows, CancellationToken cancellationToken)
+        => Task.FromException<IPtyProcess>(exception);
+
+    public Task<IPtyProcess> StartAsync(int columns, int rows, IReadOnlyDictionary<string, string> environmentVariables, CancellationToken cancellationToken)
         => Task.FromException<IPtyProcess>(exception);
 }
 

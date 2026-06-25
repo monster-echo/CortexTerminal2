@@ -7,6 +7,7 @@ import { AuthInterceptorExecute } from '../interceptor/AuthInterceptor'
 import { AuthService, RouteName } from '@rwecho/core'
 import { LoginPage, ActivateWorkerPage } from '@rwecho/auth'
 import { TerminalPage } from '@rwecho/terminal'
+import { ArtifactsPage } from '@rwecho/artifacts'
 import { ShellScaffold } from '../shell/ShellScaffold'
 import { AccountSecurityPage, ChangePasswordPage, WebPage } from '@rwecho/settings'
 
@@ -122,6 +123,12 @@ struct Index {
     } else if (name === RouteName.WEB_PAGE) {
       NavDestination() {
         WebPage()
+      }
+      .hideTitleBar(true)
+      .backgroundColor($r('app.color.terminal_surface'))
+    } else if (name === RouteName.ARTIFACTS_PAGE) {
+      NavDestination() {
+        ArtifactsPage()
       }
       .hideTitleBar(true)
       .backgroundColor($r('app.color.terminal_surface'))

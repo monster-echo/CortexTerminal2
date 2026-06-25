@@ -211,7 +211,20 @@
       "empty": "暂无事件记录。"
     },
     "fullscreen": "全屏",
-    "exitFullscreen": "退出全屏"
+    "exitFullscreen": "退出全屏",
+    "artifacts": {
+      "button": "文件",
+      "title": "会话文件",
+      "description": "本会话内你与 Worker 之间交换的文件。",
+      "empty": "还没有文件。上传一个，它会立即落到 Worker 上。",
+      "upload": "上传文件",
+      "uploadSuccess": "上传成功。",
+      "download": "下载",
+      "downloading": "下载中…",
+      "me": "我",
+      "worker": "Worker",
+      "workerUploaded": "Worker 上传了 {{filename}}"
+    }
   },
   "workers": {
     "title": "工作节点",

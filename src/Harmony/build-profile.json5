@@ -96,6 +96,10 @@
       "srcPath": "./feature/session"
     },
     {
+      "name": "artifacts",
+      "srcPath": "./feature/artifacts"
+    },
+    {
       "name": "signalr",
       "srcPath": "./common/signalr"
     },

@@ -109,7 +109,7 @@ export function AdminDashboard() {
               <Wifi className='h-4 w-4 text-violet-500' />
             </CardHeader>
             <CardContent>
-              <div className='text-2xl font-bold'>{stats?.connectedClients ?? '-'}</div>
+              <div className='text-2xl font-bold'>{stats?.httpActiveUserCount ?? '-'}</div>
             </CardContent>
           </Card>
 
