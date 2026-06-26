@@ -247,7 +247,6 @@ export default function SessionsPage({ history }: RouteComponentProps) {
                     </IonItemOption>
                     <IonItemOption
                       color="danger"
-                      expandable
                       style={{
                         margin: "4px 8px 4px 0",
                         borderRadius: "8px",

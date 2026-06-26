@@ -6,6 +6,7 @@ using CortexTerminal.Mobile.App.Services.Terminal;
 using Microsoft.Extensions.Configuration;
 using Serilog;
 using CortexTerminal.Mobile.App.Services;
+using System.Net.Http.Headers;
 
 namespace CortexTerminal.Mobile.App;
 
@@ -40,7 +41,7 @@ public static class MauiProgram
 			var gatewayBaseUri = sp.GetRequiredService<Uri>();
 			var authService = new AuthService(
 				sp.GetRequiredService<ITokenStore>(),
-				new HttpClient(CreateGatewayHandler()) { BaseAddress = gatewayBaseUri, Timeout = TimeSpan.FromSeconds(30) });
+				CreateGatewayHttpClient(gatewayBaseUri));
 			return authService;
 		});
 		builder.Services.AddSingleton(sp =>
@@ -51,7 +52,7 @@ public static class MauiProgram
 			{
 				InnerHandler = CreateGatewayHandler()
 			};
-			var httpClient = new HttpClient(handler) { BaseAddress = gatewayBaseUri, Timeout = TimeSpan.FromSeconds(30) };
+			var httpClient = CreateGatewayHttpClient(gatewayBaseUri, handler);
 			return new TerminalGatewayService(
 				gatewayBaseUri,
 				authService,
@@ -102,5 +103,30 @@ public static class MauiProgram
 #else
 			return new HttpClientHandler();
 #endif
+	}
+
+	internal static HttpClient CreateGatewayHttpClient(Uri baseAddress, HttpMessageHandler? innerHandler = null)
+	{
+		var handler = innerHandler ?? CreateGatewayHandler();
+		var client = new HttpClient(handler) { BaseAddress = baseAddress, Timeout = TimeSpan.FromSeconds(30) };
+		client.DefaultRequestHeaders.UserAgent.ParseAdd(BuildUserAgent());
+		return client;
+	}
+
+	internal static string BuildUserAgent()
+	{
+		var version = "unknown";
+		var platform = DeviceInfo.Current.Platform.ToString();
+		var model = string.IsNullOrWhiteSpace(DeviceInfo.Current.Model) ? "unknown" : DeviceInfo.Current.Model;
+		var osVersion = DeviceInfo.Current.VersionString ?? "unknown";
+		try
+		{
+			version = AppInfo.Current.BuildString;
+		}
+		catch
+		{
+			// AppInfo may not be available in design-time / preview contexts
+		}
+		return $"CortexTerminal.Mobile.App/{version} ({platform}; {model}; {osVersion})";
 	}
 }

@@ -28,7 +28,10 @@ public sealed class PostgresAuditLogStore : IAuditLogStore
             UserName = entry.UserName,
             Action = entry.Action,
             TargetEntity = entry.TargetEntity,
-            TargetId = entry.TargetId
+            TargetId = entry.TargetId,
+            ClientIp = entry.ClientIp,
+            UserAgent = entry.UserAgent,
+            DeviceModel = entry.DeviceModel
         });
         await db.SaveChangesAsync();
     }
@@ -63,7 +66,8 @@ public sealed class PostgresAuditLogStore : IAuditLogStore
             .Skip((currentPage - 1) * currentPageSize)
             .Take(currentPageSize)
             .Select(e => new AuditLogEntry(
-                e.Id, e.Timestamp, e.UserId, e.UserName, e.Action, e.TargetEntity, e.TargetId))
+                e.Id, e.Timestamp, e.UserId, e.UserName, e.Action, e.TargetEntity, e.TargetId,
+                e.ClientIp, e.UserAgent, e.DeviceModel))
             .ToListAsync();
 
         return (entries, totalCount);

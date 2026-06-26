@@ -7,5 +7,8 @@ public sealed record AuditLogEntry(
     string UserName,
     string Action,
     string TargetEntity,
-    string TargetId
+    string TargetId,
+    string? ClientIp = null,
+    string? UserAgent = null,
+    string? DeviceModel = null
 );

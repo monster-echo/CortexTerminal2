@@ -1492,6 +1492,7 @@ app.MapPost("/api/sessions", async (
     ISessionLaunchCoordinator sessionLaunchCoordinator,
     IAuditLogStore auditLog,
     System.Security.Claims.ClaimsPrincipal user,
+    HttpContext httpContext,
     CancellationToken cancellationToken) =>
 {
     if (!string.Equals(request.Runtime, "shell", StringComparison.Ordinal))
@@ -1508,14 +1509,12 @@ app.MapPost("/api/sessions", async (
 
     if (result.IsSuccess)
     {
-        auditLog.Record(new AuditLogEntry(
-            Id: Guid.NewGuid().ToString("N"),
-            Timestamp: DateTimeOffset.UtcNow,
-            UserId: userId,
-            UserName: userId,
-            Action: "session.create",
-            TargetEntity: "session",
-            TargetId: result.Response!.SessionId
+        auditLog.Record(httpContext.CreateAuditEntry(
+            userId,
+            userId,
+            "session.create",
+            "session",
+            result.Response!.SessionId
         ));
     }
 
@@ -1587,6 +1586,7 @@ app.MapPost("/api/me/sessions/{sessionId}/terminate", async (
     IWorkerRegistry workers,
     IWorkerCommandDispatcher workerCommands,
     IAuditLogStore auditLog,
+    HttpContext httpContext,
     CancellationToken cancellationToken) =>
 {
     if (!sessions.TryGetSession(sessionId, out var session))
@@ -1621,14 +1621,12 @@ app.MapPost("/api/me/sessions/{sessionId}/terminate", async (
     }
 
     await workerCommands.CloseSessionAsync(worker.ConnectionId, new CloseSessionRequest(sessionId), cancellationToken);
-    auditLog.Record(new AuditLogEntry(
-        Id: Guid.NewGuid().ToString("N"),
-        Timestamp: DateTimeOffset.UtcNow,
-        UserId: userId,
-        UserName: userId,
-        Action: "session.terminate_requested",
-        TargetEntity: "session",
-        TargetId: sessionId
+    auditLog.Record(httpContext.CreateAuditEntry(
+        userId,
+        userId,
+        "session.terminate_requested",
+        "session",
+        sessionId
     ));
 
     return Results.Accepted($"/api/me/sessions/{Uri.EscapeDataString(sessionId)}", new { message = "Termination requested." });
@@ -1642,6 +1640,7 @@ app.MapDelete("/api/me/sessions/{sessionId}", async (
     IWorkerCommandDispatcher workerCommands,
     ArtifactService artifacts,
     IAuditLogStore auditLog,
+    HttpContext httpContext,
     CancellationToken cancellationToken) =>
 {
     var userId = GetUserId(user);
@@ -1669,20 +1668,18 @@ app.MapDelete("/api/me/sessions/{sessionId}", async (
     // Tighten artifact TTLs to grace window so the UI updates and the cleanup service can finish them off.
     await artifacts.OnSessionTerminatedAsync(sessionId, cancellationToken);
 
-    auditLog.Record(new AuditLogEntry(
-        Id: Guid.NewGuid().ToString("N"),
-        Timestamp: DateTimeOffset.UtcNow,
-        UserId: userId,
-        UserName: userId,
-        Action: "session.delete",
-        TargetEntity: "session",
-        TargetId: sessionId
+    auditLog.Record(httpContext.CreateAuditEntry(
+        userId,
+        userId,
+        "session.delete",
+        "session",
+        sessionId
     ));
 
     return Results.NoContent();
 }).RequireAuthorization();
 
-var renameSessionHandler = async (string sessionId, RenameSessionRequest request, ClaimsPrincipal user, ISessionCoordinator sessions, IAuditLogStore auditLog) =>
+var renameSessionHandler = async (string sessionId, RenameSessionRequest request, ClaimsPrincipal user, ISessionCoordinator sessions, IAuditLogStore auditLog, HttpContext httpContext) =>
 {
     var userId = GetUserId(user);
 
@@ -1697,14 +1694,12 @@ var renameSessionHandler = async (string sessionId, RenameSessionRequest request
         return Results.NotFound();
     }
 
-    auditLog.Record(new AuditLogEntry(
-        Id: Guid.NewGuid().ToString("N"),
-        Timestamp: DateTimeOffset.UtcNow,
-        UserId: userId,
-        UserName: userId,
-        Action: "session.rename",
-        TargetEntity: "session",
-        TargetId: sessionId
+    auditLog.Record(httpContext.CreateAuditEntry(
+        userId,
+        userId,
+        "session.rename",
+        "session",
+        sessionId
     ));
 
     return Results.Ok(new { sessionId, Name = request.Name });

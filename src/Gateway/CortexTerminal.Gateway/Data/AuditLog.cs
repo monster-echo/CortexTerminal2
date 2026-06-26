@@ -32,4 +32,13 @@ public class AuditLog
     [Required]
     [Column("target_id")]
     public string TargetId { get; set; } = "";
+
+    [Column("client_ip")]
+    public string? ClientIp { get; set; }
+
+    [Column("user_agent")]
+    public string? UserAgent { get; set; }
+
+    [Column("device_model")]
+    public string? DeviceModel { get; set; }
 }
