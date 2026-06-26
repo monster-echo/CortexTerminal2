@@ -234,6 +234,10 @@
       "promptSubmitted": "已提交 Prompt",
       "toolCall": "工具调用：{tool}",
       "stopped": "Agent 停止",
+      "sessionEnded": "会话结束",
+      "subagentStopped": "子 Agent 停止",
+      "notified": "通知",
+      "compacting": "压缩上下文",
       "expand": "展开详情",
       "collapse": "收起详情"
     }

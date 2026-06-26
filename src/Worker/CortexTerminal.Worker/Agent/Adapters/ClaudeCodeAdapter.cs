@@ -6,10 +6,11 @@ using CortexTerminal.Contracts.Streaming;
 namespace CortexTerminal.Worker.Agent.Adapters;
 
 /// <summary>
-/// Parses Claude Code hook events (SessionStart / UserPromptSubmit / PreToolUse / PostToolUse / Stop)
-/// into structured activity frames. Each event payload is the JSON Claude Code passes to the hook
-/// command on stdin; the wrapper's <c>hook</c> subcommand wraps it in the standard envelope and
-/// POSTs to the loopback HTTP endpoint, which hands the payload here.
+/// Parses Claude Code hook events (SessionStart / SessionEnd / UserPromptSubmit / PreToolUse /
+/// PostToolUse / Stop / SubagentStop / Notification / PreCompact) into structured activity frames.
+/// Each event payload is the JSON Claude Code passes to the hook command on stdin; the wrapper's
+/// <c>hook</c> subcommand wraps it in the standard envelope and POSTs to the loopback HTTP
+/// endpoint, which hands the payload here.
 ///
 /// Reference: https://code.claude.com/docs/en/hooks
 /// </summary>
@@ -48,10 +49,14 @@ public sealed class ClaudeCodeAdapter : IAgentAdapter
         var hookEvents = new[]
         {
             "SessionStart",
+            "SessionEnd",
             "UserPromptSubmit",
             "PreToolUse",
             "PostToolUse",
             "Stop",
+            "SubagentStop",
+            "Notification",
+            "PreCompact",
         };
 
         var hooks = new JsonObject();
@@ -85,9 +90,13 @@ public sealed class ClaudeCodeAdapter : IAgentAdapter
         return eventType switch
         {
             "SessionStart" => ParseSessionStart(payload, context),
+            "SessionEnd" => ParseSessionEnd(payload, context),
             "UserPromptSubmit" => ParseUserPromptSubmit(payload, context),
             "PostToolUse" => ParsePostToolUse(payload, context),
             "Stop" => ParseStop(payload, context),
+            "SubagentStop" => ParseSubagentStop(payload, context),
+            "Notification" => ParseNotification(payload, context),
+            "PreCompact" => ParsePreCompact(payload, context),
             _ => null,
         };
     }
@@ -136,5 +145,30 @@ public sealed class ClaudeCodeAdapter : IAgentAdapter
         // Stop hook doesn't carry cost/token totals — those live in the transcript JSONL.
         // The transcript watcher (Phase 4.1) will backfill them; for now we emit a bare stop frame.
         return new AgentStoppedFrame(context.SessionId, TotalCostUsd: null, TotalTokensIn: null, TotalTokensOut: null, StopReason: null);
+    }
+
+    private static AgentSessionEndedFrame ParseSessionEnd(JsonObject payload, AgentSessionContext context)
+    {
+        var reason = payload.TryGetPropertyValue("reason", out var r) ? r?.GetValue<string>() : null;
+        return new AgentSessionEndedFrame(context.SessionId, reason);
+    }
+
+    private static AgentSubagentStoppedFrame ParseSubagentStop(JsonObject payload, AgentSessionContext context)
+    {
+        var subagentId = payload.TryGetPropertyValue("subagent_id", out var sid) ? sid?.GetValue<string>() : null;
+        return new AgentSubagentStoppedFrame(context.SessionId, subagentId);
+    }
+
+    private static AgentNotifiedFrame ParseNotification(JsonObject payload, AgentSessionContext context)
+    {
+        var title = payload.TryGetPropertyValue("title", out var t) ? t?.GetValue<string>() : null;
+        var body = payload.TryGetPropertyValue("message", out var m) ? m?.GetValue<string>() : null;
+        return new AgentNotifiedFrame(context.SessionId, title, body);
+    }
+
+    private static AgentCompactingFrame ParsePreCompact(JsonObject payload, AgentSessionContext context)
+    {
+        var trigger = payload.TryGetPropertyValue("trigger", out var tr) ? tr?.GetValue<string>() : null;
+        return new AgentCompactingFrame(context.SessionId, trigger);
     }
 }

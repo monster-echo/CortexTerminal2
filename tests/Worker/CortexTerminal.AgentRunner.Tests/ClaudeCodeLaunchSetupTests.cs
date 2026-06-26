@@ -6,13 +6,13 @@ namespace CortexTerminal.AgentRunner.Tests;
 
 /// <summary>
 /// Verifies the Claude Code settings.json generator. The output merges Corterm hooks into the
-/// user's existing settings (preserving their custom hooks) and wires each of the five hook
+/// user's existing settings (preserving their custom hooks) and wires each of the nine hook
 /// events to <c>corterm-agent hook claude-code</c>.
 /// </summary>
 public sealed class ClaudeCodeLaunchSetupTests
 {
     [Fact]
-    public void BuildSettingsJson_AddsAllFiveHookEvents()
+    public void BuildSettingsJson_AddsAllNineHookEvents()
     {
         var setup = new ClaudeCodeLaunchSetup("sess-1", "http://127.0.0.1:9999/agent-event");
         var userClaudeDir = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "no-such-user-claude-" + Guid.NewGuid().ToString("N"))).FullName;
@@ -21,7 +21,7 @@ public sealed class ClaudeCodeLaunchSetupTests
         var root = JsonNode.Parse(json)!.AsObject();
         var hooks = root["hooks"]!.AsObject();
 
-        var expected = new[] { "SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop" };
+        var expected = new[] { "SessionStart", "SessionEnd", "UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop", "SubagentStop", "Notification", "PreCompact" };
         foreach (var evt in expected)
         {
             var arr = hooks[evt]!.AsArray();
@@ -86,7 +86,7 @@ public sealed class ClaudeCodeLaunchSetupTests
         var json = setup.BuildSettingsJson(userClaudeDir);
 
         var root = JsonNode.Parse(json)!.AsObject();
-        root["hooks"]!.AsObject().Count.Should().Be(5);
+        root["hooks"]!.AsObject().Count.Should().Be(9);
     }
 
     [Fact]
@@ -101,7 +101,7 @@ public sealed class ClaudeCodeLaunchSetupTests
             var json = setup.BuildSettingsJson(userClaudeDir);
 
             var root = JsonNode.Parse(json)!.AsObject();
-            root["hooks"]!.AsObject().Count.Should().Be(5);
+            root["hooks"]!.AsObject().Count.Should().Be(9);
         }
         finally
         {

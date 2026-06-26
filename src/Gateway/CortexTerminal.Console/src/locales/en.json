@@ -234,6 +234,10 @@
       "promptSubmitted": "Prompt submitted",
       "toolCall": "Tool call: {tool}",
       "stopped": "Agent stopped",
+      "sessionEnded": "Session ended",
+      "subagentStopped": "Subagent stopped",
+      "notified": "Notification",
+      "compacting": "Compacting context",
       "expand": "Show details",
       "collapse": "Hide details"
     }

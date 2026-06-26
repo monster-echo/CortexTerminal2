@@ -18,10 +18,14 @@ public sealed class ClaudeCodeLaunchSetup : IAgentLaunchSetup
     private static readonly string[] HookEvents =
     {
         "SessionStart",
+        "SessionEnd",
         "UserPromptSubmit",
         "PreToolUse",
         "PostToolUse",
         "Stop",
+        "SubagentStop",
+        "Notification",
+        "PreCompact",
     };
 
     private readonly string _sessionId;

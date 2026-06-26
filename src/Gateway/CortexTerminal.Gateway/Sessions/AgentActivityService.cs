@@ -22,6 +22,10 @@ public sealed class AgentActivityService
         "AgentPromptSubmitted",
         "AgentToolCall",
         "AgentStopped",
+        "AgentSessionEnded",
+        "AgentSubagentStopped",
+        "AgentNotified",
+        "AgentCompacting",
     };
 
     private const int InferredTitleMaxLength = 200;
@@ -126,6 +130,82 @@ public sealed class AgentActivityService
         await db.SaveChangesAsync(cancellationToken);
 
         await BroadcastAsync(entity.UserId, "AgentStopped", frame, cancellationToken);
+    }
+
+    public async Task HandleSessionEndedAsync(string sessionId, string workerConnectionId, AgentSessionEndedFrame frame, CancellationToken cancellationToken)
+    {
+        if (!await EnsureWorkerOwnsSessionAsync(sessionId, workerConnectionId, cancellationToken)) return;
+
+        await PersistEventAsync(sessionId, "AgentSessionEnded", frame, cancellationToken);
+
+        await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await db.Sessions.FindAsync(new object?[] { sessionId }, cancellationToken);
+        if (entity is null)
+        {
+            _logger.LogWarning("AgentSessionEnded for unknown session {SessionId}.", sessionId);
+            return;
+        }
+        entity.LastActivityAtUtc = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync(cancellationToken);
+
+        await BroadcastAsync(entity.UserId, "AgentSessionEnded", frame, cancellationToken);
+    }
+
+    public async Task HandleSubagentStoppedAsync(string sessionId, string workerConnectionId, AgentSubagentStoppedFrame frame, CancellationToken cancellationToken)
+    {
+        if (!await EnsureWorkerOwnsSessionAsync(sessionId, workerConnectionId, cancellationToken)) return;
+
+        await PersistEventAsync(sessionId, "AgentSubagentStopped", frame, cancellationToken);
+
+        await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await db.Sessions.FindAsync(new object?[] { sessionId }, cancellationToken);
+        if (entity is null)
+        {
+            _logger.LogWarning("AgentSubagentStopped for unknown session {SessionId}.", sessionId);
+            return;
+        }
+        entity.LastActivityAtUtc = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync(cancellationToken);
+
+        await BroadcastAsync(entity.UserId, "AgentSubagentStopped", frame, cancellationToken);
+    }
+
+    public async Task HandleNotifiedAsync(string sessionId, string workerConnectionId, AgentNotifiedFrame frame, CancellationToken cancellationToken)
+    {
+        if (!await EnsureWorkerOwnsSessionAsync(sessionId, workerConnectionId, cancellationToken)) return;
+
+        await PersistEventAsync(sessionId, "AgentNotified", frame, cancellationToken);
+
+        await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await db.Sessions.FindAsync(new object?[] { sessionId }, cancellationToken);
+        if (entity is null)
+        {
+            _logger.LogWarning("AgentNotified for unknown session {SessionId}.", sessionId);
+            return;
+        }
+        entity.LastActivityAtUtc = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync(cancellationToken);
+
+        await BroadcastAsync(entity.UserId, "AgentNotified", frame, cancellationToken);
+    }
+
+    public async Task HandleCompactingAsync(string sessionId, string workerConnectionId, AgentCompactingFrame frame, CancellationToken cancellationToken)
+    {
+        if (!await EnsureWorkerOwnsSessionAsync(sessionId, workerConnectionId, cancellationToken)) return;
+
+        await PersistEventAsync(sessionId, "AgentCompacting", frame, cancellationToken);
+
+        await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await db.Sessions.FindAsync(new object?[] { sessionId }, cancellationToken);
+        if (entity is null)
+        {
+            _logger.LogWarning("AgentCompacting for unknown session {SessionId}.", sessionId);
+            return;
+        }
+        entity.LastActivityAtUtc = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync(cancellationToken);
+
+        await BroadcastAsync(entity.UserId, "AgentCompacting", frame, cancellationToken);
     }
 
     /// <summary>

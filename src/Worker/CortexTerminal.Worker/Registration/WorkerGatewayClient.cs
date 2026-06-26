@@ -107,6 +107,18 @@ public sealed class WorkerGatewayClient : IWorkerGatewayClient
     public Task ForwardAgentStoppedAsync(AgentStoppedFrame frame, CancellationToken ct)
         => _connection.SendAsync("ForwardAgentStopped", frame, ct);
 
+    public Task ForwardAgentSessionEndedAsync(AgentSessionEndedFrame frame, CancellationToken ct)
+        => _connection.SendAsync("ForwardAgentSessionEnded", frame, ct);
+
+    public Task ForwardAgentSubagentStoppedAsync(AgentSubagentStoppedFrame frame, CancellationToken ct)
+        => _connection.SendAsync("ForwardAgentSubagentStopped", frame, ct);
+
+    public Task ForwardAgentNotifiedAsync(AgentNotifiedFrame frame, CancellationToken ct)
+        => _connection.SendAsync("ForwardAgentNotified", frame, ct);
+
+    public Task ForwardAgentCompactingAsync(AgentCompactingFrame frame, CancellationToken ct)
+        => _connection.SendAsync("ForwardAgentCompacting", frame, ct);
+
     public Task SendWorkerInfoAsync(WorkerInfoFrame info, CancellationToken ct)
         => _connection.InvokeAsync("UpdateWorkerInfo", info, ct);
 

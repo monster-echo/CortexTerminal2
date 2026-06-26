@@ -39,3 +39,24 @@ public sealed record AgentStoppedFrame(
     [property: Key(3)] long? TotalTokensOut,
     [property: Key(4)] string? StopReason) : BaseAgentActivityFrame;
 
+[MessagePackObject]
+public sealed record AgentSessionEndedFrame(
+    [property: Key(0)] string SessionId,
+    [property: Key(1)] string? Reason) : BaseAgentActivityFrame;
+
+[MessagePackObject]
+public sealed record AgentSubagentStoppedFrame(
+    [property: Key(0)] string SessionId,
+    [property: Key(1)] string? SubagentId) : BaseAgentActivityFrame;
+
+[MessagePackObject]
+public sealed record AgentNotifiedFrame(
+    [property: Key(0)] string SessionId,
+    [property: Key(1)] string? Title,
+    [property: Key(2)] string? Body) : BaseAgentActivityFrame;
+
+[MessagePackObject]
+public sealed record AgentCompactingFrame(
+    [property: Key(0)] string SessionId,
+    [property: Key(1)] string? Trigger) : BaseAgentActivityFrame;
+

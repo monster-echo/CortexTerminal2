@@ -39,17 +39,46 @@ export interface AgentStoppedFrame {
   stopReason: string | null
 }
 
+export interface AgentSessionEndedFrame {
+  sessionId: string
+  reason: string | null
+}
+
+export interface AgentSubagentStoppedFrame {
+  sessionId: string
+  subagentId: string | null
+}
+
+export interface AgentNotifiedFrame {
+  sessionId: string
+  title: string | null
+  body: string | null
+}
+
+export interface AgentCompactingFrame {
+  sessionId: string
+  trigger: string | null
+}
+
 export type AgentActivityFrame =
   | AgentStartedFrame
   | AgentPromptSubmittedFrame
   | AgentToolCallFrame
   | AgentStoppedFrame
+  | AgentSessionEndedFrame
+  | AgentSubagentStoppedFrame
+  | AgentNotifiedFrame
+  | AgentCompactingFrame
 
 export type AgentActivityEventType =
   | 'AgentStarted'
   | 'AgentPromptSubmitted'
   | 'AgentToolCall'
   | 'AgentStopped'
+  | 'AgentSessionEnded'
+  | 'AgentSubagentStopped'
+  | 'AgentNotified'
+  | 'AgentCompacting'
 
 export interface AgentActivityEnvelope {
   eventType: AgentActivityEventType
@@ -102,6 +131,27 @@ export function parseAgentActivityFrame(
         totalTokensIn: (parsed['totalTokensIn'] as number | null) ?? null,
         totalTokensOut: (parsed['totalTokensOut'] as number | null) ?? null,
         stopReason: (parsed['stopReason'] as string | null) ?? null,
+      }
+    case 'AgentSessionEnded':
+      return {
+        sessionId: parsed['sessionId'] as string,
+        reason: (parsed['reason'] as string | null) ?? null,
+      }
+    case 'AgentSubagentStopped':
+      return {
+        sessionId: parsed['sessionId'] as string,
+        subagentId: (parsed['subagentId'] as string | null) ?? null,
+      }
+    case 'AgentNotified':
+      return {
+        sessionId: parsed['sessionId'] as string,
+        title: (parsed['title'] as string | null) ?? null,
+        body: (parsed['body'] as string | null) ?? null,
+      }
+    case 'AgentCompacting':
+      return {
+        sessionId: parsed['sessionId'] as string,
+        trigger: (parsed['trigger'] as string | null) ?? null,
       }
   }
 }

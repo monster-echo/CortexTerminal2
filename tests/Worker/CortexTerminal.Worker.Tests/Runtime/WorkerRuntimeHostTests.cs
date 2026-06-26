@@ -461,6 +461,18 @@ internal sealed class FakeWorkerGatewayClient : IWorkerGatewayClient
     public Task ForwardAgentStoppedAsync(AgentStoppedFrame frame, CancellationToken ct)
         => throw new NotSupportedException();
 
+    public Task ForwardAgentSessionEndedAsync(AgentSessionEndedFrame frame, CancellationToken ct)
+        => throw new NotSupportedException();
+
+    public Task ForwardAgentSubagentStoppedAsync(AgentSubagentStoppedFrame frame, CancellationToken ct)
+        => throw new NotSupportedException();
+
+    public Task ForwardAgentNotifiedAsync(AgentNotifiedFrame frame, CancellationToken ct)
+        => throw new NotSupportedException();
+
+    public Task ForwardAgentCompactingAsync(AgentCompactingFrame frame, CancellationToken ct)
+        => throw new NotSupportedException();
+
     public async Task RaiseStartSessionAsync(StartSessionCommand command)
     {
         foreach (var handler in _startHandlers)

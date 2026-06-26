@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Loader2, MessageSquare, Play, Square, Wrench } from 'lucide-react'
+import { Bell, FileText, Loader2, LogOut, MessageSquare, Play, Square, Users, Wrench } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -257,6 +257,14 @@ function iconFor(eventType: AgentActivityEventType) {
       return <Wrench className='size-4' />
     case 'AgentStopped':
       return <Square className='size-4' />
+    case 'AgentSessionEnded':
+      return <LogOut className='size-4' />
+    case 'AgentSubagentStopped':
+      return <Users className='size-4' />
+    case 'AgentNotified':
+      return <Bell className='size-4' />
+    case 'AgentCompacting':
+      return <FileText className='size-4' />
   }
 }
 
@@ -276,6 +284,14 @@ function titleFor(
     }
     case 'AgentStopped':
       return t('terminal.agentActivity.stopped')
+    case 'AgentSessionEnded':
+      return t('terminal.agentActivity.sessionEnded')
+    case 'AgentSubagentStopped':
+      return t('terminal.agentActivity.subagentStopped')
+    case 'AgentNotified':
+      return t('terminal.agentActivity.notified')
+    case 'AgentCompacting':
+      return t('terminal.agentActivity.compacting')
   }
 }
 

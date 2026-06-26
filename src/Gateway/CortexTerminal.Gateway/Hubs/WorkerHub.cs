@@ -285,6 +285,30 @@ public sealed class WorkerHub(
         await agentActivity.HandleStoppedAsync(frame.SessionId, Context.ConnectionId, frame, Context.ConnectionAborted);
     }
 
+    public async Task ForwardAgentSessionEnded(AgentSessionEndedFrame frame)
+    {
+        logger.LogDebug("ForwardAgentSessionEnded: session={SessionId}, reason={Reason}.", frame.SessionId, frame.Reason);
+        await agentActivity.HandleSessionEndedAsync(frame.SessionId, Context.ConnectionId, frame, Context.ConnectionAborted);
+    }
+
+    public async Task ForwardAgentSubagentStopped(AgentSubagentStoppedFrame frame)
+    {
+        logger.LogDebug("ForwardAgentSubagentStopped: session={SessionId}, subagent={SubagentId}.", frame.SessionId, frame.SubagentId);
+        await agentActivity.HandleSubagentStoppedAsync(frame.SessionId, Context.ConnectionId, frame, Context.ConnectionAborted);
+    }
+
+    public async Task ForwardAgentNotified(AgentNotifiedFrame frame)
+    {
+        logger.LogDebug("ForwardAgentNotified: session={SessionId}, title={Title}.", frame.SessionId, frame.Title);
+        await agentActivity.HandleNotifiedAsync(frame.SessionId, Context.ConnectionId, frame, Context.ConnectionAborted);
+    }
+
+    public async Task ForwardAgentCompacting(AgentCompactingFrame frame)
+    {
+        logger.LogDebug("ForwardAgentCompacting: session={SessionId}, trigger={Trigger}.", frame.SessionId, frame.Trigger);
+        await agentActivity.HandleCompactingAsync(frame.SessionId, Context.ConnectionId, frame, Context.ConnectionAborted);
+    }
+
     /// <summary>
     /// Worker-side RPC: apply for a presigned PUT URL so the worker can upload a file its
     /// FileSystemWatcher detected to S3 without ever holding S3 credentials. Gateway creates

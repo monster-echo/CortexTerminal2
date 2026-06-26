@@ -169,12 +169,12 @@ public sealed class ClaudeCodeAdapterTests
     }
 
     [Fact]
-    public void GenerateHookConfig_ContainsAllFiveEventsWithHookCommand()
+    public void GenerateHookConfig_ContainsAllNineEventsWithHookCommand()
     {
         var json = _adapter.GenerateHookConfig(_context);
         var root = JsonNode.Parse(json)!.AsObject();
         var hooks = root["hooks"]!.AsObject();
-        var expected = new[] { "SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop" };
+        var expected = new[] { "SessionStart", "SessionEnd", "UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop", "SubagentStop", "Notification", "PreCompact" };
         foreach (var evt in expected)
         {
             var entry = hooks[evt]?.AsArray();
