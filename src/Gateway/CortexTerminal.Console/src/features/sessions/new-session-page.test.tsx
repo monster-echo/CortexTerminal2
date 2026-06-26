@@ -46,6 +46,7 @@ vi.mock('@/stores/auth-store', () => ({
 }))
 
 vi.mock('@/stores/terminal-event-log-store', () => ({
+  EMPTY_TERMINAL_EVENT_ENTRIES: [],
   useTerminalEventLogStore: (
     selector: (state: {
       logsByScope: Record<string, never[]>

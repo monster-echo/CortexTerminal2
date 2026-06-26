@@ -3,7 +3,7 @@ import { render, type RenderResult } from 'vitest-browser-react'
 import { userEvent } from 'vitest/browser'
 import { SearchProvider } from '@/context/search-provider'
 
-const COMMAND_MENU_PLACEHOLDER = 'Type a command or search...'
+const COMMAND_MENU_PLACEHOLDER = 'command.placeholder'
 
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
@@ -20,6 +20,10 @@ vi.mock('@tanstack/react-router', async (importOriginal) => {
 
 vi.mock('@/context/theme-provider', () => ({
   useTheme: () => ({ setTheme: mocks.setTheme }),
+}))
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key: string) => key }),
 }))
 
 type ShortcutModifier = 'Control' | 'Meta'
@@ -69,11 +73,11 @@ describe('SearchProvider and CommandMenu', () => {
     await expect
       .element(getByPlaceholder(COMMAND_MENU_PLACEHOLDER))
       .toBeInTheDocument()
-    await expect.element(getByText('Theme')).toBeInTheDocument()
-    await expect.element(getByText('Light')).toBeInTheDocument()
-    await expect.element(getByText('Dark')).toBeInTheDocument()
-    await expect.element(getByText('Sessions')).toBeInTheDocument()
-    await expect.element(getByText('Dashboard')).toBeInTheDocument()
+    await expect.element(getByText('theme.label')).toBeInTheDocument()
+    await expect.element(getByText('theme.light')).toBeInTheDocument()
+    await expect.element(getByText('theme.dark')).toBeInTheDocument()
+    await expect.element(getByText('nav.workers')).toBeInTheDocument()
+    await expect.element(getByText('nav.dashboard')).toBeInTheDocument()
   })
 
   it('does not show the dialog content when search is closed', async () => {
@@ -109,9 +113,9 @@ describe('SearchProvider and CommandMenu', () => {
 
     await openCommandPalette(screen)
 
-    await userEvent.click(screen.getByText('Sessions'))
+    await userEvent.click(screen.getByText('nav.workers'))
 
-    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/sessions' })
+    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/workers' })
     await expect
       .element(screen.getByPlaceholder(COMMAND_MENU_PLACEHOLDER))
       .not.toBeInTheDocument()
@@ -123,7 +127,7 @@ describe('SearchProvider and CommandMenu', () => {
 
     await openCommandPalette(screen)
 
-    await userEvent.click(getByText('Dashboard'))
+    await userEvent.click(getByText('nav.dashboard'))
 
     expect(mocks.navigate).toHaveBeenCalledWith({ to: '/dashboard' })
     await expect
@@ -136,7 +140,7 @@ describe('SearchProvider and CommandMenu', () => {
 
     await openCommandPalette(screen)
 
-    await userEvent.click(screen.getByText('Dark'))
+    await userEvent.click(screen.getByText('theme.dark'))
 
     expect(mocks.setTheme).toHaveBeenCalledWith('dark')
     await expect
@@ -155,7 +159,7 @@ describe('SearchProvider and CommandMenu', () => {
     )
 
     await expect
-      .element(screen.getByText('No results found.'))
+      .element(screen.getByText('command.noResults'))
       .toBeInTheDocument()
   })
 })

@@ -44,6 +44,9 @@ describe('useTerminalEventLogStore', () => {
   })
 
   it('moves bootstrap logs onto the created session scope', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-04-24T10:00:00.000Z'))
+
     const useTerminalEventLogStore = await importTerminalEventLogStore()
     const bootstrapKey = getBootstrapTerminalLogKey('bootstrap-1')
     const sessionKey = getSessionTerminalLogKey('session-1')
@@ -51,6 +54,9 @@ describe('useTerminalEventLogStore', () => {
     useTerminalEventLogStore
       .getState()
       .appendEvent(bootstrapKey, 'gateway', 'Creating session...')
+
+    vi.setSystemTime(new Date('2026-04-24T10:00:01.000Z'))
+
     useTerminalEventLogStore
       .getState()
       .appendEvent(sessionKey, 'gateway', 'Connecting to session session-1.')
