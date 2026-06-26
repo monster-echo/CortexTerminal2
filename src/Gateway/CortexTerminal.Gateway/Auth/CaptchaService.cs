@@ -86,6 +86,12 @@ public sealed class CaptchaService
         var targetX = rng.Next(PiecePadding + PieceSize, ImageWidth - PiecePadding - PieceSize);
         var targetY = rng.Next(PiecePadding + PieceSize, ImageHeight - PiecePadding - PieceSize);
 
+        // Snapshot the clean background before drawing the hole. The slider piece is
+        // extracted from this copy, so its pixels must match the original content at
+        // the target position. Regenerating with the same Random would produce
+        // different noise shapes because the RNG state has already advanced.
+        using var bgClean = background.Copy();
+
         // Draw puzzle hole on background (darkened area)
         var holePath = CreatePuzzlePiecePath(targetX, targetY);
         using (var holePaint = new SKPaint
@@ -113,9 +119,6 @@ public sealed class CaptchaService
         using var sliderCanvas = new SKCanvas(sliderBitmap);
         sliderCanvas.Clear(SKColors.Transparent);
 
-        // Extract the original area from background (before hole was drawn)
-        // Re-create background without hole for extraction
-        using var bgClean = GenerateCleanBackground(rng, colors);
         using var clipPath = CreatePuzzlePiecePath(InitialPieceX, targetY);
         using (var clipPaint = new SKPaint
         {
@@ -229,53 +232,6 @@ public sealed class CaptchaService
         path.CubicTo(cx - s - tab, cy + tab, cx - s - tab, cy - tab, cx - s, cy - tab);
         path.Close();
         return path;
-    }
-
-    private SKBitmap GenerateCleanBackground(Random rng, SKColor[] colors)
-    {
-        var bitmap = new SKBitmap(ImageWidth, ImageHeight);
-        using var canvas = new SKCanvas(bitmap);
-        canvas.Clear(SKColors.White);
-
-        for (var i = 0; i < colors.Length - 1; i++)
-        {
-            var y0 = i * ImageHeight / (colors.Length - 1);
-            var y1 = (i + 1) * ImageHeight / (colors.Length - 1);
-            using var shader = SKShader.CreateLinearGradient(new SKPoint(0, y0), new SKPoint(ImageWidth, y1),
-                [colors[i], colors[i + 1]], SKShaderTileMode.Clamp);
-            using var paint = new SKPaint { Shader = shader };
-            canvas.DrawRect(0, y0, ImageWidth, y1 - y0 + 1, paint);
-        }
-
-        for (var i = 0; i < 15; i++)
-        {
-            using var paint = new SKPaint
-            {
-                Color = new SKColor((uint)rng.Next()),
-                Style = SKPaintStyle.Fill,
-                IsAntialias = true,
-            };
-            var shape = rng.Next(3);
-            if (shape == 0)
-            {
-                canvas.DrawCircle(rng.Next(ImageWidth), rng.Next(ImageHeight), rng.Next(5, 20), paint);
-            }
-            else if (shape == 1)
-            {
-                canvas.DrawRect(rng.Next(ImageWidth), rng.Next(ImageHeight), rng.Next(10, 40), rng.Next(10, 40), paint);
-            }
-            else
-            {
-                using var path = new SKPath();
-                path.MoveTo(rng.Next(ImageWidth), rng.Next(ImageHeight));
-                path.LineTo(rng.Next(ImageWidth), rng.Next(ImageHeight));
-                path.LineTo(rng.Next(ImageWidth), rng.Next(ImageHeight));
-                path.Close();
-                canvas.DrawPath(path, paint);
-            }
-        }
-
-        return bitmap;
     }
 
     private static string BitmapToBase64(SKBitmap bitmap)
