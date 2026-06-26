@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using CortexTerminal.Contracts.Sessions;
 using CortexTerminal.Contracts.Streaming;
+using CortexTerminal.Worker.Agent;
 using CortexTerminal.Worker.Artifacts;
 using CortexTerminal.Worker.Metrics;
 using CortexTerminal.Worker.Pty;
@@ -22,6 +23,7 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
     private readonly HttpClient _httpClient;
     private readonly ArtifactMirror _artifactMirror;
     private readonly long _maxArtifactSizeBytes;
+    private readonly IAgentIntegration? _agentIntegration;
     private readonly ILogger<WorkerRuntimeHost> _logger;
     private readonly ILoggerFactory _loggerFactory;
     private readonly IHostApplicationLifetime _lifetime;
@@ -44,8 +46,9 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         ILoggerFactory loggerFactory,
         IHostApplicationLifetime lifetime,
         LinuxSystemMetricsCollector? metricsCollector = null,
-        TimeSpan? metricsInterval = null)
-        : this(workerId, gatewayClient, ptyHost, new HttpClient(), new ArtifactMirror(new HttpClient(), loggerFactory.CreateLogger<ArtifactMirror>()), DefaultMaxArtifactSizeBytes, loggerFactory, lifetime, DefaultReconnectInterval, metricsCollector, metricsInterval) { }
+        TimeSpan? metricsInterval = null,
+        IAgentIntegration? agentIntegration = null)
+        : this(workerId, gatewayClient, ptyHost, new HttpClient(), new ArtifactMirror(new HttpClient(), loggerFactory.CreateLogger<ArtifactMirror>()), DefaultMaxArtifactSizeBytes, loggerFactory, lifetime, DefaultReconnectInterval, metricsCollector, metricsInterval, agentIntegration) { }
 
     internal WorkerRuntimeHost(
         string workerId,
@@ -58,7 +61,8 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         IHostApplicationLifetime lifetime,
         TimeSpan reconnectInterval,
         LinuxSystemMetricsCollector? metricsCollector = null,
-        TimeSpan? metricsInterval = null)
+        TimeSpan? metricsInterval = null,
+        IAgentIntegration? agentIntegration = null)
     {
         _workerId = workerId;
         _gatewayClient = gatewayClient;
@@ -72,6 +76,7 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         _reconnectInterval = reconnectInterval;
         _metricsCollector = metricsCollector;
         _metricsInterval = metricsInterval ?? DefaultMetricsInterval;
+        _agentIntegration = agentIntegration;
     }
 
     public int ActiveSessionCount => _sessions.Count;
@@ -315,7 +320,8 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
             _loggerFactory.CreateLogger<WorkerSessionRuntime>(),
             command.MaxBytes,
             artifactsDir,
-            artifactSync);
+            artifactSync,
+            _agentIntegration);
 
 
         runtime.Terminated += RemoveSessionAsync;

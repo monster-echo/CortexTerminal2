@@ -224,6 +224,18 @@
       "me": "我",
       "worker": "Worker",
       "workerUploaded": "Worker 上传了 {{filename}}"
+    },
+    "agentActivity": {
+      "button": "Agent",
+      "title": "Agent 活动",
+      "description": "本会话中运行的 Agent 的 prompt、工具调用、停止等事件的实时时间线。",
+      "empty": "暂无 Agent 活动。在终端里启动 Claude Code、Codex 或 OpenCode，事件会显示在这里。",
+      "started": "Agent 启动",
+      "promptSubmitted": "已提交 Prompt",
+      "toolCall": "工具调用：{tool}",
+      "stopped": "Agent 停止",
+      "expand": "展开详情",
+      "collapse": "收起详情"
     }
   },
   "workers": {

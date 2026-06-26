@@ -224,6 +224,18 @@
       "me": "Me",
       "worker": "Worker",
       "workerUploaded": "Worker uploaded {{filename}}"
+    },
+    "agentActivity": {
+      "button": "Agent",
+      "title": "Agent activity",
+      "description": "Live timeline of prompts, tool calls, and stop events from the agent running in this session.",
+      "empty": "No agent activity yet. Start Claude Code, Codex, or OpenCode in the terminal to see events here.",
+      "started": "Agent started",
+      "promptSubmitted": "Prompt submitted",
+      "toolCall": "Tool call: {tool}",
+      "stopped": "Agent stopped",
+      "expand": "Show details",
+      "collapse": "Hide details"
     }
   },
   "workers": {

@@ -4,6 +4,13 @@ import {
   LogLevel,
   type HubConnection,
 } from '@microsoft/signalr'
+import type {
+  AgentActivityEnvelope,
+  AgentActivityEventType,
+  AgentActivityFrame,
+} from './agent-activity'
+
+export type { AgentActivityEnvelope } from './agent-activity'
 
 export interface TerminalGatewayHandlers {
   onStdout(payload: Uint8Array): void
@@ -13,6 +20,7 @@ export interface TerminalGatewayHandlers {
   onReplayCompleted(): void
   onSessionExpired(reason?: string): void
   onSessionExited(reason?: string): void
+  onAgentActivity?(envelope: AgentActivityEnvelope): void
 }
 
 export interface TerminalGatewayConnection {
@@ -267,6 +275,23 @@ function registerTerminalHandlers(
       onLatencyProbeAck(probe)
     }
   })
+  connection.on('AgentActivity', (payload: AgentActivityWireEnvelope | undefined) => {
+    if (!payload) return
+    // Gateway broadcasts to all of the user's connections (not session-scoped), so we still
+    // need to filter to the session the consumer opened. Frames always carry sessionId.
+    const frame = payload.frame as AgentActivityFrame | undefined
+    if (!frame || frame.sessionId !== sessionId) return
+    const envelope: AgentActivityEnvelope = {
+      eventType: payload.eventType as AgentActivityEventType,
+      frame,
+    }
+    handlers.onAgentActivity?.(envelope)
+  })
+}
+
+type AgentActivityWireEnvelope = {
+  eventType: string
+  frame: unknown
 }
 
 function disconnectedConnection(): TerminalGatewayConnection {

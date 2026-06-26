@@ -1,3 +1,5 @@
+import type { AgentActivityEntry } from './agent-activity'
+
 export interface AuthSession {
   token: string
   username: string
@@ -12,6 +14,9 @@ export interface SessionSummary {
   status: SessionStatus
   createdAt: string
   lastActivityAt: string
+  agentKind?: string | null
+  agentSessionId?: string | null
+  inferredTitle?: string | null
 }
 
 export interface SessionDetail extends SessionSummary {
@@ -322,6 +327,9 @@ export interface ConsoleApi {
   getArtifactDownloadUrl(sessionId: string, artifactId: string): Promise<DownloadUrlResponse>
   deleteArtifact(sessionId: string, artifactId: string): Promise<void>
   uploadArtifactToS3(uploadUrl: string, file: Blob): Promise<void>
+  listAgentEvents(
+    sessionId: string,
+  ): Promise<import('./agent-activity').AgentActivityEntry[]>
   getMyProfile(): Promise<MyProfile>
 }
 
@@ -643,6 +651,11 @@ export function createConsoleApi(
       await requestVoid(
         `/api/sessions/${encodeURIComponent(sessionId)}/artifacts/${encodeURIComponent(artifactId)}`,
         { method: 'DELETE' }
+      )
+    },
+    async listAgentEvents(sessionId) {
+      return request<AgentActivityEntry[]>(
+        `/api/sessions/${encodeURIComponent(sessionId)}/agent-events`
       )
     },
     async uploadArtifactToS3(uploadUrl, file) {

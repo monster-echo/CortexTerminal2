@@ -22,6 +22,7 @@ public sealed class WorkerHub(
     IGatewayStatsService stats,
     ISessionStatsService sessionStats,
     ArtifactService artifacts,
+    AgentActivityService agentActivity,
     ILogger<WorkerHub> logger) : Hub
 {
     private string GetUserId()
@@ -252,6 +253,36 @@ public sealed class WorkerHub(
         {
             await DeliverToClientAsync(session, "SessionExited", evt, new WsExitedFrame { SessionId = evt.SessionId, ExitCode = evt.ExitCode, Reason = evt.Reason });
         }
+    }
+
+    /// <summary>
+    /// Worker-side: an AI agent (Claude Code / Codex / OpenCode) has started inside this session.
+    /// Persist the activity event, record agent kind + agent session id on the session row, and
+    /// fan out to every Console / WebSocket client owned by the user so the session list and the
+    /// agent activity timeline update in real time.
+    /// </summary>
+    public async Task ForwardAgentStarted(AgentStartedFrame frame)
+    {
+        logger.LogInformation("ForwardAgentStarted: session={SessionId}, kind={Kind}, agent={AgentSessionId}.", frame.SessionId, frame.Kind, frame.AgentSessionId);
+        await agentActivity.HandleStartedAsync(frame.SessionId, Context.ConnectionId, frame, Context.ConnectionAborted);
+    }
+
+    public async Task ForwardAgentPromptSubmitted(AgentPromptSubmittedFrame frame)
+    {
+        logger.LogDebug("ForwardAgentPromptSubmitted: session={SessionId}, promptLen={Length}.", frame.SessionId, frame.PromptText?.Length ?? 0);
+        await agentActivity.HandlePromptSubmittedAsync(frame.SessionId, Context.ConnectionId, frame, Context.ConnectionAborted);
+    }
+
+    public async Task ForwardAgentToolCall(AgentToolCallFrame frame)
+    {
+        logger.LogDebug("ForwardAgentToolCall: session={SessionId}, tool={Tool}, isError={IsError}.", frame.SessionId, frame.ToolName, frame.IsError);
+        await agentActivity.HandleToolCallAsync(frame.SessionId, Context.ConnectionId, frame, Context.ConnectionAborted);
+    }
+
+    public async Task ForwardAgentStopped(AgentStoppedFrame frame)
+    {
+        logger.LogInformation("ForwardAgentStopped: session={SessionId}, cost=${Cost}.", frame.SessionId, frame.TotalCostUsd);
+        await agentActivity.HandleStoppedAsync(frame.SessionId, Context.ConnectionId, frame, Context.ConnectionAborted);
     }
 
     /// <summary>

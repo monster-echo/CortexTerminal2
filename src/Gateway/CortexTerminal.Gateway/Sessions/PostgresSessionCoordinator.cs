@@ -749,7 +749,10 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
             entity.ExitCode,
             entity.ExitReason,
             entity.ReplayPending,
-            entity.Name);
+            entity.Name,
+            entity.AgentKind,
+            entity.AgentSessionId,
+            entity.InferredTitle);
     }
 
     private async Task PersistSessionStateAsync(

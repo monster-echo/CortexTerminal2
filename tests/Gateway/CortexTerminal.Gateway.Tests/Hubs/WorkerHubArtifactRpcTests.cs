@@ -50,6 +50,7 @@ public sealed class WorkerHubArtifactRpcTests
         var dispatcher = new RecordingArtifactCommandDispatcher();
         var (db, sessions, artifacts) = TestSessionFactory.CreateArtifactService(workers, storage, terminalHub, dispatcher);
         var replay = new ReplayCoordinator();
+        var agentActivity = TestSessionFactory.CreateAgentActivityService(terminalHub);
         var hub = (WorkerHub)Activator.CreateInstance(
             typeof(WorkerHub),
             workers,
@@ -60,6 +61,7 @@ public sealed class WorkerHubArtifactRpcTests
             new NoOpStatsService(),
             new NoOpSessionStatsService(),
             artifacts,
+            agentActivity,
             NullLogger<WorkerHub>.Instance)!;
         // Create a session for the owner so we can hand the sessionId into the artifact flow.
         var create = await sessions.CreateSessionAsync(ownerId, new CreateSessionRequest("shell", 120, 40), clientConnectionId: null, CancellationToken.None);

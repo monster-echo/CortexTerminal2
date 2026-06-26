@@ -59,6 +59,17 @@ public class SessionRecordEntity
     [StringLength(100)]
     public string? Name { get; set; }
 
+    [Column("agent_kind")]
+    [StringLength(32)]
+    public string? AgentKind { get; set; }
+
+    [Column("agent_session_id")]
+    public string? AgentSessionId { get; set; }
+
+    [Column("inferred_title")]
+    [StringLength(200)]
+    public string? InferredTitle { get; set; }
+
     [Required]
     [Column("bytes_ingested")]
     public long BytesIngested { get; set; }

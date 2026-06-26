@@ -2,6 +2,10 @@ import { useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { ConsoleApiError } from '@/services/console-api'
+import {
+  describeAgentKind,
+  sessionDisplayTitle,
+} from '@/services/agent-activity'
 import { createTerminalGateway } from '@/services/terminal-gateway'
 import { getSessionTerminalLogKey } from '@/terminal/terminal-event-log'
 import { TerminalHeaderActions } from '@/terminal/terminal-header-actions'
@@ -21,6 +25,8 @@ import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { SessionDetailsSheet } from './session-details-sheet'
 import { ArtifactFeedSheet } from './artifact-feed-sheet'
+import { AgentActivitySheet } from './agent-activity-sheet'
+import { useAgentActivity } from './use-agent-activity'
 
 export function SessionDetailPage(props: { sessionId: string }) {
   const { sessionId } = props
@@ -50,6 +56,8 @@ export function SessionDetailPage(props: { sessionId: string }) {
       }),
     []
   )
+
+  const agentActivity = useAgentActivity(sessionId)
 
   const sessionQuery = useQuery({
     queryKey: ['sessions', sessionId],
@@ -186,11 +194,21 @@ export function SessionDetailPage(props: { sessionId: string }) {
             </Link>
           </Button>
           <div className='min-w-0'>
-            <h2 className='truncate text-sm font-semibold'>
-              {session.sessionId}
+            <h2 className='flex min-w-0 items-center gap-2 truncate text-sm font-semibold'>
+              {session.agentKind && (
+                <span className='shrink-0'>
+                  {describeAgentKind(session.agentKind).icon}
+                </span>
+              )}
+              <span className='truncate'>
+                {sessionDisplayTitle(
+                  session.inferredTitle,
+                  session.sessionId
+                )}
+              </span>
             </h2>
-            <p className='truncate text-xs text-muted-foreground'>
-              {t('sessions.detailSubtitle')}
+            <p className='truncate font-mono text-xs text-muted-foreground'>
+              {session.sessionId}
             </p>
           </div>
           <TerminalHeaderActions
@@ -228,6 +246,15 @@ export function SessionDetailPage(props: { sessionId: string }) {
           )}
 
           {!isMobile && <ArtifactFeedSheet sessionId={sessionId} />}
+
+          {!isMobile && (
+            <AgentActivitySheet
+              sessionId={sessionId}
+              timeline={agentActivity.timeline}
+              isLoading={agentActivity.isLoading}
+              error={agentActivity.error}
+            />
+          )}
         </div>
       </Header>
       <Main fluid className='flex min-h-0 flex-1 flex-col overflow-hidden py-0'>
@@ -242,6 +269,9 @@ export function SessionDetailPage(props: { sessionId: string }) {
           }}
           onSessionStatusChange={() => {
             void refreshSessionState()
+          }}
+          onAgentActivity={(envelope) => {
+            agentActivity.pushLive(envelope)
           }}
         />
       </Main>

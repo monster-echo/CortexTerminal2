@@ -15,4 +15,7 @@ public sealed record SessionRecord(
     int? ExitCode = null,
     string? ExitReason = null,
     bool ReplayPending = false,
-    string? Name = null);
+    string? Name = null,
+    string? AgentKind = null,
+    string? AgentSessionId = null,
+    string? InferredTitle = null);

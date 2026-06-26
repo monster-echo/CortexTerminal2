@@ -4,6 +4,8 @@ using System.Net.Http.Json;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using CortexTerminal.Worker.Agent;
+using CortexTerminal.Worker.Agent.Adapters;
 using CortexTerminal.Worker.Auth;
 using CortexTerminal.Worker.Logging;
 using CortexTerminal.Worker.Pty;
@@ -406,6 +408,25 @@ rootCommand.SetAction(async (ParseResult parseResult, CancellationToken cancella
         return new WorkerGatewayClient(connection);
     });
 
+    // Agent tracking — loopback HTTP endpoint + adapter registry + dispatch sink.
+    // Hook URL is published via AgentIntegration once Kestrel binds.
+    builder.Services.AddSingleton(sp => new AgentIntegration(
+        installDir,
+        sp.GetRequiredService<ILogger<AgentIntegration>>()));
+    builder.Services.AddSingleton<IAgentIntegration>(sp => sp.GetRequiredService<AgentIntegration>());
+    builder.Services.AddSingleton<IAgentAdapterRegistry>(sp => new AgentAdapterRegistry(
+        sp.GetRequiredService<IEnumerable<IAgentAdapter>>(),
+        sp.GetRequiredService<ILogger<AgentAdapterRegistry>>()));
+    builder.Services.AddSingleton<IAgentAdapter>(sp => new ClaudeCodeAdapter());
+    builder.Services.AddSingleton<IAgentEventSink>(sp => new GatewayAgentEventSink(
+        sp.GetRequiredService<IWorkerGatewayClient>(),
+        sp.GetRequiredService<ILogger<GatewayAgentEventSink>>()));
+    builder.Services.AddHostedService(sp => new AgentEventEndpoint(
+        sp.GetRequiredService<AgentIntegration>(),
+        sp.GetRequiredService<IAgentAdapterRegistry>(),
+        sp.GetRequiredService<IAgentEventSink>(),
+        sp.GetRequiredService<ILogger<AgentEventEndpoint>>()));
+
     // Background service that refreshes the token every 24 hours
     var refreshHandler = new SocketsHttpHandler
     {
@@ -428,7 +449,8 @@ rootCommand.SetAction(async (ParseResult parseResult, CancellationToken cancella
         services.GetRequiredService<IPtyHost>(),
         services.GetRequiredService<ILoggerFactory>(),
         services.GetRequiredService<IHostApplicationLifetime>(),
-        ResolveMetricsCollectorOrNull(services)));
+        ResolveMetricsCollectorOrNull(services),
+        agentIntegration: services.GetService<IAgentIntegration>()));
 
     static CortexTerminal.Worker.Metrics.LinuxSystemMetricsCollector? ResolveMetricsCollectorOrNull(IServiceProvider services)
     {
@@ -444,7 +466,9 @@ rootCommand.SetAction(async (ParseResult parseResult, CancellationToken cancella
         }
     }
 
-    await builder.Build().RunAsync(cancellationToken);
+    var host = builder.Build();
+    host.Services.GetRequiredService<AgentIntegration>().EnsureShimsInstalled();
+    await host.RunAsync(cancellationToken);
 });
 
 // ── update command ──

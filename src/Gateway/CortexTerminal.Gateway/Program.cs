@@ -145,7 +145,10 @@ static object ToSessionSummaryResponse(SessionRecord session)
         session.LastActivityAtUtc,
         session.AttachmentState,
         session.ExitCode,
-        session.ExitReason
+        session.ExitReason,
+        session.AgentKind,
+        session.AgentSessionId,
+        session.InferredTitle
     };
 
 static object ToSessionDetailResponse(
@@ -184,7 +187,10 @@ static object ToSessionDetailResponse(
         WorkerOperatingSystem = workerRecord?.OperatingSystem,
         WorkerArchitecture = workerRecord?.Architecture,
         WorkerVersion = workerRecord?.Version,
-        WorkerLastSeenAt = currentWorker?.LastSeenAtUtc ?? workerRecord?.LastSeenAtUtc
+        WorkerLastSeenAt = currentWorker?.LastSeenAtUtc ?? workerRecord?.LastSeenAtUtc,
+        session.AgentKind,
+        session.AgentSessionId,
+        session.InferredTitle
     };
 }
 
@@ -281,6 +287,7 @@ builder.Services.Configure<ArtifactStorageOptions>(builder.Configuration.GetSect
 builder.Services.AddSingleton<IArtifactStorage, S3CompatibleArtifactStorage>();
 builder.Services.AddSingleton<IArtifactCommandDispatcher, SignalRArtifactCommandDispatcher>();
 builder.Services.AddSingleton<ArtifactService>();
+builder.Services.AddSingleton<AgentActivityService>();
 builder.Services.AddHostedService<ArtifactCleanupHostedService>();
 
 var useInMemory = builder.Configuration.GetValue<bool>("Database:UseInMemory");
@@ -2357,6 +2364,17 @@ app.MapGet("/api/sessions/{sessionId}/artifacts", async (string sessionId, Claim
 {
     var userId = GetUserId(user);
     var rows = await artifacts.ListAsync(userId, sessionId, CancellationToken.None);
+    return Results.Ok(rows);
+}).RequireAuthorization();
+
+// ---- Agent activity ----
+app.MapGet("/api/sessions/{sessionId}/agent-events", async (
+    string sessionId,
+    ClaimsPrincipal user,
+    CortexTerminal.Gateway.Sessions.AgentActivityService agentActivity) =>
+{
+    var userId = GetUserId(user);
+    var rows = await agentActivity.ListEventsAsync(sessionId, userId, CancellationToken.None);
     return Results.Ok(rows);
 }).RequireAuthorization();
 

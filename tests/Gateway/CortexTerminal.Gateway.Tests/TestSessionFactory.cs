@@ -67,4 +67,14 @@ internal static class TestSessionFactory
             loggerFactory.CreateLogger<ArtifactService>());
         return (factory, sessions, artifacts);
     }
+
+    public static AgentActivityService CreateAgentActivityService(IHubContext<TerminalHub> terminalHub)
+    {
+        var factory = CreateContextFactory();
+        var loggerFactory = LoggerFactory.Create(_ => { });
+        return new AgentActivityService(
+            factory,
+            terminalHub,
+            loggerFactory.CreateLogger<AgentActivityService>());
+    }
 }

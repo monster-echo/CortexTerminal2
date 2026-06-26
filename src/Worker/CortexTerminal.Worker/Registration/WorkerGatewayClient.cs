@@ -95,6 +95,18 @@ public sealed class WorkerGatewayClient : IWorkerGatewayClient
     public Task ForwardStartFailedAsync(SessionStartFailedEvent evt, CancellationToken cancellationToken)
         => _connection.InvokeAsync("SessionStartFailed", evt, cancellationToken);
 
+    public Task ForwardAgentStartedAsync(AgentStartedFrame frame, CancellationToken ct)
+        => _connection.SendAsync("ForwardAgentStarted", frame, ct);
+
+    public Task ForwardAgentPromptSubmittedAsync(AgentPromptSubmittedFrame frame, CancellationToken ct)
+        => _connection.SendAsync("ForwardAgentPromptSubmitted", frame, ct);
+
+    public Task ForwardAgentToolCallAsync(AgentToolCallFrame frame, CancellationToken ct)
+        => _connection.SendAsync("ForwardAgentToolCall", frame, ct);
+
+    public Task ForwardAgentStoppedAsync(AgentStoppedFrame frame, CancellationToken ct)
+        => _connection.SendAsync("ForwardAgentStopped", frame, ct);
+
     public Task SendWorkerInfoAsync(WorkerInfoFrame info, CancellationToken ct)
         => _connection.InvokeAsync("UpdateWorkerInfo", info, ct);
 

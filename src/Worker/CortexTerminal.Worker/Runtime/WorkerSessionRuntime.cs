@@ -1,4 +1,5 @@
 using CortexTerminal.Contracts.Streaming;
+using CortexTerminal.Worker.Agent;
 using CortexTerminal.Worker.Artifacts;
 using CortexTerminal.Worker.Pty;
 using CortexTerminal.Worker.Registration;
@@ -13,6 +14,7 @@ public sealed class WorkerSessionRuntime : IAsyncDisposable
     private readonly ILogger<WorkerSessionRuntime> _logger;
     private readonly ArtifactSyncService? _artifactSync;
     private readonly string? _artifactsDir;
+    private readonly IAgentIntegration? _agentIntegration;
     private IPtyProcess? _process;
     private Task? _stdoutPump;
     private Task? _stderrPump;
@@ -25,7 +27,7 @@ public sealed class WorkerSessionRuntime : IAsyncDisposable
         IWorkerGatewayClient gatewayClient,
         ILogger<WorkerSessionRuntime> logger,
         int maxBytes)
-        : this(sessionId, ptyHost, gatewayClient, logger, maxBytes, artifactsDir: null, artifactSync: null)
+        : this(sessionId, ptyHost, gatewayClient, logger, maxBytes, artifactsDir: null, artifactSync: null, agentIntegration: null)
     {
     }
 
@@ -36,7 +38,8 @@ public sealed class WorkerSessionRuntime : IAsyncDisposable
         ILogger<WorkerSessionRuntime> logger,
         int maxBytes,
         string? artifactsDir,
-        ArtifactSyncService? artifactSync)
+        ArtifactSyncService? artifactSync,
+        IAgentIntegration? agentIntegration = null)
     {
         SessionId = sessionId;
         GatewayClient = gatewayClient;
@@ -44,6 +47,7 @@ public sealed class WorkerSessionRuntime : IAsyncDisposable
         _session = new PtySession(ptyHost, new ScrollbackBuffer(maxBytes));
         _artifactsDir = artifactsDir;
         _artifactSync = artifactSync;
+        _agentIntegration = agentIntegration;
     }
 
     public string SessionId { get; }
@@ -56,6 +60,16 @@ public sealed class WorkerSessionRuntime : IAsyncDisposable
         if (!string.IsNullOrEmpty(_artifactsDir))
         {
             env["CORTERM_ARTIFACTS_DIR"] = _artifactsDir;
+        }
+        if (_agentIntegration is { Enabled: true })
+        {
+            env["CORTERM_SESSION_ID"] = SessionId;
+            env["CORTERM_AGENT_HOOK_URL"] = _agentIntegration.HookUrl;
+            env["CORTERM_ORIGINAL_PATH"] = _agentIntegration.OriginalPath;
+            var separator = OperatingSystem.IsWindows() ? ';' : ':';
+            env["PATH"] = string.IsNullOrEmpty(_agentIntegration.OriginalPath)
+                ? _agentIntegration.ShimsDir
+                : _agentIntegration.ShimsDir + separator + _agentIntegration.OriginalPath;
         }
         _process = await _session.StartAsync(SessionId, columns, rows, env, cancellationToken);
         _logger.LogDebug("Session {SessionId} PTY started ({Columns}x{Rows}).", SessionId, columns, rows);

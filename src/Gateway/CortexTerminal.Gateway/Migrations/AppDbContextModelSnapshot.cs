@@ -143,11 +143,58 @@ namespace CortexTerminal.Gateway.Migrations
                     b.ToTable("AuditLogs");
                 });
 
+            modelBuilder.Entity("CortexTerminal.Gateway.Data.SessionAgentEventEntity", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("event_type");
+
+                    b.Property<string>("PayloadJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("payload");
+
+                    b.Property<string>("SessionId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("session_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SessionId");
+
+                    b.HasIndex("SessionId", "CreatedAtUtc");
+
+                    b.ToTable("SessionAgentEvents");
+                });
+
             modelBuilder.Entity("CortexTerminal.Gateway.Data.SessionRecordEntity", b =>
                 {
                     b.Property<string>("SessionId")
                         .HasColumnType("text")
                         .HasColumnName("session_id");
+
+                    b.Property<string>("AgentKind")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("agent_kind");
+
+                    b.Property<string>("AgentSessionId")
+                        .HasColumnType("text")
+                        .HasColumnName("agent_session_id");
 
                     b.Property<string>("AttachedClientConnectionId")
                         .HasColumnType("text")
@@ -177,6 +224,11 @@ namespace CortexTerminal.Gateway.Migrations
                     b.Property<string>("ExitReason")
                         .HasColumnType("text")
                         .HasColumnName("exit_reason");
+
+                    b.Property<string>("InferredTitle")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("inferred_title");
 
                     b.Property<DateTimeOffset>("LastActivityAtUtc")
                         .HasColumnType("timestamp with time zone")

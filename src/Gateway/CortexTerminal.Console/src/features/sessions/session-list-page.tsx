@@ -3,6 +3,10 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { type SessionStatus, type SessionSummary } from '@/services/console-api'
+import {
+  describeAgentKind,
+  sessionDisplayTitle,
+} from '@/services/agent-activity'
 import { Loader2, Plus, Square, TerminalSquare, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -208,8 +212,31 @@ export function SessionListPage() {
                 <TableBody>
                   {sessions.map((session) => (
                     <TableRow key={session.sessionId}>
-                      <TableCell className='font-mono text-xs sm:text-sm'>
-                        {session.sessionId}
+                      <TableCell>
+                        <div className='flex items-center gap-2'>
+                          {session.agentKind && (
+                            <span
+                              className='inline-flex shrink-0 items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs'
+                              title={describeAgentKind(session.agentKind).label}
+                            >
+                              <span>{describeAgentKind(session.agentKind).icon}</span>
+                              <span className='text-muted-foreground'>
+                                {describeAgentKind(session.agentKind).label}
+                              </span>
+                            </span>
+                          )}
+                          <div className='min-w-0'>
+                            <div className='truncate text-sm font-medium'>
+                              {sessionDisplayTitle(
+                                session.inferredTitle,
+                                session.sessionId
+                              )}
+                            </div>
+                            <div className='truncate font-mono text-xs text-muted-foreground'>
+                              {session.sessionId}
+                            </div>
+                          </div>
+                        </div>
                       </TableCell>
                       <TableCell>
                         <StatusBadge
@@ -347,13 +374,24 @@ function MobileSessionList({
         <div key={session.sessionId} className='flex items-center gap-3 py-3'>
           <div className='min-w-0 flex-1'>
             <div className='flex items-center gap-2'>
-              <span className='truncate font-mono text-sm'>
-                {session.sessionId}
+              {session.agentKind && (
+                <span className='shrink-0 text-base'>
+                  {describeAgentKind(session.agentKind).icon}
+                </span>
+              )}
+              <span className='truncate text-sm font-medium'>
+                {sessionDisplayTitle(
+                  session.inferredTitle,
+                  session.sessionId
+                )}
               </span>
               <StatusBadge
                 status={session.status}
                 label={t(`sessions.status.${session.status}`)}
               />
+            </div>
+            <div className='mt-1 truncate font-mono text-xs text-muted-foreground'>
+              {session.sessionId}
             </div>
             <div className='mt-1 text-xs text-muted-foreground'>
               {formatDateTime(session.lastActivityAt)}

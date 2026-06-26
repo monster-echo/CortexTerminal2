@@ -248,6 +248,7 @@ public sealed class WorkerHubTests
         var dispatcher = new CortexTerminal.Gateway.Tests.Sessions.Fakes.RecordingArtifactCommandDispatcher();
         var hub = new CortexTerminal.Gateway.Tests.Sessions.Fakes.ArtifactTestHubContext();
         var (_, _, artifacts) = TestSessionFactory.CreateArtifactService(workers, storage, hub, dispatcher);
+        var agentActivity = TestSessionFactory.CreateAgentActivityService(hub);
         return (WorkerHub)Activator.CreateInstance(
             typeof(WorkerHub),
             workers,
@@ -258,6 +259,7 @@ public sealed class WorkerHubTests
             new NoOpStatsService(),
             new NoOpSessionStatsService(),
             artifacts,
+            agentActivity,
             NullLogger<WorkerHub>.Instance)!;
     }
 

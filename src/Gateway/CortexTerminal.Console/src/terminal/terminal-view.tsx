@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import type { SessionStatus } from '@/services/console-api'
 import type {
+  AgentActivityEnvelope,
   TerminalGateway,
   TerminalGatewayConnection,
 } from '@/services/terminal-gateway'
@@ -34,11 +35,13 @@ export function TerminalView(props: {
     status: Extract<SessionStatus, 'expired' | 'exited'>,
     reason?: string | null
   ) => void
+  onAgentActivity?: (envelope: AgentActivityEnvelope) => void
 }) {
   const {
     gateway,
     onLatencyChange,
     onSessionStatusChange,
+    onAgentActivity,
     sessionId,
     workerId,
     sessionStatus,
@@ -82,12 +85,14 @@ export function TerminalView(props: {
   const pushEventRef = useRef(pushEvent)
   const onLatencyChangeRef = useRef(onLatencyChange)
   const onSessionStatusChangeRef = useRef(onSessionStatusChange)
+  const onAgentActivityRef = useRef(onAgentActivity)
 
   useEffect(() => {
     pushEventRef.current = pushEvent
     onLatencyChangeRef.current = onLatencyChange
     onSessionStatusChangeRef.current = onSessionStatusChange
-  }, [onLatencyChange, onSessionStatusChange, pushEvent])
+    onAgentActivityRef.current = onAgentActivity
+  }, [onLatencyChange, onSessionStatusChange, onAgentActivity, pushEvent])
 
   useEffect(() => {
     pruneLogs()
@@ -274,6 +279,9 @@ export function TerminalView(props: {
           if (connection) {
             void connection.dispose()
           }
+        },
+        onAgentActivity: (envelope) => {
+          onAgentActivityRef.current?.(envelope)
         },
       })
       .then((connection) => {
