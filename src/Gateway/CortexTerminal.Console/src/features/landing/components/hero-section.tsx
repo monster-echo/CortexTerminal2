@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { Download } from 'lucide-react'
 import { InstallCommand } from './install-command'
 
 export function HeroSection() {
@@ -41,7 +42,7 @@ export function HeroSection() {
         ))}
       </div>
 
-      <div className='mt-10 flex items-center justify-center gap-8 border-t border-[#2e2e36] pt-10'>
+      <div className='mt-10 flex flex-wrap items-start justify-center gap-6 border-t border-[#2e2e36] pt-10'>
         <div className='flex flex-col items-center'>
           <div className='mb-3 h-[120px] w-[120px] rounded-xl bg-white p-2'>
             <img
@@ -62,6 +63,29 @@ export function HeroSection() {
           </div>
           <span className='text-sm text-[#a1a1aa]'>iOS / App Store</span>
         </div>
+        <div className='flex flex-col items-center'>
+          <div className='mb-3 h-[120px] w-[120px] rounded-xl bg-white p-2'>
+            <img
+              src='/corterm_appgallery_qr.png'
+              alt='AppGallery'
+              className='h-full w-full object-contain'
+            />
+          </div>
+          <span className='text-sm text-[#a1a1aa]'>{t('landing.mobileAppGallery')}</span>
+        </div>
+        <a
+          href='https://minio.myhome.rwecho.top:8443/minio/n8n-data/corterm/android/'
+          target='_blank'
+          rel='noopener'
+          className='flex flex-col items-center group no-underline'
+        >
+          <div className='mb-3 h-[120px] w-[120px] rounded-xl bg-white flex items-center justify-center group-hover:bg-emerald-50 transition-colors'>
+            <Download className='h-10 w-10 text-[#71717a] group-hover:text-emerald-600 transition-colors' />
+          </div>
+          <span className='text-sm text-[#a1a1aa] group-hover:text-[#e4e4e7] transition-colors'>
+            {t('landing.mobileApkDirect')}
+          </span>
+        </a>
       </div>
     </section>
   )

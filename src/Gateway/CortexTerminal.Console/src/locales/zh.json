@@ -526,6 +526,8 @@
     "ctaDesc": "开源项目，MIT 许可证。今天就把终端放进浏览器。",
     "ctaBtn1": "打开控制台 \u2192",
     "ctaBtn2": "在 GitHub 查看",
-    "footerCopy": "\u00A9 2026 云枢终端 \u00B7 MIT 许可证"
+    "footerCopy": "\u00A9 2026 云枢终端 \u00B7 MIT 许可证",
+    "mobileAppGallery": "鸿蒙 / 应用市场",
+    "mobileApkDirect": "安卓 APK 下载"
   }
 }
