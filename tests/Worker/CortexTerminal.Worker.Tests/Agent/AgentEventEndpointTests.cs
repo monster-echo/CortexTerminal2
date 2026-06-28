@@ -25,7 +25,7 @@ public sealed class AgentEventEndpointTests
     [Fact]
     public async Task Endpoint_AcceptsAgentEventAndDispatchesToSink()
     {
-        var installDir = Path.Combine(Path.GetTempPath(), "corterm-agent-tests-" + Guid.NewGuid().ToString("N"));
+        var installDir = Path.Combine(Path.GetTempPath(), "cortap-tests-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(installDir);
         try
         {
@@ -69,7 +69,7 @@ public sealed class AgentEventEndpointTests
     [Fact]
     public async Task Endpoint_RejectsEnvelopeMissingAgentKind()
     {
-        var installDir = Path.Combine(Path.GetTempPath(), "corterm-agent-tests-" + Guid.NewGuid().ToString("N"));
+        var installDir = Path.Combine(Path.GetTempPath(), "cortap-tests-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(installDir);
         try
         {

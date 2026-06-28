@@ -14,7 +14,7 @@ using Microsoft.Extensions.Logging;
 namespace CortexTerminal.Worker.Agent;
 
 /// <summary>
-/// Loopback Kestrel HTTP server that receives POST /agent-event from corterm-agent
+/// Loopback Kestrel HTTP server that receives POST /agent-event from cortap
 /// (the wrapper binary spawned when a user runs `claude`/`codex`/`opencode` inside
 /// a Corterm PTY). Validates the envelope, looks up the adapter, parses into a
 /// structured frame, and dispatches via <see cref="IAgentEventSink"/>.
@@ -111,7 +111,14 @@ public sealed class AgentEventEndpoint : BackgroundService
         JsonObject? envelope;
         try
         {
-            envelope = await JsonSerializer.DeserializeAsync<JsonObject>(ctx.Request.Body, cancellationToken: cancellationToken);
+            // Use JsonNode.Parse instead of JsonSerializer.DeserializeAsync<JsonObject>: the Worker
+            // runtime has System.Text.Json.JsonSerializer.IsReflectionEnabledByDefault=false (set
+            // automatically by PublishTrimmed in .NET 10), which makes the JsonSerializer facade
+            // throw even for JsonNode-based types. JsonNode.Parse is parser-only and side-steps
+            // the resolver entirely.
+            using var reader = new StreamReader(ctx.Request.Body);
+            var body = await reader.ReadToEndAsync(cancellationToken);
+            envelope = JsonNode.Parse(body) as JsonObject;
         }
         catch (JsonException ex)
         {

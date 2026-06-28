@@ -9,7 +9,7 @@ public sealed class UnixPtyHost : IPtyHost
 
     public async Task<IPtyProcess> StartAsync(int columns, int rows, IReadOnlyDictionary<string, string> environmentVariables, CancellationToken cancellationToken)
     {
-        var (app, commandLine) = ResolveShellLaunch();
+        var (app, commandLine) = ResolveShellLaunch(environmentVariables);
         var environment = new Dictionary<string, string>
         {
             ["TERM"] = "xterm-256color",
@@ -48,7 +48,7 @@ public sealed class UnixPtyHost : IPtyHost
         }
     }
 
-    private static (string App, string[] CommandLine) ResolveShellLaunch()
+    private static (string App, string[] CommandLine) ResolveShellLaunch(IReadOnlyDictionary<string, string>? env = null)
     {
         if (OperatingSystem.IsWindows())
         {
@@ -71,20 +71,42 @@ public sealed class UnixPtyHost : IPtyHost
         var shellPath = Environment.GetEnvironmentVariable("SHELL");
         if (!string.IsNullOrWhiteSpace(shellPath))
         {
-            return (shellPath, new[] { "-l" });
+            return ResolveUnixShell(shellPath, env);
         }
 
         if (OperatingSystem.IsMacOS())
         {
-            return ("/bin/zsh", new[] { "-l" });
+            return ResolveUnixShell("/bin/zsh", env);
         }
 
         if (OperatingSystem.IsLinux())
         {
-            return ("/bin/bash", new[] { "-l" });
+            return ResolveUnixShell("/bin/bash", env);
         }
 
         return ("/bin/sh", new[] { "-l" });
+    }
+
+    /// <summary>
+    /// Resolves the launch args for a Unix shell. Bash + a Corterm-managed rcfile means the
+    /// user has agent tracking enabled and we need to ensure our shims dir wins the PATH
+    /// lookup — bash is launched as <c>bash -i --rcfile=&lt;rcfile&gt;</c> so the managed
+    /// rcfile (which sources the user's .profile/.bashrc and prepends the shims dir) is the
+    /// only thing bash loads. Zsh and other shells use the standard <c>-l</c> flag because
+    /// zsh honors ZDOTDIR (set separately in the env).
+    /// </summary>
+    private static (string App, string[] CommandLine) ResolveUnixShell(string shellPath, IReadOnlyDictionary<string, string>? env)
+    {
+        var isBash = shellPath.EndsWith("/bash", StringComparison.Ordinal) ||
+                     string.Equals(Path.GetFileName(shellPath), "bash", StringComparison.Ordinal);
+        if (isBash && env is not null &&
+            env.TryGetValue("CORTERM_BASH_RCFILE", out var rcfile) &&
+            !string.IsNullOrWhiteSpace(rcfile))
+        {
+            return (shellPath, new[] { "-i", "--rcfile", rcfile });
+        }
+
+        return (shellPath, new[] { "-l" });
     }
 
     private static string? FindOnPath(string fileName)
