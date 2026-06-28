@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <PublishAot>true</PublishAot>
     <InvariantGlobalization>true</InvariantGlobalization>
-    <AssemblyName>corterm-agent</AssemblyName>
+    <AssemblyName>cortap</AssemblyName>
     <DebugType>embedded</DebugType>
     <DebugSymbols>false</DebugSymbols>
     <StripSymbols>true</StripSymbols>

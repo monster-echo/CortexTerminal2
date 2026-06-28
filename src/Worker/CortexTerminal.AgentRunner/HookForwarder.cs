@@ -1,16 +1,19 @@
-using System.Net.Http.Headers;
-using System.Runtime.CompilerServices;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using CortexTerminal.AgentRunner.Sinks;
 
 namespace CortexTerminal.AgentRunner;
 
 /// <summary>
 /// The wrapper's <c>hook</c> subcommand. Each agent's settings.json configures hooks that
-/// exec <c>corterm-agent &lt;kind&gt; hook</c>; Claude Code / Codex feed the event payload
+/// exec <c>cortap hook &lt;kind&gt;</c>; Claude Code / Codex feed the event payload
 /// on stdin. This subcommand wraps the raw payload in the Corterm envelope (session_id,
-/// agent_kind, event_type, payload) and POSTs to the loopback HTTP endpoint on the Worker.
+/// agent_kind, event_type, payload) and dispatches it through a sink chain:
+///
+/// <list type="bullet">
+/// <item><c>FileSink</c> always writes the event to <c>events.jsonl</c> for offline analysis.</item>
+/// <item><c>HttpSink</c> POSTs to the Worker loopback endpoint when <c>CORTERM_AGENT_HOOK_URL</c> is set.</item>
+/// </list>
 ///
 /// The session_id is taken from <c>CORTERM_SESSION_ID</c> (the Corterm session, not the
 /// agent's internal session id which lives inside the payload). event_type is read from the
@@ -18,13 +21,11 @@ namespace CortexTerminal.AgentRunner;
 /// </summary>
 public static class HookForwarder
 {
-    private static readonly HttpClient HttpClient = new() { Timeout = TimeSpan.FromSeconds(10) };
-
     public static int Run(string[] args)
     {
         if (args.Length == 0)
         {
-            Console.Error.WriteLine("usage: corterm-agent hook <kind>");
+            Console.Error.WriteLine("usage: cortap hook <kind>");
             return 2;
         }
 
@@ -38,15 +39,15 @@ public static class HookForwarder
         };
         if (kindName is null)
         {
-            Console.Error.WriteLine($"corterm-agent hook: unknown kind '{kind}'");
+            Console.Error.WriteLine($"cortap hook: unknown kind '{kind}'");
             return 2;
         }
 
-        var hookUrl = Environment.GetEnvironmentVariable("CORTERM_AGENT_HOOK_URL");
         var sessionId = Environment.GetEnvironmentVariable("CORTERM_SESSION_ID");
-        if (string.IsNullOrEmpty(hookUrl) || string.IsNullOrEmpty(sessionId))
+        if (string.IsNullOrEmpty(sessionId))
         {
-            Console.Error.WriteLine("corterm-agent hook: missing CORTERM_AGENT_HOOK_URL or CORTERM_SESSION_ID");
+            Console.Error.WriteLine("cortap hook: missing CORTERM_SESSION_ID");
+            Console.Error.WriteLine("  Hooks must be invoked from a Corterm session (Worker or independent mode).");
             return 1;
         }
 
@@ -57,7 +58,7 @@ public static class HookForwarder
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"corterm-agent hook: failed to read stdin: {ex.Message}");
+            Console.Error.WriteLine($"cortap hook: failed to read stdin: {ex.Message}");
             return 1;
         }
 
@@ -75,13 +76,22 @@ public static class HookForwarder
 
         if (envelopeJson.Length == 0) return 0;
 
+        var hookUrl = Environment.GetEnvironmentVariable("CORTERM_AGENT_HOOK_URL");
+        var sinks = new List<IAgentEventSink> { new FileSink(sessionId!) };
+        if (!string.IsNullOrEmpty(hookUrl))
+        {
+            sinks.Add(new HttpSink(hookUrl!));
+        }
+
+        var composite = new CompositeSink(sinks);
         try
         {
-            return PostEnvelope(hookUrl!, envelopeJson) ? 0 : 1;
+            composite.ForwardAsync(envelopeJson, CancellationToken.None).GetAwaiter().GetResult();
+            return 0;
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"corterm-agent hook: failed to POST to {hookUrl}: {ex.Message}");
+            Console.Error.WriteLine($"cortap hook: dispatch failed: {ex.Message}");
             return 1;
         }
     }
@@ -115,14 +125,5 @@ public static class HookForwarder
             ["payload"] = payloadNode,
         };
         return envelope.ToJsonString();
-    }
-
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private static bool PostEnvelope(string hookUrl, string envelopeJson)
-    {
-        using var content = new StringContent(envelopeJson, Encoding.UTF8);
-        content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
-        using var resp = HttpClient.PostAsync(hookUrl, content).GetAwaiter().GetResult();
-        return resp.IsSuccessStatusCode || resp.StatusCode == System.Net.HttpStatusCode.Accepted;
     }
 }

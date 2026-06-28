@@ -1,16 +1,24 @@
 using System.Diagnostics;
+using CortexTerminal.AgentRunner.Commands;
+using CortexTerminal.AgentRunner.Logging;
 
 namespace CortexTerminal.AgentRunner;
 
 /// <summary>
-/// Entry point for the <c>corterm-agent</c> wrapper binary. Shim scripts exec this with
-/// <c>corterm-agent &lt;kind&gt; [passthrough args...]</c>. The wrapper:
+/// Entry point for the <c>cortap</c> wrapper binary. Shim scripts exec this with
+/// <c>cortap &lt;kind&gt; [passthrough args...]</c>. The wrapper:
 ///
 /// <list type="number">
-/// <item>Validates kind + env vars set by the Worker (<c>CORTERM_SESSION_ID</c>, <c>CORTERM_AGENT_HOOK_URL</c>, <c>CORTERM_ORIGINAL_PATH</c>).</item>
-/// <item>Locates the real agent binary via <c>CORTERM_ORIGINAL_PATH</c> (PATH without the shims dir).</item>
-/// <item>(Phase 4+) Generates adapter-specific hook config + applies env vars like <c>CLAUDE_SETTINGS_FILE</c>.</item>
-/// <item>Spawns the real agent with inherited stdio so the Corterm PTY stays interactive, then propagates exit code.</item>
+/// <item>Detects mode from env vars:
+///   <list type="bullet">
+///   <item><b>Worker mode</b>: both <c>CORTERM_SESSION_ID</c> + <c>CORTERM_AGENT_HOOK_URL</c> set (Worker injected them).</item>
+///   <item><b>Independent mode</b>: neither set — wrapper generates a session id and logs events locally.</item>
+///   </list>
+/// </item>
+/// <item>Locates the real agent binary via <c>CORTERM_ORIGINAL_PATH</c>.</item>
+/// <item>Generates adapter-specific hook config (e.g. per-session <c>CLAUDE_CONFIG_DIR</c>).</item>
+/// <item>Manages the session lifecycle: writes <c>meta.json</c> + <c>pid</c> at start, marks <c>endedAt</c> on exit.</item>
+/// <item>Spawns the real agent with stdio inherited, propagates exit code.</item>
 /// </list>
 ///
 /// Escape hatches: <c>CORTERM_AGENT=0 &lt;kind&gt;</c> skips all interception; the absolute path
@@ -27,10 +35,31 @@ public static class AgentRunnerEntry
         }
 
         // Dispatch the `hook` subcommand first — it's invoked by Claude Code's settings.json
-        // hooks, not by the user. Reads event JSON on stdin, POSTs to the Worker.
+        // hooks, not by the user. Reads event JSON on stdin, dispatches to FileSink + HttpSink.
         if (string.Equals(args[0], "hook", StringComparison.Ordinal))
         {
             return HookForwarder.Run(args.Skip(1).ToArray());
+        }
+
+        // Inspection subcommands — operate on local session logs without spawning agents.
+        if (string.Equals(args[0], "tail", StringComparison.Ordinal))
+        {
+            return TailCommand.Run(args.Skip(1).ToArray());
+        }
+        if (string.Equals(args[0], "events", StringComparison.Ordinal))
+        {
+            return EventsCommand.Run(args.Skip(1).ToArray());
+        }
+        if (string.Equals(args[0], "sessions", StringComparison.Ordinal))
+        {
+            return SessionsCommand.Run(args.Skip(1).ToArray());
+        }
+        if (string.Equals(args[0], "--help", StringComparison.Ordinal) ||
+            string.Equals(args[0], "-h", StringComparison.Ordinal) ||
+            string.Equals(args[0], "help", StringComparison.Ordinal))
+        {
+            PrintUsage();
+            return 0;
         }
 
         var kind = args[0];
@@ -38,32 +67,51 @@ public static class AgentRunnerEntry
 
         if (!AgentBinaryResolver.SupportedKinds.Contains(kind))
         {
-            Console.Error.WriteLine($"corterm-agent: unknown agent kind '{kind}'.");
+            Console.Error.WriteLine($"cortap: unknown agent kind '{kind}'.");
             PrintUsage();
             return 2;
         }
 
-        var originalPath = Environment.GetEnvironmentVariable("CORTERM_ORIGINAL_PATH");
+        // Worker injects CORTERM_ORIGINAL_PATH pointing at PATH minus the shim dir so we skip
+        // our own wrapper. Independent mode has no Worker — fall back to the user's PATH so we
+        // still find the real `claude` / `codex` / `opencode` they installed globally.
+        var originalPath = Environment.GetEnvironmentVariable("CORTERM_ORIGINAL_PATH")
+            ?? Environment.GetEnvironmentVariable("PATH");
 
         if (Environment.GetEnvironmentVariable("CORTERM_AGENT") == "0")
         {
             var escapeBinary = AgentBinaryResolver.Resolve(kind, originalPath);
             if (escapeBinary is null)
             {
-                Console.Error.WriteLine($"corterm-agent: escape hatch failed — '{kind}' not found in PATH.");
+                Console.Error.WriteLine($"cortap: escape hatch failed — '{kind}' not found in PATH.");
                 Console.Error.WriteLine($"  {AgentBinaryResolver.GetInstallHint(kind)}");
                 return 127;
             }
-            return SpawnAndAwait(escapeBinary, passthrough, setup: null);
+            return SpawnAndAwait(escapeBinary, passthrough, setup: null, sessionId: string.Empty);
         }
 
         var sessionId = Environment.GetEnvironmentVariable("CORTERM_SESSION_ID");
         var hookUrl = Environment.GetEnvironmentVariable("CORTERM_AGENT_HOOK_URL");
 
-        if (string.IsNullOrEmpty(sessionId) || string.IsNullOrEmpty(hookUrl))
+        var hasSession = !string.IsNullOrEmpty(sessionId);
+        var hasHookUrl = !string.IsNullOrEmpty(hookUrl);
+
+        if (hasSession && hasHookUrl)
         {
-            Console.Error.WriteLine("corterm-agent: missing CORTERM_SESSION_ID or CORTERM_AGENT_HOOK_URL.");
-            Console.Error.WriteLine("  This shim only works inside a Corterm PTY session.");
+            // Worker mode — Worker injects both. Fall through.
+        }
+        else if (!hasSession && !hasHookUrl)
+        {
+            // Independent mode — generate a fresh session id and reap orphaned sessions.
+            // Stay silent: cortap must look identical to running `claude` directly. Users
+            // who care can find their session via `cortap sessions` / `cortap tail`.
+            sessionId = GenerateSessionId();
+            SessionLifecycle.ReapOrphanedSessions();
+        }
+        else
+        {
+            Console.Error.WriteLine("cortap: partial Corterm env (one of CORTERM_SESSION_ID / CORTERM_AGENT_HOOK_URL is missing).");
+            Console.Error.WriteLine("  Worker mode requires both. For independent mode, unset both.");
             Console.Error.WriteLine("  Escape hatches:");
             Console.Error.WriteLine($"    - Use the absolute path to the real {kind} binary");
             Console.Error.WriteLine("    - Set CORTERM_AGENT=0 to skip interception");
@@ -73,13 +121,13 @@ public static class AgentRunnerEntry
         var realBinary = AgentBinaryResolver.Resolve(kind, originalPath);
         if (realBinary is null)
         {
-            Console.Error.WriteLine($"corterm-agent: '{kind}' binary not found in PATH.");
+            Console.Error.WriteLine($"cortap: '{kind}' binary not found in PATH.");
             Console.Error.WriteLine("  Install the agent first:");
             Console.Error.WriteLine($"    {AgentBinaryResolver.GetInstallHint(kind)}");
             return 127;
         }
 
-        var setup = CreateLaunchSetup(kind, sessionId!, hookUrl!);
+        var setup = CreateLaunchSetup(kind, sessionId!);
         LaunchSetupResult? setupResult = null;
         if (setup is not null)
         {
@@ -89,18 +137,22 @@ public static class AgentRunnerEntry
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"corterm-agent: failed to prepare {kind} hook config: {ex.Message}");
+                Console.Error.WriteLine($"cortap: failed to prepare {kind} hook config: {ex.Message}");
                 Console.Error.WriteLine("  Falling back to no-hook spawn. Agent activity tracking will be limited.");
                 setupResult = null;
             }
         }
 
+        using var lifecycle = new SessionLifecycle(sessionId!, kind, cwd: Environment.CurrentDirectory);
+        lifecycle.Start();
+
         try
         {
-            return SpawnAndAwait(realBinary, passthrough, setupResult);
+            return SpawnAndAwait(realBinary, passthrough, setupResult, sessionId!);
         }
         finally
         {
+            lifecycle.Stop();
             if (setupResult is not null)
             {
                 try { Directory.Delete(setupResult.TempConfigDir, recursive: true); } catch { }
@@ -109,33 +161,55 @@ public static class AgentRunnerEntry
     }
 
     /// <summary>
+    /// Independent mode session ids use the <c>i-</c> prefix so they are visually distinct from
+    /// Worker-injected ids. 12 hex chars = enough entropy to avoid collisions in any single
+    /// user's session history.
+    /// </summary>
+    private static string GenerateSessionId()
+    {
+        return "i-" + Guid.NewGuid().ToString("N")[..12];
+    }
+
+    /// <summary>
     /// Pick the per-agent launch setup. Returns null when no setup is needed (Codex/OpenCode
     /// until their adapters land in Phase 5/6, or escape hatch is used).
     /// </summary>
-    private static IAgentLaunchSetup? CreateLaunchSetup(string kind, string sessionId, string hookUrl)
+    private static IAgentLaunchSetup? CreateLaunchSetup(string kind, string sessionId)
     {
         return kind switch
         {
-            "claude" => new ClaudeCodeLaunchSetup(sessionId, hookUrl),
+            "claude" => new ClaudeCodeLaunchSetup(sessionId),
             _ => null,
         };
     }
 
     private static void PrintUsage()
     {
-        Console.Error.WriteLine("usage: corterm-agent <kind> [args...]");
-        Console.Error.WriteLine("  Shim wrapper invoked from Corterm PTY sessions.");
+        Console.Error.WriteLine("usage: cortap <kind> [args...]");
+        Console.Error.WriteLine("       cortap hook <kind>");
+        Console.Error.WriteLine("       cortap tail [--all|--latest|--current] [sessionId]");
+        Console.Error.WriteLine("       cortap events [--session <id>] [--grep <pattern>] [--last N]");
+        Console.Error.WriteLine("       cortap sessions");
+        Console.Error.WriteLine("  Shim wrapper invoked from Corterm PTY sessions, or standalone in independent mode.");
         Console.Error.WriteLine($"  Supported kinds: {string.Join(", ", AgentBinaryResolver.SupportedKinds)}.");
     }
 
-    private static int SpawnAndAwait(string binary, string[] args, LaunchSetupResult? setup)
+    private static int SpawnAndAwait(string binary, string[] args, LaunchSetupResult? setup, string sessionId)
     {
         var psi = new ProcessStartInfo
         {
             FileName = binary,
             UseShellExecute = false,
         };
+        foreach (var a in setup?.PassthroughArgs ?? Array.Empty<string>()) psi.ArgumentList.Add(a);
         foreach (var a in args) psi.ArgumentList.Add(a);
+
+        // Inject CORTERM_SESSION_ID so hook subprocesses (spawned by the real agent) inherit it.
+        // In escape-hatch mode sessionId is empty — don't overwrite whatever the parent has.
+        if (!string.IsNullOrEmpty(sessionId))
+        {
+            psi.Environment["CORTERM_SESSION_ID"] = sessionId;
+        }
 
         if (setup is not null)
         {
@@ -150,7 +224,7 @@ public static class AgentRunnerEntry
             var process = Process.Start(psi);
             if (process is null)
             {
-                Console.Error.WriteLine($"corterm-agent: failed to start '{binary}'.");
+                Console.Error.WriteLine($"cortap: failed to start '{binary}'.");
                 return 1;
             }
             process.WaitForExit();
@@ -158,7 +232,7 @@ public static class AgentRunnerEntry
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"corterm-agent: failed to start '{binary}': {ex.Message}");
+            Console.Error.WriteLine($"cortap: failed to start '{binary}': {ex.Message}");
             return 1;
         }
     }

@@ -20,7 +20,7 @@ namespace CortexTerminal.AgentRunner.Tests;
 ///
 /// <para>
 /// The test silently skips when <c>claude</c> is not on PATH (CI runners, fresh dev boxes). It does
-/// <strong>not</strong> use the <c>corterm-agent</c> wrapper — that path is covered by
+/// <strong>not</strong> use the <c>cortap</c> wrapper — that path is covered by
 /// <see cref="HookForwarderTests"/>. Instead it points hooks at a shell command that appends stdin
 /// to a log file, so we measure the claude → hook contract directly.
 /// </para>
