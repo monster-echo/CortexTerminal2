@@ -22,14 +22,16 @@ public sealed class S3CompatibleArtifactStorageIntegrationTests
         var accessKey = Environment.GetEnvironmentVariable("CORTERM_TEST_S3_ACCESS_KEY") ?? "corterm";
         var secretKey = Environment.GetEnvironmentVariable("CORTERM_TEST_S3_SECRET_KEY") ?? "corterm-dev-secret";
         var bucket = Environment.GetEnvironmentVariable("CORTERM_TEST_S3_BUCKET") ?? "corterm-artifacts-test";
+        var region = Environment.GetEnvironmentVariable("CORTERM_TEST_S3_REGION") ?? "us-east-1";
+        var forcePathStyle = bool.TryParse(Environment.GetEnvironmentVariable("CORTERM_TEST_S3_FORCE_PATH_STYLE") ?? "true", out var fps) && fps;
         return new ArtifactStorageOptions
         {
             Endpoint = endpoint,
             Bucket = bucket,
-            Region = "us-east-1",
+            Region = region,
             AccessKey = accessKey,
             SecretKey = secretKey,
-            ForcePathStyle = true,
+            ForcePathStyle = forcePathStyle,
             PresignedUrlTtl = TimeSpan.FromMinutes(15),
         };
     }

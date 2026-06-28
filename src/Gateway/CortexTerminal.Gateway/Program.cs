@@ -2380,8 +2380,8 @@ app.MapPost("/api/sessions/{sessionId}/artifacts", async (string sessionId, Crea
     UploadUrlResponse resp;
     try { resp = await artifacts.CreateForConsoleUploadAsync(userId, request, CancellationToken.None); }
     catch (UnauthorizedAccessException) { return Results.Forbid(); }
-    catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
-    catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
+    catch (InvalidOperationException ex) { return Results.Conflict(new { message = ex.Message }); }
+    catch (ArgumentException ex) { return Results.BadRequest(new { message = ex.Message }); }
     return Results.Ok(resp);
 }).RequireAuthorization();
 
@@ -2390,7 +2390,7 @@ app.MapPost("/api/sessions/{sessionId}/artifacts/{artifactId}/complete", async (
     var userId = GetUserId(user);
     try { await artifacts.CompleteConsoleUploadAsync(userId, artifactId, body.ContentSha256, CancellationToken.None); }
     catch (UnauthorizedAccessException) { return Results.Forbid(); }
-    catch (InvalidOperationException ex) { return Results.BadRequest(new { error = ex.Message }); }
+    catch (InvalidOperationException ex) { return Results.BadRequest(new { message = ex.Message }); }
     return Results.Ok(new CompleteArtifactAck(Success: true, Error: null));
 }).RequireAuthorization();
 
@@ -2400,7 +2400,7 @@ app.MapGet("/api/sessions/{sessionId}/artifacts/{artifactId}/download", async (s
     DownloadUrlResponse resp;
     try { resp = await artifacts.GetDownloadUrlAsync(userId, artifactId, CancellationToken.None); }
     catch (UnauthorizedAccessException) { return Results.Forbid(); }
-    catch (InvalidOperationException ex) { return Results.BadRequest(new { error = ex.Message }); }
+    catch (InvalidOperationException ex) { return Results.BadRequest(new { message = ex.Message }); }
     return Results.Ok(resp);
 }).RequireAuthorization();
 
@@ -2409,7 +2409,7 @@ app.MapDelete("/api/sessions/{sessionId}/artifacts/{artifactId}", async (string 
     var userId = GetUserId(user);
     try { await artifacts.DeleteAsync(userId, artifactId, CancellationToken.None); }
     catch (UnauthorizedAccessException) { return Results.Forbid(); }
-    catch (InvalidOperationException ex) { return Results.BadRequest(new { error = ex.Message }); }
+    catch (InvalidOperationException ex) { return Results.BadRequest(new { message = ex.Message }); }
     return Results.Ok();
 }).RequireAuthorization();
 
