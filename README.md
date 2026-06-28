@@ -116,10 +116,65 @@ The script uses Podman by default (Docker works too) and provisions a `corterm-a
 ## Roadmap
 
 - [x] **File Transfer** -- Bidirectional file exchange between Console and Worker via S3 presigned URLs (see below)
+- [x] **`cortap` CLI** -- Wrap `claude` (and other agents) to capture every hook event locally and forward to the Worker (see below)
 - [ ] **Port Forwarding** -- Tunnel local ports to remote machines via the Gateway
 - [ ] **Structured Output** -- Render common command outputs (`top`, `ps`, `docker ps`) as interactive cards instead of raw text
 - [ ] **Multi-tab Terminal** -- Open multiple sessions in a single browser tab
 - [ ] **Command Snippets** -- Save and reuse frequently used commands across sessions
+
+## cortap
+
+`cortap` is an optional CLI that wraps agent binaries (`claude`, etc.) and captures every Claude Code hook event two ways:
+
+1. **Worker mode** (default when run inside a Corterm PTY): events POST to the Worker HTTP endpoint, which forwards them over SignalR to the Console / Mobile UI.
+2. **Independent mode** (when no Worker is reachable): events are written to a local JSONL log at `~/.corterm/sessions/<sessionId>/events.jsonl`.
+
+Both paths always run -- even in Worker mode the local JSONL is written, so you have an audit trail and can replay events even if the Worker is down.
+
+### Usage
+
+```bash
+# Wrap claude -- works with or without a Worker running. Stays silent so the agent's
+# native TUI experience is preserved; find your session later via `cortap sessions`.
+cortap claude
+```
+
+### Subcommands
+
+```bash
+# Live-follow the most recent active session (or list if multiple)
+cortap tail
+
+# Follow a specific session
+cortap tail <sessionId>
+
+# Merge all active sessions with a session-id prefix per line
+cortap tail --all
+
+# One-shot dump (no follow)
+cortap tail --no-follow
+
+# List every session Worker-mode and independent-mode has logged
+cortap sessions
+
+# Query past events with filters
+cortap events --session <id> --since 1h --grep "Bash"
+cortap events --session <id> --event PostToolUse
+cortap events --last 50
+```
+
+### Session log layout
+
+```
+~/.corterm/sessions/
+├── <sessionId>/
+│   ├── meta.json         # sessionId, kind, cwd, startedAt, endedAt?, pid
+│   ├── events.jsonl      # one JSON envelope per hook event
+│   └── pid               # cortap main process PID (deleted on clean exit)
+└── ...
+```
+
+Crashed sessions (where the PID file points to a dead process with no `endedAt`) are detected on next `cortap` invocation and marked `crashed: true` in `meta.json`.
 
 ## Session Artifacts (File Transfer)
 
