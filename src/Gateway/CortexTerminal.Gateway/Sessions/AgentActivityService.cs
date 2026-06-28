@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using CortexTerminal.Contracts.Sessions;
 using CortexTerminal.Contracts.Streaming;
 using CortexTerminal.Gateway.Data;
@@ -260,16 +261,65 @@ public sealed class AgentActivityService
         {
             SessionId = sessionId,
             EventType = eventType,
-            PayloadJson = JsonSerializer.Serialize(frame),
+            PayloadJson = JsonSerializer.Serialize(frame, AgentActivityPayloadJson.Options),
             CreatedAtUtc = DateTimeOffset.UtcNow,
         });
         await db.SaveChangesAsync(cancellationToken);
     }
 
-    private Task BroadcastAsync<T>(string userId, string eventType, T frame, CancellationToken cancellationToken) where T : notnull
-        => _terminalHub.Clients.User(userId).SendAsync("AgentActivity", new AgentActivityEnvelope(eventType, frame), cancellationToken);
+    private async Task BroadcastAsync<T>(string userId, string eventType, T frame, CancellationToken cancellationToken) where T : notnull
+    {
+        // Serialize with kebab-case enum before broadcast so the live MessagePack wire no longer
+        // emits AgentKind as int 0 (which the Console renders as "❓ Unknown"). The Console JSON-
+        // parses frameJson back to an object, identical to the replay path that reads payloadJson
+        // from /api/sessions/:id/agent-events.
+        var frameJson = JsonSerializer.Serialize(frame, AgentActivityPayloadJson.Options);
+        await _terminalHub.Clients.User(userId).SendAsync(
+            "AgentActivity",
+            new AgentActivityEnvelope(eventType, frameJson),
+            cancellationToken);
+    }
 }
 
-public sealed record AgentActivityEnvelope(string EventType, object Frame);
+public sealed record AgentActivityEnvelope(string EventType, string FrameJson);
+
+/// <summary>
+/// Camel-case + string-enum JSON options for the payload that gets persisted to the
+/// SessionAgentEvents table and served back to the Console via /api/sessions/:id/agent-events.
+/// The Console's parser expects lowercase-hyphenated kind strings ("claude-code"), so the
+/// default PascalCase + numeric-enum serialization breaks the kind badge on render.
+/// Uses <c>UnsafeRelaxedJsonEscaping</c> so non-ASCII characters (Chinese, Japanese, emoji)
+/// survive end-to-end as UTF-8 instead of being escaped to \uXXXX — tool call inputs and
+/// outputs frequently contain Chinese queries/file paths and the user must see them as-is.
+/// </summary>
+internal static class AgentActivityPayloadJson
+{
+    public static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web)
+    {
+        Converters = { new JsonStringEnumConverter(new KebabCaseLowerNamingPolicy()) },
+        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+    };
+}
+
+/// <summary>
+/// Converts PascalCase enum names (e.g. <c>ClaudeCode</c>) to kebab-case lower strings
+/// (<c>claude-code</c>) so the Console's <c>describeAgentKind</c> switch matches what it
+/// already expects for the wire format.
+/// </summary>
+internal sealed class KebabCaseLowerNamingPolicy : JsonNamingPolicy
+{
+    public override string ConvertName(string name)
+    {
+        if (string.IsNullOrEmpty(name)) return name;
+        var sb = new System.Text.StringBuilder(name.Length + 4);
+        for (var i = 0; i < name.Length; i++)
+        {
+            var c = name[i];
+            if (i > 0 && char.IsUpper(c)) sb.Append('-');
+            sb.Append(char.ToLowerInvariant(c));
+        }
+        return sb.ToString();
+    }
+}
 
 public sealed record AgentActivityEntry(long Id, string EventType, string PayloadJson, DateTimeOffset CreatedAtUtc);

@@ -277,9 +277,18 @@ function registerTerminalHandlers(
   })
   connection.on('AgentActivity', (payload: AgentActivityWireEnvelope | undefined) => {
     if (!payload) return
+    // Gateway broadcasts frame as a kebab-case JSON string (see AgentActivityService.BroadcastAsync)
+    // so MessagePack doesn't serialize AgentKind as its numeric enum value. Parse here, same shape
+    // as parseAgentActivityFrame uses for replay.
+    if (typeof payload.frameJson !== 'string') return
+    let frame: AgentActivityFrame | undefined
+    try {
+      frame = JSON.parse(payload.frameJson) as AgentActivityFrame
+    } catch {
+      return
+    }
     // Gateway broadcasts to all of the user's connections (not session-scoped), so we still
     // need to filter to the session the consumer opened. Frames always carry sessionId.
-    const frame = payload.frame as AgentActivityFrame | undefined
     if (!frame || frame.sessionId !== sessionId) return
     const envelope: AgentActivityEnvelope = {
       eventType: payload.eventType as AgentActivityEventType,
@@ -291,7 +300,7 @@ function registerTerminalHandlers(
 
 type AgentActivityWireEnvelope = {
   eventType: string
-  frame: unknown
+  frameJson: string
 }
 
 function disconnectedConnection(): TerminalGatewayConnection {

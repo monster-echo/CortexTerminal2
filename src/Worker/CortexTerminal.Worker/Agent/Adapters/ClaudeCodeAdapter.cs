@@ -1,3 +1,4 @@
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using CortexTerminal.Contracts.Sessions;
@@ -114,14 +115,20 @@ public sealed class ClaudeCodeAdapter : IAgentAdapter
         return new AgentPromptSubmittedFrame(context.SessionId, prompt ?? string.Empty, PromptId: null);
     }
 
+    private static readonly JsonSerializerOptions ToolPayloadJsonOptions = new()
+    {
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+        WriteIndented = false,
+    };
+
     private static AgentToolCallFrame ParsePostToolUse(JsonObject payload, AgentSessionContext context)
     {
         var toolName = payload.TryGetPropertyValue("tool_name", out var t) ? t?.GetValue<string>() : null;
         var inputJson = payload.TryGetPropertyValue("tool_input", out var ti) && ti is not null
-            ? ti.ToJsonString()
+            ? ti.ToJsonString(ToolPayloadJsonOptions)
             : null;
         var outputJson = payload.TryGetPropertyValue("tool_response", out var tr) && tr is not null
-            ? tr.ToJsonString()
+            ? tr.ToJsonString(ToolPayloadJsonOptions)
             : null;
         var isError = false;
         if (tr is JsonObject respObj

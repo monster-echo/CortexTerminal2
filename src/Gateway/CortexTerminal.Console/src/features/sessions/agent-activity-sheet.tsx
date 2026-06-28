@@ -137,6 +137,12 @@ function AgentActivityCard(props: { entry: AgentActivityTimelineEntry }) {
               }
             />
           )}
+          {entry.eventType === 'AgentNotified' && (
+            <AgentNotifiedDetails
+              title={(frame as { title?: string | null }).title ?? null}
+              body={(frame as { body?: string | null }).body ?? null}
+            />
+          )}
           {hasDetail && (
             <button
               type='button'
@@ -203,6 +209,20 @@ function AgentStoppedDetails(props: {
         </div>
       )}
       {stopReason && <div>🛑 {stopReason}</div>}
+    </div>
+  )
+}
+
+function AgentNotifiedDetails(props: {
+  title: string | null
+  body: string | null
+}) {
+  const { title, body } = props
+  if (!title && !body) return null
+  return (
+    <div className='mt-1 space-y-0.5 text-xs text-muted-foreground'>
+      {title && <div className='font-medium'>{title}</div>}
+      {body && <div>{body}</div>}
     </div>
   )
 }
