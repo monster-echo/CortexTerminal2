@@ -21,6 +21,7 @@
     <PackageReference Include="AWSSDK.S3" Version="4.0.25.3" />
     <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
     <PackageReference Include="SkiaSharp" Version="3.*" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="3.*" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\\..\\..\\src\\Gateway\\CortexTerminal.Gateway\\CortexTerminal.Gateway.csproj" />
