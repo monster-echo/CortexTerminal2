@@ -5,6 +5,12 @@ obj/
 node_modules/
 dist/
 artifacts/
+
+# Worker Artifacts 是业务代码目录,不是构建输出。上面的 artifacts/ 规则
+# 在大小写不敏感系统(macOS/Windows core.ignorecase=true)上会误伤它,
+# 导致这些 .cs 文件从不被追踪,CI 编译报 CS0246。这里显式重新包含。
+!src/Worker/CortexTerminal.Worker/Artifacts/
+!src/Worker/CortexTerminal.Worker/Artifacts/**
 .superpowers/
 .worktrees/
 .DS_Store
