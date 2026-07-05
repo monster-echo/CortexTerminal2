@@ -130,7 +130,7 @@ function Install-Service {
         -StartWhenAvailable `
         -ExecutionTimeLimit ([TimeSpan]::Zero) `
         -RestartCount 3 `
-        -RestartInterval (New-TimeSpan -Seconds 5)
+        -RestartInterval (New-TimeSpan -Minutes 1)
     $principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited
 
     Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Settings $settings -Principal $principal -Description "Corterm Worker auto-start with crash recovery" | Out-Null
