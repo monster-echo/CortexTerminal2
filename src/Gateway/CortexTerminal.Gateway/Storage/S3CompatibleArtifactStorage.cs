@@ -13,31 +13,37 @@ public sealed class S3CompatibleArtifactStorage : IArtifactStorage
     private readonly Protocol _protocol;
 
     public S3CompatibleArtifactStorage(IOptions<ArtifactStorageOptions> options)
+        : this(options.Value, CreateClient(options.Value))
     {
-        _options = options.Value;
+    }
 
-        var creds = new BasicAWSCredentials(_options.AccessKey, _options.SecretKey);
+    // Test entry point: inject a (mocked) IAmazonS3 so unit tests don't need a real S3 endpoint.
+    internal S3CompatibleArtifactStorage(ArtifactStorageOptions options, IAmazonS3 client)
+    {
+        _options = options;
+        _client = client;
+        // Honor the endpoint scheme so http:// MinIO/local-dev returns http:// presigned URLs.
+        // The SDK defaults to HTTPS, which produces mixed-content / connection-refused failures
+        // when the browser Console PUTs to a plain-HTTP S3 endpoint.
+        _protocol = !string.IsNullOrWhiteSpace(options.Endpoint)
+                    && options.Endpoint.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+            ? Protocol.HTTP
+            : Protocol.HTTPS;
+    }
+
+    private static IAmazonS3 CreateClient(ArtifactStorageOptions options)
+    {
+        var creds = new BasicAWSCredentials(options.AccessKey, options.SecretKey);
         var config = new AmazonS3Config
         {
-            RegionEndpoint = Amazon.RegionEndpoint.GetBySystemName(_options.Region),
-            ForcePathStyle = _options.ForcePathStyle,
+            RegionEndpoint = Amazon.RegionEndpoint.GetBySystemName(options.Region),
+            ForcePathStyle = options.ForcePathStyle,
         };
-        if (!string.IsNullOrWhiteSpace(_options.Endpoint))
+        if (!string.IsNullOrWhiteSpace(options.Endpoint))
         {
-            config.ServiceURL = _options.Endpoint;
-            // Honor the endpoint scheme so http:// MinIO/local-dev returns http:// presigned URLs.
-            // The SDK defaults to HTTPS, which produces mixed-content / connection-refused failures
-            // when the browser Console PUTs to a plain-HTTP S3 endpoint.
-            _protocol = _options.Endpoint.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
-                ? Protocol.HTTP
-                : Protocol.HTTPS;
+            config.ServiceURL = options.Endpoint;
         }
-        else
-        {
-            _protocol = Protocol.HTTPS;
-        }
-
-        _client = new AmazonS3Client(creds, config);
+        return new AmazonS3Client(creds, config);
     }
 
     public async Task<UploadUrlResponse> GenerateUploadUrlAsync(string sessionId, string filename, CancellationToken ct)

@@ -21,4 +21,7 @@
     <PackageReference Include="AWSSDK.S3" Version="4.0.25.3" />
     <PackageReference Include="AWSSDK.Extensions.NETCore.Setup" Version="4.0.4.11" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="CortexTerminal.Gateway.Tests" />
+  </ItemGroup>
 </Project>
