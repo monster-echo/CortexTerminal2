@@ -102,9 +102,10 @@ public sealed class CaptchaEndpointTests : IClassFixture<GatewayApplicationFacto
         using var challengeResponse = await client.GetAsync("/api/auth/captcha/challenge");
         var challenge = await challengeResponse.Content.ReadFromJsonAsync<CaptchaChallengeResponse>();
 
-        // First attempt (will fail since X=0 is wrong, but consumes the challenge)
+        // First attempt: X>0 passes input validation but is a wrong answer —
+        // CaptchaService.Verify TryRemoves unconditionally, so this consumes the challenge
         using var verifyResponse1 = await client.PostAsJsonAsync("/api/auth/captcha/verify",
-            new { Id = challenge!.Id, X = 0 });
+            new { Id = challenge!.Id, X = 9999 });
 
         // Second attempt should also fail because ID was consumed
         using var verifyResponse2 = await client.PostAsJsonAsync("/api/auth/captcha/verify",
