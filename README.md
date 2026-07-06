@@ -90,6 +90,12 @@ Navigate to `http://localhost:5045`, log in, and start a terminal session.
       </a>
       <br/>AppGallery
     </td>
+    <td align="center">
+      <a href="https://minio.myhome.rwecho.top:8443/minio/n8n-data/corterm/android/">
+        <img src="docs/corterm_apk_qr.png" width="120" height="120" alt="Download Android APK" />
+      </a>
+      <br/>Android APK
+    </td>
   </tr>
 </table>
 

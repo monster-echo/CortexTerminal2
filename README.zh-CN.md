@@ -90,6 +90,12 @@ powershell -Command "irm https://corterm.rwecho.top/install.ps1 | iex"
       </a>
       <br/>华为应用市场
     </td>
+    <td align="center">
+      <a href="https://minio.myhome.rwecho.top:8443/minio/n8n-data/corterm/android/">
+        <img src="docs/corterm_apk_qr.png" width="120" height="120" alt="安卓 APK 直链下载" />
+      </a>
+      <br/>安卓 APK 下载
+    </td>
   </tr>
 </table>
 
