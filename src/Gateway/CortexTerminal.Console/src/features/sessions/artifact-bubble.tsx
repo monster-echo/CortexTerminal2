@@ -57,7 +57,7 @@ export function ArtifactBubble(props: {
           <div className='flex items-start gap-3'>
             <FileTypeIcon category={artifact.fileCategory} />
             <div className='min-w-0 flex-1'>
-              <p className='truncate font-medium'>{artifact.filename}</p>
+              <p className='truncate font-medium'>{artifact.filename.includes('%') ? decodeURIComponent(artifact.filename) : artifact.filename}</p>
               <p className='text-xs text-muted-foreground'>
                 {formatBytes(artifact.sizeBytes)} · {formatTime(artifact.uploadedAt)}
               </p>

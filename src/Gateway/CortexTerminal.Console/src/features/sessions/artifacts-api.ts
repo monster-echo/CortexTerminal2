@@ -36,7 +36,7 @@ export async function downloadArtifact(
   const objectUrl = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = objectUrl
-  link.download = filename
+  link.download = filename.includes('%') ? decodeURIComponent(filename) : filename
   document.body.appendChild(link)
   link.click()
   link.remove()

@@ -42,7 +42,8 @@ public sealed class ArtifactService(
     public async Task<UploadUrlResponse> CreateForConsoleUploadAsync(string userId, CreateArtifactRequest request, CancellationToken ct)
     {
         if (!ValidOrigins.Contains(request.Origin)) throw new ArgumentException($"Invalid origin: {request.Origin}");
-        if (!ArtifactFilenameValidator.IsValid(request.Filename)) throw new ArgumentException("Invalid filename");
+        var filename = Uri.UnescapeDataString(request.Filename);
+        if (!ArtifactFilenameValidator.IsValid(filename)) throw new ArgumentException("Invalid filename");
         if (request.SizeBytes <= 0 || request.SizeBytes > _options.MaxArtifactSizeBytes)
             throw new ArgumentException($"Size must be between 1 and {_options.MaxArtifactSizeBytes} bytes");
 
@@ -51,7 +52,7 @@ public sealed class ArtifactService(
         await EnsureSessionQuotaAvailableAsync(db, request.SessionId, ct);
 
         // Console uploads reject duplicate filenames (409 contract). Worker uploads use last-write-wins.
-        if (await db.Artifacts.AnyAsync(a => a.SessionId == request.SessionId && a.Filename == request.Filename, ct))
+        if (await db.Artifacts.AnyAsync(a => a.SessionId == request.SessionId && a.Filename == filename, ct))
         {
             throw new InvalidOperationException("Duplicate filename");
         }
@@ -62,20 +63,20 @@ public sealed class ArtifactService(
         {
             Id = Guid.NewGuid().ToString("N"),
             SessionId = request.SessionId,
-            Filename = request.Filename,
+            Filename = filename,
             SizeBytes = request.SizeBytes,
             Status = ArtifactStatus.Pending,
             Origin = ArtifactOrigin.Console,
             OwnerUserId = userId,
             ContentSha256 = request.ContentSha256,
-            FileCategory = FileCategoryDetector.Detect(request.Filename),
+            FileCategory = FileCategoryDetector.Detect(filename),
             CreatedAtUtc = now,
             ExpiresAtUtc = expiresAt
         };
         db.Artifacts.Add(entity);
         await db.SaveChangesAsync(ct);
 
-        var upload = await storage.GenerateUploadUrlAsync(request.SessionId, request.Filename, ct);
+        var upload = await storage.GenerateUploadUrlAsync(request.SessionId, filename, ct);
         RecordAudit(userId, "artifact.create", entity.Id);
         logger.LogInformation("Artifact {ArtifactId} created (session {SessionId}, filename {Filename}, size {Size}).",
             entity.Id, entity.SessionId, entity.Filename, entity.SizeBytes);
@@ -127,14 +128,15 @@ public sealed class ArtifactService(
     /// </summary>
     public async Task<UploadUrlResponse> CreateForWorkerUploadAsync(string workerConnectionId, string workerOwnerUserId, CreateArtifactRequest request, CancellationToken ct)
     {
-        if (!ArtifactFilenameValidator.IsValid(request.Filename)) throw new ArgumentException("Invalid filename");
+        var filename = Uri.UnescapeDataString(request.Filename);
+        if (!ArtifactFilenameValidator.IsValid(filename)) throw new ArgumentException("Invalid filename");
         if (request.SizeBytes <= 0 || request.SizeBytes > _options.MaxArtifactSizeBytes)
             throw new ArgumentException($"Size must be between 1 and {_options.MaxArtifactSizeBytes} bytes");
 
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         EnsureSessionOwnedByWorker(request.SessionId, workerConnectionId, workerOwnerUserId);
 
-        var existing = await db.Artifacts.SingleOrDefaultAsync(a => a.SessionId == request.SessionId && a.Filename == request.Filename, ct);
+        var existing = await db.Artifacts.SingleOrDefaultAsync(a => a.SessionId == request.SessionId && a.Filename == filename, ct);
         ArtifactEntity? loadedFromDb = null;
         if (existing is null)
         {
@@ -143,10 +145,10 @@ public sealed class ArtifactService(
             {
                 Id = Guid.NewGuid().ToString("N"),
                 SessionId = request.SessionId,
-                Filename = request.Filename,
+                Filename = filename,
                 Origin = ArtifactOrigin.Worker,
                 OwnerUserId = workerOwnerUserId,
-                FileCategory = FileCategoryDetector.Detect(request.Filename),
+                FileCategory = FileCategoryDetector.Detect(filename),
                 CreatedAtUtc = DateTimeOffset.UtcNow
             };
             db.Artifacts.Add(existing);
@@ -165,7 +167,7 @@ public sealed class ArtifactService(
         existing.ExpiresAtUtc = ComputeExpiresAt(DateTimeOffset.UtcNow, sessionTerminated: false, loadedFromDb);
         await db.SaveChangesAsync(ct);
 
-        var upload = await storage.GenerateUploadUrlAsync(request.SessionId, request.Filename, ct);
+        var upload = await storage.GenerateUploadUrlAsync(request.SessionId, filename, ct);
         RecordAudit(workerOwnerUserId, "artifact.workerCreate", existing.Id);
         logger.LogInformation("Worker artifact {ArtifactId} created (session {SessionId}, filename {Filename}).",
             existing.Id, existing.SessionId, existing.Filename);

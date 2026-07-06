@@ -56,7 +56,7 @@ export struct ArtifactCard {
         })
 
       Row() {
-        Text(this.artifact.filename)
+        Text(this.displayName())
           .fontSize(13)
           .fontWeight(FontWeight.Medium)
           .fontColor($r('app.color.terminal_on_surface'))
@@ -103,7 +103,7 @@ export struct ArtifactCard {
       }
 
       Column() {
-        Text(this.artifact.filename)
+        Text(this.displayName())
           .fontSize(14)
           .fontWeight(FontWeight.Medium)
           .fontColor($r('app.color.terminal_on_surface'))
@@ -215,6 +215,12 @@ export struct ArtifactCard {
 
   private isWorkerOrigin(): boolean {
     return this.artifact.origin === ArtifactOrigin.WORKER
+  }
+
+  private displayName(): string {
+    return this.artifact.filename.indexOf('%') >= 0
+      ? decodeURIComponent(this.artifact.filename)
+      : this.artifact.filename
   }
 
   private bubbleColor(): ResourceColor {

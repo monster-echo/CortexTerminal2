@@ -363,9 +363,11 @@ export struct ArtifactsPage {
       if (filesDir.length === 0) {
         throw new Error('filesDir not available')
       }
-      const targetPath = `${filesDir}/downloads/${artifact.filename}`
+      const safeName: string = artifact.filename.indexOf('%') >= 0
+        ? decodeURIComponent(artifact.filename) : artifact.filename
+      const targetPath = `${filesDir}/downloads/${safeName}`
       await FileDownloader.download(getContext(this), targetPath, downloadUrl)
-      showToast(artifact.filename)
+      showToast(safeName)
     } catch (e) {
       showToast((e as Error).message || I18n.get('artifacts.download_failed'))
     } finally {
