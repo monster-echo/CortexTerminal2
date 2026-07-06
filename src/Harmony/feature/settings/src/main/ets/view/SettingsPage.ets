@@ -334,7 +334,7 @@ export struct SettingsPage {
       if (uri.length === 0) {
         return
       }
-      const base64 = await AvatarPicker.readAsBase64(uri)
+      const base64 = await AvatarPicker.readAsBase64(getContext(this), uri)
       if (base64.length === 0) {
         this.editError = I18n.get('security.avatar_too_large')
         return
@@ -344,6 +344,7 @@ export struct SettingsPage {
       this.avatarDisplayUrl = AuthState.getResolvedAvatarUrl()
       showI18nToast('security.avatar_changed')
     } catch (e) {
+      console.error(`[SettingsPage] pickAvatar failed: ${(e as Error).message}`)
       this.editError = (e as Error).message || I18n.get('common.error')
     } finally {
       this.isUploadingAvatar = false
