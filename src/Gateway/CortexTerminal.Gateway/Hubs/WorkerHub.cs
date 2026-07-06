@@ -309,6 +309,12 @@ public sealed class WorkerHub(
         await agentActivity.HandleCompactingAsync(frame.SessionId, Context.ConnectionId, frame, Context.ConnectionAborted);
     }
 
+    public async Task ForwardAgentTitleUpdated(AgentTitleUpdatedFrame frame)
+    {
+        logger.LogInformation("ForwardAgentTitleUpdated: session={SessionId}, title={Title}.", frame.SessionId, frame.Title);
+        await agentActivity.HandleTitleUpdatedAsync(frame.SessionId, Context.ConnectionId, frame, Context.ConnectionAborted);
+    }
+
     /// <summary>
     /// Worker-side RPC: apply for a presigned PUT URL so the worker can upload a file its
     /// FileSystemWatcher detected to S3 without ever holding S3 credentials. Gateway creates

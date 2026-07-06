@@ -1,6 +1,9 @@
 using System.Diagnostics;
+using System.Text.Json.Nodes;
 using CortexTerminal.AgentRunner.Commands;
 using CortexTerminal.AgentRunner.Logging;
+using CortexTerminal.AgentRunner.Mcp;
+using CortexTerminal.AgentRunner.Sinks;
 
 namespace CortexTerminal.AgentRunner;
 
@@ -16,7 +19,7 @@ namespace CortexTerminal.AgentRunner;
 ///   </list>
 /// </item>
 /// <item>Locates the real agent binary via <c>CORTERM_ORIGINAL_PATH</c>.</item>
-/// <item>Generates adapter-specific hook config (e.g. per-session <c>CLAUDE_CONFIG_DIR</c>).</item>
+/// <item>Generates adapter-specific hook config (e.g. per-session <c>--settings</c> for Claude Code).</item>
 /// <item>Manages the session lifecycle: writes <c>meta.json</c> + <c>pid</c> at start, marks <c>endedAt</c> on exit.</item>
 /// <item>Spawns the real agent with stdio inherited, propagates exit code.</item>
 /// </list>
@@ -127,7 +130,28 @@ public static class AgentRunnerEntry
             return 127;
         }
 
-        var setup = CreateLaunchSetup(kind, sessionId!);
+        // Claude kind only: start the local MCP server so Claude can call
+        // mcp__corterm__change_title to report chat titles. The URL is threaded into
+        // ClaudeCodeLaunchSetup so it ends up in the per-session --settings file.
+        CortermMcpServer? mcpServer = null;
+        string? mcpUrl = null;
+        if (kind == "claude")
+        {
+            try
+            {
+                mcpServer = StartMcpServerForClaude(sessionId!);
+                mcpUrl = mcpServer.Url;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"cortap: failed to start MCP server: {ex.Message}");
+                Console.Error.WriteLine("  Title auto-update will not work; agent runs normally.");
+                mcpServer = null;
+                mcpUrl = null;
+            }
+        }
+
+        var setup = CreateLaunchSetup(kind, sessionId!, mcpUrl);
         LaunchSetupResult? setupResult = null;
         if (setup is not null)
         {
@@ -157,7 +181,58 @@ public static class AgentRunnerEntry
             {
                 try { Directory.Delete(setupResult.TempConfigDir, recursive: true); } catch { }
             }
+            if (mcpServer is not null)
+            {
+                try { mcpServer.StopAsync().GetAwaiter().GetResult(); } catch { }
+            }
         }
+    }
+
+    /// <summary>
+    /// Start the cortap MCP server and wire its <c>change_title</c> callback to forward a
+    /// synthetic <c>AiTitleGenerated</c> event through the same sink chain HookForwarder uses
+    /// (FileSink always, HttpSink when CORTERM_AGENT_HOOK_URL is set). The Worker's
+    /// AgentEventEndpoint turns the envelope into an <see cref="AgentTitleUpdatedFrame"/>,
+    /// which the Gateway broadcasts to the Console so the session list updates in real time.
+    /// </summary>
+    private static CortermMcpServer StartMcpServerForClaude(string sessionId)
+    {
+        var server = new CortermMcpServer();
+        server.OnTitleChanged += (title, ct) => ForwardSyntheticTitleAsync(sessionId, title, ct);
+        server.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+        return server;
+    }
+
+    private static async Task ForwardSyntheticTitleAsync(string sessionId, string title, CancellationToken cancellationToken)
+    {
+        var sinks = new List<IAgentEventSink> { new FileSink(sessionId) };
+        var hookUrl = Environment.GetEnvironmentVariable("CORTERM_AGENT_HOOK_URL");
+        if (!string.IsNullOrEmpty(hookUrl))
+        {
+            sinks.Add(new HttpSink(hookUrl!));
+        }
+        var composite = new CompositeSink(sinks);
+
+        await composite.ForwardAsync(BuildSyntheticTitleEnvelope(sessionId, title), cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Build the synthetic AiTitleGenerated envelope. Internal so the contract test in
+    /// CortexTerminal.AgentRunner.Tests can pin the field names that CortexTerminal.Worker's
+    /// AgentEventEndpoint + ClaudeCodeAdapter rely on — the two assemblies are tied together only
+    /// by these literal strings, so a rename here must fail the test instead of silently breaking
+    /// title updates end-to-end.
+    /// </summary>
+    internal static string BuildSyntheticTitleEnvelope(string sessionId, string title)
+    {
+        var envelope = new JsonObject
+        {
+            ["session_id"] = sessionId,
+            ["agent_kind"] = "claude-code",
+            ["event_type"] = "AiTitleGenerated",
+            ["payload"] = new JsonObject { ["aiTitle"] = title },
+        };
+        return envelope.ToJsonString();
     }
 
     /// <summary>
@@ -174,11 +249,11 @@ public static class AgentRunnerEntry
     /// Pick the per-agent launch setup. Returns null when no setup is needed (Codex/OpenCode
     /// until their adapters land in Phase 5/6, or escape hatch is used).
     /// </summary>
-    private static IAgentLaunchSetup? CreateLaunchSetup(string kind, string sessionId)
+    private static IAgentLaunchSetup? CreateLaunchSetup(string kind, string sessionId, string? mcpUrl)
     {
         return kind switch
         {
-            "claude" => new ClaudeCodeLaunchSetup(sessionId),
+            "claude" => new ClaudeCodeLaunchSetup(sessionId, mcpUrl),
             _ => null,
         };
     }

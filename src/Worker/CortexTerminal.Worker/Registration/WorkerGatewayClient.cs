@@ -119,6 +119,9 @@ public sealed class WorkerGatewayClient : IWorkerGatewayClient
     public Task ForwardAgentCompactingAsync(AgentCompactingFrame frame, CancellationToken ct)
         => _connection.SendAsync("ForwardAgentCompacting", frame, ct);
 
+    public Task ForwardAgentTitleUpdatedAsync(AgentTitleUpdatedFrame frame, CancellationToken ct)
+        => _connection.SendAsync("ForwardAgentTitleUpdated", frame, ct);
+
     public Task SendWorkerInfoAsync(WorkerInfoFrame info, CancellationToken ct)
         => _connection.InvokeAsync("UpdateWorkerInfo", info, ct);
 

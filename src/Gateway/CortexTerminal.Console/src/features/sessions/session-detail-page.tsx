@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { ConsoleApiError } from '@/services/console-api'
+import { ConsoleApiError, type SessionDetail, type SessionSummary } from '@/services/console-api'
 import {
   describeAgentKind,
   sessionDisplayTitle,
+  type AgentTitleUpdatedFrame,
 } from '@/services/agent-activity'
 import { createTerminalGateway } from '@/services/terminal-gateway'
 import { getSessionTerminalLogKey } from '@/terminal/terminal-event-log'
@@ -272,6 +273,25 @@ export function SessionDetailPage(props: { sessionId: string }) {
           }}
           onAgentActivity={(envelope) => {
             agentActivity.pushLive(envelope)
+            if (
+              envelope.eventType === 'AgentTitleUpdated' &&
+              envelope.frame.sessionId === sessionId
+            ) {
+              const newTitle = (envelope.frame as AgentTitleUpdatedFrame).title
+              queryClient.setQueriesData<SessionSummary[]>(
+                { queryKey: ['sessions'], exact: false },
+                (old) =>
+                  old
+                    ? old.map((s) =>
+                        s.sessionId === sessionId ? { ...s, inferredTitle: newTitle } : s,
+                      )
+                    : old,
+              )
+              queryClient.setQueryData<SessionDetail | undefined>(
+                ['sessions', sessionId],
+                (old) => (old ? { ...old, inferredTitle: newTitle } : old),
+              )
+            }
           }}
         />
       </Main>

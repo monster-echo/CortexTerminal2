@@ -36,11 +36,13 @@ public sealed class ClaudeCodeLaunchSetup : IAgentLaunchSetup
     };
 
     private readonly string _sessionId;
+    private readonly string? _mcpUrl;
 
-    public ClaudeCodeLaunchSetup(string sessionId)
+    public ClaudeCodeLaunchSetup(string sessionId, string? mcpUrl = null)
     {
         if (string.IsNullOrEmpty(sessionId)) throw new ArgumentException("sessionId must not be empty", nameof(sessionId));
         _sessionId = sessionId;
+        _mcpUrl = mcpUrl;
     }
 
     public string Kind => "claude";
@@ -70,6 +72,11 @@ public sealed class ClaudeCodeLaunchSetup : IAgentLaunchSetup
     /// <c>--settings</c> as additional settings layered on top of the user's
     /// <c>~/.claude/settings.json</c>, so we don't merge user settings here — Claude Code
     /// does that itself.
+    ///
+    /// When <see cref="McpUrl"/> is provided, also injects the local MCP server as
+    /// <c>mcpServers.corterm</c> and pre-approves the <c>change_title</c> tool in
+    /// <c>permissions.allow</c> so Claude can call it without prompting the user. Mirrors
+    /// happy-cli's <c>generateHookSettings</c> approach.
     /// </summary>
     internal string BuildSettingsJson()
     {
@@ -93,6 +100,22 @@ public sealed class ClaudeCodeLaunchSetup : IAgentLaunchSetup
                 }),
             };
             hooks[evt] = new JsonArray((JsonNode)ourHook);
+        }
+
+        if (!string.IsNullOrEmpty(_mcpUrl))
+        {
+            root["mcpServers"] = new JsonObject
+            {
+                ["corterm"] = new JsonObject
+                {
+                    ["type"] = "http",
+                    ["url"] = _mcpUrl,
+                },
+            };
+            root["permissions"] = new JsonObject
+            {
+                ["allow"] = new JsonArray { (JsonNode)"mcp__corterm__change_title" },
+            };
         }
 
         return root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });

@@ -60,3 +60,15 @@ public sealed record AgentCompactingFrame(
     [property: Key(0)] string SessionId,
     [property: Key(1)] string? Trigger) : BaseAgentActivityFrame;
 
+/// <summary>
+/// The agent (or a tool the agent called) produced a new human-readable title for the session.
+/// Corterm overrides <c>InferredTitle</c> unconditionally when this arrives — the agent's title
+/// is more accurate than the first-prompt truncation that <c>HandlePromptSubmittedAsync</c>
+/// falls back to. Today only the Corterm MCP <c>change_title</c> tool emits this; other sources
+/// (e.g. transcript watcher) can emit it later without UI changes.
+/// </summary>
+[MessagePackObject]
+public sealed record AgentTitleUpdatedFrame(
+    [property: Key(0)] string SessionId,
+    [property: Key(1)] string Title) : BaseAgentActivityFrame;
+

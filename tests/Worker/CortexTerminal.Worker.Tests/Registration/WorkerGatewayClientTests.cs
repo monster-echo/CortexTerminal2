@@ -106,6 +106,26 @@ public sealed class WorkerGatewayClientTests
         resize.Should().BeEquivalentTo(new ResizePtyRequest("sess-1", 90, 30));
         close.Should().BeEquivalentTo(new CloseSessionRequest("sess-1"));
     }
+
+    [Fact]
+    public async Task ForwardAgentTitleUpdatedAsync_InvokesGatewayHubMethod()
+    {
+        await using var server = await WorkerGatewayTestServer.StartAsync();
+        await using var connection = server.CreateConnection();
+        await using var client = new WorkerGatewayClient(connection);
+
+        await client.StartAsync(CancellationToken.None);
+        var frame = new AgentTitleUpdatedFrame("sess-1", "Title From Agent");
+        await client.ForwardAgentTitleUpdatedAsync(frame, CancellationToken.None);
+        // ForwardAgent* uses SendAsync (fire-and-forget). A follow-up InvokeAsync returns only
+        // after the server has processed everything sent before it over this long-polling
+        // connection, so RegisterAsync here is a delivery barrier — without it the assertion can
+        // race the in-flight SendAsync.
+        await client.RegisterAsync("barrier", CancellationToken.None);
+
+        server.State.TitleUpdatedFrames.Should().ContainSingle()
+            .Which.Should().BeEquivalentTo(frame);
+    }
 }
 
 internal sealed class WorkerGatewayTestServer : IAsyncDisposable
@@ -193,6 +213,12 @@ internal sealed class TestWorkerHub(TestWorkerHubState state) : Hub
         return Task.CompletedTask;
     }
 
+    public Task ForwardAgentTitleUpdated(AgentTitleUpdatedFrame frame)
+    {
+        state.TitleUpdatedFrames.Enqueue(frame);
+        return Task.CompletedTask;
+    }
+
     public Task DispatchCommands()
         => Task.WhenAll(
             Clients.Caller.SendAsync("StartSession", new StartSessionCommand("sess-1", 120, 40, 5 * 1024 * 1024)),
@@ -210,6 +236,7 @@ internal sealed class TestWorkerHubState
     public ConcurrentQueue<LatencyProbeFrame> LatencyProbes { get; } = [];
     public ConcurrentQueue<SessionExited> ExitedEvents { get; } = [];
     public ConcurrentQueue<SessionStartFailedEvent> StartFailedEvents { get; } = [];
+    public ConcurrentQueue<AgentTitleUpdatedFrame> TitleUpdatedFrames { get; } = [];
 }
 
 internal sealed class CompositeDisposable(params IDisposable[] disposables) : IDisposable

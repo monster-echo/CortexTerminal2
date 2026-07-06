@@ -50,6 +50,38 @@ public sealed class ClaudeCodeLaunchSetupTests
     }
 
     [Fact]
+    public void BuildSettingsJson_NoMcpUrl_OmitsMcpServers()
+    {
+        // Backward compatibility: when no MCP URL is supplied (older wrapper build, or non-claude
+        // kinds in the future), settings.json should NOT mention mcpServers or permissions.
+        var setup = new ClaudeCodeLaunchSetup("sess-1");
+
+        var json = setup.BuildSettingsJson();
+        var root = JsonNode.Parse(json)!.AsObject();
+
+        root.ContainsKey("mcpServers").Should().BeFalse();
+        root.ContainsKey("permissions").Should().BeFalse();
+    }
+
+    [Fact]
+    public void BuildSettingsJson_WithMcpUrl_AddsCortermHttpServerAndAutoApproval()
+    {
+        var setup = new ClaudeCodeLaunchSetup("sess-1", mcpUrl: "http://127.0.0.1:54321/mcp");
+
+        var json = setup.BuildSettingsJson();
+        var root = JsonNode.Parse(json)!.AsObject();
+
+        var mcp = root["mcpServers"]!.AsObject();
+        var corterm = mcp["corterm"]!.AsObject();
+        corterm["type"]!.GetValue<string>().Should().Be("http");
+        corterm["url"]!.GetValue<string>().Should().Be("http://127.0.0.1:54321/mcp");
+
+        var allow = root["permissions"]!["allow"]!.AsArray();
+        allow.Select(n => n!.GetValue<string>())
+            .Should().Contain("mcp__corterm__change_title");
+    }
+
+    [Fact]
     public void Prepare_ReturnsSettingsPathInPassthroughArgs()
     {
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);

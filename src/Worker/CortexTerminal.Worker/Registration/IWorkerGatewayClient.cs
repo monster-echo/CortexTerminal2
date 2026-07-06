@@ -30,6 +30,7 @@ public interface IWorkerGatewayClient : IAsyncDisposable
     Task ForwardAgentSubagentStoppedAsync(AgentSubagentStoppedFrame frame, CancellationToken ct);
     Task ForwardAgentNotifiedAsync(AgentNotifiedFrame frame, CancellationToken ct);
     Task ForwardAgentCompactingAsync(AgentCompactingFrame frame, CancellationToken ct);
+    Task ForwardAgentTitleUpdatedAsync(AgentTitleUpdatedFrame frame, CancellationToken ct);
     Task SendWorkerInfoAsync(WorkerInfoFrame info, CancellationToken ct);
     Task<UploadUrlResponse> RequestArtifactUploadUrlAsync(CreateArtifactRequest request, CancellationToken ct);
     Task<CompleteArtifactAck> CompleteArtifactUploadAsync(CompleteArtifactRequest request, CancellationToken ct);

@@ -238,6 +238,7 @@
       "subagentStopped": "子 Agent 停止",
       "notified": "通知",
       "compacting": "压缩上下文",
+      "titleUpdated": "标题更新",
       "expand": "展开详情",
       "collapse": "收起详情"
     }

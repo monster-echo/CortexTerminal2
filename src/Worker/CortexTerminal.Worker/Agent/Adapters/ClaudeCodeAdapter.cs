@@ -98,8 +98,24 @@ public sealed class ClaudeCodeAdapter : IAgentAdapter
             "SubagentStop" => ParseSubagentStop(payload, context),
             "Notification" => ParseNotification(payload, context),
             "PreCompact" => ParsePreCompact(payload, context),
+            "AiTitleGenerated" => ParseAiTitleGenerated(payload, context),
             _ => null,
         };
+    }
+
+    /// <summary>
+    /// Synthetic event emitted by the wrapper-side MCP server when Claude calls the
+    /// <c>mcp__corterm__change_title</c> tool. Payload comes from the wrapper, not Claude Code's
+    /// own hook system. Empty / missing aiTitle returns null so we don't emit a no-op frame.
+    /// </summary>
+    private static AgentTitleUpdatedFrame? ParseAiTitleGenerated(JsonObject payload, AgentSessionContext context)
+    {
+        if (!payload.TryGetPropertyValue("aiTitle", out var t)) return null;
+        if (t?.GetValue<string>() is not { Length: > 0 } title) return null;
+        var trimmed = title.Trim();
+        return trimmed.Length == 0
+            ? null
+            : new AgentTitleUpdatedFrame(context.SessionId, trimmed);
     }
 
     private static AgentStartedFrame ParseSessionStart(JsonObject payload, AgentSessionContext context)

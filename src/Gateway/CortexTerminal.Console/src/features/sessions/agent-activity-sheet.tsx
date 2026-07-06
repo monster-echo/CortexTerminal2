@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Bell, FileText, Loader2, LogOut, MessageSquare, Play, Square, Users, Wrench } from 'lucide-react'
+import { Bell, FileText, Loader2, LogOut, MessageSquare, Play, Square, Type, Users, Wrench } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -285,6 +285,8 @@ function iconFor(eventType: AgentActivityEventType) {
       return <Bell className='size-4' />
     case 'AgentCompacting':
       return <FileText className='size-4' />
+    case 'AgentTitleUpdated':
+      return <Type className='size-4' />
   }
 }
 
@@ -312,6 +314,8 @@ function titleFor(
       return t('terminal.agentActivity.notified')
     case 'AgentCompacting':
       return t('terminal.agentActivity.compacting')
+    case 'AgentTitleUpdated':
+      return t('terminal.agentActivity.titleUpdated')
   }
 }
 

@@ -60,6 +60,11 @@ export interface AgentCompactingFrame {
   trigger: string | null
 }
 
+export interface AgentTitleUpdatedFrame {
+  sessionId: string
+  title: string
+}
+
 export type AgentActivityFrame =
   | AgentStartedFrame
   | AgentPromptSubmittedFrame
@@ -69,6 +74,7 @@ export type AgentActivityFrame =
   | AgentSubagentStoppedFrame
   | AgentNotifiedFrame
   | AgentCompactingFrame
+  | AgentTitleUpdatedFrame
 
 export type AgentActivityEventType =
   | 'AgentStarted'
@@ -79,6 +85,7 @@ export type AgentActivityEventType =
   | 'AgentSubagentStopped'
   | 'AgentNotified'
   | 'AgentCompacting'
+  | 'AgentTitleUpdated'
 
 export interface AgentActivityEnvelope {
   eventType: AgentActivityEventType
@@ -152,6 +159,11 @@ export function parseAgentActivityFrame(
       return {
         sessionId: parsed['sessionId'] as string,
         trigger: (parsed['trigger'] as string | null) ?? null,
+      }
+    case 'AgentTitleUpdated':
+      return {
+        sessionId: parsed['sessionId'] as string,
+        title: (parsed['title'] as string) ?? '',
       }
   }
 }

@@ -45,7 +45,7 @@ internal sealed class FileSink : IAgentEventSink
         if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
     }
 
-    public Task ForwardAsync(string envelopeJson, CancellationToken ct)
+    public Task<string> ForwardAsync(string envelopeJson, CancellationToken ct)
     {
         var eventsPath = SessionPaths.GetEventsPath(_sessionId, _home);
         var line = BuildTimestampedLine(envelopeJson);
@@ -63,7 +63,7 @@ internal sealed class FileSink : IAgentEventSink
                 useAsync: false);
             fs.Write(bytes, 0, bytes.Length);
         }
-        return Task.CompletedTask;
+        return Task.FromResult(string.Empty);
     }
 
     private static string BuildTimestampedLine(string envelopeJson)

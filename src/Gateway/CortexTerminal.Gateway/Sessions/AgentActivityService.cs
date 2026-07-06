@@ -27,6 +27,7 @@ public sealed class AgentActivityService
         "AgentSubagentStopped",
         "AgentNotified",
         "AgentCompacting",
+        "AgentTitleUpdated",
     };
 
     private const int InferredTitleMaxLength = 200;
@@ -207,6 +208,34 @@ public sealed class AgentActivityService
         await db.SaveChangesAsync(cancellationToken);
 
         await BroadcastAsync(entity.UserId, "AgentCompacting", frame, cancellationToken);
+    }
+
+    /// <summary>
+    /// Agent (via the Corterm MCP <c>change_title</c> tool) reported a new title. Overwrites
+    /// <c>InferredTitle</c> unconditionally — the agent's choice beats the first-prompt
+    /// truncation that <see cref="HandlePromptSubmittedAsync"/> set as a placeholder.
+    /// </summary>
+    public async Task HandleTitleUpdatedAsync(string sessionId, string workerConnectionId, AgentTitleUpdatedFrame frame, CancellationToken cancellationToken)
+    {
+        if (!await EnsureWorkerOwnsSessionAsync(sessionId, workerConnectionId, cancellationToken)) return;
+
+        await PersistEventAsync(sessionId, "AgentTitleUpdated", frame, cancellationToken);
+
+        await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await db.Sessions.FindAsync(new object?[] { sessionId }, cancellationToken);
+        if (entity is null)
+        {
+            _logger.LogWarning("AgentTitleUpdated for unknown session {SessionId}.", sessionId);
+            return;
+        }
+
+        var title = frame.Title?.Trim() ?? string.Empty;
+        if (title.Length > InferredTitleMaxLength) title = title[..InferredTitleMaxLength];
+        entity.InferredTitle = title;
+        entity.LastActivityAtUtc = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync(cancellationToken);
+
+        await BroadcastAsync(entity.UserId, "AgentTitleUpdated", frame, cancellationToken);
     }
 
     /// <summary>

@@ -33,6 +33,7 @@ public sealed class GatewayAgentEventSink : IAgentEventSink
                 AgentSubagentStoppedFrame f => _gateway.ForwardAgentSubagentStoppedAsync(f, cancellationToken),
                 AgentNotifiedFrame f => _gateway.ForwardAgentNotifiedAsync(f, cancellationToken),
                 AgentCompactingFrame f => _gateway.ForwardAgentCompactingAsync(f, cancellationToken),
+                AgentTitleUpdatedFrame f => _gateway.ForwardAgentTitleUpdatedAsync(f, cancellationToken),
                 _ => throw new InvalidOperationException($"Unknown agent activity frame type: {frame.GetType().FullName}")
             };
         }

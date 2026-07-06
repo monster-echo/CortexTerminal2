@@ -197,4 +197,59 @@ public sealed class ClaudeCodeAdapterTests
         env.Should().ContainKey("CLAUDE_CONFIG_DIR");
         env["CLAUDE_CONFIG_DIR"].Should().Be(_context.TempConfigDir);
     }
+
+    [Fact]
+    public void ParseEvent_AiTitleGenerated_YieldsAgentTitleUpdatedFrame()
+    {
+        var payload = new JsonObject { ["aiTitle"] = "Download Bilibili Videos" };
+
+        var frame = _adapter.ParseEvent("AiTitleGenerated", payload, _context);
+
+        var title = frame.Should().BeOfType<AgentTitleUpdatedFrame>().Subject;
+        title.SessionId.Should().Be("sess-123");
+        title.Title.Should().Be("Download Bilibili Videos");
+    }
+
+    [Fact]
+    public void ParseEvent_AiTitleGenerated_UnicodeTitle_NotMangled()
+    {
+        // Non-ASCII must survive end-to-end — UTF-8 encoder is UnsafeRelaxed so 中文/emoji arrive
+        // intact in the broadcast frame, but the parser layer must also preserve them.
+        var payload = new JsonObject { ["aiTitle"] = "保存 Bilibili cookies 📺" };
+
+        var frame = _adapter.ParseEvent("AiTitleGenerated", payload, _context);
+
+        var title = frame.Should().BeOfType<AgentTitleUpdatedFrame>().Subject;
+        title.Title.Should().Be("保存 Bilibili cookies 📺");
+    }
+
+    [Fact]
+    public void ParseEvent_AiTitleGenerated_EmptyAiTitle_ReturnsNull()
+    {
+        var payload = new JsonObject { ["aiTitle"] = "" };
+
+        var frame = _adapter.ParseEvent("AiTitleGenerated", payload, _context);
+
+        frame.Should().BeNull();
+    }
+
+    [Fact]
+    public void ParseEvent_AiTitleGenerated_MissingAiTitle_ReturnsNull()
+    {
+        var payload = new JsonObject { ["unrelated"] = "field" };
+
+        var frame = _adapter.ParseEvent("AiTitleGenerated", payload, _context);
+
+        frame.Should().BeNull();
+    }
+
+    [Fact]
+    public void ParseEvent_AiTitleGenerated_WhitespaceOnly_ReturnsNull()
+    {
+        var payload = new JsonObject { ["aiTitle"] = "    " };
+
+        var frame = _adapter.ParseEvent("AiTitleGenerated", payload, _context);
+
+        frame.Should().BeNull();
+    }
 }

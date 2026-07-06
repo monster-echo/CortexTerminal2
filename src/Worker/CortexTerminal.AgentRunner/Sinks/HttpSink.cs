@@ -8,6 +8,13 @@ namespace CortexTerminal.AgentRunner.Sinks;
 /// Forwards events to the Worker's loopback HTTP endpoint via POST. Same wire format and 10s
 /// timeout as the original HookForwarder.PostEnvelope — extracted here so the sink chain can
 /// compose File + HTTP without HookForwarder knowing about HTTP specifics.
+///
+/// <para>
+/// Returns the response body so HookForwarder can write it to stdout. Claude Code's
+/// <c>UserPromptSubmit</c> hook reads stdout as JSON (<c>hookSpecificOutput.additionalContext</c>)
+/// and merges it into the upcoming turn's context — this is the channel the Worker uses to tell
+/// Claude Code about files uploaded via the Console.
+/// </para>
 /// </summary>
 internal sealed class HttpSink : IAgentEventSink
 {
@@ -22,7 +29,7 @@ internal sealed class HttpSink : IAgentEventSink
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    public async Task ForwardAsync(string envelopeJson, CancellationToken ct)
+    public async Task<string> ForwardAsync(string envelopeJson, CancellationToken ct)
     {
         using var content = new StringContent(envelopeJson, Encoding.UTF8);
         content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
@@ -31,5 +38,6 @@ internal sealed class HttpSink : IAgentEventSink
         {
             throw new HttpRequestException($"POST {_hookUrl} returned {(int)resp.StatusCode} {resp.ReasonPhrase}");
         }
+        return await resp.Content.ReadAsStringAsync(ct);
     }
 }

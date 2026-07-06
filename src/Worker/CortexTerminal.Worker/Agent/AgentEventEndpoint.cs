@@ -1,7 +1,10 @@
+using System.Text;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using CortexTerminal.Contracts.Sessions;
 using CortexTerminal.Contracts.Streaming;
+using CortexTerminal.Worker.Artifacts;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
@@ -180,6 +183,7 @@ public sealed class AgentEventEndpoint : BackgroundService
 
         if (frame is null)
         {
+            await WriteHookResponseIfNeededAsync(ctx, kind, eventType, sessionId, cancellationToken);
             ctx.Response.StatusCode = StatusCodes.Status202Accepted;
             return;
         }
@@ -195,8 +199,92 @@ public sealed class AgentEventEndpoint : BackgroundService
             return;
         }
 
+        await WriteHookResponseIfNeededAsync(ctx, kind, eventType, sessionId, cancellationToken);
         ctx.Response.StatusCode = StatusCodes.Status200OK;
     }
+
+    /// <summary>
+    /// Write the Claude Code <c>UserPromptSubmit</c> hook response listing files uploaded via
+    /// Console. Claude Code parses stdout strictly, so we write either valid JSON or nothing.
+    /// Sent regardless of whether the adapter tracked the event — Claude Code's hook subprocess
+    /// is waiting for our response either way.
+    /// </summary>
+    private static async Task WriteHookResponseIfNeededAsync(
+        HttpContext ctx, AgentKind kind, string eventType, string sessionId, CancellationToken cancellationToken)
+    {
+        if (kind != AgentKind.ClaudeCode || eventType != "UserPromptSubmit") return;
+
+        var hookResponse = BuildHookResponse(sessionId);
+        if (string.IsNullOrEmpty(hookResponse)) return;
+
+        ctx.Response.ContentType = "application/json; charset=utf-8";
+        await ctx.Response.WriteAsync(hookResponse, cancellationToken);
+    }
+
+    /// <summary>
+    /// Build the Claude Code <c>UserPromptSubmit</c> hook response that lists files uploaded via
+    /// the Console. Returns null when the artifacts dir is missing or empty — Claude Code parses
+    /// stdout strictly, so we must return either valid JSON or nothing.
+    /// </summary>
+    internal static string? BuildHookResponse(string sessionId)
+        => BuildHookResponseForDir(ArtifactPaths.GetSessionArtifactsDir(sessionId));
+
+    /// <summary>
+    /// Directory-scoped variant exposed for unit tests so they don't have to touch the user's
+    /// real <c>~/.corterm/sessions/</c> tree.
+    /// </summary>
+    internal static string? BuildHookResponseForDir(string artifactsDir)
+    {
+        if (!Directory.Exists(artifactsDir)) return null;
+
+        FileInfo[] files;
+        try
+        {
+            files = new DirectoryInfo(artifactsDir)
+                .GetFiles()
+                .OrderByDescending(f => f.LastWriteTimeUtc)
+                .Take(MaxFilesToList)
+                .ToArray();
+        }
+        catch (DirectoryNotFoundException) { return null; }
+        catch (UnauthorizedAccessException) { return null; }
+
+        if (files.Length == 0) return null;
+
+        var context = new StringBuilder();
+        context.Append("[Corterm] ").Append(files.Length).Append(" file(s) uploaded via Console in ")
+            .Append(artifactsDir).Append(':');
+        foreach (var f in files)
+        {
+            context.Append("\n- ").Append(f.Name).Append(" (").Append(FormatFileSize(f.Length)).Append(')');
+        }
+
+        var response = new JsonObject
+        {
+            ["hookSpecificOutput"] = new JsonObject
+            {
+                ["hookEventName"] = "UserPromptSubmit",
+                ["additionalContext"] = context.ToString(),
+            },
+        };
+        return response.ToJsonString(HookResponseJsonOptions);
+    }
+
+    internal static string FormatFileSize(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024L * 1024) return $"{bytes / 1024.0:F1} KB";
+        if (bytes < 1024L * 1024 * 1024) return $"{bytes / (1024.0 * 1024):F1} MB";
+        return $"{bytes / (1024.0 * 1024 * 1024):F1} GB";
+    }
+
+    private const int MaxFilesToList = 10;
+
+    private static readonly JsonSerializerOptions HookResponseJsonOptions = new()
+    {
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+        WriteIndented = false,
+    };
 
     private sealed class ForwardingLoggerProvider(ILogger forward) : ILoggerProvider
     {

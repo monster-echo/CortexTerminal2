@@ -84,16 +84,26 @@ public static class HookForwarder
         }
 
         var composite = new CompositeSink(sinks);
+        string responseJson;
         try
         {
-            composite.ForwardAsync(envelopeJson, CancellationToken.None).GetAwaiter().GetResult();
-            return 0;
+            responseJson = composite.ForwardAsync(envelopeJson, CancellationToken.None).GetAwaiter().GetResult();
         }
         catch (Exception ex)
         {
             Console.Error.WriteLine($"cortap hook: dispatch failed: {ex.Message}");
             return 1;
         }
+
+        // Claude Code's UserPromptSubmit hook reads stdout as JSON (hookSpecificOutput.additionalContext)
+        // and merges it into the upcoming turn's context. The Worker returns this JSON when it wants to
+        // surface something (e.g. files uploaded via Console). stdout must be valid JSON or empty —
+        // any other text would break Claude Code's parser.
+        if (!string.IsNullOrEmpty(responseJson))
+        {
+            Console.Out.Write(responseJson);
+        }
+        return 0;
     }
 
     internal static string BuildEnvelopeJson(string rawBody, string sessionId, string kindName)
