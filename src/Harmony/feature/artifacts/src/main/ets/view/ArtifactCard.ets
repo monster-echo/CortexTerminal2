@@ -2,11 +2,14 @@
  * @file ArtifactCard.ets
  * @brief Single WeChat-style file bubble.
  *
- * Right bubble: Console origin (uploaded by the user).
- * Left bubble:  Worker origin (synced from the worker).
+ * Image artifacts render as a large thumbnail bubble (ImageBubble) — the photo
+ * is the focal point, like WeChat's file helper. Non-image artifacts use the
+ * icon + metadata row (FileBubble). Right side = Console origin (user upload);
+ * left side = Worker origin (synced from worker).
  */
 import { I18n } from '@rwecho/core'
-import { ArtifactModel, ArtifactOrigin } from '../model/ArtifactModels'
+import { ArtifactModel, ArtifactOrigin, FileCategory } from '../model/ArtifactModels'
+import { ArtifactsService } from '../service/ArtifactsService'
 import { FileTypeIcon } from './FileTypeIcon'
 
 @Component
@@ -15,8 +18,80 @@ export struct ArtifactCard {
   @Prop downloading: boolean = false
   onDownload?: (artifact: ArtifactModel) => void
   onDelete?: (artifact: ArtifactModel) => void
+  onPreview?: (artifact: ArtifactModel) => void
+  @State imageUrl: string = ''
+
+  aboutToAppear() {
+    if (this.artifact.fileCategory === FileCategory.IMAGE) {
+      this.loadImageUrl()
+    }
+  }
+
+  private async loadImageUrl() {
+    try {
+      this.imageUrl = await ArtifactsService.getDownloadUrl(this.artifact.sessionId, this.artifact.id)
+    } catch (_e) {}
+  }
 
   build() {
+    if (this.imageUrl.length > 0) {
+      this.ImageBubble()
+    } else {
+      this.FileBubble()
+    }
+  }
+
+  @Builder
+  ImageBubble() {
+    Column() {
+      Image(this.imageUrl)
+        .width('100%')
+        .height(180)
+        .borderRadius(10)
+        .objectFit(ImageFit.Cover)
+        .onClick(() => {
+          if (this.onPreview) {
+            this.onPreview(this.artifact)
+          }
+        })
+
+      Row() {
+        Text(this.artifact.filename)
+          .fontSize(13)
+          .fontWeight(FontWeight.Medium)
+          .fontColor($r('app.color.terminal_on_surface'))
+          .layoutWeight(1)
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+        Text(this.formatSize())
+          .fontSize(12)
+          .fontColor($r('app.color.terminal_on_surface_variant'))
+          .margin({ left: 8 })
+      }
+      .width('100%')
+      .margin({ top: 8 })
+
+      Row() {
+        Text(this.formatUploadedAt())
+          .fontSize(12)
+          .fontColor($r('app.color.terminal_on_surface_variant'))
+        Blank()
+        this.ExpiryChip()
+        if (this.isWorkerOrigin()) {
+          this.DownloadButton()
+        }
+        this.DeleteButton()
+      }
+      .width('100%')
+      .margin({ top: 6 })
+    }
+    .padding(12)
+    .borderRadius(12)
+    .backgroundColor(this.bubbleColor())
+  }
+
+  @Builder
+  FileBubble() {
     Row() {
       if (this.isWorkerOrigin()) {
         Column() {
@@ -146,7 +221,7 @@ export struct ArtifactCard {
     if (this.isWorkerOrigin()) {
       return $r('app.color.terminal_surface_container')
     }
-    return $r('app.color.terminal_secondary_container')
+    return $r('app.color.terminal_surface_container_high')
   }
 
   private expiryColor(): ResourceColor {

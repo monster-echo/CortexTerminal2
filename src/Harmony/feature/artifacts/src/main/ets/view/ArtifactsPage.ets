@@ -34,6 +34,8 @@ export struct ArtifactsPage {
   @State loadError: string = ''
   @State uploading: boolean = false
   @State downloadingIds: string[] = []
+  @State previewUrl: string = ''
+  @State showPreview: boolean = false
   @Consume('pageStack') pageStack: NavPathStack
   @StorageLink('gatewayUrl') gatewayUrl: string = ''
   @StorageLink('authToken') authToken: string = ''
@@ -100,6 +102,7 @@ export struct ArtifactsPage {
                     downloading: this.isDownloading(item.id),
                     onDownload: (artifact: ArtifactModel) => { this.handleDownload(artifact) },
                     onDelete: (artifact: ArtifactModel) => { this.handleDelete(artifact) },
+                    onPreview: (artifact: ArtifactModel) => { this.openPreview(artifact) },
                   })
                 }, (item: ArtifactModel) => item.id)
               }, (group: ArtifactGroup) => group.key)
@@ -121,6 +124,30 @@ export struct ArtifactsPage {
     .width('100%')
     .height('100%')
     .backgroundColor($r('app.color.terminal_surface'))
+    .bindSheet(this.showPreview, this.PreviewSheet(), {
+      backgroundColor: $r('app.color.terminal_surface'),
+      onDisappear: () => { this.showPreview = false }
+    })
+  }
+
+  @Builder
+  PreviewSheet() {
+    Image(this.previewUrl)
+      .width('100%')
+      .height('100%')
+      .objectFit(ImageFit.Contain)
+  }
+
+  private async openPreview(artifact: ArtifactModel) {
+    try {
+      const url = await ArtifactsService.getDownloadUrl(this.sessionId, artifact.id)
+      if (url.length > 0) {
+        this.previewUrl = url
+        this.showPreview = true
+      }
+    } catch (e) {
+      showToast((e as Error).message)
+    }
   }
 
   @Builder
@@ -315,7 +342,7 @@ export struct ArtifactsPage {
     lightHaptic()
     this.uploading = true
     try {
-      await ArtifactsService.uploadFromUri(this.sessionId, picked.uri, picked.filename)
+      await ArtifactsService.uploadFromUri(getContext(this), this.sessionId, picked.uri, picked.filename)
       showToast(I18n.get('artifacts.upload_success'))
     } catch (e) {
       showToast((e as Error).message || I18n.get('artifacts.upload_failed'))
