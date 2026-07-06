@@ -1,0 +1,1216 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CortexTerminal · 配色原型 v2（华为对比度过审）</title>
+<style>
+  /* ============ 基础 ============ */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    font-family: -apple-system, BlinkMacSystemFont, 'HarmonyOS Sans', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background: #2a2d33;
+    color: #e7e9ea;
+    -webkit-font-smoothing: antialiased;
+  }
+  .mono { font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace; }
+
+  /* ============ 页面框架 ============ */
+  .page { max-width: 1280px; margin: 0 auto; padding: 32px 24px 80px; }
+  .page > header { margin-bottom: 20px; }
+  .page > header h1 { font-size: 24px; font-weight: 700; margin-bottom: 6px; }
+  .page > header p { font-size: 13px; color: #9aa4b0; line-height: 1.6; }
+  .rules { display: flex; gap: 12px; margin-top: 14px; flex-wrap: wrap; }
+  .rule { font-size: 12px; padding: 6px 12px; background: #1a1f2e; border-radius: 8px; border: 1px solid #2f3336; }
+  .rule b { color: #7cacf8; }
+  .rule.btn b { color: #1a8cd8; }
+  .rule.body b { color: #0a6fc2; }
+
+  /* ============ 工具栏（方案切换 + 场景导航） ============ */
+  .toolbar {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    background: #1a1f2e; border: 1px solid #2f3336; border-radius: 12px;
+    padding: 12px 16px; margin: 16px 0 20px;
+  }
+  .toolbar .label { font-size: 13px; color: #9aa4b0; margin-right: 4px; }
+  .seg { display: inline-flex; background: #0f1419; border-radius: 10px; padding: 3px; border: 1px solid #2f3336; }
+  .seg button {
+    border: 0; background: transparent; color: #9aa4b0; cursor: pointer;
+    padding: 8px 14px; border-radius: 8px; font-size: 13px; font-weight: 500;
+    transition: all .15s;
+  }
+  .seg button.active { background: #1a8cd8; color: #fff; }
+  .toolbar .hint { font-size: 12px; color: #71767b; margin-left: auto; }
+
+  /* 场景 Tab */
+  .scene-tabs {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    background: #1a1f2e; border: 1px solid #2f3336; border-radius: 12px;
+    padding: 10px 12px; margin-bottom: 24px;
+  }
+  .scene-tab {
+    padding: 8px 14px; font-size: 13px; cursor: pointer;
+    background: transparent; color: #9aa4b0; border: 1px solid transparent;
+    border-radius: 8px; transition: all .15s; font-weight: 500;
+  }
+  .scene-tab:hover { background: #0f1419; color: #e7e9ea; }
+  .scene-tab.active { background: #0a6fc2; color: #fff; }
+  .scene-tab .n { display: inline-block; width: 18px; height: 18px; line-height: 18px; text-align: center; background: rgba(255,255,255,.15); border-radius: 4px; font-size: 11px; margin-right: 6px; }
+  .scene-tab.active .n { background: rgba(255,255,255,.25); }
+
+  /* 场景容器 */
+  .scene { display: none; }
+  .scene.active { display: block; }
+
+  /* ============ 章节标题 ============ */
+  .section-title { font-size: 16px; font-weight: 700; margin: 0 0 14px; display: flex; align-items: center; gap: 10px; }
+  .section-title .num { display: inline-flex; width: 24px; height: 24px; align-items: center; justify-content: center; background: #1a8cd8; color: #fff; border-radius: 6px; font-size: 13px; }
+  .section-title .sub { font-size: 12px; font-weight: 400; color: #71767b; }
+
+  /* ============ 手机并排 ============ */
+  .phones { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+  @media (max-width: 820px) { .phones { grid-template-columns: 1fr; } }
+
+  .phone-wrap { display: flex; flex-direction: column; align-items: center; }
+  .phone-tag { font-size: 12px; color: #9aa4b0; margin-bottom: 8px; letter-spacing: .5px; }
+
+  /* 手机外壳 */
+  .phone {
+    --surface: #0f1419;
+    --surface-container: #1a1f2e;
+    --surface-container-high: #232a3b;
+    --surface-container-highest: #2d3548;
+    --primary: #e7e9ea;
+    --secondary: #7cacf8;
+    --secondary-container: #1a8cd8;
+    --tertiary: #00ba7c;
+    --error: #ff5c5c;
+    --on-surface: #e7e9ea;
+    --on-surface-variant: #9aa4b0;
+    --on-secondary-container: #ffffff;
+    --outline: #6b7785;
+    --outline-variant: #2f3336;
+
+    width: 360px; max-width: 100%;
+    background: var(--surface);
+    border-radius: 36px;
+    padding: 14px;
+    border: 1px solid #3a3f4a;
+    box-shadow: 0 20px 60px rgba(0,0,0,.5);
+    position: relative;
+    overflow: hidden;
+  }
+  .phone.light {
+    --surface: #f5f5f5;
+    --surface-container: #ffffff;
+    --surface-container-high: #f0f0f0;
+    --surface-container-highest: #e8e8e8;
+    --primary: #1a1a1a;
+    --secondary: #0a6fc2;
+    --secondary-container: #1a8cd8;
+    --tertiary: #00824f;
+    --error: #c81823;
+    --on-surface: #1a1a1a;
+    --on-surface-variant: #536471;
+    --on-secondary-container: #ffffff;
+    --outline: #7a8590;
+    --outline-variant: #e0e0e0;
+    border-color: #d0d4da;
+  }
+
+  /* 旧方案覆盖（深色） */
+  body.scheme-old .phone:not(.light) {
+    --secondary-container: #1d9bf0;
+    --error: #f4212e;
+    --on-surface-variant: #71767b;
+    --outline: #536471;
+  }
+  /* 旧方案覆盖（浅色） */
+  body.scheme-old .phone.light {
+    --secondary: #1d9bf0;
+    --secondary-container: #1d9bf0;
+    --tertiary: #00ba7c;
+    --error: #f4212e;
+    --outline: #cfd8dc;
+  }
+
+  /* 屏幕区 */
+  .screen {
+    background: var(--surface);
+    border-radius: 24px;
+    padding: 0 0 18px;
+    min-height: 580px;
+    position: relative;
+  }
+  .statusbar {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 22px 6px; font-size: 13px; font-weight: 600;
+    color: var(--on-surface);
+  }
+  .statusbar .right { display: flex; gap: 5px; align-items: center; font-size: 11px; }
+
+  /* ============ 通用 UI 组件 ============ */
+  .app-name { font-size: 24px; font-weight: 700; color: var(--primary); text-align: center; margin: 14px 0 4px; }
+  .app-tag { font-size: 12px; color: var(--on-surface-variant); text-align: center; margin-bottom: 18px; }
+
+  .field-label { font-size: 13px; color: var(--on-surface-variant); padding: 0 4px 6px; }
+  .input {
+    height: 44px; background: var(--surface-container-high); border-radius: 8px;
+    padding: 0 14px; font-size: 15px; color: var(--primary);
+    display: flex; align-items: center; border: 1.5px solid transparent;
+  }
+  .input.placeholder { color: var(--on-surface-variant); opacity: .7; }
+  .input.focused { border-color: var(--secondary-container); }
+  .input.error-state { border-color: var(--error); color: var(--error); }
+  .field { margin-bottom: 14px; padding: 0 22px; position: relative; }
+
+  .btn-primary {
+    height: 44px; background: var(--secondary-container); color: var(--on-secondary-container);
+    border-radius: 22px; border: 0; width: 100%;
+    font-size: 15px; font-weight: 600; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .btn-primary.disabled { opacity: .5; cursor: not-allowed; }
+  .btn-secondary {
+    height: 40px; background: transparent; color: var(--primary);
+    border: 1px solid var(--outline-variant); border-radius: 8px;
+    width: 100%;
+    font-size: 14px; font-weight: 500; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .btn-text {
+    background: transparent; color: var(--secondary); border: 0;
+    font-size: 14px; font-weight: 500; cursor: pointer; padding: 8px;
+  }
+
+  .error-bar {
+    padding: 10px 12px;
+    background: color-mix(in srgb, var(--error) 14%, transparent);
+    border-radius: 8px; border-left: 3px solid var(--error);
+    font-size: 13px; color: var(--error); font-weight: 500;
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  .agree-row {
+    font-size: 12px; color: var(--on-surface-variant); line-height: 1.5;
+    display: flex; align-items: flex-start; gap: 8px;
+  }
+  .agree-row a { color: var(--secondary); text-decoration: none; }
+  .checkbox {
+    width: 16px; height: 16px; border-radius: 4px; border: 1.5px solid var(--outline);
+    flex-shrink: 0; margin-top: 1px; display: inline-flex; align-items: center; justify-content: center;
+    font-size: 11px; color: var(--on-secondary-container);
+  }
+  .checkbox.checked { background: var(--secondary-container); border-color: var(--secondary-container); }
+
+  /* 页面标题 + 列表 */
+  .page-title { font-size: 18px; font-weight: 700; color: var(--primary); padding: 8px 22px 14px; }
+  .group-label { font-size: 12px; color: var(--on-surface-variant); padding: 12px 22px 6px; text-transform: uppercase; letter-spacing: .5px; }
+  .card { margin: 0 22px 10px; background: var(--surface-container); border-radius: 12px; overflow: hidden; }
+  .card .row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 14px; border-bottom: 1px solid var(--outline-variant);
+    font-size: 14px; color: var(--primary);
+  }
+  .card .row:last-child { border-bottom: 0; }
+  .card .row .desc { font-size: 12px; color: var(--on-surface-variant); margin-top: 2px; }
+  .card .row .left { display: flex; flex-direction: column; }
+  .radio {
+    width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--outline);
+    flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
+  }
+  .radio.on { border-color: var(--secondary-container); }
+  .radio.on::after { content: ''; width: 10px; height: 10px; border-radius: 50%; background: var(--secondary-container); }
+  .icon-square {
+    width: 22px; height: 22px; border-radius: 6px; border: 1.5px solid var(--outline);
+    display: inline-flex; align-items: center; justify-content: center; color: var(--outline);
+    font-size: 12px; flex-shrink: 0;
+  }
+  .chevron { color: var(--outline); font-size: 14px; }
+
+  /* ============ Worker 卡片 ============ */
+  .worker-card {
+    margin: 0 22px 12px; padding: 14px; background: var(--surface-container);
+    border-radius: 12px; border: 1px solid var(--outline-variant);
+  }
+  .worker-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+  .worker-name { font-size: 15px; font-weight: 600; color: var(--primary); display: flex; align-items: center; gap: 8px; }
+  .worker-addr { font-size: 12px; color: var(--on-surface-variant); margin-top: 2px; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .status-dot.online { background: var(--tertiary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--tertiary) 30%, transparent); }
+  .status-dot.offline { background: var(--on-surface-variant); }
+  .status-dot.error { background: var(--error); }
+  .status-badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 500; }
+  .status-badge.online { background: color-mix(in srgb, var(--tertiary) 18%, transparent); color: var(--tertiary); }
+  .status-badge.error { background: color-mix(in srgb, var(--error) 18%, transparent); color: var(--error); }
+  .metric { margin-top: 10px; }
+  .metric-label { display: flex; justify-content: space-between; font-size: 11px; color: var(--on-surface-variant); margin-bottom: 4px; }
+  .metric-label .v { color: var(--primary); font-weight: 500; }
+  .metric-bar { height: 5px; background: var(--outline-variant); border-radius: 3px; overflow: hidden; }
+  .metric-fill { height: 100%; background: var(--tertiary); border-radius: 3px; }
+  .metric-fill.warn { background: var(--error); }
+  .metric-fill.info { background: var(--secondary-container); }
+
+  /* ============ Session 卡片 ============ */
+  .session-card {
+    margin: 0 22px 10px; padding: 12px 14px; background: var(--surface-container);
+    border-radius: 10px; display: flex; align-items: center; gap: 12px;
+  }
+  .session-icon {
+    width: 36px; height: 36px; border-radius: 8px; background: var(--surface-container-high);
+    display: flex; align-items: center; justify-content: center; color: var(--secondary);
+    font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 600; flex-shrink: 0;
+    border: 1px solid var(--outline-variant);
+  }
+  .session-info { flex: 1; min-width: 0; }
+  .session-title { font-size: 14px; color: var(--primary); font-weight: 500; }
+  .session-path { font-size: 11px; color: var(--on-surface-variant); margin-top: 2px; font-family: 'JetBrains Mono', monospace; }
+  .session-time { font-size: 11px; color: var(--outline); flex-shrink: 0; }
+
+  /* 空状态 */
+  .empty-state { text-align: center; padding: 60px 22px; }
+  .empty-icon { font-size: 40px; color: var(--outline); margin-bottom: 12px; }
+  .empty-title { font-size: 15px; color: var(--primary); margin-bottom: 4px; }
+  .empty-desc { font-size: 12px; color: var(--on-surface-variant); line-height: 1.6; }
+
+  /* ============ Modal 对话框 ============ */
+  .modal-overlay {
+    background: rgba(0,0,0,.55); border-radius: 24px;
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 22px;
+  }
+  .modal {
+    background: var(--surface-container-highest); border-radius: 16px;
+    padding: 22px; width: 100%; max-width: 320px;
+    border: 1px solid var(--outline-variant);
+  }
+  .modal-title { font-size: 17px; font-weight: 700; color: var(--primary); margin-bottom: 8px; }
+  .modal-body { font-size: 14px; color: var(--on-surface-variant); line-height: 1.6; margin-bottom: 18px; }
+  .modal-actions { display: flex; gap: 10px; }
+  .modal-actions .btn-primary { flex: 1; height: 40px; font-size: 14px; }
+  .modal-actions .btn-secondary { flex: 1; }
+
+  /* ============ Toast ============ */
+  .toast-stack { padding: 14px 22px; display: flex; flex-direction: column; gap: 10px; }
+  .toast {
+    padding: 12px 14px; background: var(--surface-container-high); border-radius: 10px;
+    font-size: 13px; display: flex; align-items: center; gap: 10px;
+    border-left: 3px solid var(--outline);
+  }
+  .toast.error { border-left-color: var(--error); color: var(--error); }
+  .toast.success { border-left-color: var(--tertiary); color: var(--tertiary); }
+  .toast.info { color: var(--primary); }
+  .toast .icon { font-size: 16px; }
+
+  /* ============ 表单控件 ============ */
+  .form-row {
+    padding: 14px 22px; display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid var(--outline-variant);
+  }
+  .form-row:last-child { border-bottom: 0; }
+  .form-row .label { font-size: 14px; color: var(--primary); }
+  .form-row .sub { font-size: 12px; color: var(--on-surface-variant); margin-top: 2px; }
+
+  /* Switch */
+  .switch { width: 44px; height: 24px; border-radius: 12px; background: var(--outline); position: relative; flex-shrink: 0; transition: background .2s; }
+  .switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: left .2s; }
+  .switch.on { background: var(--secondary-container); }
+  .switch.on::after { left: 22px; }
+
+  /* Slider */
+  .slider { flex: 1; height: 4px; background: var(--outline-variant); border-radius: 2px; position: relative; margin: 0 12px; }
+  .slider .fill { position: absolute; left: 0; top: 0; height: 100%; background: var(--secondary-container); border-radius: 2px; }
+  .slider .thumb { position: absolute; top: 50%; transform: translate(-50%, -50%); width: 18px; height: 18px; border-radius: 50%; background: var(--secondary-container); border: 3px solid var(--surface); }
+
+  /* ============ 终端 ============ */
+  .terminal {
+    margin: 0 22px; background: var(--surface); border: 1px solid var(--outline-variant);
+    border-radius: 12px; padding: 14px; font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 12.5px; line-height: 1.7;
+  }
+  .term-line { display: flex; gap: 8px; color: var(--primary); }
+  .term-prompt { color: var(--secondary); }
+  .term-ok { color: var(--tertiary); }
+  .term-err { color: var(--error); }
+  .term-dim { color: var(--on-surface-variant); }
+  .term-warn { color: var(--error); }
+
+  /* ============ 对比度角标 ============ */
+  .badge {
+    position: absolute; font-size: 9.5px; font-weight: 600; padding: 2px 5px;
+    border-radius: 4px; background: rgba(0,0,0,.7); color: #fff;
+    pointer-events: none; white-space: nowrap; z-index: 5;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .badge.ok { background: rgba(0, 186, 124, .85); }
+  .badge.fail { background: rgba(244, 33, 46, .88); }
+  .badge.warn { background: rgba(255, 165, 0, .88); }
+  .phone.light .badge { box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+
+  /* 内联标注（用于卡片底部说明） */
+  .inline-badge {
+    display: block; text-align: center; font-size: 10.5px; font-weight: 600;
+    padding: 6px 10px; border-radius: 6px; margin: 14px 22px 0;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .inline-badge.ok { background: rgba(0, 186, 124, .15); color: #00ba7c; border: 1px solid rgba(0, 186, 124, .3); }
+  .inline-badge.fail { background: rgba(244, 33, 46, .12); color: #ff5c5c; border: 1px solid rgba(244, 33, 46, .3); }
+  body.scheme-old .inline-badge.ok { background: rgba(244, 33, 46, .12); color: #ff5c5c; border-color: rgba(244, 33, 46, .3); }
+  body.scheme-old .inline-badge.ok[data-old-text]::after { content: attr(data-old-text); }
+  body.scheme-old .inline-badge.ok { color: #ff5c5c; }
+
+  /* 标注容器 */
+  .btn-primary-wrap { position: relative; }
+  .btn-primary-wrap .badge { top: 50%; right: -7px; transform: translateY(-50%); }
+  .field .badge { right: 26px; top: 50%; transform: translateY(-50%); }
+
+  /* ============ 对比度总表 ============ */
+  .table-wrap { overflow-x: auto; background: #1a1f2e; border: 1px solid #2f3336; border-radius: 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 760px; }
+  th, td { padding: 10px 14px; text-align: left; border-bottom: 1px solid #2f3336; }
+  th { background: #0f1419; color: #9aa4b0; font-weight: 600; font-size: 12px; }
+  td:first-child { color: #e7e9ea; font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+  .pass { color: #00ba7c; font-weight: 600; }
+  .pass-btn { color: #1a8cd8; font-weight: 600; }
+  .fail { color: #f4212e; font-weight: 600; }
+  .col-new { color: #7cacf8; }
+  .legend { font-size: 12px; color: #9aa4b0; margin-top: 10px; line-height: 1.7; }
+  .legend p { margin-bottom: 4px; }
+  .legend b.btn { color: #1a8cd8; }
+  .legend b.body { color: #0a6fc2; }
+</style>
+</head>
+<body class="scheme-new">
+
+<div class="page">
+  <header>
+    <h1>CortexTerminal · 配色原型 v2</h1>
+    <p>华为应用市场以"对比度不符合鸿蒙要求"打回上架。按 <a href="https://developer.huawei.com/consumer/cn/forum/topic/0204198799066197038" style="color:#7cacf8;">华为官方论坛</a> 区分对待：按钮文字 ≥3:1，正文文字 ≥4.5:1。基于此 per-token 差异化设计——按钮蓝用 Twitter hover 色 <code>#1a8cd8</code>（白字 3.63:1），浅色链接/次要正文文字用更深的 <code>#0a6fc2</code>（4.74:1）。</p>
+    <div class="rules">
+      <div class="rule body">正文文字 <b>≥4.5:1</b></div>
+      <div class="rule btn">按钮文字 <b>≥3:1</b></div>
+      <div class="rule">图标/大文字/边框 <b>≥3:1</b></div>
+      <div class="rule">深色 + 浅色 <b>双模式</b> 必查</div>
+      <div class="rule btn">按钮蓝 <b>#1d9bf0 → #1a8cd8</b>（Twitter hover）</div>
+      <div class="rule body">正文链接 <b>#1d9bf0 → #0a6fc2</b>（合规深化）</div>
+    </div>
+  </header>
+
+  <div class="toolbar">
+    <span class="label">配色方案：</span>
+    <div class="seg" id="schemeSeg">
+      <button data-scheme="new" class="active">新方案（过审 v2）</button>
+      <button data-scheme="old">旧方案（被打回）</button>
+    </div>
+    <span class="hint">角标 = WCAG 对比度 · 绿=达标 / 红=不达标 / 橙=按钮文字线</span>
+  </div>
+
+  <div class="scene-tabs" id="sceneTabs">
+    <button class="scene-tab active" data-scene="login"><span class="n">1</span>登录</button>
+    <button class="scene-tab" data-scene="settings"><span class="n">2</span>设置</button>
+    <button class="scene-tab" data-scene="terminal"><span class="n">3</span>终端</button>
+    <button class="scene-tab" data-scene="worker"><span class="n">4</span>Worker 列表</button>
+    <button class="scene-tab" data-scene="session"><span class="n">5</span>Session 列表</button>
+    <button class="scene-tab" data-scene="modal"><span class="n">6</span>对话框</button>
+    <button class="scene-tab" data-scene="toast"><span class="n">7</span>Toast</button>
+    <button class="scene-tab" data-scene="form"><span class="n">8</span>表单控件</button>
+  </div>
+
+  <!-- ============ 1. 登录页 ============ -->
+  <div class="scene active" data-scene="login">
+    <div class="section-title"><span class="num">1</span> 登录页 <span class="sub">主按钮 · 错误条 · 链接 · 次要文字 · 输入框三态</span></div>
+    <div class="phones">
+
+      <div class="phone-wrap">
+        <div class="phone-tag">DARK · 深色模式</div>
+        <div class="phone">
+          <div class="screen">
+            <div class="statusbar"><span>9:41</span><span class="right">📶 100%</span></div>
+            <div class="app-name">CortexTerminal</div>
+            <div class="app-tag">登录以连接你的 Worker 集群</div>
+
+            <div style="margin:0 22px 14px;">
+              <div class="error-bar">
+                <span>⚠</span>
+                <span>华为账号授权失败 (1001502012)</span>
+              </div>
+            </div>
+            <span class="inline-badge ok" data-new="error 文字 on surface：6.12:1 ✓（正文 ≥4.5:1）" data-old="error 文字 on surface：4.50:1 ✓（临界）">error 文字 on surface：6.12:1 ✓（正文 ≥4.5:1）</span>
+
+            <div class="field">
+              <div class="field-label">用户名</div>
+              <div class="input mono focused">rwecho</div>
+            </div>
+            <div class="field">
+              <div class="field-label">密码</div>
+              <div class="input placeholder mono">••••••••</div>
+            </div>
+
+            <div style="margin:6px 22px 12px;">
+              <div class="btn-primary-wrap">
+                <button class="btn-primary">登 录</button>
+                <span class="badge ok" data-new="3.63:1 ✓ 按钮" data-old="3.00:1 ✗">3.63:1 ✓</span>
+              </div>
+            </div>
+            <div style="margin:0 22px 12px;"><button class="btn-secondary">华为账号一键登录</button></div>
+
+            <div style="margin:8px 22px 0;">
+              <div class="agree-row">
+                <span class="checkbox checked">✓</span>
+                <span>已阅读并同意 <a>《用户协议》</a>、<a>《隐私政策》</a> 与 <a>《华为账号授权》</a></span>
+              </div>
+            </div>
+            <span class="inline-badge ok" data-new="次要文字 on surface：7.33:1 ✓ / 链接 secondary：8.04:1 ✓" data-old="次要文字 4.04:1 ✗ / 链接 8.04:1 ✓">次要文字 on surface：7.33:1 ✓ / 链接 secondary：8.04:1 ✓</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="phone-wrap">
+        <div class="phone-tag">LIGHT · 浅色模式</div>
+        <div class="phone light">
+          <div class="screen">
+            <div class="statusbar"><span>9:41</span><span class="right">📶 100%</span></div>
+            <div class="app-name">CortexTerminal</div>
+            <div class="app-tag">登录以连接你的 Worker 集群</div>
+
+            <div style="margin:0 22px 14px;">
+              <div class="error-bar">
+                <span>⚠</span>
+                <span>华为账号授权失败 (1001502012)</span>
+              </div>
+            </div>
+            <span class="inline-badge ok" data-new="error 文字 on surface：5.34:1 ✓" data-old="error 文字 on surface：3.77:1 ✗">error 文字 on surface：5.34:1 ✓</span>
+
+            <div class="field">
+              <div class="field-label">用户名</div>
+              <div class="input mono focused">rwecho</div>
+            </div>
+            <div class="field">
+              <div class="field-label">密码</div>
+              <div class="input placeholder mono">••••••••</div>
+            </div>
+
+            <div style="margin:6px 22px 12px;">
+              <div class="btn-primary-wrap">
+                <button class="btn-primary">登 录</button>
+                <span class="badge ok" data-new="3.63:1 ✓ 按钮" data-old="3.00:1 ✗">3.63:1 ✓</span>
+              </div>
+            </div>
+            <div style="margin:0 22px 12px;"><button class="btn-secondary">华为账号一键登录</button></div>
+
+            <div style="margin:8px 22px 0;">
+              <div class="agree-row">
+                <span class="checkbox checked">✓</span>
+                <span>已阅读并同意 <a>《用户协议》</a>、<a>《隐私政策》</a> 与 <a>《华为账号授权》</a></span>
+              </div>
+            </div>
+            <span class="inline-badge ok" data-new="次要文字 5.62:1 ✓ / 链接 secondary #0a6fc2：4.74:1 ✓（正文 ≥4.5:1）" data-old="次要文字 5.62:1 ✓ / 链接 #1d9bf0：2.75:1 ✗">次要文字 5.62:1 ✓ / 链接 secondary #0a6fc2：4.74:1 ✓（正文 ≥4.5:1）</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 2. 设置页 ============ -->
+  <div class="scene" data-scene="settings">
+    <div class="section-title"><span class="num">2</span> 设置页 <span class="sub">主题切换选中态 · 列表项 · 分割线 · 图标</span></div>
+    <div class="phones">
+
+      <div class="phone-wrap">
+        <div class="phone-tag">DARK · 深色模式</div>
+        <div class="phone">
+          <div class="screen">
+            <div class="statusbar"><span>9:41</span><span class="right">📶 100%</span></div>
+            <div class="page-title">设置</div>
+
+            <div class="group-label">外观</div>
+            <div class="card">
+              <div class="row">
+                <div class="left"><span>浅色主题</span></div>
+                <span class="radio"></span>
+              </div>
+              <div class="row">
+                <div class="left"><span>深色主题</span><span class="desc">当前选中</span></div>
+                <span class="radio on"></span>
+              </div>
+              <div class="row">
+                <div class="left"><span>跟随系统</span></div>
+                <span class="radio"></span>
+              </div>
+            </div>
+
+            <div class="group-label">关于</div>
+            <div class="card">
+              <div class="row">
+                <div class="left" style="flex-direction:row;align-items:center;gap:10px;">
+                  <span class="icon-square">ℹ</span>
+                  <span>版本</span>
+                </div>
+                <span style="color:var(--on-surface-variant);font-size:13px;">1.0.0</span>
+              </div>
+              <div class="row">
+                <div class="left" style="flex-direction:row;align-items:center;gap:10px;">
+                  <span class="icon-square">⌨</span>
+                  <span>键盘布局</span>
+                </div>
+                <span class="chevron">›</span>
+              </div>
+              <div class="row">
+                <div class="left" style="flex-direction:row;align-items:center;gap:10px;">
+                  <span class="icon-square">☁</span>
+                  <span>数据同步</span>
+                </div>
+                <span class="chevron">›</span>
+              </div>
+            </div>
+
+            <span class="inline-badge ok" data-new="图标 outline on 卡片：3.60:1 ✓（图标 ≥3:1）/ 选中态 secondary_container：白字 3.63:1 ✓" data-old="图标 outline on 卡片：2.68:1 ✗ / 选中态 #1d9bf0：白字 3.00:1 ✗">图标 outline on 卡片：3.60:1 ✓（图标 ≥3:1）/ 选中态 secondary_container：白字 3.63:1 ✓</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="phone-wrap">
+        <div class="phone-tag">LIGHT · 浅色模式</div>
+        <div class="phone light">
+          <div class="screen">
+            <div class="statusbar"><span>9:41</span><span class="right">📶 100%</span></div>
+            <div class="page-title">设置</div>
+
+            <div class="group-label">外观</div>
+            <div class="card">
+              <div class="row">
+                <div class="left"><span>浅色主题</span><span class="desc">当前选中</span></div>
+                <span class="radio on"></span>
+              </div>
+              <div class="row">
+                <div class="left"><span>深色主题</span></div>
+                <span class="radio"></span>
+              </div>
+              <div class="row">
+                <div class="left"><span>跟随系统</span></div>
+                <span class="radio"></span>
+              </div>
+            </div>
+
+            <div class="group-label">关于</div>
+            <div class="card">
+              <div class="row">
+                <div class="left" style="flex-direction:row;align-items:center;gap:10px;">
+                  <span class="icon-square">ℹ</span>
+                  <span>版本</span>
+                </div>
+                <span style="color:var(--on-surface-variant);font-size:13px;">1.0.0</span>
+              </div>
+              <div class="row">
+                <div class="left" style="flex-direction:row;align-items:center;gap:10px;">
+                  <span class="icon-square">⌨</span>
+                  <span>键盘布局</span>
+                </div>
+                <span class="chevron">›</span>
+              </div>
+              <div class="row">
+                <div class="left" style="flex-direction:row;align-items:center;gap:10px;">
+                  <span class="icon-square">☁</span>
+                  <span>数据同步</span>
+                </div>
+                <span class="chevron">›</span>
+              </div>
+            </div>
+
+            <span class="inline-badge ok" data-new="图标 outline on 卡片：3.76:1 ✓ / 选中态 secondary_container：白字 3.63:1 ✓" data-old="图标 outline on 卡片：1.45:1 ✗ 严重不足 / 选中态：白字 3.00:1 ✗">图标 outline on 卡片：3.76:1 ✓ / 选中态 secondary_container：白字 3.63:1 ✓</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 3. 终端 ============ -->
+  <div class="scene" data-scene="terminal">
+    <div class="section-title"><span class="num">3</span> 终端区域 <span class="sub">命令行多色文字（前景/命令/成功/错误/注释）</span></div>
+    <div class="phones">
+
+      <div class="phone-wrap">
+        <div class="phone-tag">DARK · 深色模式</div>
+        <div class="phone">
+          <div class="screen">
+            <div class="statusbar"><span>9:41</span><span class="right">📶 100%</span></div>
+            <div class="page-title">Session #abc123</div>
+            <div class="terminal">
+              <div class="term-line"><span class="term-prompt">$</span><span>corterm run "build auth flow"</span></div>
+              <div class="term-line"><span class="term-dim">→ Analyzing repository structure...</span></div>
+              <div class="term-line"><span class="term-ok">✓</span><span style="color:var(--primary);">Found 14 files, 3 entry points</span></div>
+              <div class="term-line"><span class="term-ok">✓</span><span style="color:var(--primary);">Done in 12.3s (12 tools, 4 edits)</span></div>
+              <div class="term-line"><span class="term-warn">⚠</span><span style="color:var(--error);">2 warnings: deprecated API usage</span></div>
+              <div class="term-line"><span class="term-err">✗</span><span style="color:var(--error);">Build failed: missing dependency</span></div>
+              <div class="term-line"><span class="term-prompt">$</span><span class="term-dim">_</span></div>
+            </div>
+            <span class="inline-badge ok" data-new="primary 15.2 / secondary 8.04 / tertiary 7.33 / error 6.12 / 注释 7.33 — 全部 ✓" data-old="primary 15.2 / secondary 8.04 / tertiary 7.33 / error 4.50 临界 / 注释 4.04 ✗">primary 15.2 / secondary 8.04 / tertiary 7.33 / error 6.12 / 注释 7.33 — 全部 ✓</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="phone-wrap">
+        <div class="phone-tag">LIGHT · 浅色模式</div>
+        <div class="phone light">
+          <div class="screen">
+            <div class="statusbar"><span>9:41</span><span class="right">📶 100%</span></div>
+            <div class="page-title">Session #abc123</div>
+            <div class="terminal" style="background:#ffffff;">
+              <div class="term-line"><span class="term-prompt">$</span><span>corterm run "build auth flow"</span></div>
+              <div class="term-line"><span class="term-dim">→ Analyzing repository structure...</span></div>
+              <div class="term-line"><span class="term-ok">✓</span><span style="color:var(--primary);">Found 14 files, 3 entry points</span></div>
+              <div class="term-line"><span class="term-ok">✓</span><span style="color:var(--primary);">Done in 12.3s (12 tools, 4 edits)</span></div>
+              <div class="term-line"><span class="term-warn">⚠</span><span style="color:var(--error);">2 warnings: deprecated API usage</span></div>
+              <div class="term-line"><span class="term-err">✗</span><span style="color:var(--error);">Build failed: missing dependency</span></div>
+              <div class="term-line"><span class="term-prompt">$</span><span class="term-dim">_</span></div>
+            </div>
+            <span class="inline-badge ok" data-new="primary 15.96 / secondary 4.74 / tertiary 4.48 / error 5.34 / 注释 5.62 — 全部 ✓" data-old="primary 15.96 / secondary 2.75 ✗ / tertiary 2.32 ✗ / error 3.77 ✗ / 注释 5.62 ✓">primary 15.96 / secondary 4.74 / tertiary 4.48 / error 5.34 / 注释 5.62 — 全部 ✓</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 4. Worker 列表 ============ -->
+  <div class="scene" data-scene="worker">
+    <div class="section-title"><span class="num">4</span> Worker 列表 <span class="sub">状态点 · CPU/内存进度条 · 主机名/地址文字层级</span></div>
+    <div class="phones">
+
+      <div class="phone-wrap">
+        <div class="phone-tag">DARK · 深色模式</div>
+        <div class="phone">
+          <div class="screen">
+            <div class="statusbar"><span>9:41</span><span class="right">📶 100%</span></div>
+            <div class="page-title">Workers · 3</div>
+
+            <div class="worker-card">
+              <div class="worker-head">
+                <div>
+                  <div class="worker-name"><span class="status-dot online"></span>mac-mini-m4</div>
+                  <div class="worker-addr mono">192.168.1.42 · arm64 · Darwin 25.2</div>
+                </div>
+                <span class="status-badge online">在线</span>
+              </div>
+              <div class="metric">
+                <div class="metric-label"><span>CPU</span><span class="v">23%</span></div>
+                <div class="metric-bar"><div class="metric-fill info" style="width:23%;"></div></div>
+              </div>
+              <div class="metric">
+                <div class="metric-label"><span>内存</span><span class="v">5.2 / 16 GB</span></div>
+                <div class="metric-bar"><div class="metric-fill info" style="width:32%;"></div></div>
+              </div>
+            </div>
+
+            <div class="worker-card">
+              <div class="worker-head">
+                <div>
+                  <div class="worker-name"><span class="status-dot online"></span>cortex-worker-1</div>
+                  <div class="worker-addr mono">10.0.0.8 · x86_64 · Ubuntu 24.04</div>
+                </div>
+                <span class="status-badge online">在线</span>
+              </div>
+              <div class="metric">
+                <div class="metric-label"><span>CPU</span><span class="v" style="color:var(--error);">87%</span></div>
+                <div class="metric-bar"><div class="metric-fill warn" style="width:87%;"></div></div>
+              </div>
+              <div class="metric">
+                <div class="metric-label"><span>内存</span><span class="v">12.4 / 32 GB</span></div>
+                <div class="metric-bar"><div class="metric-fill info" style="width:38%;"></div></div>
+              </div>
+            </div>
+
+            <div class="worker-card">
+              <div class="worker-head">
+                <div>
+                  <div class="worker-name"><span class="status-dot error"></span>edge-relay-tokyo</div>
+                  <div class="worker-addr mono">203.0.113.5 · 连接超时 12s</div>
+                </div>
+                <span class="status-badge error">错误</span>
+              </div>
+            </div>
+
+            <span class="inline-badge ok" data-new="主机名 primary 15.2 / 地址注释 7.33 / 状态徽标 error 6.12 / 进度条填充 secondary_container 白字 3.63 — 全部 ✓" data-old="状态徽标 error 4.50 临界 / 注释 4.04 ✗ / 进度条 #1d9bf0 白字 3.00 ✗">主机名 primary 15.2 / 地址注释 7.33 / 状态徽标 error 6.12 / 进度条填充 secondary_container 白字 3.63 — 全部 ✓</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="phone-wrap">
+        <div class="phone-tag">LIGHT · 浅色模式</div>
+        <div class="phone light">
+          <div class="screen">
+            <div class="statusbar"><span>9:41</span><span class="right">📶 100%</span></div>
+            <div class="page-title">Workers · 3</div>
+
+            <div class="worker-card">
+              <div class="worker-head">
+                <div>
+                  <div class="worker-name"><span class="status-dot online"></span>mac-mini-m4</div>
+                  <div class="worker-addr mono">192.168.1.42 · arm64 · Darwin 25.2</div>
+                </div>
+                <span class="status-badge online">在线</span>
+              </div>
+              <div class="metric">
+                <div class="metric-label"><span>CPU</span><span class="v">23%</span></div>
+                <div class="metric-bar"><div class="metric-fill info" style="width:23%;"></div></div>
+              </div>
+              <div class="metric">
+                <div class="metric-label"><span>内存</span><span class="v">5.2 / 16 GB</span></div>
+                <div class="metric-bar"><div class="metric-fill info" style="width:32%;"></div></div>
+              </div>
+            </div>
+
+            <div class="worker-card">
+              <div class="worker-head">
+                <div>
+                  <div class="worker-name"><span class="status-dot online"></span>cortex-worker-1</div>
+                  <div class="worker-addr mono">10.0.0.8 · x86_64 · Ubuntu 24.04</div>
+                </div>
+                <span class="status-badge online">在线</span>
+              </div>
+              <div class="metric">
+                <div class="metric-label"><span>CPU</span><span class="v" style="color:var(--error);">87%</span></div>
+                <div class="metric-bar"><div class="metric-fill warn" style="width:87%;"></div></div>
+              </div>
+              <div class="metric">
+                <div class="metric-label"><span>内存</span><span class="v">12.4 / 32 GB</span></div>
+                <div class="metric-bar"><div class="metric-fill info" style="width:38%;"></div></div>
+              </div>
+            </div>
+
+            <div class="worker-card">
+              <div class="worker-head">
+                <div>
+                  <div class="worker-name"><span class="status-dot error"></span>edge-relay-tokyo</div>
+                  <div class="worker-addr mono">203.0.113.5 · 连接超时 12s</div>
+                </div>
+                <span class="status-badge error">错误</span>
+              </div>
+            </div>
+
+            <span class="inline-badge ok" data-new="主机名 primary 15.96 / 地址注释 5.62 / 状态徽标 error 5.34 / 进度条 secondary_container 白字 3.63 — 全部 ✓" data-old="主机名 15.96 / 注释 5.62 / 状态 error 3.77 ✗ / 进度条 #1d9bf0 白字 3.00 ✗">主机名 primary 15.96 / 地址注释 5.62 / 状态徽标 error 5.34 / 进度条 secondary_container 白字 3.63 — 全部 ✓</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 5. Session 列表 ============ -->
+  <div class="scene" data-scene="session">
+    <div class="section-title"><span class="num">5</span> Session 列表 + 空状态 <span class="sub">卡片标题/路径/时间戳 · 空状态图标</span></div>
+    <div class="phones">
+
+      <div class="phone-wrap">
+        <div class="phone-tag">DARK · 深色模式</div>
+        <div class="phone">
+          <div class="screen">
+            <div class="statusbar"><span>9:41</span><span class="right">📶 100%</span></div>
+            <div class="page-title">会话 · 最近</div>
+
+            <div class="session-card">
+              <div class="session-icon">~</div>
+              <div class="session-info">
+                <div class="session-title">CortexTerminal 主开发</div>
+                <div class="session-path">~/workspace/CortexTerminal2</div>
+              </div>
+              <div class="session-time">2 分钟前</div>
+            </div>
+
+            <div class="session-card">
+              <div class="session-icon">⎈</div>
+              <div class="session-info">
+                <div class="session-title">k8s-debug-session</div>
+                <div class="session-path">/var/log/k8s/prod</div>
+              </div>
+              <div class="session-time">昨天</div>
+            </div>
+
+            <div class="session-card">
+              <div class="session-icon">⚙</div>
+              <div class="session-info">
+                <div class="session-title">构建发布 1.0.0</div>
+                <div class="session-path">~/projects/release</div>
+              </div>
+              <div class="session-time">3 天前</div>
+            </div>
+
+            <span class="inline-badge ok" data-new="标题 primary 6.5（卡片底）/ 路径注释 6.5 / 时间戳 outline 3.6 / 图标 secondary 8.04 — 全部 ✓" data-old="标题 primary 15.2 / 注释 3.58 ✗ / 时间戳 outline 2.68 ✗">标题 primary 6.5（卡片底）/ 路径注释 6.5 / 时间戳 outline 3.6 / 图标 secondary 8.04 — 全部 ✓</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="phone-wrap">
+        <div class="phone-tag">LIGHT · 浅色模式 · 空状态</div>
+        <div class="phone light">
+          <div class="screen">
+            <div class="statusbar"><span>9:41</span><span class="right">📶 100%</span></div>
+            <div class="page-title">会话 · 最近</div>
+
+            <div class="empty-state">
+              <div class="empty-icon">📋</div>
+              <div class="empty-title">暂无会话</div>
+              <div class="empty-desc">点击右下角 + 创建新会话<br/>连接到你的 Worker 开始工作</div>
+            </div>
+
+            <div style="margin:24px 22px 0;display:flex;justify-content:center;">
+              <button class="btn-primary" style="width:auto;padding:0 24px;">+ 新建会话</button>
+            </div>
+
+            <span class="inline-badge ok" data-new="空状态标题 primary 15.96 / 描述注释 5.62 / 图标 outline 3.76 / 按钮 secondary_container 白字 3.63 — 全部 ✓" data-old="标题 15.96 / 注释 5.62 / 图标 outline 1.45 ✗ 严重不足 / 按钮 3.00 ✗">空状态标题 primary 15.96 / 描述注释 5.62 / 图标 outline 3.76 / 按钮 secondary_container 白字 3.63 — 全部 ✓</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 6. Modal 对话框 ============ -->
+  <div class="scene" data-scene="modal">
+    <div class="section-title"><span class="num">6</span> 对话框 / Modal <span class="sub">最高层级 surface · 标题/正文 · 主+次按钮</span></div>
+    <div class="phones">
+
+      <div class="phone-wrap">
+        <div class="phone-tag">DARK · 深色模式</div>
+        <div class="phone">
+          <div class="screen">
+            <div class="statusbar"><span>9:41</span><span class="right">📶 100%</span></div>
+            <div class="page-title">Session #abc123</div>
+            <div style="padding:0 22px;font-size:13px;color:var(--on-surface-variant);line-height:1.6;">
+              正在与 worker 通信…<br/>执行 <code style="color:var(--secondary);font-family:monospace;">npm run build</code>
+            </div>
+            <div class="modal-overlay">
+              <div class="modal">
+                <div class="modal-title">确认断开会话？</div>
+                <div class="modal-body">此操作会立即终止 worker 上的所有运行进程，未保存的终端历史将丢失。该操作不可撤销。</div>
+                <div class="modal-actions">
+                  <button class="btn-secondary">取消</button>
+                  <div class="btn-primary-wrap">
+                    <button class="btn-primary">断开</button>
+                    <span class="badge ok" data-new="3.63:1 ✓ 按钮" data-old="3.00:1 ✗">3.63:1 ✓</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="phone-wrap">
+        <div class="phone-tag">LIGHT · 浅色模式</div>
+        <div class="phone light">
+          <div class="screen">
+            <div class="statusbar"><span>9:41</span><span class="right">📶 100%</span></div>
+            <div class="page-title">Session #abc123</div>
+            <div style="padding:0 22px;font-size:13px;color:var(--on-surface-variant);line-height:1.6;">
+              正在与 worker 通信…<br/>执行 <code style="color:var(--secondary);font-family:monospace;">npm run build</code>
+            </div>
+            <div class="modal-overlay">
+              <div class="modal">
+                <div class="modal-title">确认断开会话？</div>
+                <div class="modal-body">此操作会立即终止 worker 上的所有运行进程，未保存的终端历史将丢失。该操作不可撤销。</div>
+                <div class="modal-actions">
+                  <button class="btn-secondary">取消</button>
+                  <div class="btn-primary-wrap">
+                    <button class="btn-primary">断开</button>
+                    <span class="badge ok" data-new="3.63:1 ✓ 按钮" data-old="3.00:1 ✗">3.63:1 ✓</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <span class="inline-badge ok" style="margin-top:18px;" data-new="modal 标题 primary on highest surface 11.5 / 正文注释 5.0 / 主按钮白字 3.63 / 次按钮 outline 3.6 — 全部 ✓" data-old="正文注释 2.7 ✗ / 主按钮 3.00 ✗">modal 标题 primary on highest surface 11.5 / 正文注释 5.0 / 主按钮白字 3.63 / 次按钮 outline 3.6 — 全部 ✓</span>
+  </div>
+
+  <!-- ============ 7. Toast ============ -->
+  <div class="scene" data-scene="toast">
+    <div class="section-title"><span class="num">7</span> Toast / Snackbar <span class="sub">错误/成功/普通三种 · 顶部带图标</span></div>
+    <div class="phones">
+
+      <div class="phone-wrap">
+        <div class="phone-tag">DARK · 深色模式</div>
+        <div class="phone">
+          <div class="screen">
+            <div class="statusbar"><span>9:41</span><span class="right">📶 100%</span></div>
+            <div class="page-title">消息通知示例</div>
+
+            <div class="toast-stack">
+              <div class="toast error">
+                <span class="icon">✗</span>
+                <span>会话连接失败：网络超时 (ETIMEDOUT)</span>
+              </div>
+              <div class="toast success">
+                <span class="icon">✓</span>
+                <span>部署成功：1.0.0 已上架 AppGallery</span>
+              </div>
+              <div class="toast info">
+                <span class="icon">ℹ</span>
+                <span>Worker corterm-1 已重新连接</span>
+              </div>
+              <div class="toast" style="border-left-color:var(--secondary-container);color:var(--secondary);">
+                <span class="icon">↻</span>
+                <span>正在重试连接... (3/5)</span>
+              </div>
+            </div>
+
+            <span class="inline-badge ok" data-new="error 文字 6.12 / success tertiary 7.33 / info primary 11.5 / 重试 secondary 8.04 — 全部 ✓" data-old="error 4.50 临界 / 其他不变">error 文字 6.12 / success tertiary 7.33 / info primary 11.5 / 重试 secondary 8.04 — 全部 ✓</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="phone-wrap">
+        <div class="phone-tag">LIGHT · 浅色模式</div>
+        <div class="phone light">
+          <div class="screen">
+            <div class="statusbar"><span>9:41</span><span class="right">📶 100%</span></div>
+            <div class="page-title">消息通知示例</div>
+
+            <div class="toast-stack">
+              <div class="toast error">
+                <span class="icon">✗</span>
+                <span>会话连接失败：网络超时 (ETIMEDOUT)</span>
+              </div>
+              <div class="toast success">
+                <span class="icon">✓</span>
+                <span>部署成功：1.0.0 已上架 AppGallery</span>
+              </div>
+              <div class="toast info">
+                <span class="icon">ℹ</span>
+                <span>Worker corterm-1 已重新连接</span>
+              </div>
+              <div class="toast" style="border-left-color:var(--secondary-container);color:var(--secondary);">
+                <span class="icon">↻</span>
+                <span>正在重试连接... (3/5)</span>
+              </div>
+            </div>
+
+            <span class="inline-badge ok" data-new="error 文字 5.34 / success tertiary 4.48 / info primary 11.5 / 重试 secondary 4.74 — 全部 ✓" data-old="error 3.77 ✗ / success tertiary 2.32 ✗ / 重试 secondary 2.75 ✗">error 文字 5.34 / success tertiary 4.48 / info primary 11.5 / 重试 secondary 4.74 — 全部 ✓</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 8. 表单控件 ============ -->
+  <div class="scene" data-scene="form">
+    <div class="section-title"><span class="num">8</span> 表单控件 <span class="sub">开关 · 单选 · 滑块 · 按钮（启用/禁用）</span></div>
+    <div class="phones">
+
+      <div class="phone-wrap">
+        <div class="phone-tag">DARK · 深色模式</div>
+        <div class="phone">
+          <div class="screen">
+            <div class="statusbar"><span>9:41</span><span class="right">📶 100%</span></div>
+            <div class="page-title">偏好设置</div>
+
+            <div class="card" style="padding:0;">
+              <div class="form-row">
+                <div>
+                  <div class="label">自动重连</div>
+                  <div class="sub">连接断开时自动尝试恢复</div>
+                </div>
+                <div class="switch on"></div>
+              </div>
+              <div class="form-row">
+                <div>
+                  <div class="label">高对比度文字</div>
+                  <div class="sub">跟随系统辅助功能</div>
+                </div>
+                <div class="switch"></div>
+              </div>
+              <div class="form-row">
+                <div>
+                  <div class="label">字号</div>
+                  <div class="sub">14 sp</div>
+                </div>
+                <div style="display:flex;align-items:center;width:140px;">
+                  <span style="font-size:11px;color:var(--on-surface-variant);">12</span>
+                  <div class="slider"><div class="fill" style="width:30%;"></div><div class="thumb" style="left:30%;"></div></div>
+                  <span style="font-size:13px;color:var(--on-surface-variant);">18</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="group-label">字号预设</div>
+            <div class="card">
+              <div class="row">
+                <div class="left"><span>紧凑 (12sp)</span></div>
+                <span class="radio"></span>
+              </div>
+              <div class="row">
+                <div class="left"><span>标准 (14sp)</span><span class="desc">推荐</span></div>
+                <span class="radio on"></span>
+              </div>
+              <div class="row">
+                <div class="left"><span>舒适 (16sp)</span></div>
+                <span class="radio"></span>
+              </div>
+            </div>
+
+            <div style="margin:18px 22px 12px;">
+              <div class="btn-primary-wrap">
+                <button class="btn-primary">保存设置</button>
+                <span class="badge ok" data-new="3.63:1 ✓ 按钮" data-old="3.00:1 ✗">3.63:1 ✓</span>
+              </div>
+            </div>
+            <div style="margin:0 22px;">
+              <button class="btn-primary disabled" style="opacity:.5;cursor:not-allowed;">恢复默认（禁用态）</button>
+            </div>
+
+            <span class="inline-badge ok" data-new="开关 on secondary_container / 滑块 secondary_container / 单选 on secondary_container — 白字（开关） 3.63 ✓ / 注释 7.33 ✓" data-old="#1d9bf0 系列：3.00 ✗ 全部卡线">开关 on secondary_container / 滑块 secondary_container / 单选 on secondary_container — 白字（开关） 3.63 ✓ / 注释 7.33 ✓</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="phone-wrap">
+        <div class="phone-tag">LIGHT · 浅色模式</div>
+        <div class="phone light">
+          <div class="screen">
+            <div class="statusbar"><span>9:41</span><span class="right">📶 100%</span></div>
+            <div class="page-title">偏好设置</div>
+
+            <div class="card" style="padding:0;">
+              <div class="form-row">
+                <div>
+                  <div class="label">自动重连</div>
+                  <div class="sub">连接断开时自动尝试恢复</div>
+                </div>
+                <div class="switch on"></div>
+              </div>
+              <div class="form-row">
+                <div>
+                  <div class="label">高对比度文字</div>
+                  <div class="sub">跟随系统辅助功能</div>
+                </div>
+                <div class="switch"></div>
+              </div>
+              <div class="form-row">
+                <div>
+                  <div class="label">字号</div>
+                  <div class="sub">14 sp</div>
+                </div>
+                <div style="display:flex;align-items:center;width:140px;">
+                  <span style="font-size:11px;color:var(--on-surface-variant);">12</span>
+                  <div class="slider"><div class="fill" style="width:30%;"></div><div class="thumb" style="left:30%;"></div></div>
+                  <span style="font-size:13px;color:var(--on-surface-variant);">18</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="group-label">字号预设</div>
+            <div class="card">
+              <div class="row">
+                <div class="left"><span>紧凑 (12sp)</span></div>
+                <span class="radio"></span>
+              </div>
+              <div class="row">
+                <div class="left"><span>标准 (14sp)</span><span class="desc">推荐</span></div>
+                <span class="radio on"></span>
+              </div>
+              <div class="row">
+                <div class="left"><span>舒适 (16sp)</span></div>
+                <span class="radio"></span>
+              </div>
+            </div>
+
+            <div style="margin:18px 22px 12px;">
+              <div class="btn-primary-wrap">
+                <button class="btn-primary">保存设置</button>
+                <span class="badge ok" data-new="3.63:1 ✓ 按钮" data-old="3.00:1 ✗">3.63:1 ✓</span>
+              </div>
+            </div>
+            <div style="margin:0 22px;">
+              <button class="btn-primary disabled" style="opacity:.5;cursor:not-allowed;">恢复默认（禁用态）</button>
+            </div>
+
+            <span class="inline-badge ok" data-new="开关/滑块/单选 secondary_container 白字 3.63 ✓ / 注释 5.62 ✓" data-old="#1d9bf0 系列：3.00 ✗ 全部卡线">开关/滑块/单选 secondary_container 白字 3.63 ✓ / 注释 5.62 ✓</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 全量对比度总表 ============ -->
+  <div class="section-title" style="margin-top:36px;"><span class="num">∑</span> 全量对比度对照表 <span class="sub">WCAG 相对亮度法复算（华为论坛：按钮文字 ≥3:1，正文 ≥4.5:1）</span></div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>组合（文字 on 背景）</th>
+          <th>类型</th>
+          <th class="col-new">深色 · 新</th>
+          <th>深色 · 旧</th>
+          <th class="col-new">浅色 · 新</th>
+          <th>浅色 · 旧</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>primary on surface</td><td>正文</td><td class="pass">15.20 ✓</td><td class="pass">15.20 ✓</td><td class="pass">15.96 ✓</td><td class="pass">15.96 ✓</td></tr>
+        <tr><td>白字 on secondary_container（主按钮）</td><td>按钮文字</td><td class="pass-btn">3.63 ✓</td><td class="fail">3.00 ✗</td><td class="pass-btn">3.63 ✓</td><td class="fail">3.00 ✗</td></tr>
+        <tr><td>on_surface_variant on surface</td><td>正文</td><td class="pass">7.33 ✓</td><td class="fail">4.04 ✗</td><td class="pass">5.62 ✓</td><td class="pass">5.62 ✓</td></tr>
+        <tr><td>on_surface_variant on 卡片</td><td>正文</td><td class="pass">6.50 ✓</td><td class="fail">3.58 ✗</td><td class="pass">6.13 ✓</td><td class="pass">6.13 ✓</td></tr>
+        <tr><td>secondary（链接） on surface</td><td>正文</td><td class="pass">8.04 ✓</td><td class="pass">8.04 ✓</td><td class="pass">4.74 ✓</td><td class="fail">2.75 ✗</td></tr>
+        <tr><td>error on surface</td><td>正文</td><td class="pass">6.12 ✓</td><td class="pass">4.50 临界</td><td class="pass">5.34 ✓</td><td class="fail">3.77 ✗</td></tr>
+        <tr><td>tertiary（成功） on surface</td><td>正文</td><td class="pass">7.33 ✓</td><td class="pass">7.33 ✓</td><td class="pass">4.48 ✓</td><td class="fail">2.32 ✗</td></tr>
+        <tr><td>outline（图标） on 卡片</td><td>图标 ≥3:1</td><td class="pass">3.60 ✓</td><td class="fail">2.68 ✗</td><td class="pass">3.76 ✓</td><td class="fail">1.45 ✗</td></tr>
+        <tr><td>outline_variant（装饰分割线）</td><td>装饰·非强制</td><td>1.18</td><td>1.18</td><td>1.20</td><td>1.20</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="legend">
+    <p><b class="pass">✓</b> 达标 &nbsp; <b class="fail">✗</b> 不达标 &nbsp; <b class="pass-btn">蓝色</b> 按钮文字达标（≥3:1） &nbsp; <b style="color:#ff5c5c">临界</b> 卡线有算法风险</p>
+    <p>· 正文要求 <b class="body">≥ 4.5:1</b>，按钮文字要求 <b class="btn">≥ 3:1</b>（华为官方论坛确认区分对待）</p>
+    <p>· 装饰性分割线（outline_variant）WCAG 不强制，未列入过审硬指标</p>
+    <p>· 按钮蓝 <b class="btn">#1a8cd8</b>（Twitter hover 色，白字 3.63:1）· 浅色正文链接 <b class="body">#0a6fc2</b>（4.74:1 满足正文 4.5:1）· per-token 差异化</p>
+  </div>
+
+</div>
+
+<script>
+  // 方案切换
+  const seg = document.getElementById('schemeSeg');
+  seg.addEventListener('click', e => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    const scheme = btn.dataset.scheme;
+    document.body.className = 'scheme-' + scheme;
+    seg.querySelectorAll('button').forEach(b => b.classList.toggle('active', b === btn));
+    // 同步所有内联角标
+    document.querySelectorAll('.badge').forEach(b => {
+      const val = scheme === 'old' ? b.dataset.old : b.dataset.new;
+      if (!val) return;
+      b.textContent = val;
+      b.classList.toggle('ok', val.includes('✓'));
+      b.classList.toggle('fail', val.includes('✗'));
+    });
+    // 同步所有卡片底部说明
+    document.querySelectorAll('.inline-badge').forEach(b => {
+      const val = scheme === 'old' ? b.dataset.old : b.dataset.new;
+      if (!val) return;
+      b.textContent = val;
+      if (scheme === 'old') {
+        // 旧方案下，原本的 ok 在新方案下若旧方案不达标则变红
+        const hasFail = val.includes('✗');
+        b.classList.toggle('fail', hasFail);
+        b.classList.toggle('ok', !hasFail);
+      } else {
+        b.classList.add('ok');
+        b.classList.remove('fail');
+      }
+    });
+  });
+
+  // 场景 Tab 切换
+  const tabs = document.getElementById('sceneTabs');
+  tabs.addEventListener('click', e => {
+    const btn = e.target.closest('.scene-tab');
+    if (!btn) return;
+    const scene = btn.dataset.scene;
+    tabs.querySelectorAll('.scene-tab').forEach(b => b.classList.toggle('active', b === btn));
+    document.querySelectorAll('.scene').forEach(s => s.classList.toggle('active', s.dataset.scene === scene));
+    // 滚到顶部
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+</script>
+
+</body>
+</html>

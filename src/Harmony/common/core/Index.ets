@@ -6,7 +6,6 @@
  */
 
 // Constants
-export { DesignTokens } from './src/main/ets/constants/DesignTokens'
 export { AppConstants } from './src/main/ets/constants/AppConstants'
 export { RouteName } from './src/main/ets/constants/RouteName'
 
@@ -23,9 +22,6 @@ export { I18n } from './src/main/ets/i18n/I18n'
 
 // Router
 export { AppRouter } from './src/main/ets/router/AppRouter'
-
-// Theme
-export { TerminalState, ButtonType, Colors, Spacing } from './src/main/ets/theme/AppTheme'
 
 // Components
 export { AppBar } from './src/main/ets/components/AppBar'

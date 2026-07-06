@@ -9,7 +9,18 @@
 
 ## HarmonyOS 设计规范
 
-### 颜色系统（Dark Theme）
+### 对比度达标线（华为应用市场审核要求）
+
+参考 [华为官方论坛](https://developer.huawei.com/consumer/cn/forum/topic/0204198799066197038)，华为区分对待：
+
+- **正文文字**（≤18sp 的描述/次要文字/链接等）≥ **4.5:1**
+- **按钮文字**（按钮上的文字）≥ **3:1**（非 4.5:1）
+- 大文字（≥18sp）/图标/可交互元素边框 ≥ **3:1**
+- 深色 + 浅色双模式必查
+
+> 关键：按钮蓝用 Twitter hover 色 `#1a8cd8`（白字 3.63:1，超 3:1 线 0.63），浅色链接/次要文字用更深的 `#0a6fc2`（4.74:1，满足正文 4.5:1）——per-token 差异化兼顾品牌识别与合规。
+
+### 颜色系统（Dark Theme · 深色）
 
 | Token | 色值 | 用途 |
 |-------|------|------|
@@ -19,14 +30,33 @@
 | `terminal_surface_container_highest` | `#2d3548` | 对话框背景 |
 | `terminal_primary` | `#e7e9ea` | 主文字/高强调内容 |
 | `terminal_secondary` | `#7cacf8` | 次要文字/链接 |
-| `terminal_secondary_container` | `#1d9bf0` | 主操作按钮背景 |
+| `terminal_secondary_container` | `#1a8cd8` | 主操作按钮背景（Twitter hover） |
 | `terminal_tertiary` | `#00ba7c` | 成功/在线状态 |
-| `terminal_error` | `#f4212e` | 错误/失败状态 |
+| `terminal_error` | `#ff5c5c` | 错误/失败状态 |
 | `terminal_on_surface` | `#e7e9ea` | 表面上的文字 |
-| `terminal_on_surface_variant` | `#71767b` | 次要/提示文字 |
+| `terminal_on_surface_variant` | `#9aa4b0` | 次要/提示文字 |
 | `terminal_on_secondary_container` | `#ffffff` | 按钮上的文字 |
-| `terminal_outline` | `#536471` | 边框/分割线 |
-| `terminal_outline_variant` | `#2f3336` | 弱边框/分割线 |
+| `terminal_outline` | `#6b7785` | 边框/图标/分割线 |
+| `terminal_outline_variant` | `#2f3336` | 弱边框/装饰分割线 |
+
+### 颜色系统（Light Theme · 浅色）
+
+| Token | 色值 | 用途 |
+|-------|------|------|
+| `terminal_surface` | `#f5f5f5` | 页面主背景 |
+| `terminal_surface_container` | `#ffffff` | 卡片/表单容器背景 |
+| `terminal_surface_container_high` | `#f0f0f0` | 输入框背景 |
+| `terminal_surface_container_highest` | `#e8e8e8` | 对话框背景 |
+| `terminal_primary` | `#1a1a1a` | 主文字/高强调内容 |
+| `terminal_secondary` | `#0a6fc2` | 次要文字/链接（正文，4.74:1） |
+| `terminal_secondary_container` | `#1a8cd8` | 主操作按钮背景（Twitter hover） |
+| `terminal_tertiary` | `#00824f` | 成功/在线状态 |
+| `terminal_error` | `#c81823` | 错误/失败状态 |
+| `terminal_on_surface` | `#1a1a1a` | 表面上的文字 |
+| `terminal_on_surface_variant` | `#536471` | 次要/提示文字 |
+| `terminal_on_secondary_container` | `#ffffff` | 按钮上的文字 |
+| `terminal_outline` | `#7a8590` | 边框/图标/分割线 |
+| `terminal_outline_variant` | `#e0e0e0` | 弱边框/装饰分割线 |
 
 资源引用方式：`$r('app.color.terminal_surface')`
 
@@ -78,8 +108,8 @@
 
 #### 主操作按钮
 - 高度：48dp
-- 背景：`terminal_secondary_container`（`#1d9bf0`）
-- 文字：16fp Medium，`terminal_on_secondary_container`（`#ffffff`）
+- 背景：`terminal_secondary_container`（`#1a8cd8`，深+浅一致）
+- 文字：16fp Medium，`terminal_on_secondary_container`（`#ffffff`，对比度 3.63:1 ≥ 按钮文字 3:1）
 - 圆角：24dp（胶囊形）
 - 宽度：100%（受 maxWidth 400dp 约束）
 - 禁用状态：opacity 0.5
