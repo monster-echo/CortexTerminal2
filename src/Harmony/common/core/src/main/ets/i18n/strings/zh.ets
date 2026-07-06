@@ -204,6 +204,13 @@ export const zhStrings: Record<string, string> = {
   'settings.logout_success': '已退出登录',
   'security.password_changed': '密码修改成功',
   'security.account_deleted': '账号已注销',
+  'security.edit_profile': '编辑资料',
+  'security.display_name': '显示名',
+  'security.change_avatar': '更换头像',
+  'security.display_name_changed': '显示名已更新',
+  'security.avatar_changed': '头像已更新',
+  'security.avatar_too_large': '头像不能超过 2MB',
+  'security.display_name_required': '请输入显示名',
   'auth.activate_success': '工作节点已激活',
 
   // ── Artifacts ─────────────────────────────────────────────────────

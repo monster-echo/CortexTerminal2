@@ -170,6 +170,41 @@ export class ApiService {
     await ApiService.put('/api/me/password', body as Object)
   }
 
+  static async updateProfile(displayName: string): Promise<void> {
+    const body: Record<string, Object> = { 'displayName': displayName }
+    await ApiService.post('/api/me/profile', body as Object)
+  }
+
+  static async uploadAvatar(base64: string): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      const httpRequest = http.createHttp()
+      const url = `${ApiService.gatewayUrl}/api/me/avatar`
+      const header: Record<string, string> = {
+        'Content-Type': 'text/plain',
+        'Authorization': `Bearer ${ApiService.authToken}`
+      }
+      httpRequest.request(url, {
+        method: http.RequestMethod.POST,
+        header: header,
+        extraData: base64,
+        expectDataType: http.HttpDataType.STRING,
+        connectTimeout: 30000,
+        readTimeout: 30000
+      }, (err, data) => {
+        if (err) {
+          reject(new Error((err as Error).message || 'Avatar upload failed'))
+          return
+        }
+        if (data.responseCode >= 200 && data.responseCode < 300) {
+          resolve()
+        } else {
+          reject(new Error(`Avatar upload failed (${data.responseCode})`))
+        }
+        httpRequest.destroy()
+      })
+    })
+  }
+
   static async deleteAccount(): Promise<void> {
     await ApiService.del('/api/me/account')
   }

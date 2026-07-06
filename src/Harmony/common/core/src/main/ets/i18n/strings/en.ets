@@ -204,6 +204,13 @@ export const enStrings: Record<string, string> = {
   'settings.logout_success': 'Logged out',
   'security.password_changed': 'Password changed',
   'security.account_deleted': 'Account deleted',
+  'security.edit_profile': 'Edit Profile',
+  'security.display_name': 'Display Name',
+  'security.change_avatar': 'Change Avatar',
+  'security.display_name_changed': 'Display name updated',
+  'security.avatar_changed': 'Avatar updated',
+  'security.avatar_too_large': 'Avatar must be under 2MB',
+  'security.display_name_required': 'Display name is required',
   'auth.activate_success': 'Worker activated',
 
   // ── Artifacts ─────────────────────────────────────────────────────

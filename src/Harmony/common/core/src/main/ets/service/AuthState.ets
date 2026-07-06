@@ -10,9 +10,12 @@ import { CrashService } from './CrashService'
 
 interface StoredUserInfo {
   displayName: string
+  avatarUrl: string
 }
 
 export class AuthState {
+  private static avatarBust: number = 0
+
   static getToken(): string {
     return AppStorage.get<string>('authToken') || ''
   }
@@ -33,6 +36,46 @@ export class AuthState {
     } catch (e) {
       return ''
     }
+  }
+
+  static getAvatarUrl(): string {
+    const raw = AppStorage.get<string>('userInfo') || ''
+    if (raw.length === 0) {
+      return ''
+    }
+    try {
+      return (JSON.parse(raw) as StoredUserInfo).avatarUrl ?? ''
+    } catch (e) {
+      return ''
+    }
+  }
+
+  // Resolve avatarUrl (relative, e.g. /api/users/{id}/avatar) to a fully-qualified
+  // URL with a cache-bust query so <Image> reloads after an avatar update.
+  static getResolvedAvatarUrl(): string {
+    const url = AuthState.getAvatarUrl()
+    if (url.length === 0) {
+      return ''
+    }
+    const gw = AppStorage.get<string>('gatewayUrl') || ''
+    if (gw.length === 0) {
+      return url
+    }
+    const sep = url.includes('?') ? '&' : '?'
+    return `${gw}${url}${sep}t=${AuthState.avatarBust}`
+  }
+
+  static updateDisplayName(name: string): void {
+    const avatarUrl = AuthState.getAvatarUrl()
+    const info: StoredUserInfo = { displayName: name, avatarUrl: avatarUrl }
+    AppStorage.set<string>('userInfo', JSON.stringify(info))
+  }
+
+  static updateAvatar(url: string): void {
+    const displayName = AuthState.getDisplayName()
+    const info: StoredUserInfo = { displayName: displayName, avatarUrl: url }
+    AppStorage.set<string>('userInfo', JSON.stringify(info))
+    AuthState.avatarBust = Date.now()
   }
 
   static setSession(token: string, username: string): void {

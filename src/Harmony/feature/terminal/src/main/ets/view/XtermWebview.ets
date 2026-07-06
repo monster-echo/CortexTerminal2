@@ -31,7 +31,7 @@ export struct XtermWebview {
       Web({ src: $rawfile('xterm/index.html'), controller: this.webviewController, renderMode: RenderMode.SYNC_RENDER })
         .width('100%')
         .height('100%')
-        .backgroundColor('#1a1b26')
+        .backgroundColor('#121414')
         .javaScriptAccess(true)
         .domStorageAccess(true)
         .mixedMode(MixedMode.All)

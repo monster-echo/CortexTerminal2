@@ -1,11 +1,18 @@
 import { common, ConfigurationConstant } from '@kit.AbilityKit'
 import { ApiService, AuthService, AuthState, I18n, RouteName, showI18nToast, showToast, AnalyticsService, AnalyticsEvent, lightHaptic, clickHaptic, heavyHaptic } from '@rwecho/core'
+import { AvatarPicker } from '../service/AvatarPicker'
 
 @Component
 export struct SettingsPage {
   @StorageLink('themeMode') currentTheme: string = 'system'
   @StorageLink('language') currentLanguage: string = 'en'
   @State displayName: string = ''
+  @State avatarDisplayUrl: string = ''
+  @State showEditProfile: boolean = false
+  @State editDisplayName: string = ''
+  @State editError: string = ''
+  @State isSaving: boolean = false
+  @State isUploadingAvatar: boolean = false
   @Consume('pageStack') pageStack: NavPathStack
   @StorageLink('appVersion') appVersion: string = '1.0.0'
 
@@ -17,17 +24,24 @@ export struct SettingsPage {
   build() {
     Scroll() {
       Column() {
-        // Avatar + Username header
+        // Avatar + Username header (tap to edit profile)
         Column() {
-          Text(this.displayName.length > 0 ? this.displayName.substring(0, 1).toUpperCase() : 'U')
-            .fontSize(24)
-            .fontWeight(FontWeight.Bold)
-            .fontColor($r('app.color.terminal_on_secondary_container'))
-            .width(56)
-            .height(56)
-            .textAlign(TextAlign.Center)
-            .backgroundColor($r('app.color.terminal_secondary_container'))
-            .borderRadius(28)
+          if (this.avatarDisplayUrl.length > 0) {
+            Image(this.avatarDisplayUrl)
+              .width(56)
+              .height(56)
+              .borderRadius(28)
+          } else {
+            Text(this.displayName.length > 0 ? this.displayName.substring(0, 1).toUpperCase() : 'U')
+              .fontSize(24)
+              .fontWeight(FontWeight.Bold)
+              .fontColor($r('app.color.terminal_on_secondary_container'))
+              .width(56)
+              .height(56)
+              .textAlign(TextAlign.Center)
+              .backgroundColor($r('app.color.terminal_secondary_container'))
+              .borderRadius(28)
+          }
 
           Text(this.displayName || (I18n.get('settings.profile') + (this.currentLanguage ? '' : '')))
             .fontSize(18)
@@ -38,6 +52,10 @@ export struct SettingsPage {
         .width('100%')
         .alignItems(HorizontalAlign.Center)
         .padding({ top: 16, bottom: 8 })
+        .onClick(() => {
+          lightHaptic()
+          this.openEditProfile()
+        })
 
         this.SectionHeader('settings.appearance')
 
@@ -140,6 +158,12 @@ export struct SettingsPage {
         Blank().height(40)
       }
       .width('100%')
+      .bindSheet(this.showEditProfile, this.EditProfileSheet(), {
+        height: SheetSize.FIT_CONTENT,
+        showClose: true,
+        backgroundColor: $r('app.color.terminal_surface'),
+        onDisappear: () => { this.showEditProfile = false }
+      })
     }
     .width('100%')
     .layoutWeight(1)
@@ -238,17 +262,24 @@ export struct SettingsPage {
   }
 
   private async loadProfile() {
-    const name = AuthState.getDisplayName()
-    if (name.length > 0) {
-      this.displayName = name
-      return
+    this.displayName = AuthState.getDisplayName()
+    // Login response only carries username; fetch profile once to pick up avatarUrl.
+    if (AuthState.getAvatarUrl().length === 0) {
+      try {
+        const profile = await ApiService.getProfile()
+        if (this.displayName.length === 0) {
+          const dn = (profile['displayName'] as string) ?? ''
+          const un = (profile['username'] as string) ?? ''
+          this.displayName = dn.length > 0 ? dn : un
+          AuthState.updateDisplayName(this.displayName)
+        }
+        const av = (profile['avatarUrl'] as string) ?? ''
+        if (av.length > 0) {
+          AuthState.updateAvatar(av)
+        }
+      } catch (_e) {}
     }
-    try {
-      const profile = await ApiService.getProfile()
-      const dn = (profile['displayName'] as string) ?? ''
-      const un = (profile['username'] as string) ?? ''
-      this.displayName = dn.length > 0 ? dn : un
-    } catch (_e) {}
+    this.avatarDisplayUrl = AuthState.getResolvedAvatarUrl()
   }
 
   private confirmLogout() {
@@ -268,6 +299,150 @@ export struct SettingsPage {
         }
       }
     })
+  }
+
+  private openEditProfile() {
+    this.editDisplayName = this.displayName
+    this.editError = ''
+    this.showEditProfile = true
+  }
+
+  private async submitEditProfile() {
+    const name = this.editDisplayName.trim()
+    if (name.length === 0) {
+      this.editError = I18n.get('security.display_name_required')
+      return
+    }
+    this.isSaving = true
+    this.editError = ''
+    try {
+      await AuthService.updateDisplayName(name)
+      this.displayName = name
+      this.showEditProfile = false
+      showI18nToast('security.display_name_changed')
+    } catch (e) {
+      this.editError = (e as Error).message || I18n.get('common.error')
+    } finally {
+      this.isSaving = false
+    }
+  }
+
+  private async pickAvatar() {
+    this.editError = ''
+    try {
+      const uri = await AvatarPicker.pickSingle()
+      if (uri.length === 0) {
+        return
+      }
+      const base64 = await AvatarPicker.readAsBase64(uri)
+      if (base64.length === 0) {
+        this.editError = I18n.get('security.avatar_too_large')
+        return
+      }
+      this.isUploadingAvatar = true
+      await AuthService.uploadAvatar(base64)
+      this.avatarDisplayUrl = AuthState.getResolvedAvatarUrl()
+      showI18nToast('security.avatar_changed')
+    } catch (e) {
+      this.editError = (e as Error).message || I18n.get('common.error')
+    } finally {
+      this.isUploadingAvatar = false
+    }
+  }
+
+  @Builder
+  EditProfileSheet() {
+    Column() {
+      Column() {
+        Text(I18n.get('security.edit_profile'))
+          .fontSize(18)
+          .fontWeight(FontWeight.Bold)
+          .fontColor($r('app.color.terminal_primary'))
+          .width('100%')
+          .margin({ bottom: 16 })
+
+        // Avatar (tap to pick from album)
+        Column() {
+          if (this.isUploadingAvatar) {
+            LoadingProgress().width(40).height(40).color($r('app.color.terminal_on_surface_variant'))
+          } else if (this.avatarDisplayUrl.length > 0) {
+            Image(this.avatarDisplayUrl).width(72).height(72).borderRadius(36)
+          } else {
+            Text(this.displayName.length > 0 ? this.displayName.substring(0, 1).toUpperCase() : 'U')
+              .fontSize(28)
+              .fontWeight(FontWeight.Bold)
+              .fontColor($r('app.color.terminal_on_secondary_container'))
+              .textAlign(TextAlign.Center)
+          }
+        }
+        .width(72)
+        .height(72)
+        .borderRadius(36)
+        .backgroundColor($r('app.color.terminal_secondary_container'))
+        .alignItems(HorizontalAlign.Center)
+        .justifyContent(FlexAlign.Center)
+        .onClick(() => {
+          lightHaptic()
+          this.pickAvatar()
+        })
+
+        Text(I18n.get('security.change_avatar'))
+          .fontSize(13)
+          .fontColor($r('app.color.terminal_secondary'))
+          .margin({ top: 8, bottom: 20 })
+
+        Text(I18n.get('security.display_name'))
+          .fontSize(14)
+          .fontColor($r('app.color.terminal_on_surface_variant'))
+          .width('100%')
+          .margin({ bottom: 6 })
+
+        TextInput({ text: this.editDisplayName, placeholder: I18n.get('security.display_name') })
+          .width('100%')
+          .height(44)
+          .borderRadius(8)
+          .backgroundColor($r('app.color.terminal_surface_container_high'))
+          .fontColor($r('app.color.terminal_primary'))
+          .placeholderColor($r('app.color.terminal_on_surface_variant'))
+          .onChange((value: string) => {
+            this.editDisplayName = value
+          })
+
+        if (this.editError.length > 0) {
+          Text(this.editError)
+            .fontSize(13)
+            .fontColor($r('app.color.terminal_error'))
+            .width('100%')
+            .margin({ top: 8 })
+        }
+
+        Button() {
+          if (this.isSaving) {
+            LoadingProgress().width(20).height(20).color(Color.White)
+          } else {
+            Text(I18n.get('common.save'))
+              .fontSize(16)
+              .fontWeight(FontWeight.Medium)
+              .fontColor($r('app.color.terminal_on_secondary_container'))
+          }
+        }
+        .width('100%')
+        .height(48)
+        .borderRadius(12)
+        .backgroundColor($r('app.color.terminal_secondary_container'))
+        .margin({ top: 20 })
+        .enabled(!this.isSaving)
+        .onClick(() => {
+          clickHaptic()
+          this.submitEditProfile()
+        })
+      }
+      .width('100%')
+      .padding(20)
+    }
+    .width('100%')
+    .padding({ top: 16, bottom: 24 })
+    .backgroundColor($r('app.color.terminal_surface'))
   }
 
   private openExternal(url: string) {

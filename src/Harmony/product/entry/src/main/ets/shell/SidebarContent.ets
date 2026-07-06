@@ -11,6 +11,7 @@ export struct SidebarContent {
   @Consume('pageStack') pageStack: NavPathStack
   @State recentSessions: SessionInfo[] = []
   @State sessionError: string = ''
+  @StorageLink('userInfo') userInfoSig: string = ''
 
   aboutToAppear() {
     this.loadRecentSessions()
@@ -88,15 +89,22 @@ export struct SidebarContent {
 
       // User profile
       Row() {
-        Text(AuthState.getDisplayName().substring(0, 1).toUpperCase() || 'U')
-          .fontSize(16)
-          .fontWeight(FontWeight.Bold)
-          .fontColor($r('app.color.terminal_on_secondary_container'))
-          .width(38)
-          .height(38)
-          .textAlign(TextAlign.Center)
-          .backgroundColor($r('app.color.terminal_secondary_container'))
-          .borderRadius(19)
+        if (AuthState.getResolvedAvatarUrl().length > 0) {
+          Image(AuthState.getResolvedAvatarUrl())
+            .width(38)
+            .height(38)
+            .borderRadius(19)
+        } else {
+          Text(AuthState.getDisplayName().substring(0, 1).toUpperCase() || 'U')
+            .fontSize(16)
+            .fontWeight(FontWeight.Bold)
+            .fontColor($r('app.color.terminal_on_secondary_container'))
+            .width(38)
+            .height(38)
+            .textAlign(TextAlign.Center)
+            .backgroundColor($r('app.color.terminal_secondary_container'))
+            .borderRadius(19)
+        }
 
         Column() {
           Text(AuthState.getDisplayName() || I18n.get('auth.login.title'))

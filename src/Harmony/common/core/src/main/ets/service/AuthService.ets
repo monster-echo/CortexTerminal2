@@ -48,6 +48,18 @@ export class AuthService {
     }
   }
 
+  static async updateDisplayName(name: string): Promise<void> {
+    await ApiService.updateProfile(name)
+    AuthState.updateDisplayName(name)
+  }
+
+  static async uploadAvatar(base64: string): Promise<void> {
+    await ApiService.uploadAvatar(base64)
+    const profile = await ApiService.getProfile()
+    const avatarUrl = (profile['avatarUrl'] as string) ?? ''
+    AuthState.updateAvatar(avatarUrl)
+  }
+
   static logout(): void {
     AuthState.clear()
   }
