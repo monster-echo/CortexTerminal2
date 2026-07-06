@@ -529,6 +529,35 @@ app.MapGet("/api/me/profile", async (ClaimsPrincipal userPrincipal, IServiceProv
     }
 }).RequireAuthorization();
 
+app.MapPost("/api/me/profile", async (UpdateProfileRequest request, ClaimsPrincipal userPrincipal, IServiceProvider serviceProvider) =>
+{
+    var displayName = request.DisplayName?.Trim();
+    if (string.IsNullOrEmpty(displayName) || displayName.Length > 32)
+        return Results.BadRequest(new { error = "Display name must be 1-32 characters" });
+
+    var userId = GetUserId(userPrincipal);
+    try
+    {
+        var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
+        using var scope = scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var user = await db.Users.FindAsync(userId);
+        if (user is null)
+            user = await db.Users.FirstOrDefaultAsync(u => u.Username == userId);
+        if (user is null)
+            return Results.NotFound(new { error = "User not found" });
+
+        user.DisplayName = displayName;
+        user.UpdatedAtUtc = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync();
+        return Results.Ok(new { success = true, displayName = user.DisplayName });
+    }
+    catch (InvalidOperationException)
+    {
+        return Results.StatusCode(500);
+    }
+}).RequireAuthorization();
+
 app.MapGet("/api/me/preferences", async (ClaimsPrincipal userPrincipal, IServiceProvider serviceProvider) =>
 {
     var userId = GetUserId(userPrincipal);
@@ -795,7 +824,7 @@ app.MapPut("/api/me/password", async (ChangePasswordRequest request, ClaimsPrinc
     }
 }).RequireAuthorization();
 
-app.MapPut("/api/me/avatar", async (HttpContext httpContext, ClaimsPrincipal userPrincipal, IServiceProvider serviceProvider) =>
+app.MapPost("/api/me/avatar", async (HttpContext httpContext, ClaimsPrincipal userPrincipal, IServiceProvider serviceProvider) =>
 {
     var userId = GetUserId(userPrincipal);
     try
@@ -2613,6 +2642,7 @@ record LinkPhoneIdentityRequest(string Phone, string Code);
 record SendPhoneLinkCodeRequest(string Phone);
 record RenameSessionRequest(string? Name);
 record UpdatePreferencesRequest(int ScrollbackMaxBytes);
+record UpdateProfileRequest(string DisplayName);
 
 internal sealed class SubClaimUserIdProvider : IUserIdProvider
 {

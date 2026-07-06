@@ -253,7 +253,7 @@ public sealed class AuthService
         if (string.IsNullOrEmpty(_accessToken))
             return new AvatarUpdateResult(false, null, "Not authenticated");
 
-        var request = new HttpRequestMessage(HttpMethod.Put, "/api/me/avatar")
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/me/avatar")
         {
             Content = new StringContent(base64Image, Encoding.UTF8, "text/plain")
         };
