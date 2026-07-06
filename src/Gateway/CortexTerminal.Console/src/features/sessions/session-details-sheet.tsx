@@ -93,10 +93,6 @@ export function SessionDetailsSheet(props: {
                 label={t('sessions.details.labels.replayPending')}
                 value={session.replayPending ? t('sessions.details.values.yes') : t('sessions.details.values.no')}
               />
-              <DetailRow
-                label={t('sessions.details.labels.leaseExpiresAt')}
-                value={formatNullableDateTime(session.leaseExpiresAt)}
-              />
             </DetailSection>
 
             <DetailSection title={t('sessions.details.sections.worker')}>

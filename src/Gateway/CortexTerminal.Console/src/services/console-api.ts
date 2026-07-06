@@ -24,7 +24,6 @@ export interface SessionDetail extends SessionSummary {
   rows: number
   attachmentState: 'Attached' | 'DetachedGracePeriod' | 'Expired' | 'Exited'
   attachedClientConnectionId: string | null
-  leaseExpiresAt: string | null
   exitCode: number | null
   exitReason: string | null
   replayPending: boolean
@@ -344,7 +343,6 @@ type SessionDetailDto = SessionSummaryDto & {
   rows: number
   attachmentState: 'Attached' | 'DetachedGracePeriod' | 'Expired' | 'Exited'
   attachedClientConnectionId: string | null
-  leaseExpiresAt: string | null
   exitCode: number | null
   exitReason: string | null
   replayPending: boolean
@@ -729,7 +727,6 @@ function mapSessionDetail(session: SessionDetailDto): SessionDetail {
     rows: session.rows,
     attachmentState: session.attachmentState,
     attachedClientConnectionId: session.attachedClientConnectionId,
-    leaseExpiresAt: session.leaseExpiresAt,
     exitCode: session.exitCode,
     exitReason: session.exitReason,
     replayPending: session.replayPending,

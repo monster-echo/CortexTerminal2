@@ -142,7 +142,6 @@ public sealed class TerminalHubReconnectTests
         session.AttachmentState.Should().Be(SessionAttachmentState.DetachedGracePeriod);
         session.AttachedClientConnectionId.Should().BeNull();
         session.ReplayPending.Should().BeFalse();
-        session.LeaseExpiresAtUtc.Should().NotBeNull();
     }
 
     private static TerminalHub CreateTerminalHub(

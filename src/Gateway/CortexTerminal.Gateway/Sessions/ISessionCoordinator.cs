@@ -17,6 +17,7 @@ public interface ISessionCoordinator
     Task<int> RebindActiveSessions(string userId, string workerId, string workerConnectionId);
     Task<IReadOnlyList<SessionRecord>> TransitionToRecovering(string workerId, string workerConnectionId);
     Task<IReadOnlyList<string>> ExpireRecoveringSessions(DateTimeOffset cutoffUtc);
+    Task<IReadOnlyList<string>> ReconcileWorkerSessionsAsync(string userId, string workerId, IReadOnlySet<string> liveSessionIds);
     bool TryGetSession(string sessionId, out SessionRecord session);
     bool TouchSessionActivity(string sessionId, DateTimeOffset nowUtc);
     Task<RenameSessionResult> RenameSessionAsync(string userId, string sessionId, string? name);

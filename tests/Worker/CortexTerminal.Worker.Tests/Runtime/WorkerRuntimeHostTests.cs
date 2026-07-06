@@ -41,6 +41,22 @@ public sealed class WorkerRuntimeHostTests
     }
 
     [Fact]
+    public async Task StartAsync_ReportsLiveSessionsSnapshotAfterRegister()
+    {
+        // G2: right after registering, the worker reports which sessions it holds so the gateway
+        // can expire ghosts (sessions whose shells died when this worker restarted). With no
+        // active sessions the snapshot is empty — but the call must happen, so the gateway can
+        // treat any pre-existing gateway-side sessions for this worker as gone.
+        var gateway = new FakeWorkerGatewayClient();
+        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()), NullLoggerFactory.Instance, NewLifetime());
+
+        await host.StartAsync(CancellationToken.None);
+
+        gateway.RegisteredWorkerIds.Should().ContainSingle().Which.Should().Be("worker-1");
+        gateway.ReportedLiveSessionIds.Should().ContainSingle().Which.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task Reconnected_ReRegistersWithoutDuplicatingTrackedSessions()
     {
         var gateway = new FakeWorkerGatewayClient();
@@ -340,6 +356,7 @@ internal sealed class FakeWorkerGatewayClient : IWorkerGatewayClient
     public List<SessionStartFailedEvent> StartFailedEvents { get; } = [];
     public int StartCallCount { get; private set; }
     public int DisposeCount { get; private set; }
+    public List<string[]> ReportedLiveSessionIds { get; } = [];
 
     /// <summary>
     /// Controls StartAsync behavior. When set, this function is called instead of the default.
@@ -448,6 +465,12 @@ internal sealed class FakeWorkerGatewayClient : IWorkerGatewayClient
 
     public Task ReportArtifactDeletedAsync(ReportArtifactDeletedFrame frame, CancellationToken ct)
         => throw new NotSupportedException();
+
+    public Task ReportWorkerSessionsAsync(WorkerSessionsSnapshot snapshot, CancellationToken ct)
+    {
+        ReportedLiveSessionIds.Add(snapshot?.LiveSessionIds ?? []);
+        return Task.CompletedTask;
+    }
 
     public Task ForwardAgentStartedAsync(AgentStartedFrame frame, CancellationToken ct)
         => throw new NotSupportedException();

@@ -171,7 +171,6 @@
         "attachmentState": "Attachment state",
         "attachedClient": "Attached client",
         "replayPending": "Replay pending",
-        "leaseExpiresAt": "Lease expires at",
         "workerId": "Worker ID",
         "workerOnline": "Worker online",
         "routeBinding": "Route binding",

@@ -62,6 +62,7 @@ public sealed class GatewayAgentEventSinkTests
         public Task ForwardLatencyProbeAsync(LatencyProbeFrame frame, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task ForwardExitedAsync(SessionExited evt, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task ForwardStartFailedAsync(SessionStartFailedEvent evt, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task ReportWorkerSessionsAsync(WorkerSessionsSnapshot snapshot, CancellationToken ct) => Task.CompletedTask;
         public Task ForwardAgentStartedAsync(AgentStartedFrame frame, CancellationToken ct) => Task.CompletedTask;
         public Task ForwardAgentPromptSubmittedAsync(AgentPromptSubmittedFrame frame, CancellationToken ct) => Task.CompletedTask;
         public Task ForwardAgentToolCallAsync(AgentToolCallFrame frame, CancellationToken ct) => Task.CompletedTask;

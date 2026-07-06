@@ -50,7 +50,17 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
         {
             foreach (var entity in entities)
             {
-                var wasRecovering = entity.AttachmentState == "Recovering";
+                // A gateway restart does NOT imply a worker restart. The shell on the worker
+                // survives, so sessions must NOT be collapsed to Recovering (the 60s reaper
+                // would then expire them). Attached loses its client socket (it died with the
+                // old gateway) → DetachedGracePeriod, waiting for the client to reattach.
+                // DetachedGracePeriod stays. Only truly-Recovering rows (worker was already
+                // gone before the restart) remain Recovering and stay subject to the reaper.
+                var wasAttached = entity.AttachmentState == "Attached";
+                var targetState = (wasAttached || entity.AttachmentState == "DetachedGracePeriod")
+                    ? SessionAttachmentState.DetachedGracePeriod
+                    : SessionAttachmentState.Recovering;
+
                 var record = new SessionRecord(
                     entity.SessionId,
                     entity.UserId,
@@ -59,20 +69,23 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
                     entity.Columns,
                     entity.Rows,
                     entity.CreatedAtUtc,
-                    LastActivityAtUtc: wasRecovering ? entity.LastActivityAtUtc : now,
-                    AttachmentState: SessionAttachmentState.Recovering,
+                    LastActivityAtUtc: wasAttached ? now : entity.LastActivityAtUtc,
+                    AttachmentState: targetState,
                     AttachedClientConnectionId: null,
-                    LeaseExpiresAtUtc: null,
                     Name: entity.Name);
 
                 _sessions[entity.SessionId] = record;
-                _logger.LogInformation("session.recovering {SessionId} worker={WorkerId} user={UserId}", entity.SessionId, entity.WorkerId, entity.UserId);
 
-                if (!wasRecovering)
+                if (wasAttached)
                 {
-                    entity.AttachmentState = "Recovering";
+                    _logger.LogInformation("session.gateway-restart-detached {SessionId} worker={WorkerId} user={UserId}", entity.SessionId, entity.WorkerId, entity.UserId);
+                    entity.AttachmentState = "DetachedGracePeriod";
                     entity.AttachedClientConnectionId = null;
                     toPersist.Add(entity);
+                }
+                else if (targetState == SessionAttachmentState.Recovering)
+                {
+                    _logger.LogInformation("session.recovering {SessionId} worker={WorkerId} user={UserId}", entity.SessionId, entity.WorkerId, entity.UserId);
                 }
             }
         }
@@ -84,7 +97,7 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
             {
                 var tracked = await persistDb.Sessions.FindAsync(entity.SessionId);
                 if (tracked is null) continue;
-                tracked.AttachmentState = "Recovering";
+                tracked.AttachmentState = "DetachedGracePeriod";
                 tracked.AttachedClientConnectionId = null;
             }
             await persistDb.SaveChangesAsync();
@@ -164,7 +177,6 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
     public async Task DetachSessionAsync(string userId, string sessionId, DateTimeOffset detachedAtUtc, CancellationToken cancellationToken)
     {
         SessionRecord? staged = null;
-        var leaseExpiresAtUtc = detachedAtUtc.AddMinutes(5);
 
         lock (_sync)
         {
@@ -177,7 +189,6 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
             {
                 AttachmentState = SessionAttachmentState.DetachedGracePeriod,
                 AttachedClientConnectionId = null,
-                LeaseExpiresAtUtc = leaseExpiresAtUtc,
                 ReplayPending = false,
                 LastActivityAtUtc = detachedAtUtc
             };
@@ -185,7 +196,6 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
 
         await PersistSessionStateAsync(sessionId, "DetachedGracePeriod",
             attachedClientConnectionId: null,
-            leaseExpiresAtUtc: leaseExpiresAtUtc,
             lastActivityAtUtc: detachedAtUtc,
             cancellationToken: cancellationToken);
 
@@ -245,7 +255,6 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
                 staged = session with
                 {
                     AttachedClientConnectionId = clientConnectionId,
-                    LeaseExpiresAtUtc = null,
                     ReplayPending = true,
                     LastActivityAtUtc = nowUtc
                 };
@@ -261,7 +270,6 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
                 {
                     AttachmentState = SessionAttachmentState.Attached,
                     AttachedClientConnectionId = clientConnectionId,
-                    LeaseExpiresAtUtc = null,
                     ReplayPending = false,
                     LastActivityAtUtc = nowUtc
                 };
@@ -272,41 +280,18 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
             }
             else if (session.AttachmentState != SessionAttachmentState.DetachedGracePeriod)
             {
+                // Expired/Exited — terminal states are still rejected.
                 return ReattachSessionResult.Failure("session-expired");
-            }
-            else if (!session.LeaseExpiresAtUtc.HasValue)
-            {
-                staged = session with
-                {
-                    AttachmentState = SessionAttachmentState.Expired,
-                    AttachedClientConnectionId = null,
-                    LeaseExpiresAtUtc = null,
-                    ReplayPending = false,
-                    LastActivityAtUtc = nowUtc
-                };
-                dbState = "Expired";
-                result = ReattachSessionResult.Failure("session-detached-without-lease");
-            }
-            else if (session.LeaseExpiresAtUtc.Value <= nowUtc)
-            {
-                staged = session with
-                {
-                    AttachmentState = SessionAttachmentState.Expired,
-                    AttachedClientConnectionId = null,
-                    LeaseExpiresAtUtc = null,
-                    ReplayPending = false,
-                    LastActivityAtUtc = nowUtc
-                };
-                dbState = "Expired";
-                result = ReattachSessionResult.Failure("session-expired");
             }
             else
             {
+                // DetachedGracePeriod: the worker shell is still alive. Recover to Attached
+                // unconditionally. There is no lease anymore — however long the client was
+                // gone, the session stays reattachable.
                 staged = session with
                 {
                     AttachmentState = SessionAttachmentState.Attached,
                     AttachedClientConnectionId = clientConnectionId,
-                    LeaseExpiresAtUtc = null,
                     ReplayPending = true,
                     LastActivityAtUtc = nowUtc
                 };
@@ -322,7 +307,6 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
         {
             await PersistSessionStateAsync(request.SessionId, dbState,
                 attachedClientConnectionId: dbClient,
-                leaseExpiresAtUtc: null,
                 replayPending: dbReplay,
                 lastActivityAtUtc: nowUtc,
                 cancellationToken: cancellationToken);
@@ -357,7 +341,6 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
                 ExitCode = null,
                 ExitReason = reason,
                 ReplayPending = false,
-                LeaseExpiresAtUtc = null,
                 LastActivityAtUtc = nowUtc
             };
         }
@@ -366,7 +349,6 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
             attachedClientConnectionId: null,
             exitCode: null,
             exitReason: reason,
-            leaseExpiresAtUtc: null,
             replayPending: false,
             lastActivityAtUtc: nowUtc);
 
@@ -414,7 +396,6 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
                 ExitCode = exitCode,
                 ExitReason = reason,
                 ReplayPending = false,
-                LeaseExpiresAtUtc = null,
                 LastActivityAtUtc = nowUtc
             };
         }
@@ -423,7 +404,6 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
             attachedClientConnectionId: null,
             exitCode: exitCode,
             exitReason: reason,
-            leaseExpiresAtUtc: null,
             replayPending: false,
             lastActivityAtUtc: nowUtc);
 
@@ -549,7 +529,6 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
                     AttachmentState = SessionAttachmentState.Recovering,
                     WorkerConnectionId = "",
                     AttachedClientConnectionId = null,
-                    LeaseExpiresAtUtc = null,
                     ReplayPending = false,
                     LastActivityAtUtc = _timeProvider.GetUtcNow()
                 }));
@@ -561,7 +540,6 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
             await PersistSessionStateAsync(sessionId, "Recovering",
                 attachedClientConnectionId: null,
                 workerConnectionId: "",
-                leaseExpiresAtUtc: null,
                 replayPending: false,
                 lastActivityAtUtc: staged.LastActivityAtUtc);
             _logger.LogInformation("session.recovering {SessionId} reason=worker-disconnect worker={WorkerId}", sessionId, workerId);
@@ -596,7 +574,6 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
                 {
                     AttachmentState = SessionAttachmentState.Expired,
                     AttachedClientConnectionId = null,
-                    LeaseExpiresAtUtc = null,
                     ExitCode = null,
                     ExitReason = "recovery-timeout",
                     ReplayPending = false,
@@ -611,7 +588,6 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
                 attachedClientConnectionId: null,
                 exitCode: null,
                 exitReason: "recovery-timeout",
-                leaseExpiresAtUtc: null,
                 replayPending: false,
                 lastActivityAtUtc: staged.LastActivityAtUtc);
             _logger.LogWarning("Recovery timeout: {SessionId} Recovering → Expired (worker={WorkerId})", sessionId, staged.WorkerId);
@@ -628,6 +604,77 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
         if (stagedUpdates.Count > 0)
         {
             _logger.LogInformation("Expired {Count} recovering sessions due to recovery timeout", stagedUpdates.Count);
+        }
+
+        return stagedUpdates.Select(u => u.SessionId).ToList();
+    }
+
+    public async Task<IReadOnlyList<string>> ReconcileWorkerSessionsAsync(
+        string userId, string workerId, IReadOnlySet<string> liveSessionIds)
+    {
+        var stagedUpdates = new List<(string SessionId, SessionRecord Staged)>();
+        var now = _timeProvider.GetUtcNow();
+
+        lock (_sync)
+        {
+            foreach (var (sessionId, session) in _sessions)
+            {
+                if (session.UserId != userId || session.WorkerId != workerId)
+                {
+                    continue;
+                }
+
+                // NEVER touch Attached sessions. An Attached session has a live client, and the
+                // worker snapshot only proves which shells the worker holds — a client could be
+                // reattaching concurrently. Expiring Attached here would race that reattach and
+                // kill a live terminal. Only DetachedGracePeriod (no client, shell claimed alive)
+                // and Recovering (worker was already gone) are safe to reconcile against the
+                // worker's snapshot.
+                if (session.AttachmentState is not (SessionAttachmentState.DetachedGracePeriod
+                                                    or SessionAttachmentState.Recovering))
+                {
+                    continue;
+                }
+
+                if (liveSessionIds.Contains(sessionId))
+                {
+                    continue;
+                }
+
+                stagedUpdates.Add((sessionId, session with
+                {
+                    AttachmentState = SessionAttachmentState.Expired,
+                    AttachedClientConnectionId = null,
+                    ExitCode = null,
+                    ExitReason = "worker-restart",
+                    ReplayPending = false,
+                    LastActivityAtUtc = now
+                }));
+            }
+        }
+
+        foreach (var (sessionId, staged) in stagedUpdates)
+        {
+            await PersistSessionStateAsync(sessionId, "Expired",
+                attachedClientConnectionId: null,
+                exitCode: null,
+                exitReason: "worker-restart",
+                replayPending: false,
+                lastActivityAtUtc: now);
+            _logger.LogInformation("session.expired {SessionId} reason=worker-restart worker={WorkerId}", sessionId, workerId);
+        }
+
+        lock (_sync)
+        {
+            foreach (var (sessionId, staged) in stagedUpdates)
+            {
+                _sessions[sessionId] = staged;
+            }
+        }
+
+        if (stagedUpdates.Count > 0)
+        {
+            _logger.LogInformation("Reconciled worker {WorkerId}: expired {Count} ghost sessions absent from worker snapshot.", workerId, stagedUpdates.Count);
         }
 
         return stagedUpdates.Select(u => u.SessionId).ToList();
@@ -745,7 +792,6 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
             entity.LastActivityAtUtc,
             state,
             entity.AttachedClientConnectionId,
-            entity.LeaseExpiresAtUtc,
             entity.ExitCode,
             entity.ExitReason,
             entity.ReplayPending,
@@ -760,7 +806,6 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
         string attachmentState,
         string? attachedClientConnectionId = null,
         string? workerConnectionId = null,
-        DateTimeOffset? leaseExpiresAtUtc = null,
         int? exitCode = null,
         string? exitReason = null,
         bool? replayPending = null,
@@ -776,7 +821,6 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
         entity.AttachedClientConnectionId = attachedClientConnectionId;
         if (workerConnectionId is not null)
             entity.WorkerConnectionId = workerConnectionId;
-        entity.LeaseExpiresAtUtc = leaseExpiresAtUtc;
         entity.ExitCode = exitCode;
         entity.ExitReason = exitReason;
         if (lastActivityAtUtc.HasValue)

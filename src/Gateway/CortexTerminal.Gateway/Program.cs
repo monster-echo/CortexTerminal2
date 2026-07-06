@@ -176,7 +176,6 @@ static object ToSessionDetailResponse(
         session.Rows,
         AttachmentState = session.AttachmentState.ToString(),
         session.AttachedClientConnectionId,
-        LeaseExpiresAt = session.LeaseExpiresAtUtc,
         session.ExitCode,
         session.ExitReason,
         session.ReplayPending,

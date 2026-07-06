@@ -24,6 +24,9 @@ public sealed class WorkerGatewayClient : IWorkerGatewayClient
     public Task RegisterAsync(string workerId, CancellationToken cancellationToken)
         => _connection.InvokeAsync("RegisterWorker", workerId, cancellationToken);
 
+    public Task ReportWorkerSessionsAsync(WorkerSessionsSnapshot snapshot, CancellationToken cancellationToken)
+        => _connection.InvokeAsync("ReportWorkerSessions", snapshot, cancellationToken);
+
     public IDisposable OnStartSession(Func<StartSessionCommand, Task> handler)
         => _connection.On<StartSessionCommand>("StartSession", handler);
 

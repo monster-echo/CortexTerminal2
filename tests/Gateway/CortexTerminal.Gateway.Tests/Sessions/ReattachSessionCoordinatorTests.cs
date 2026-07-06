@@ -34,7 +34,6 @@ public sealed class ReattachSessionCoordinatorTests
         coordinator.TryGetSession(sessionId, out var reattachedSession).Should().BeTrue();
         reattachedSession.AttachmentState.Should().Be(SessionAttachmentState.Attached);
         reattachedSession.AttachedClientConnectionId.Should().Be("client-2");
-        reattachedSession.LeaseExpiresAtUtc.Should().BeNull();
         reattachedSession.ReplayPending.Should().BeTrue();
     }
 
@@ -57,7 +56,6 @@ public sealed class ReattachSessionCoordinatorTests
         session.AttachmentState.Should().Be(SessionAttachmentState.Attached);
         session.AttachedClientConnectionId.Should().Be("client-2");
         session.ReplayPending.Should().BeTrue();
-        session.LeaseExpiresAtUtc.Should().BeNull();
         session.LastActivityAtUtc.Should().Be(nowUtc);
     }
 
@@ -99,62 +97,52 @@ public sealed class ReattachSessionCoordinatorTests
     }
 
     [Fact]
-    public async Task ReattachSessionAsync_WhenLeaseExpired_ReturnsExpiredAndMarksSessionExpired()
+    public async Task ReattachSessionAsync_AfterVeryLongDetach_ForSameUser_ReturnsSuccess()
     {
+        // Codifies the product requirement: a DetachedGracePeriod session is reattachable for
+        // as long as the worker shell is alive, however long the client was gone. (This is the
+        // sess_455 regression — previously a 5-minute lease rejected the reattach.)
         var coordinator = CreateCoordinator();
         var createResult = await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), clientConnectionId: null, CancellationToken.None);
         var sessionId = createResult.Response!.SessionId;
         var detachedAtUtc = new DateTimeOffset(2025, 1, 1, 12, 0, 0, TimeSpan.Zero);
-        var sessions = GetSessions(coordinator);
 
         await coordinator.DetachSessionAsync("user-1", sessionId, detachedAtUtc, CancellationToken.None);
-        // Manually set to DetachedGracePeriod with an expired lease to test this code path
-        sessions[sessionId] = sessions[sessionId] with
-        {
-            AttachmentState = SessionAttachmentState.DetachedGracePeriod,
-            LeaseExpiresAtUtc = detachedAtUtc.AddMinutes(5)
-        };
 
         var result = await coordinator.ReattachSessionAsync(
             "user-1",
             new ReattachSessionRequest(sessionId),
             "client-2",
-            detachedAtUtc.AddMinutes(5).AddSeconds(1),
+            detachedAtUtc.AddDays(30),
             CancellationToken.None);
 
-        result.IsSuccess.Should().BeFalse();
-        result.ErrorCode.Should().Be("session-expired");
-        coordinator.TryGetSession(sessionId, out var expiredSession).Should().BeTrue();
-        expiredSession.AttachmentState.Should().Be(SessionAttachmentState.Expired);
+        result.Should().BeEquivalentTo(ReattachSessionResult.Success());
+        coordinator.TryGetSession(sessionId, out var reattached).Should().BeTrue();
+        reattached.AttachmentState.Should().Be(SessionAttachmentState.Attached);
+        reattached.AttachedClientConnectionId.Should().Be("client-2");
+        reattached.ReplayPending.Should().BeTrue();
     }
 
     [Fact]
-    public async Task ReattachSessionAsync_WhenDetachedLeaseIsMissing_ReturnsCorruptedStateError()
+    public async Task ReattachSessionAsync_WhenSessionAlreadyExpired_ReturnsExpired()
     {
+        // Terminal states (Expired/Exited) are still rejected — only DetachedGracePeriod
+        // recovers unconditionally. Guards the retained rejection branch.
         var coordinator = CreateCoordinator();
         var createResult = await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), clientConnectionId: null, CancellationToken.None);
         var sessionId = createResult.Response!.SessionId;
         var sessions = GetSessions(coordinator);
-
-        sessions[sessionId] = sessions[sessionId] with
-        {
-            AttachmentState = SessionAttachmentState.DetachedGracePeriod,
-            AttachedClientConnectionId = null,
-            LeaseExpiresAtUtc = null
-        };
+        sessions[sessionId] = sessions[sessionId] with { AttachmentState = SessionAttachmentState.Expired };
 
         var result = await coordinator.ReattachSessionAsync(
             "user-1",
             new ReattachSessionRequest(sessionId),
             "client-2",
-            new DateTimeOffset(2025, 1, 1, 12, 4, 0, TimeSpan.Zero),
+            new DateTimeOffset(2025, 1, 1, 12, 0, 0, TimeSpan.Zero),
             CancellationToken.None);
 
         result.IsSuccess.Should().BeFalse();
-        result.ErrorCode.Should().Be("session-detached-without-lease");
-        coordinator.TryGetSession(sessionId, out var corruptedSession).Should().BeTrue();
-        corruptedSession.AttachmentState.Should().Be(SessionAttachmentState.Expired);
-        corruptedSession.LeaseExpiresAtUtc.Should().BeNull();
+        result.ErrorCode.Should().Be("session-expired");
     }
 
     private static ISessionCoordinator CreateCoordinator()

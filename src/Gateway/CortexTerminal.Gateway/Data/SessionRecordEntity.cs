@@ -43,9 +43,6 @@ public class SessionRecordEntity
     [Column("attached_client_connection_id")]
     public string? AttachedClientConnectionId { get; set; }
 
-    [Column("lease_expires_at_utc")]
-    public DateTimeOffset? LeaseExpiresAtUtc { get; set; }
-
     [Column("exit_code")]
     public int? ExitCode { get; set; }
 

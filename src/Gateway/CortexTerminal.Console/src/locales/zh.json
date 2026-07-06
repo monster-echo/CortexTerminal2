@@ -171,7 +171,6 @@
         "attachmentState": "附着状态",
         "attachedClient": "附着客户端",
         "replayPending": "等待回放",
-        "leaseExpiresAt": "租约到期",
         "workerId": "节点 ID",
         "workerOnline": "节点在线",
         "routeBinding": "路由绑定",

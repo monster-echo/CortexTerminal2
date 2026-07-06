@@ -27,7 +27,7 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
     private readonly ILogger<WorkerRuntimeHost> _logger;
     private readonly ILoggerFactory _loggerFactory;
     private readonly IHostApplicationLifetime _lifetime;
-    private readonly LinuxSystemMetricsCollector? _metricsCollector;
+    private readonly ISystemMetricsCollector? _metricsCollector;
     private readonly TimeSpan _metricsInterval;
     private readonly ConcurrentDictionary<string, WorkerSessionRuntime> _sessions = [];
     private readonly List<IDisposable> _subscriptions = [];
@@ -45,7 +45,7 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         IPtyHost ptyHost,
         ILoggerFactory loggerFactory,
         IHostApplicationLifetime lifetime,
-        LinuxSystemMetricsCollector? metricsCollector = null,
+        ISystemMetricsCollector? metricsCollector = null,
         TimeSpan? metricsInterval = null,
         IAgentIntegration? agentIntegration = null)
         : this(workerId, gatewayClient, ptyHost, new HttpClient(), new ArtifactMirror(new HttpClient(), loggerFactory.CreateLogger<ArtifactMirror>()), DefaultMaxArtifactSizeBytes, loggerFactory, lifetime, DefaultReconnectInterval, metricsCollector, metricsInterval, agentIntegration) { }
@@ -60,7 +60,7 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         ILoggerFactory loggerFactory,
         IHostApplicationLifetime lifetime,
         TimeSpan reconnectInterval,
-        LinuxSystemMetricsCollector? metricsCollector = null,
+        ISystemMetricsCollector? metricsCollector = null,
         TimeSpan? metricsInterval = null,
         IAgentIntegration? agentIntegration = null)
     {
@@ -266,6 +266,21 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
     {
         _logger.LogInformation("Registering worker {WorkerId}.", _workerId);
         await _gatewayClient.RegisterAsync(_workerId, cancellationToken);
+
+        // Report which sessions this worker still holds so the gateway can expire ghosts —
+        // gateway sessions whose shells died because this worker process restarted. Must run
+        // AFTER RegisterAsync (the gateway rebinds our sessions inside RegisterWorker); the
+        // gateway only reconciles DetachedGracePeriod/Recovering sessions, never Attached, so a
+        // client reattaching concurrently is safe.
+        try
+        {
+            await _gatewayClient.ReportWorkerSessionsAsync(
+                new WorkerSessionsSnapshot(_sessions.Keys.ToArray()), cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to report live sessions for {WorkerId}.", _workerId);
+        }
 
         WorkerMetricsSnapshot? snapshot = null;
         if (_metricsCollector is not null)

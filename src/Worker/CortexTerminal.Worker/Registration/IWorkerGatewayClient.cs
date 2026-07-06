@@ -7,6 +7,7 @@ public interface IWorkerGatewayClient : IAsyncDisposable
 {
     Task StartAsync(CancellationToken cancellationToken);
     Task RegisterAsync(string workerId, CancellationToken cancellationToken);
+    Task ReportWorkerSessionsAsync(WorkerSessionsSnapshot snapshot, CancellationToken cancellationToken);
     IDisposable OnStartSession(Func<StartSessionCommand, Task> handler);
     IDisposable OnWriteInput(Func<WriteInputFrame, Task> handler);
     IDisposable OnLatencyProbe(Func<LatencyProbeFrame, Task> handler);

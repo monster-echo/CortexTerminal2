@@ -11,7 +11,6 @@ public sealed record SessionRecord(
     DateTimeOffset LastActivityAtUtc,
     SessionAttachmentState AttachmentState = SessionAttachmentState.Attached,
     string? AttachedClientConnectionId = null,
-    DateTimeOffset? LeaseExpiresAtUtc = null,
     int? ExitCode = null,
     string? ExitReason = null,
     bool ReplayPending = false,

@@ -71,7 +71,7 @@ public sealed class ReattachSessionFlowTests : IClassFixture<GatewayApplicationF
     }
 
     [Fact]
-    public async Task ReattachSession_BeforeLeaseExpiry_SucceedsThroughGateway()
+    public async Task ReattachSession_AfterDetach_SucceedsThroughGateway()
     {
         var services = _factory.Services;
         var registry = services.GetRequiredService<IWorkerRegistry>();
@@ -91,7 +91,6 @@ public sealed class ReattachSessionFlowTests : IClassFixture<GatewayApplicationF
 
         var detached = detachCaller.Invocations.Should().ContainSingle().Subject.Arguments[0].Should().BeOfType<SessionDetachedEvent>().Subject;
         detached.SessionId.Should().Be(sessionId);
-        detached.LeaseExpiresAtUtc.Should().Be(DateTimeOffset.MaxValue);
 
         var reattachCaller = new RecordingClientProxy();
         var reattachHub = ActivatorUtilities.CreateInstance<TerminalHub>(services);

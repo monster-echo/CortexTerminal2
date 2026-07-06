@@ -76,6 +76,28 @@ public sealed class WorkerHub(
             info.CpuUsagePercent, info.MemoryUsagePercent);
     }
 
+    public async Task ReportWorkerSessions(WorkerSessionsSnapshot snapshot)
+    {
+        var userId = GetUserId();
+        var worker = workers.FindByConnectionId(Context.ConnectionId);
+        if (worker is null)
+        {
+            logger.LogWarning("ReportWorkerSessions from unknown connection {ConnectionId}.", Context.ConnectionId);
+            return;
+        }
+
+        var live = snapshot.LiveSessionIds is null
+            ? new HashSet<string>(StringComparer.Ordinal)
+            : new HashSet<string>(snapshot.LiveSessionIds, StringComparer.Ordinal);
+
+        var expired = await sessions.ReconcileWorkerSessionsAsync(userId, worker.WorkerId, live);
+        logger.LogInformation(
+            "Worker {WorkerId} reported {Live} live sessions; expired {Expired} ghosts.",
+            worker.WorkerId,
+            live.Count,
+            expired.Count);
+    }
+
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
         // Find and unregister the worker that belonged to this connection

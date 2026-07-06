@@ -53,8 +53,16 @@ public sealed record SessionStartFailedEvent(
 
 [MessagePackObject]
 public sealed record SessionDetachedEvent(
-    [property: Key(0)] string SessionId,
-    [property: Key(1)] DateTimeOffset LeaseExpiresAtUtc);
+    [property: Key(0)] string SessionId);
+
+// Worker → gateway: the live session ids currently held by a worker process.
+// Sent right after RegisterWorker so the gateway can expire any of its sessions
+// for this worker that the worker no longer knows about (e.g. after a worker
+// restart killed every shell). Lets "worker restart = session ends" hold even
+// though the gateway otherwise keeps sessions alive indefinitely.
+[MessagePackObject]
+public sealed record WorkerSessionsSnapshot(
+    [property: Key(0)] string[] LiveSessionIds);
 
 [MessagePackObject]
 public sealed record SessionReattachedEvent(

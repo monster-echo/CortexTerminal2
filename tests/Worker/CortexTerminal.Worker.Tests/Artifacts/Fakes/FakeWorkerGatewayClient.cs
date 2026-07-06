@@ -78,6 +78,7 @@ internal sealed class FakeWorkerGatewayClient : IWorkerGatewayClient
         return Task.CompletedTask;
     }
 
+    public Task ReportWorkerSessionsAsync(WorkerSessionsSnapshot snapshot, CancellationToken ct) => Task.CompletedTask;
     public Task ForwardAgentStartedAsync(AgentStartedFrame frame, CancellationToken ct) => Task.CompletedTask;
     public Task ForwardAgentPromptSubmittedAsync(AgentPromptSubmittedFrame frame, CancellationToken ct) => Task.CompletedTask;
     public Task ForwardAgentToolCallAsync(AgentToolCallFrame frame, CancellationToken ct) => Task.CompletedTask;
