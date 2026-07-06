@@ -57,6 +57,20 @@ jobs:
             --output ./publish/worker-${{ matrix.rid }}
         shell: pwsh
 
+      - name: Publish AgentRunner (cortap)
+        run: |
+          dotnet publish src/Worker/CortexTerminal.AgentRunner/CortexTerminal.AgentRunner.csproj `
+            --configuration Release `
+            --runtime ${{ matrix.rid }} `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:Version=${{ steps.version.outputs.VERSION }} `
+            --output ./publish/agentrunner-${{ matrix.rid }}
+          $wrapperName = '${{ matrix.rid }}'.StartsWith('win') ? 'cortap.exe' : 'cortap'
+          Copy-Item "./publish/agentrunner-${{ matrix.rid }}/$wrapperName" "./publish/worker-${{ matrix.rid }}/$wrapperName"
+        shell: pwsh
+
       - name: Create archive (tar.gz)
         if: matrix.archive == 'tar.gz'
         run: |
