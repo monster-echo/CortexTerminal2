@@ -35,6 +35,34 @@ function Detect-Platform {
     return $rid
 }
 
+# ---- Stop running worker before overwriting (releases Windows image lock) ----
+function Stop-RunningWorker {
+    $taskName = "Corterm Worker"
+
+    # Stop the scheduled task first so its crash-recovery (RestartCount=3,
+    # RestartInterval=1m) doesn't immediately relaunch the process right after
+    # we kill it below.
+    if (Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue) {
+        try { Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue } catch {}
+    }
+
+    # Kill the running process so Windows releases the image lock on corterm.exe.
+    # Expand-Archive -Force needs to Remove-Item the existing binary, which is
+    # denied while the exe is loaded by a live process.
+    $proc = Get-Process -Name $BIN_NAME -ErrorAction SilentlyContinue
+    if ($proc) {
+        Write-Info "Stopping running worker (PID $($proc.Id)) before overwrite ..."
+        $proc | Stop-Process -Force
+        # Wait for the OS to actually release the image lock (up to 10s).
+        $deadline = (Get-Date).AddSeconds(10)
+        while ((Get-Date) -lt $deadline) {
+            if (-not (Get-Process -Name $BIN_NAME -ErrorAction SilentlyContinue)) { break }
+            Start-Sleep -Milliseconds 200
+        }
+        Write-Ok "Worker stopped"
+    }
+}
+
 # ---- Download latest release ----
 function Download-Worker {
     param([string]$RID)
@@ -167,6 +195,7 @@ Write-Host "  Corterm Worker Installer" -ForegroundColor White
 Write-Host "  --------------------------------`n"
 
 $rid = Detect-Platform
+Stop-RunningWorker
 Download-Worker -RID $rid
 Install-Service
 Add-ToPath
