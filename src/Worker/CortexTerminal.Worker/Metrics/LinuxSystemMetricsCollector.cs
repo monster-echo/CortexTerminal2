@@ -4,11 +4,7 @@ using Microsoft.Extensions.Logging;
 
 namespace CortexTerminal.Worker.Metrics;
 
-public sealed record WorkerMetricsSnapshot(
-    double CpuUsagePercent,
-    double MemoryUsagePercent);
-
-public sealed class LinuxSystemMetricsCollector : IDisposable
+public sealed class LinuxSystemMetricsCollector : ISystemMetricsCollector
 {
     private readonly ILogger<LinuxSystemMetricsCollector> _logger;
     private readonly TimeSpan _sampleInterval;

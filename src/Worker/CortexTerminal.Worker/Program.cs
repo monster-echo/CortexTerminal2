@@ -452,18 +452,26 @@ rootCommand.SetAction(async (ParseResult parseResult, CancellationToken cancella
         ResolveMetricsCollectorOrNull(services),
         agentIntegration: services.GetService<IAgentIntegration>()));
 
-    static CortexTerminal.Worker.Metrics.LinuxSystemMetricsCollector? ResolveMetricsCollectorOrNull(IServiceProvider services)
+    static CortexTerminal.Worker.Metrics.ISystemMetricsCollector? ResolveMetricsCollectorOrNull(IServiceProvider services)
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) return null;
-        try
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
         {
             return new CortexTerminal.Worker.Metrics.LinuxSystemMetricsCollector(
                 services.GetRequiredService<ILogger<CortexTerminal.Worker.Metrics.LinuxSystemMetricsCollector>>());
         }
-        catch (PlatformNotSupportedException)
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
         {
-            return null;
+            return new CortexTerminal.Worker.Metrics.MacSystemMetricsCollector(
+                services.GetRequiredService<ILogger<CortexTerminal.Worker.Metrics.MacSystemMetricsCollector>>());
         }
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            return new CortexTerminal.Worker.Metrics.WindowsSystemMetricsCollector(
+                services.GetRequiredService<ILogger<CortexTerminal.Worker.Metrics.WindowsSystemMetricsCollector>>());
+        }
+        services.GetRequiredService<ILogger<Program>>()
+            .LogWarning("Metrics disabled: no collector for platform {OS}.", RuntimeInformation.OSDescription);
+        return null;
     }
 
     var host = builder.Build();
