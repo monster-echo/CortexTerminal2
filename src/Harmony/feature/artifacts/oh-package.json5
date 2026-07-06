@@ -1,0 +1,10 @@
+{
+  "name": "@rwecho/artifacts",
+  "version": "1.0.0",
+  "main": "Index.ets",
+  "dependencies": {
+    "@rwecho/core": "file:../../common/core",
+    "@rwecho/signalr": "file:../../common/signalr",
+    "routermodule": "file:../../common/routermodule"
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "module": {
+    "name": "artifacts",
+    "type": "har",
+    "deviceTypes": ["phone", "tablet", "2in1"]
+  }
+}
