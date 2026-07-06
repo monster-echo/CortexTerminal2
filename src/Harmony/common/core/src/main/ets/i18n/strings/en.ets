@@ -149,6 +149,8 @@ export const enStrings: Record<string, string> = {
   'settings.language': 'Language',
   'settings.language_zh': 'Chinese',
   'settings.language_en': 'English',
+  'settings.webgl': 'GPU Acceleration',
+  'settings.webgl_desc': 'Use WebGL for smoother rendering (disable if terminal shows black screen)',
   'settings.connection': 'Connection',
   'settings.gateway_url': 'Gateway URL',
   'settings.account': 'Account',

@@ -23,16 +23,7 @@
       user-select: text;
       -webkit-user-select: text;
     }
-    /* Force WebGL canvas onto its own GPU compositing layer.
-       ArkWeb API20 has a known regression where WebGL canvas renders black
-       despite all GL calls succeeding (context, shaders, drawArrays all OK).
-       translateZ(0) lifts the canvas out of the software compositor path
-       that has the bug. Must be on `canvas`, never on `.xterm-rows` (would
-       break DOM renderer's internal measurement). */
-    .xterm-screen canvas {
-      transform: translateZ(0);
-      will-change: transform;
-    }
+
   </style>
   <link rel="stylesheet" href="xterm.css" />
 </head>
@@ -66,7 +57,7 @@
      * @param {number} cols - Initial columns (default 80)
      * @param {number} rows - Initial rows (default 24)
      */
-    function initTerminal(cols, rows) {
+    function initTerminal(cols, rows, useWebGL) {
       if (term) {
         term.dispose();
       }
@@ -140,32 +131,30 @@
         }
       });
 
-      // WebGL renderer is mandatory. No DOM renderer fallback.
-      // Addon itself throws "WebGL2 not supported" if context unavailable —
-      // surfacing that error visibly so the root cause is obvious.
+      // === Renderer: WebGL (user-controlled via settings) ===
+      // ArkWeb API20+ emulators have a GPU regression where WebGL canvas
+      // renders pure black. Users can disable GPU acceleration in Settings
+      // to fall back to the DOM renderer (slightly slower but works everywhere).
 
-      // === Monkey-patch mainDocument to point at real document ===
-      // xterm 6.0's CoreBrowserService.mainDocument on ArkWeb may produce a
-      // canvas whose getContext('webgl2') returns null even though the real
-      // document works. Force it to the real document so the addon can create
-      // a working WebGL context.
-      try {
-        var core = term._core;
-        if (core && core._coreBrowserService) {
-          core._coreBrowserService.mainDocument = document;
+      if (useWebGL !== false) {
+        try {
+          // Monkey-patch mainDocument — required for WebGL context on ArkWeb.
+          var core = term._core;
+          if (core && core._coreBrowserService) {
+            core._coreBrowserService.mainDocument = document;
+          }
+          var webglAddon = new WebglAddon.WebglAddon();
+          term.loadAddon(webglAddon);
+          webglAddon.onContextLoss(function() {
+            console.error('[XtermWebview] WebGL context lost');
+          });
+          console.info('[XtermWebview] WebGL renderer enabled');
+        } catch(e) {
+          console.warn('[XtermWebview] WebGL failed: ' + e.message + ' — using DOM');
         }
-      } catch(e) {
-        console.error('[XtermWebview] mainDocument patch failed: ' + e.message);
+      } else {
+        console.info('[XtermWebview] DOM renderer active (GPU acceleration disabled)');
       }
-
-      var webglAddon = new WebglAddon.WebglAddon();
-      term.loadAddon(webglAddon);
-
-      webglAddon.onContextLoss(function() {
-        console.error('[XtermWebview] WebGL context lost');
-        document.title = 'FATAL: WebGL context lost';
-      });
-      console.info('[XtermWebview] WebGL renderer enabled');
 
       // === Custom touch scroll (ported from MAUI useTouchScroll.ts) ===
       // xterm 6.0 WebGL doesn't support touch scroll natively — SmoothScrollableElement

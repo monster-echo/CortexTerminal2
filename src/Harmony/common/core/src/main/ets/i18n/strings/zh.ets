@@ -149,6 +149,8 @@ export const zhStrings: Record<string, string> = {
   'settings.language': '语言',
   'settings.language_zh': '中文',
   'settings.language_en': 'English',
+  'settings.webgl': 'GPU 加速',
+  'settings.webgl_desc': '使用 WebGL 加速渲染（终端黑屏时请关闭）',
   'settings.connection': '连接',
   'settings.gateway_url': '网关地址',
   'settings.account': '账户',

@@ -13,12 +13,16 @@ export struct SettingsPage {
   @State editError: string = ''
   @State isSaving: boolean = false
   @State isUploadingAvatar: boolean = false
+  @State devTapCount: number = 0
+  @State showDevOptions: boolean = false
+  @StorageLink('webglEnabled') webglEnabled: boolean = true
   @Consume('pageStack') pageStack: NavPathStack
   @StorageLink('appVersion') appVersion: string = '1.0.0'
 
   aboutToAppear() {
     AnalyticsService.onPageStart('settings/Page')
     this.loadProfile()
+    this.showDevOptions = AppStorage.get<boolean>('showDevOptions') ?? false
   }
 
   build() {
@@ -94,6 +98,31 @@ export struct SettingsPage {
         .backgroundColor($r('app.color.terminal_surface_container'))
         .margin({ bottom: 8 })
 
+        if (this.showDevOptions) {
+          this.SectionHeader('Developer Options')
+
+          Row() {
+            Text('GPU Acceleration (WebGL)')
+              .fontSize(14)
+              .fontColor($r('app.color.terminal_primary'))
+              .layoutWeight(1)
+
+            Checkbox()
+              .width(20)
+              .height(20)
+              .select(this.webglEnabled)
+              .onChange((value: boolean) => {
+                this.webglEnabled = value
+                AppStorage.setOrCreate('webglEnabled', value)
+              })
+          }
+          .width('calc(100% - 40vp)')
+          .padding(14)
+          .borderRadius(12)
+          .backgroundColor($r('app.color.terminal_surface_container'))
+          .margin({ bottom: 8 })
+        }
+
         this.SectionHeader('settings.account')
 
         this.NavRow('settings.account_security', () => {
@@ -150,6 +179,9 @@ export struct SettingsPage {
             .fontSize(11)
             .fontColor($r('app.color.terminal_on_surface_variant'))
             .margin({ top: 6 })
+            .onClick(() => {
+              this.handleDevTap()
+            })
         }
         .width('100%')
         .alignItems(HorizontalAlign.Center)
@@ -444,6 +476,23 @@ export struct SettingsPage {
     .width('100%')
     .padding({ top: 16, bottom: 24 })
     .backgroundColor($r('app.color.terminal_surface'))
+  }
+
+  private handleDevTap() {
+    this.devTapCount++
+    if (this.devTapCount >= 7) {
+      this.devTapCount = 0
+      this.showDevOptions = !this.showDevOptions
+      AppStorage.setOrCreate('showDevOptions', this.showDevOptions)
+      const msg = this.showDevOptions ? 'Developer options enabled' : 'Developer options disabled'
+      showToast(msg + (this.currentLanguage ? '' : ''))
+    }
+    // Reset counter after 3s of inactivity
+    setTimeout(() => {
+      if (this.devTapCount > 0 && this.devTapCount < 7) {
+        this.devTapCount = 0
+      }
+    }, 3000)
   }
 
   private openExternal(url: string) {

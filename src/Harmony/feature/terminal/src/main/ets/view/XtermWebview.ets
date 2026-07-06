@@ -22,6 +22,7 @@ export struct XtermWebview {
   @StorageLink('gatewayUrl') gatewayUrl: string = ''
   @StorageLink('terminalCols') terminalCols: number = 80
   @StorageLink('terminalRows') terminalRows: number = 24
+  @StorageLink('webglEnabled') webglEnabled: boolean = true
 
   private msgPorts: webview.WebMessagePort[] = []
   private readyNotified: boolean = false
@@ -103,7 +104,7 @@ export struct XtermWebview {
       this.webviewController.runJavaScript(`
         (function () {
           if (typeof initTerminal === 'function') {
-          initTerminal(${this.terminalCols}, ${this.terminalRows});
+          initTerminal(${this.terminalCols}, ${this.terminalRows}, ${this.webglEnabled});
             return 'ready';
           }
           return 'missing';
