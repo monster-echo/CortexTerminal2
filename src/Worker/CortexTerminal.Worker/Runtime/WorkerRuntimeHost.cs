@@ -532,15 +532,25 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
                 var currentBinary = Process.GetCurrentProcess().MainModule?.FileName
                     ?? throw new InvalidOperationException("Cannot determine current process path.");
 
-                // Write new binary to .new file first, then atomic replace.
-                // This ensures the current binary remains intact if the copy fails.
-                var stagingPath = currentBinary + ".new";
-                File.Copy(newBinary, stagingPath, overwrite: true);
-                if (!isWindows)
+                if (isWindows)
                 {
-                    try { File.SetUnixFileMode(stagingPath, UnixFileMode.UserExecute | UnixFileMode.GroupExecute | UnixFileMode.OtherRead | UnixFileMode.UserRead | UnixFileMode.GroupRead); } catch { }
+                    // Windows image lock 禁止覆盖运行中 exe,但允许 rename。先把运行中本体挪到
+                    // .bak(image lock 放行 rename,只禁止 overwrite/delete),再把新 exe 写入已空出
+                    // 的原路径。与 `corterm update` CLI 同模式。.bak 旧 inode 被即将退出的进程保活,
+                    // 下次升级会清。
+                    var backupPath = currentBinary + ".bak";
+                    if (File.Exists(backupPath)) File.Delete(backupPath);
+                    File.Move(currentBinary, backupPath);
+                    File.Copy(newBinary, currentBinary, overwrite: true);
                 }
-                File.Move(stagingPath, currentBinary, overwrite: true);
+                else
+                {
+                    // POSIX rename(2) 原子换目录项,运行中进程持有旧 inode 保活,无需挪开。
+                    var stagingPath = currentBinary + ".new";
+                    File.Copy(newBinary, stagingPath, overwrite: true);
+                    try { File.SetUnixFileMode(stagingPath, UnixFileMode.UserExecute | UnixFileMode.GroupExecute | UnixFileMode.OtherRead | UnixFileMode.UserRead | UnixFileMode.GroupRead); } catch { }
+                    File.Move(stagingPath, currentBinary, overwrite: true);
+                }
 
                 _logger.LogInformation("Binary replaced. Restarting via OS service manager ...");
 
