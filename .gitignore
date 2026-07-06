@@ -28,6 +28,7 @@ docs/*
 .git1
 !docs/corterm_appstore_qr.png
 !docs/corterm_googleplay_qr.png
+!docs/corterm_appgallery_qr.png
 
 # HarmonyOS build artifacts
 src/Harmony/**/build/
