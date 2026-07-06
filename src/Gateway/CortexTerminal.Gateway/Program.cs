@@ -132,12 +132,14 @@ static string GetUserId(ClaimsPrincipal user)
 static string NormalizeVersion(string version)
     => System.Text.RegularExpressions.Regex.Replace(version, @"(\.0)+$", "");
 
-static object ToSessionSummaryResponse(SessionRecord session)
+static object ToSessionSummaryResponse(SessionRecord session, string? workerName = null, string? workerHostname = null)
     => new
     {
         session.SessionId,
         session.Name,
         session.WorkerId,
+        WorkerName = workerName,
+        WorkerHostname = workerHostname,
         Status = session.AttachmentState.ToString(),
         CreatedAt = session.CreatedAtUtc,
         LastActivityAt = session.LastActivityAtUtc,
@@ -1553,12 +1555,20 @@ app.MapPost("/api/sessions", async (
             statusCode: StatusCodes.Status503ServiceUnavailable);
 }).RequireAuthorization();
 
-app.MapGet("/api/me/sessions", async (ClaimsPrincipal user, ISessionCoordinator sessions) =>
+app.MapGet("/api/me/sessions", async (ClaimsPrincipal user, ISessionCoordinator sessions, IWorkerRegistry workers) =>
 {
     var userId = GetUserId(user);
-    var summaries = (await sessions.GetSessionsForUser(userId))
+    var userSessions = await sessions.GetSessionsForUser(userId);
+    var workerById = (await workers.GetAllWorkersForUserAsync(userId))
+        .ToDictionary(w => w.WorkerId);
+
+    var summaries = userSessions
         .OrderByDescending(session => session.LastActivityAtUtc)
-        .Select(ToSessionSummaryResponse)
+        .Select(session =>
+        {
+            workerById.TryGetValue(session.WorkerId, out var worker);
+            return ToSessionSummaryResponse(session, worker?.Name, worker?.Hostname);
+        })
         .ToArray();
 
     return Results.Ok(summaries);
@@ -2063,7 +2073,7 @@ app.MapGet("/api/me/workers/{workerId}", async (string workerId, ClaimsPrincipal
     var hostedSessions = (await sessions.GetSessionsForUser(userId))
         .Where(session => session.WorkerId == workerId)
         .OrderByDescending(session => session.LastActivityAtUtc)
-        .Select(ToSessionSummaryResponse)
+        .Select(session => ToSessionSummaryResponse(session, workerRecord.Name, workerRecord.Hostname))
         .ToArray();
 
     var metricsSnapshot = workers.GetMetrics(workerRecord.WorkerId);
