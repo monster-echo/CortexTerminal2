@@ -8,7 +8,7 @@
 [![Gateway Package](https://img.shields.io/badge/ghcr.io-corterm--gateway-blue?logo=docker)](https://github.com/monster-echo/CortexTerminal2/pkgs/container/corterm-gateway)
 [![Worker Release](https://img.shields.io/github/v/release/monster-echo/CortexTerminal2?label=worker&logo=github)](https://github.com/monster-echo/CortexTerminal2/releases)
 
-Corterm 是一个自托管的远程终端平台。在任意机器上安装轻量级 Worker，部署 Gateway，即可通过浏览器或手机访问终端——关掉页面，Shell 依然在后台运行。
+Corterm 是一个远程终端平台。在任意机器上安装轻量级 Worker，部署 Gateway，即可通过浏览器或手机访问终端——关掉页面，Shell 依然在后台运行。
 
 ## 架构
 
@@ -29,10 +29,12 @@ Corterm 是一个自托管的远程终端平台。在任意机器上安装轻量
 - **会话持久化** -- 随时断开和重连，Shell 持续运行，重连时自动回放历史输出。
 - **多机管理** -- 单个 Gateway 连接和管理任意数量的远程机器。
 - **移动端支持** -- iOS / Android 原生应用，内置终端虚拟键盘、触觉反馈和自适应布局。
+- **AI Agent 追踪** -- 实时查看 Claude Code 的工作过程。`cortap` 捕获每次 prompt、工具调用和通知，Console 渲染为结构化时间线，让你能监控任意 Worker 上跑着的 agent。
+- **文件传输** -- Console 与 Worker 之间的双向文件交换，基于 S3 兼容存储。Console 投递的文件会立即落到 shell 工作目录；写入 `$CORTERM_ARTIFACTS_DIR` 的文件会以气泡形式出现，按需下载。
+- **资源监控** -- 每个 Worker 的实时 CPU / 内存占用，加上客户端到 Worker 的延迟探测。
 - **多种登录方式** -- 密码、手机短信、GitHub OAuth、Google OAuth、Apple Sign-In。
 - **Worker 管理** -- 监控状态、远程升级、诊断检查（`corterm doctor`）。
 - **管理后台** -- 用户管理、邀请、角色权限、审计日志。
-- **自托管 & Docker 一键部署** -- 无云依赖，数据完全在你的基础设施上。
 
 ## 快速开始
 
@@ -187,6 +189,8 @@ cortap events --last 50
 
 **过期模型：** 每个 artifact 默认有 7 天 TTL。Session terminate 时该 session 的所有 artifact 过期时间会收紧到 24 小时宽限期。后台服务定期清理 S3 + DB。
 
+**Claude Code 自动注入上下文：** 用户下一次提交 prompt 时,Corterm hook 会把已上传的文件列表自动注入 Claude Code 的 context —— 不需要手动 `@$CORTERM_ARTIFACTS_DIR/foo.png`。Claude 看到文件列表后自己决定是否读取。(Codex 支持在 roadmap 里。)
+
 ### 配置
 
 Gateway `appsettings.json`：
@@ -206,7 +210,7 @@ Gateway `appsettings.json`：
 }
 ```
 
-自托管 MinIO：
+本地 MinIO：
 
 ```bash
 docker compose -f deploy/docker-compose.minio.yml up -d

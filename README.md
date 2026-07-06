@@ -8,7 +8,7 @@
 [![Gateway Package](https://img.shields.io/badge/ghcr.io-corterm--gateway-blue?logo=docker)](https://github.com/monster-echo/CortexTerminal2/pkgs/container/corterm-gateway)
 [![Worker Release](https://img.shields.io/github/v/release/monster-echo/CortexTerminal2?label=worker&logo=github)](https://github.com/monster-echo/CortexTerminal2/releases)
 
-Corterm is a self-hosted remote terminal platform. Install a lightweight Worker on any machine, deploy the Gateway, and access your terminals from any browser or mobile device -- your shell keeps running even after you close the tab.
+Corterm is a remote terminal platform. Install a lightweight Worker on any machine, deploy the Gateway, and access your terminals from any browser or mobile device -- your shell keeps running even after you close the tab.
 
 ## Architecture
 
@@ -29,10 +29,12 @@ Browser  ──►  Gateway  ──►  Worker
 - **Session Persistence** -- Detach and reattach at any time. Your shell keeps running. Previous output is replayed on reattach.
 - **Multi-Worker** -- Connect and manage any number of remote machines from a single Gateway.
 - **Mobile Access** -- Native iOS and Android apps with custom terminal keyboard, haptic feedback, and responsive layout.
+- **AI Agent Tracking** -- Watch Claude Code work in real time. `cortap` captures every prompt, tool call, and notification; the Console renders them as a structured timeline so you can monitor agents running on any worker.
+- **File Transfer** -- Bidirectional file exchange between Console and Worker via S3-compatible storage. Drop a file in the Console and it lands in the shell's working directory; files written to `$CORTERM_ARTIFACTS_DIR` show up as downloadable bubbles.
+- **Resource Monitoring** -- Live CPU and memory metrics for every worker, plus latency probes between client and worker.
 - **Multiple Auth Methods** -- Password, phone SMS, GitHub OAuth, Google OAuth, and Apple Sign-In.
-- **Worker Management** -- Monitor worker status, trigger remote upgrades, and run diagnostics (`corterm doctor`).
+- **Worker Management** -- Monitor status, trigger remote upgrades, and run diagnostics (`corterm doctor`).
 - **Admin Dashboard** -- User management, invitations, role-based access, and audit logging.
-- **Self-Hosted & Docker Ready** -- One command to deploy. No cloud dependency. Your data stays on your infrastructure.
 
 ## Quick Start
 
@@ -187,6 +189,8 @@ Corterm ships with a WeChat-File-Helper-style file feed for every terminal sessi
 
 **Expiration:** every artifact has a 7-day TTL. Terminating a session tightens its artifacts to a 24h grace window. A background sweep cleans S3 + DB.
 
+**Claude Code auto-context:** when the user submits their next prompt, the Corterm hook lists uploaded files in Claude Code's context automatically -- no need to manually `@$CORTERM_ARTIFACTS_DIR/foo.png`. The agent sees the file list and decides whether to read it. (Codex support is on the roadmap.)
+
 ### Configuration
 
 Gateway `appsettings.json`:
@@ -206,7 +210,7 @@ Gateway `appsettings.json`:
 }
 ```
 
-For self-hosted MinIO:
+For local MinIO:
 
 ```bash
 docker compose -f deploy/docker-compose.minio.yml up -d
