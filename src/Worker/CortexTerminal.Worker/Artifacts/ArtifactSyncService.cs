@@ -30,7 +30,7 @@ public sealed class ArtifactSyncService : IAsyncDisposable
     private readonly ILogger<ArtifactSyncService> _logger;
     private readonly FileSystemWatcher? _watcher;
     private readonly CancellationTokenSource _cts = new();
-    private readonly ConcurrentDictionary<string, Task> _pending = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, CancellationTokenSource> _pending = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, string> _lastUploadedHash = new(StringComparer.Ordinal);
     private readonly long _maxSizeBytes = 50 * 1024 * 1024;
     private int _disposed;
@@ -82,7 +82,17 @@ public sealed class ArtifactSyncService : IAsyncDisposable
         if (!ArtifactFilenameValidator.IsValid(filename)) return;
 
         var dedupKey = $"{_sessionId}:{filename}";
-        _pending[dedupKey] = Task.Run(() => UploadAfterDebounceAsync(fullPath, filename, _cts.Token));
+
+        // Cancel any in-flight upload for the same file so only the latest change enters the pipeline.
+        if (_pending.TryRemove(dedupKey, out var oldCts))
+        {
+            oldCts.Cancel();
+            oldCts.Dispose();
+        }
+
+        var cts = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token);
+        _pending[dedupKey] = cts;
+        _ = Task.Run(() => UploadAfterDebounceAsync(fullPath, filename, cts.Token), cts.Token);
     }
 
     private void OnFileDeleted(string fullPath)
@@ -163,7 +173,11 @@ public sealed class ArtifactSyncService : IAsyncDisposable
         }
         finally
         {
-            _pending.TryRemove($"{_sessionId}:{filename}", out _);
+            var dedupKey = $"{_sessionId}:{filename}";
+            if (_pending.TryRemove(dedupKey, out var cts))
+            {
+                cts.Dispose();
+            }
         }
     }
 
@@ -199,13 +213,15 @@ public sealed class ArtifactSyncService : IAsyncDisposable
             _watcher.Dispose();
         }
 
-        try
+        // Cancel all in-flight uploads.
+        foreach (var (_, cts) in _pending)
         {
-            await Task.WhenAll(_pending.Values.Where(t => !t.IsCompleted).DefaultIfEmpty(Task.CompletedTask));
+            cts.Cancel();
+            cts.Dispose();
         }
-        catch (OperationCanceledException) { /* expected on shutdown */ }
-        catch (Exception ex) { _logger.LogDebug(ex, "ArtifactSync awaiting pending uploads on dispose."); }
+        _pending.Clear();
 
         _cts.Dispose();
+        await Task.CompletedTask;
     }
 }
