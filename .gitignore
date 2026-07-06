@@ -32,3 +32,4 @@ src/Harmony/**/BuildProfile.ets
 src/Harmony/local.properties
 src/Harmony/signing/
 ohos-*.tgz
+.deepseek/
