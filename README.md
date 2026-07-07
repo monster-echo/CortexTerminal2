@@ -12,11 +12,28 @@ Corterm is a remote terminal platform. Install a lightweight Worker on any machi
 
 ## Architecture
 
-```
-Browser  ──►  Gateway  ──►  Worker
- (UI)          (Auth,         (PTY,
-                Routing,       Shell
-                Sessions)      Execution)
+```mermaid
+graph LR
+    classDef client fill:#e1f5fe,stroke:#01579b,stroke-width:2px,color:#01579b;
+    classDef gateway fill:#fff3e0,stroke:#e65100,stroke-width:2px,color:#e65100;
+    classDef worker fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,color:#2e7d32;
+
+    subgraph Client ["Client"]
+        Console["💻 Console<br><small>Browser · React + xterm.js<br>iOS · Android native</small>"]:::client
+    end
+
+    subgraph DMZ ["Gateway · DMZ"]
+        Gateway["🚪 Gateway<br><small>Auth · Routing · Session stickiness</small>"]:::gateway
+    end
+
+    subgraph Cluster ["Worker · intranet cluster"]
+        Worker1["⚡ Worker<br><small>PTY · Shell</small>"]:::worker
+        Worker2["⚡ Worker<br><small>PTY · Shell</small>"]:::worker
+    end
+
+    Console <-->|"SignalR / WebSocket · JWT"| Gateway
+    Gateway <-->|"SignalR / WebSocket"| Worker1
+    Gateway <-.->|"SignalR"| Worker2
 ```
 
 - **Gateway** -- Central server handling authentication, session routing, and real-time communication.
@@ -192,6 +209,42 @@ Corterm ships with a WeChat-File-Helper-style file feed for every terminal sessi
 
 - Console uploads land in `$CORTERM_ARTIFACTS_DIR` on the Worker instantly so the shell (and AI agents like Claude Code) can read them.
 - Worker outputs (`echo foo > $CORTERM_ARTIFACTS_DIR/log.txt`) appear as Worker-side bubbles in real time via SignalR. Nothing auto-downloads to your phone -- tap a bubble to fetch on demand.
+
+**Data flow:** the Gateway only brokers presigned URLs; file bytes always travel directly between Console/Worker and S3.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Console
+    participant G as Gateway
+    participant S3 as S3 / R2 / MinIO
+    participant W as Worker
+
+    rect rgb(227, 245, 254)
+    note over C,W: Console → Worker (drop a file into the shell's cwd)
+    C->>G: request presigned PUT URL
+    G->>C: presigned PUT URL
+    C->>S3: PUT file bytes
+    C->>G: CompleteArtifactUpload
+    G->>W: SignalR NotifyArtifactUploaded (with GET URL)
+    W->>S3: GET, verify sha256
+    W->>W: write into $CORTERM_ARTIFACTS_DIR
+    end
+
+    rect rgb(232, 245, 233)
+    note over C,W: Worker → Console (shell produces a file)
+    W->>W: detects new file in $CORTERM_ARTIFACTS_DIR
+    W->>G: request presigned PUT URL
+    G->>W: presigned PUT URL
+    W->>S3: PUT file bytes
+    W->>G: CompleteArtifactUpload
+    G->>C: SignalR artifact bubble
+    Note over C: no auto-download; fetch on tap
+    C->>G: request presigned GET URL
+    G->>C: presigned GET URL
+    C->>S3: GET file bytes
+    end
+```
 
 **Expiration:** every artifact has a 7-day TTL. Terminating a session tightens its artifacts to a 24h grace window. A background sweep cleans S3 + DB.
 
