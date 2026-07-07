@@ -239,7 +239,7 @@ sequenceDiagram
     W->>S3: PUT file bytes
     W->>G: CompleteArtifactUpload
     G->>C: SignalR artifact bubble
-    Note over C: no auto-download; fetch on tap
+    Note over C: tap to fetch on demand (no auto-download)
     C->>G: request presigned GET URL
     G->>C: presigned GET URL
     C->>S3: GET file bytes

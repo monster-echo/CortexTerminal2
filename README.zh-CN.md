@@ -239,7 +239,7 @@ sequenceDiagram
     W->>S3: PUT 文件字节
     W->>G: CompleteArtifactUpload
     G->>C: SignalR 推送 artifact 气泡
-    Note over C: 不自动下载；点按需拉取
+    Note over C: 不自动下载，点按需拉取
     C->>G: 请求 presigned GET URL
     G->>C: 返回 presigned GET URL
     C->>S3: GET 文件字节
