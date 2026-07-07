@@ -92,7 +92,7 @@ public sealed class ArtifactSyncService : IAsyncDisposable
 
         var cts = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token);
         _pending[dedupKey] = cts;
-        _ = Task.Run(() => UploadAfterDebounceAsync(fullPath, filename, cts.Token), cts.Token);
+        _ = Task.Run(() => UploadAfterDebounceAsync(fullPath, filename, cts), cts.Token);
     }
 
     private void OnFileDeleted(string fullPath)
@@ -107,8 +107,9 @@ public sealed class ArtifactSyncService : IAsyncDisposable
             _cts.Token);
     }
 
-    private async Task UploadAfterDebounceAsync(string fullPath, string filename, CancellationToken ct)
+    private async Task UploadAfterDebounceAsync(string fullPath, string filename, CancellationTokenSource cts)
     {
+        var ct = cts.Token;
         try
         {
             await Task.Delay(DebounceInterval, ct);
@@ -173,11 +174,15 @@ public sealed class ArtifactSyncService : IAsyncDisposable
         }
         finally
         {
+            // Only evict our own CTS. A later OnFileChanged for the same file will have already
+            // swapped in its own CTS and cancelled/disposed ours — removing/disposing that newer
+            // CTS here would kill the still-in-flight upload (race seen in CI as test timeouts).
             var dedupKey = $"{_sessionId}:{filename}";
-            if (_pending.TryRemove(dedupKey, out var cts))
+            if (_pending.TryGetValue(dedupKey, out var active) && ReferenceEquals(active, cts))
             {
-                cts.Dispose();
+                _pending.TryRemove(dedupKey, out _);
             }
+            cts.Dispose();
         }
     }
 
