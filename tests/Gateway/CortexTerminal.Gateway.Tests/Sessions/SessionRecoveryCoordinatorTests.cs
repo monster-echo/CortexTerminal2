@@ -36,7 +36,7 @@ public sealed class SessionRecoveryCoordinatorTests
 
         coordinator.TryGetSession(sessionId, out var session).Should().BeTrue();
         // Gateway restart severs the client connection but the worker shell is alive, so
-        // Attached becomes DetachedGracePeriod (NOT Recovering — the 60s reaper would expire it).
+        // Attached becomes DetachedGracePeriod (waiting for the client to reattach), not Recovering.
         session.AttachmentState.Should().Be(SessionAttachmentState.DetachedGracePeriod);
         session.WorkerConnectionId.Should().BeEmpty();
         session.AttachedClientConnectionId.Should().BeNull();
@@ -179,50 +179,31 @@ public sealed class SessionRecoveryCoordinatorTests
     }
 
     [Fact]
-    public async Task ExpireRecoveringSessions_ExpiresSessionsOlderThanCutoff()
+    public async Task RecoveringSession_SurvivesDisconnectAndReboundsOnWorkerReconnect()
     {
-        var (coordinator, db) = CreateCoordinator();
-        var oldSessionId = $"sess_{Guid.NewGuid():N}";
-        var recentSessionId = $"sess_{Guid.NewGuid():N}";
-        var now = DateTimeOffset.UtcNow;
-
-        db.Sessions.Add(new SessionRecordEntity
-        {
-            SessionId = oldSessionId, UserId = "user-1", WorkerId = "worker-1",
-            Columns = 120, Rows = 40, CreatedAtUtc = now.AddMinutes(-5),
-            LastActivityAtUtc = now.AddMinutes(-2), AttachmentState = "Recovering"
-        });
-        db.Sessions.Add(new SessionRecordEntity
-        {
-            SessionId = recentSessionId, UserId = "user-1", WorkerId = "worker-1",
-            Columns = 120, Rows = 40, CreatedAtUtc = now,
-            LastActivityAtUtc = now, AttachmentState = "Recovering"
-        });
-        await db.SaveChangesAsync();
-        await coordinator.RecoverActiveSessionsAsync();
-
-        // Recover preserves LastActivityAtUtc for Recovering rows, so oldSession keeps its
-        // 2-minutes-ago timestamp — no manual reset needed.
-
-        // Cutoff is 60 seconds ago - old session (2 min ago) should expire, recent should not
-        var expiredIds = await coordinator.ExpireRecoveringSessions(now.AddSeconds(-60));
-
-        expiredIds.Should().ContainSingle().Which.Should().Be(oldSessionId);
-        coordinator.TryGetSession(oldSessionId, out var expired).Should().BeTrue();
-        expired.AttachmentState.Should().Be(SessionAttachmentState.Expired);
-        expired.ExitReason.Should().Be("recovery-timeout");
-        coordinator.TryGetSession(recentSessionId, out var recent).Should().BeTrue();
-        recent.AttachmentState.Should().Be(SessionAttachmentState.Recovering);
-    }
-
-    [Fact]
-    public async Task ExpireRecoveringSessions_NoRecoveringSessions_ReturnsEmpty()
-    {
+        // sess_77b regression: a worker that blipped offline must not cost the session its
+        // life. There is no wall-clock reaper anymore — the session stays Recovering until
+        // the worker reconnects, then rebounds to Attached. The gateway does not judge worker
+        // session liveness by a timer; only the worker's own report does that.
         var (coordinator, _) = CreateCoordinator();
+        var sessionId = (await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), null, CancellationToken.None)).Response!.SessionId;
+        coordinator.TryGetSession(sessionId, out var created).Should().BeTrue();
+        created.AttachmentState.Should().Be(SessionAttachmentState.Attached);
+        created.WorkerConnectionId.Should().Be("worker-conn-1");
 
-        var expiredIds = await coordinator.ExpireRecoveringSessions(DateTimeOffset.UtcNow);
+        // Worker SignalR drops. Session → Recovering, but nothing reaps it now.
+        await coordinator.TransitionToRecovering("worker-1", "worker-conn-1");
+        coordinator.TryGetSession(sessionId, out var recovering).Should().BeTrue();
+        recovering.AttachmentState.Should().Be(SessionAttachmentState.Recovering);
+        recovering.ExitReason.Should().BeNull();
 
-        expiredIds.Should().BeEmpty();
+        // Worker reconnects (any time later — no expiry raced it). Live PTY rebounds.
+        var reboundCount = await coordinator.RebindActiveSessions("user-1", "worker-1", "worker-conn-new");
+        reboundCount.Should().Be(1);
+        coordinator.TryGetSession(sessionId, out var live).Should().BeTrue();
+        live.AttachmentState.Should().Be(SessionAttachmentState.Attached);
+        live.WorkerConnectionId.Should().Be("worker-conn-new");
+        live.ExitReason.Should().BeNull();
     }
 
     [Fact]
@@ -239,8 +220,8 @@ public sealed class SessionRecoveryCoordinatorTests
         await db.SaveChangesAsync();
 
         // Step 1: Gateway restarts, recover sessions. The worker shell survived, so the
-        // formerly-Attached session becomes DetachedGracePeriod (NOT Recovering — the 60s
-        // reaper would otherwise expire it).
+        // formerly-Attached session becomes DetachedGracePeriod (waiting for client reattach),
+        // not Recovering.
         await coordinator.RecoverActiveSessionsAsync();
         coordinator.TryGetSession(sessionId, out var afterRecover).Should().BeTrue();
         afterRecover.AttachmentState.Should().Be(SessionAttachmentState.DetachedGracePeriod);

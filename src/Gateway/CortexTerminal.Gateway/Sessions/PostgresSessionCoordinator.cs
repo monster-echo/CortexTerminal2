@@ -51,11 +51,10 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
             foreach (var entity in entities)
             {
                 // A gateway restart does NOT imply a worker restart. The shell on the worker
-                // survives, so sessions must NOT be collapsed to Recovering (the 60s reaper
-                // would then expire them). Attached loses its client socket (it died with the
-                // old gateway) → DetachedGracePeriod, waiting for the client to reattach.
-                // DetachedGracePeriod stays. Only truly-Recovering rows (worker was already
-                // gone before the restart) remain Recovering and stay subject to the reaper.
+                // survives, so sessions must NOT be collapsed to Recovering. Attached loses
+                // its client socket (it died with the old gateway) → DetachedGracePeriod,
+                // waiting for the client to reattach. DetachedGracePeriod stays. Only truly-
+                // Recovering rows (worker was already gone before the restart) stay Recovering.
                 var wasAttached = entity.AttachmentState == "Attached";
                 var targetState = (wasAttached || entity.AttachmentState == "DetachedGracePeriod")
                     ? SessionAttachmentState.DetachedGracePeriod
@@ -554,59 +553,6 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
         }
 
         return stagedUpdates.Select(u => u.Original).ToList();
-    }
-
-    public async Task<IReadOnlyList<string>> ExpireRecoveringSessions(DateTimeOffset cutoffUtc)
-    {
-        var stagedUpdates = new List<(string SessionId, SessionRecord Staged)>();
-
-        lock (_sync)
-        {
-            foreach (var session in _sessions.Values)
-            {
-                if (session.AttachmentState != SessionAttachmentState.Recovering ||
-                    session.LastActivityAtUtc > cutoffUtc)
-                {
-                    continue;
-                }
-
-                stagedUpdates.Add((session.SessionId, session with
-                {
-                    AttachmentState = SessionAttachmentState.Expired,
-                    AttachedClientConnectionId = null,
-                    ExitCode = null,
-                    ExitReason = "recovery-timeout",
-                    ReplayPending = false,
-                    LastActivityAtUtc = _timeProvider.GetUtcNow()
-                }));
-            }
-        }
-
-        foreach (var (sessionId, staged) in stagedUpdates)
-        {
-            await PersistSessionStateAsync(sessionId, "Expired",
-                attachedClientConnectionId: null,
-                exitCode: null,
-                exitReason: "recovery-timeout",
-                replayPending: false,
-                lastActivityAtUtc: staged.LastActivityAtUtc);
-            _logger.LogWarning("Recovery timeout: {SessionId} Recovering → Expired (worker={WorkerId})", sessionId, staged.WorkerId);
-        }
-
-        lock (_sync)
-        {
-            foreach (var (sessionId, staged) in stagedUpdates)
-            {
-                _sessions[sessionId] = staged;
-            }
-        }
-
-        if (stagedUpdates.Count > 0)
-        {
-            _logger.LogInformation("Expired {Count} recovering sessions due to recovery timeout", stagedUpdates.Count);
-        }
-
-        return stagedUpdates.Select(u => u.SessionId).ToList();
     }
 
     public async Task<IReadOnlyList<string>> ReconcileWorkerSessionsAsync(

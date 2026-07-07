@@ -254,7 +254,6 @@ builder.Services.AddSingleton<UserPreferenceService>();
 builder.Services.AddSingleton<InMemoryDeviceFlowStore>();
 builder.Services.AddSingleton<ReplayCoordinator>();
 builder.Services.AddSingleton(TimeProvider.System);
-builder.Services.AddHostedService<DetachedSessionExpiryService>();
 builder.Services.AddHttpClient();
 builder.Services.AddSingleton<OAuthStateService>();
 builder.Services.AddSingleton<PhoneCodeStore>();

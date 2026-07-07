@@ -16,7 +16,6 @@ public interface ISessionCoordinator
     Task MarkReplayCompleted(string sessionId, string clientConnectionId);
     Task<int> RebindActiveSessions(string userId, string workerId, string workerConnectionId);
     Task<IReadOnlyList<SessionRecord>> TransitionToRecovering(string workerId, string workerConnectionId);
-    Task<IReadOnlyList<string>> ExpireRecoveringSessions(DateTimeOffset cutoffUtc);
     Task<IReadOnlyList<string>> ReconcileWorkerSessionsAsync(string userId, string workerId, IReadOnlySet<string> liveSessionIds);
     bool TryGetSession(string sessionId, out SessionRecord session);
     bool TouchSessionActivity(string sessionId, DateTimeOffset nowUtc);

@@ -110,10 +110,10 @@ public sealed class WorkerHub(
             workers.Unregister(workerId);
             logger.LogInformation("Worker {WorkerId} disconnected (connection {ConnectionId}).", workerId, connectionId);
 
-            // Move sessions to Recovering instead of expiring them outright.
-            // This gives the worker (or a gateway restart) a 60s window to reconnect via
-            // DetachedSessionExpiryService. Without this, a graceful gateway shutdown
-            // would expire all sessions in DB and nothing could be recovered.
+            // Mark the worker's sessions Recovering (worker link is down). There is NO timer
+            // reaping them — a session stays Recovering until this worker reconnects and
+            // RebindActiveSessions rebounds it (or ReportWorkerSessions reconciles it). PTY
+            // liveness is the worker's call to make, not the gateway's.
             var transitionedSessions = await sessions.TransitionToRecovering(workerId, connectionId);
             if (transitionedSessions.Count > 0)
             {
