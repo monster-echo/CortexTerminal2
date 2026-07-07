@@ -27,10 +27,10 @@ public sealed class AgentEventHookResponseTests
         var hookOutput = doc.RootElement.GetProperty("hookSpecificOutput");
         hookOutput.GetProperty("hookEventName").GetString().Should().Be("UserPromptSubmit");
         var context = hookOutput.GetProperty("additionalContext").GetString()!;
-        context.Should().Contain("[Corterm] 2 file(s) uploaded via Console in");
+        context.Should().Contain("[Corterm] 2 file(s) in $CORTERM_ARTIFACTS_DIR (");
         context.Should().Contain(dir.Path);
-        context.Should().Contain("- alpha.txt (512 B)");
-        context.Should().Contain("- beta.png (1.0 MB)");
+        context.Should().Contain("- alpha.txt  (512 B, text)");
+        context.Should().Contain("- beta.png  (1.0 MB, image)");
     }
 
     [Fact]

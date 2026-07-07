@@ -252,11 +252,15 @@ public sealed class AgentEventEndpoint : BackgroundService
         if (files.Length == 0) return null;
 
         var context = new StringBuilder();
-        context.Append("[Corterm] ").Append(files.Length).Append(" file(s) uploaded via Console in ")
-            .Append(artifactsDir).Append(':');
+        context.Append("[Corterm] ").Append(files.Length).Append(" file(s) in $CORTERM_ARTIFACTS_DIR (")
+            .Append(artifactsDir).Append("):");
         foreach (var f in files)
         {
-            context.Append("\n- ").Append(f.Name).Append(" (").Append(FormatFileSize(f.Length)).Append(')');
+            // Category lets the agent pick the right handler without an extra `file`/`ls` round
+            // trip — e.g. an image with no -512x512 sibling is the resize target.
+            var category = FileCategoryDetector.Detect(f.Name);
+            context.Append("\n  - ").Append(f.Name).Append("  (")
+                .Append(FormatFileSize(f.Length)).Append(", ").Append(category).Append(')');
         }
 
         var response = new JsonObject

@@ -427,6 +427,27 @@ rootCommand.SetAction(async (ParseResult parseResult, CancellationToken cancella
         sp.GetRequiredService<IAgentEventSink>(),
         sp.GetRequiredService<ILogger<AgentEventEndpoint>>()));
 
+    // Corterm agent skill — remote-sourced (skills/corterm-artifacts/ in the repo), cached
+    // locally under ~/.corterm/skill-cache/ and installed into ~/.claude/skills/ (Claude Code +
+    // opencode) and ~/.codex/AGENTS.md (codex). AgentSkillSyncService refreshes every 6h so a
+    // skill edit propagates to running workers without a redeploy.
+    builder.Services.AddSingleton<AgentSkillSource>();
+    builder.Services.AddSingleton<AgentSkillInstaller>();
+    builder.Services.AddSingleton<AgentSkillSyncService>(sp =>
+    {
+        // Dedicated HttpClient (no BaseAddress) lives with the service instance so skill fetches
+        // go through the system proxy without colliding with the gateway-bound HttpClient used by
+        // TokenRefreshService. Resolved here rather than via AddSingleton<HttpClient> to avoid
+        // overwriting that registration.
+        var handler = new SocketsHttpHandler { Proxy = HttpClient.DefaultProxy, UseProxy = true };
+        return new AgentSkillSyncService(
+            sp.GetRequiredService<AgentSkillSource>(),
+            sp.GetRequiredService<AgentSkillInstaller>(),
+            new HttpClient(handler),
+            sp.GetRequiredService<ILogger<AgentSkillSyncService>>());
+    });
+    builder.Services.AddHostedService(sp => sp.GetRequiredService<AgentSkillSyncService>());
+
     // Background service that refreshes the token every 24 hours
     var refreshHandler = new SocketsHttpHandler
     {
@@ -476,6 +497,9 @@ rootCommand.SetAction(async (ParseResult parseResult, CancellationToken cancella
 
     var host = builder.Build();
     host.Services.GetRequiredService<AgentIntegration>().EnsureShimsInstalled();
+    // Install the cached agent skill (if any) before the PTY comes up so the agent sees it on
+    // first launch. First run has no cache — AgentSkillSyncService populates it within seconds.
+    await host.Services.GetRequiredService<AgentSkillInstaller>().InstallFromCacheAsync(cancellationToken);
     await host.RunAsync(cancellationToken);
 });
 
