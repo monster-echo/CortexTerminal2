@@ -151,7 +151,10 @@ function Install-Service {
     Write-Info "Creating scheduled task for auto-start and crash recovery ..."
 
     $action = New-ScheduledTaskAction -Execute $exePath -WorkingDirectory $INSTALL_DIR
-    $trigger = New-ScheduledTaskTrigger -AtLogOn
+    # -User is required: a bare -AtLogon means "any user logs on", which needs
+    # admin to register. Pinning it to the current user lets non-admin installs
+    # succeed and is behaviorally identical for a self-installed worker.
+    $trigger = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\$env:USERNAME"
     $settings = New-ScheduledTaskSettingsSet `
         -AllowStartIfOnBatteries `
         -DontStopIfGoingOnBatteries `
