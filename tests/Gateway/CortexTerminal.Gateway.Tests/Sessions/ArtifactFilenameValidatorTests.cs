@@ -1,4 +1,4 @@
-using CortexTerminal.Gateway.Sessions;
+using CortexTerminal.Contracts.Sessions;
 using FluentAssertions;
 using Xunit;
 
@@ -72,5 +72,24 @@ public sealed class ArtifactFilenameValidatorTests
     {
         var max = new string('a', 255);
         ArtifactFilenameValidator.IsValid(max).Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData("..traversal", "..")]          // dot-segment traversal (no separator, so DotTraversal fires)
+    [InlineData("foo/bar", "forbidden characters")] // path separator caught by UnsafeChars
+    [InlineData("CON", "Windows reserved")]
+    [InlineData(".hidden", "starts or ends")]
+    [InlineData("", "empty")]
+    public void TryValidate_ReportsFailureReason(string filename, string expectedReasonSubstring)
+    {
+        ArtifactFilenameValidator.TryValidate(filename, out var reason).Should().BeFalse();
+        reason.Should().Contain(expectedReasonSubstring);
+    }
+
+    [Fact]
+    public void TryValidate_ValidName_ReturnsTrueAndEmptyReason()
+    {
+        ArtifactFilenameValidator.TryValidate("屏幕截图.jpeg", out var reason).Should().BeTrue();
+        reason.Should().BeEmpty();
     }
 }

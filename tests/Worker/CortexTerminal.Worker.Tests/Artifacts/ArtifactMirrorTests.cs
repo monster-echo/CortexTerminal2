@@ -36,6 +36,27 @@ public sealed class ArtifactMirrorTests
     }
 
     [Fact]
+    public async Task DownloadFromGatewayAsync_ChineseFilename_DownloadsSuccessfully()
+    {
+        // Regression: the Worker used to reject non-ASCII filenames via an ASCII-only whitelist,
+        // logging "invalid filename ??????.jpeg" and skipping the download. The shared blacklist
+        // validator must accept Chinese filenames so the mirror actually receives them.
+        var sessionId = $"mirror-{Guid.NewGuid():N}";
+        var payload = "中文内容"u8.ToArray();
+        var sha = Sha256Hex(payload);
+        var (mirror, http) = BuildMirror(payload);
+        using var _ = SessionScope(sessionId);
+        var frame = new NotifyArtifactUploadedFrame(sessionId, "屏幕截图.jpeg", "https://gw/fake/屏幕截图.jpeg", payload.Length, sha);
+
+        await mirror.DownloadFromGatewayAsync(frame, CancellationToken.None);
+
+        http.Requests.Should().ContainSingle();
+        var dir = ArtifactPaths.GetSessionArtifactsDir(sessionId);
+        File.Exists(Path.Combine(dir, "屏幕截图.jpeg")).Should().BeTrue();
+        File.ReadAllBytes(Path.Combine(dir, "屏幕截图.jpeg")).Should().Equal(payload);
+    }
+
+    [Fact]
     public async Task DownloadFromGatewayAsync_ShaMismatch_DeletesTempFile()
     {
         var sessionId = $"mirror-{Guid.NewGuid():N}";

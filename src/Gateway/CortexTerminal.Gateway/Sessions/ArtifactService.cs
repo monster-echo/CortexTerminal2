@@ -43,7 +43,8 @@ public sealed class ArtifactService(
     {
         if (!ValidOrigins.Contains(request.Origin)) throw new ArgumentException($"Invalid origin: {request.Origin}");
         var filename = Uri.UnescapeDataString(request.Filename);
-        if (!ArtifactFilenameValidator.IsValid(filename)) throw new ArgumentException("Invalid filename");
+        if (!ArtifactFilenameValidator.TryValidate(filename, out var reason))
+            throw new ArgumentException($"Invalid filename: {reason}");
         if (request.SizeBytes <= 0 || request.SizeBytes > _options.MaxArtifactSizeBytes)
             throw new ArgumentException($"Size must be between 1 and {_options.MaxArtifactSizeBytes} bytes");
 
@@ -129,7 +130,8 @@ public sealed class ArtifactService(
     public async Task<UploadUrlResponse> CreateForWorkerUploadAsync(string workerConnectionId, string workerOwnerUserId, CreateArtifactRequest request, CancellationToken ct)
     {
         var filename = Uri.UnescapeDataString(request.Filename);
-        if (!ArtifactFilenameValidator.IsValid(filename)) throw new ArgumentException("Invalid filename");
+        if (!ArtifactFilenameValidator.TryValidate(filename, out var reason))
+            throw new ArgumentException($"Invalid filename: {reason}");
         if (request.SizeBytes <= 0 || request.SizeBytes > _options.MaxArtifactSizeBytes)
             throw new ArgumentException($"Size must be between 1 and {_options.MaxArtifactSizeBytes} bytes");
 

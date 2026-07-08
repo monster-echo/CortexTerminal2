@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using CortexTerminal.Contracts.Sessions;
 
 namespace CortexTerminal.Worker.Artifacts;
@@ -60,11 +59,4 @@ public static class FileCategoryDetector
         if (TextExtensions.Contains(ext)) return ArtifactFileCategory.Text;
         return ArtifactFileCategory.Unknown;
     }
-}
-
-public static class ArtifactFilenameValidator
-{
-    private static readonly Regex SafeName = new(@"^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$", RegexOptions.Compiled);
-
-    public static bool IsValid(string filename) => SafeName.IsMatch(filename);
 }

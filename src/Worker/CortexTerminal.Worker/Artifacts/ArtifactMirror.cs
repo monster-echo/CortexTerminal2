@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using CortexTerminal.Contracts.Sessions;
 using CortexTerminal.Contracts.Streaming;
 using Microsoft.Extensions.Logging;
 
@@ -16,9 +17,9 @@ public sealed class ArtifactMirror(
 {
     public async Task DownloadFromGatewayAsync(NotifyArtifactUploadedFrame frame, CancellationToken ct)
     {
-        if (!ArtifactFilenameValidator.IsValid(frame.Filename))
+        if (!ArtifactFilenameValidator.TryValidate(frame.Filename, out var reason))
         {
-            logger.LogWarning("ArtifactMirror skip download: invalid filename {Filename}.", frame.Filename);
+            logger.LogWarning("ArtifactMirror skip download: invalid filename {Filename} ({Reason}).", frame.Filename, reason);
             return;
         }
 
