@@ -89,7 +89,7 @@ public sealed class AgentIntegration : IAgentIntegration
                 File.WriteAllText(scriptPath, UnixShimBody(wrapperPath, kind));
                 try
                 {
-                    File.SetUnixFileMode(scriptPath, UnixFileMode.UserExecute | UnixFileMode.GroupExecute | UnixFileMode.OtherExecute | UnixFileMode.UserRead | UnixFileMode.GroupRead | UnixFileMode.OtherRead);
+                    File.SetUnixFileMode(scriptPath, UnixFileMode.UserExecute | UnixFileMode.UserWrite | UnixFileMode.GroupExecute | UnixFileMode.OtherExecute | UnixFileMode.UserRead | UnixFileMode.GroupRead | UnixFileMode.OtherRead);
                 }
                 catch (IOException ioEx)
                 {
