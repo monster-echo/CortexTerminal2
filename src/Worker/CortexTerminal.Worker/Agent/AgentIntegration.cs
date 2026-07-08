@@ -81,11 +81,19 @@ public sealed class AgentIntegration : IAgentIntegration
             if (isWindows)
             {
                 var scriptPath = Path.Combine(_shimsDir, kind + ".cmd");
+                File.Delete(scriptPath);
                 File.WriteAllText(scriptPath, WindowsShimBody(wrapperPath, kind));
             }
             else
             {
                 var scriptPath = Path.Combine(_shimsDir, kind);
+                // Delete before write: WriteAllText overwrites via O_TRUNC, which needs the
+                // file's own write permission. A shim left over from a prior version is often
+                // read-only (e.g. 0555 from <=0.5.6), so overwriting throws UnauthorizedAccess
+                // before the SetUnixFileMode below ever runs. Deleting only needs the parent
+                // dir's write permission, clearing any stale mode so a fresh file is always
+                // created. Idempotent: File.Delete is a no-op when the file does not exist.
+                File.Delete(scriptPath);
                 File.WriteAllText(scriptPath, UnixShimBody(wrapperPath, kind));
                 try
                 {
