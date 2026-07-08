@@ -1,3 +1,4 @@
+using System.IO;
 using CortexTerminal.Mobile.Core.Bridge;
 using CortexTerminal.Mobile.App.Services.Support;
 
@@ -30,13 +31,20 @@ public sealed partial class AppBridge
     }
 
     [BridgeMethod]
-    public Task<string> UploadFeedbackImageAsync(string localPath, string filename, string contentType)
+    public Task<string> PickFeedbackFileAsync()
     {
         return ExecuteSafeAsync(async () =>
         {
             if (_supportService is null) throw new InvalidOperationException("SupportService not configured");
-            var imageUrl = await _supportService.UploadFeedbackImageAsync(localPath, filename, contentType, default);
-            return new { imageUrl };
+            var file = await MainThread.InvokeOnMainThreadAsync(() => FilePicker.Default.PickAsync(new PickOptions { PickerTitle = "选择文件" }));
+            if (file is null) return (object?)null;
+            var contentType = string.IsNullOrWhiteSpace(file.ContentType) ? GuessContentType(file.FileName) : file.ContentType;
+            using var stream = await file.OpenReadAsync();
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+            var bytes = ms.ToArray();
+            var imageUrl = await _supportService.UploadFeedbackFileAsync(bytes, file.FileName, contentType, default);
+            return new { imageUrl, filename = file.FileName };
         });
     }
 

@@ -54,10 +54,10 @@ public sealed class SupportService
     }
 
     /// <summary>
-    /// Requests a presigned PUT URL from the gateway, uploads the image bytes to S3,
-    /// and returns the public gateway-proxied image URL to embed in the feedback payload.
+    /// Requests a presigned PUT URL from the gateway, uploads the file bytes to S3,
+    /// and returns the public gateway-proxied file URL to embed in the feedback payload.
     /// </summary>
-    public async Task<string> UploadFeedbackImageAsync(string localPath, string filename, string contentType, CancellationToken ct)
+    public async Task<string> UploadFeedbackFileAsync(byte[] bytes, string filename, string contentType, CancellationToken ct)
     {
         var request = new HttpRequestMessage(HttpMethod.Post, "/api/me/feedback/uploads")
         {
@@ -75,13 +75,12 @@ public sealed class SupportService
         if (string.IsNullOrEmpty(uploadUrl) || string.IsNullOrEmpty(imageUrl))
             throw new InvalidOperationException("Missing uploadUrl/imageUrl in response");
 
-        var bytes = await File.ReadAllBytesAsync(localPath, ct);
         var putContent = new ByteArrayContent(bytes);
         putContent.Headers.ContentType = new MediaTypeHeaderValue(contentType);
         var putRequest = new HttpRequestMessage(HttpMethod.Put, uploadUrl) { Content = putContent };
         var putResponse = await _httpClient.SendAsync(putRequest, ct);
         if (!putResponse.IsSuccessStatusCode)
-            throw new InvalidOperationException($"Image upload failed ({(int)putResponse.StatusCode})");
+            throw new InvalidOperationException($"File upload failed ({(int)putResponse.StatusCode})");
         return imageUrl;
     }
 

@@ -8,9 +8,8 @@
  * inline banner — never silently swallowed.
  */
 import { common } from '@kit.AbilityKit'
-import { buffer } from '@kit.ArkTS'
 import { FeedbackService, FeedbackPayload, FeedbackType } from '../service/FeedbackService'
-import { AvatarPicker } from '../service/AvatarPicker'
+import { FeedbackFilePicker } from '../service/FeedbackFilePicker'
 import {
   ApiService,
   I18n,
@@ -22,6 +21,11 @@ import {
   AnalyticsService,
   AnalyticsEvent
 } from '@rwecho/core'
+
+interface AttachmentItem {
+  url: string
+  name: string
+}
 
 interface SubtypeOption {
   key: string
@@ -38,7 +42,7 @@ export struct FeedbackPage {
   @State contact: string = ''
   @State error: string = ''
   @State isSubmitting: boolean = false
-  @State attachments: string[] = []
+  @State attachments: AttachmentItem[] = []
   @State attaching: boolean = false
 
   aboutToAppear() {
@@ -136,24 +140,22 @@ export struct FeedbackPage {
           .margin({ top: 16, bottom: 8 })
 
         Flex({ wrap: FlexWrap.Wrap }) {
-          ForEach(this.attachments, (url: string, index: number) => {
-            Stack() {
-              Image(url)
-                .width(72)
-                .height(72)
-                .borderRadius(8)
-                .objectFit(ImageFit.Cover)
+          ForEach(this.attachments, (item: AttachmentItem, index: number) => {
+            Row() {
+              Text(item.name)
+                .fontSize(12)
+                .fontColor($r('app.color.terminal_primary'))
+                .maxLines(1)
+                .textOverflow({ overflow: TextOverflow.Ellipsis })
+                .layoutWeight(1)
               Text('×')
-                .fontSize(14)
-                .fontColor(Color.White)
-                .backgroundColor($r('app.color.terminal_error'))
-                .width(20)
-                .height(20)
-                .borderRadius(10)
-                .textAlign(TextAlign.Center)
+                .fontSize(16)
+                .fontColor($r('app.color.terminal_error'))
+                .margin({ left: 6 })
             }
-            .width(72)
-            .height(72)
+            .padding({ left: 10, right: 10, top: 6, bottom: 6 })
+            .borderRadius(8)
+            .backgroundColor($r('app.color.terminal_surface_container_high'))
             .margin({ right: 8, bottom: 8 })
             .onClick(() => {
               clickHaptic()
@@ -179,7 +181,7 @@ export struct FeedbackPage {
             .alignItems(HorizontalAlign.Center)
             .onClick(() => {
               clickHaptic()
-              this.pickImage()
+              this.pickAttachment()
             })
           }
         }
@@ -240,30 +242,19 @@ export struct FeedbackPage {
       })
   }
 
-  private async pickImage() {
+  private async pickAttachment() {
     this.error = ''
     try {
-      const uri = await AvatarPicker.pickSingle()
-      if (uri.length === 0) {
-        return
-      }
-      const dataUrl = await AvatarPicker.readAsBase64(getContext(this), uri)
-      if (dataUrl.length === 0) {
-        this.error = I18n.get('feedback.image_too_large')
+      const picked = await FeedbackFilePicker.pick()
+      if (picked === null) {
         return
       }
       this.attaching = true
-      const commaIdx = dataUrl.indexOf(',')
-      const base64 = commaIdx >= 0 ? dataUrl.substring(commaIdx + 1) : dataUrl
-      const prefix = commaIdx >= 0 ? dataUrl.substring(0, commaIdx) : ''
-      const contentType = prefix.split(';')[0].split(':')[1] || 'image/png'
-      const ext = contentType === 'image/jpeg' ? '.jpg' : contentType === 'image/webp' ? '.webp' : '.png'
-      const filename = `feedback-${Date.now()}${ext}`
+      const filename = `feedback-${Date.now()}-${picked.filename}`
       const uploaded = await ApiService.createFeedbackUpload(filename)
-      const buf = buffer.from(base64, 'base64')
-      const bytes = new Uint8Array(buf.buffer)
-      await ApiService.putBinaryToS3(uploaded.uploadUrl, bytes.buffer as ArrayBuffer)
-      this.attachments.push(uploaded.imageUrl)
+      await ApiService.putBinaryToS3(uploaded.uploadUrl, picked.bytes)
+      const item: AttachmentItem = { url: uploaded.imageUrl, name: picked.filename }
+      this.attachments.push(item)
     } catch (e) {
       this.error = (e as Error).message || I18n.get('feedback.attach_failed')
     } finally {
@@ -289,7 +280,7 @@ export struct FeedbackPage {
         content: content,
         contact: this.contact.trim()
       }
-      const ticketId = await FeedbackService.submit(payload, webhookUrl, secret, this.attachments)
+      const ticketId = await FeedbackService.submit(payload, webhookUrl, secret, this.attachments.map((a: AttachmentItem) => a.url))
       AnalyticsService.onEvent(this.feedbackType === 'report'
         ? AnalyticsEvent.SUBMIT_REPORT
         : AnalyticsEvent.SUBMIT_FEEDBACK)

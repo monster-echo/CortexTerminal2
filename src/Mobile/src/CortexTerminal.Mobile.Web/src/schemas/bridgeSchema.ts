@@ -67,6 +67,11 @@ export const FeedbackImageUploadResponseSchema = z.object({
   imageUrl: z.string(),
 });
 
+export const FeedbackFilePickResponseSchema = z.object({
+  imageUrl: z.string(),
+  filename: z.string(),
+});
+
 export const PendingNavigationStateSchema = z.object({
   hasPending: z.boolean(),
   route: z.string().nullable().optional(),

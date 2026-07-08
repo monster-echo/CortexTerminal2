@@ -2,7 +2,7 @@ import { invoke } from "../runtime";
 import {
   SupportInfoSchema,
   FeedbackSubmitResponseSchema,
-  FeedbackImageUploadResponseSchema,
+  FeedbackFilePickResponseSchema,
   type SupportInfo,
 } from "../../schemas/bridgeSchema";
 
@@ -10,17 +10,8 @@ export const supportBridge = {
   getSupportInfo: (): Promise<SupportInfo | null> =>
     invoke("GetSupportInfoAsync", SupportInfoSchema.nullable(), [], { timeoutMs: 12000 }),
 
-  uploadImage: (
-    localPath: string,
-    filename: string,
-    contentType: string,
-  ): Promise<{ imageUrl: string }> =>
-    invoke(
-      "UploadFeedbackImageAsync",
-      FeedbackImageUploadResponseSchema,
-      [localPath, filename, contentType],
-      { timeoutMs: 30000 },
-    ),
+  pickFile: (): Promise<{ imageUrl: string; filename: string } | null> =>
+    invoke("PickFeedbackFileAsync", FeedbackFilePickResponseSchema.nullable(), [], { timeoutMs: 60000 }),
 
   submitFeedback: (
     type: string,

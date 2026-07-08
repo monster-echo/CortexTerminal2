@@ -19,7 +19,6 @@ import { useTranslation } from "react-i18next";
 import { RouteComponentProps, useHistory } from "react-router-dom";
 import PageHeader from "../../components/PageHeader";
 import { supportBridge } from "../../bridge/modules/supportBridge";
-import { deviceBridge } from "../../bridge/modules/deviceBridge";
 import { nativeBridge } from "../../bridge/nativeBridge";
 import { useAuthStore, type AuthState } from "../../store/authStore";
 import { useAppStore, type AppStoreState } from "../../store/appStore";
@@ -31,6 +30,11 @@ const selectAppInfo = (s: AppStoreState) => s.appInfo;
 interface SubtypeOption {
   value: string;
   key: string;
+}
+
+interface AttachmentItem {
+  url: string;
+  name: string;
 }
 
 export default function FeedbackPage({ location }: RouteComponentProps) {
@@ -59,17 +63,16 @@ export default function FeedbackPage({ location }: RouteComponentProps) {
   const [content, setContent] = useState("");
   const [contact, setContact] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [attachments, setAttachments] = useState<string[]>([]);
+  const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handlePickImage = async () => {
+  const handlePickFile = async () => {
     try {
-      const asset = await deviceBridge.pickPhoto();
-      if (!asset?.localUrl) return;
+      const result = await supportBridge.pickFile();
+      if (!result) return;
       setUploading(true);
-      const { imageUrl } = await supportBridge.uploadImage(asset.localUrl, asset.fileName, asset.contentType);
-      setAttachments((prev) => [...prev, imageUrl]);
+      setAttachments((prev) => [...prev, { url: result.imageUrl, name: result.filename }]);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -94,7 +97,7 @@ export default function FeedbackPage({ location }: RouteComponentProps) {
         user?.username ?? "unknown",
         language,
         appInfo?.appVersion ?? "unknown",
-        JSON.stringify(attachments),
+        JSON.stringify(attachments.map((a) => a.url)),
       );
       nativeBridge.trackEvent(type === "report" ? "submit_report" : "submit_feedback");
       void presentToast({
@@ -160,19 +163,27 @@ export default function FeedbackPage({ location }: RouteComponentProps) {
           <IonItem lines="none">
             <IonLabel position="stacked">{t("feedback.attachments")}</IonLabel>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
-              {attachments.map((url, idx) => (
-                <div key={idx} style={{ position: "relative" }}>
-                  <img
-                    src={url}
-                    alt=""
-                    style={{ width: 72, height: 72, borderRadius: 8, objectFit: "cover", display: "block" }}
-                  />
+              {attachments.map((item, idx) => (
+                <div key={idx} style={{ position: "relative", maxWidth: 180 }}>
+                  <div
+                    style={{
+                      padding: "6px 30px 6px 10px",
+                      background: "var(--ion-color-light)",
+                      borderRadius: 8,
+                      fontSize: 12,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {item.name}
+                  </div>
                   <IonButton
                     size="small"
                     fill="clear"
                     color="danger"
                     onClick={() => setAttachments((prev) => prev.filter((_, i) => i !== idx))}
-                    style={{ position: "absolute", top: -10, right: -10, margin: 0 }}
+                    style={{ position: "absolute", top: -8, right: -8, margin: 0 }}
                   >
                     <IonIcon icon={closeCircle} slot="icon-only" />
                   </IonButton>
@@ -181,9 +192,9 @@ export default function FeedbackPage({ location }: RouteComponentProps) {
               {attachments.length < 3 && (
                 <IonButton
                   fill="outline"
-                  onClick={() => void handlePickImage()}
+                  onClick={() => void handlePickFile()}
                   disabled={uploading || submitting}
-                  style={{ width: 72, height: 72, margin: 0 }}
+                  style={{ height: 32, margin: 0 }}
                 >
                   {uploading ? <IonSpinner name="crescent" /> : <IonIcon icon={addOutline} />}
                 </IonButton>

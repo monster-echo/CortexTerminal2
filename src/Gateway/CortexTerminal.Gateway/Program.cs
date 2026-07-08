@@ -1227,7 +1227,14 @@ app.MapPost("/api/me/feedback/uploads", async (FeedbackUploadRequest req, IArtif
         return Results.BadRequest(new { error = "filename required" });
     }
     var ext = Path.GetExtension(filename).ToLowerInvariant();
-    var allowedExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".png", ".jpg", ".jpeg", ".webp", ".gif" };
+    var allowedExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        ".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp",
+        ".pdf",
+        ".mp4", ".mov", ".m4v", ".webm",
+        ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
+        ".txt", ".md", ".csv", ".zip"
+    };
     if (!allowedExtensions.Contains(ext))
     {
         return Results.BadRequest(new { error = "unsupported image type" });
@@ -1235,10 +1242,10 @@ app.MapPost("/api/me/feedback/uploads", async (FeedbackUploadRequest req, IArtif
     var guid = Guid.NewGuid().ToString("N");
     var objectName = $"{userId}/{guid}{ext}";
     var upload = await storage.GenerateUploadUrlAsync("feedback", objectName, ct);
-    return Results.Ok(new { uploadUrl = upload.UploadUrl, imageUrl = $"/api/feedback/images/{objectName}" });
+    return Results.Ok(new { uploadUrl = upload.UploadUrl, imageUrl = $"/api/feedback/files/{objectName}" });
 }).RequireAuthorization();
 
-app.MapGet("/api/feedback/images/{*objectName}", async (string objectName, IArtifactStorage storage, CancellationToken ct) =>
+app.MapGet("/api/feedback/files/{*objectName}", async (string objectName, IArtifactStorage storage, CancellationToken ct) =>
 {
     var download = await storage.GenerateDownloadUrlAsync("feedback", objectName, ct);
     return Results.Redirect(download.DownloadUrl, permanent: false);
