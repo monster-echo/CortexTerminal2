@@ -463,7 +463,39 @@
     "changeAvatar": "Change Avatar",
     "avatarUpdated": "Avatar updated",
     "selectFromAlbum": "Select from Album",
-    "cropConfirm": "Confirm"
+    "cropConfirm": "Confirm",
+    "contactSupport": "Contact Support",
+    "feedback": "Feedback",
+    "report": "Report"
+  },
+  "support": {
+    "title": "Contact Support",
+    "copy": "Copy",
+    "copied": "Copied",
+    "copyFailed": "Copy failed",
+    "scanToJoin": "Scan to join the group",
+    "openTelegram": "Open in Telegram",
+    "loadFailed": "Failed to load support info",
+    "retry": "Retry"
+  },
+  "feedback": {
+    "titleFeedback": "Send Feedback",
+    "titleReport": "Report",
+    "typeLabel": "Type",
+    "typeFeedbackSuggestion": "Suggestion",
+    "typeFeedbackBug": "Bug",
+    "typeFeedbackExperience": "Experience",
+    "typeReportViolation": "Violation",
+    "typeReportAbuse": "Abuse",
+    "typeReportOther": "Other",
+    "content": "Details",
+    "contentPlaceholder": "Describe in detail (at least 10 characters)",
+    "contentTooShort": "Content must be at least 10 characters",
+    "contact": "Contact (optional)",
+    "contactPlaceholder": "Email / Telegram / QQ",
+    "submit": "Submit",
+    "submitted": "Submitted, ticket",
+    "attachments": "Screenshots (optional, up to 3)"
   },
   "sessions": {
     "title": "Sessions",

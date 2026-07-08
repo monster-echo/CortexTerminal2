@@ -43,6 +43,30 @@ export const SuccessResponseSchema = z.object({
   success: z.boolean(),
 });
 
+export const SupportGroupSchema = z.object({
+  name: z.string(),
+  number: z.string().optional().default(""),
+  url: z.string().optional().default(""),
+  qrCodeUrl: z.string(),
+});
+export type SupportGroup = z.infer<typeof SupportGroupSchema>;
+
+export const SupportInfoSchema = z.object({
+  qqGroup: SupportGroupSchema.nullable(),
+  telegramGroup: SupportGroupSchema.nullable(),
+  email: z.string(),
+});
+export type SupportInfo = z.infer<typeof SupportInfoSchema>;
+
+export const FeedbackSubmitResponseSchema = z.object({
+  success: z.boolean(),
+  ticketId: z.string(),
+});
+
+export const FeedbackImageUploadResponseSchema = z.object({
+  imageUrl: z.string(),
+});
+
 export const PendingNavigationStateSchema = z.object({
   hasPending: z.boolean(),
   route: z.string().nullable().optional(),

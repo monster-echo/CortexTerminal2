@@ -12,6 +12,7 @@ using CortexTerminal.Gateway.Data;
 using CortexTerminal.Gateway.Hubs;
 using CortexTerminal.Gateway.Sessions;
 using CortexTerminal.Gateway.Storage;
+using CortexTerminal.Gateway.Support;
 using CortexTerminal.Gateway.WebSockets;
 using CortexTerminal.Gateway.Tts;
 using CortexTerminal.Gateway.Workers;
@@ -273,6 +274,9 @@ var huaweiOAuthOptions = new HuaweiOAuthOptions();
 builder.Configuration.GetSection("HuaweiOAuth").Bind(huaweiOAuthOptions);
 var ttsOptions = new TtsOptions();
 builder.Configuration.GetSection("Tts").Bind(ttsOptions);
+var supportOptions = new SupportOptions();
+builder.Configuration.GetSection("Support").Bind(supportOptions);
+builder.Services.AddSingleton(supportOptions);
 
 var scrollbackSettings = new ScrollbackSettings();
 builder.Configuration.GetSection("Scrollback").Bind(scrollbackSettings);
@@ -1184,6 +1188,60 @@ app.MapGet("/api/auth/methods", (IConfiguration configuration) =>
     if (!string.IsNullOrEmpty(configuration["HuaweiOAuth:ClientSecret"]))
         methods.Add("huawei");
     return Results.Ok(new { methods });
+}).AllowAnonymous();
+
+// --- Support Info ---
+
+app.MapGet("/api/support/info", (SupportOptions opts, HttpContext httpCtx) =>
+{
+    var baseUrl = $"{httpCtx.Request.Scheme}://{httpCtx.Request.Host}";
+    string Abs(string url) => string.IsNullOrEmpty(url)
+        ? ""
+        : (url.StartsWith("http", StringComparison.OrdinalIgnoreCase) ? url : baseUrl + url);
+
+    object? qq = opts.QqGroup.Enabled ? new
+    {
+        name = opts.QqGroup.Name,
+        number = opts.QqGroup.Number,
+        qrCodeUrl = Abs(opts.QqGroup.QrCodeUrl),
+    } : null;
+
+    object? tg = opts.TelegramGroup.Enabled ? new
+    {
+        name = opts.TelegramGroup.Name,
+        url = opts.TelegramGroup.Url,
+        qrCodeUrl = Abs(opts.TelegramGroup.QrCodeUrl),
+    } : null;
+
+    return Results.Ok(new { qqGroup = qq, telegramGroup = tg, email = opts.Email });
+}).AllowAnonymous();
+
+// --- Feedback Image Upload ---
+
+app.MapPost("/api/me/feedback/uploads", async (FeedbackUploadRequest req, IArtifactStorage storage, HttpContext ctx, CancellationToken ct) =>
+{
+    var userId = GetUserId(ctx.User);
+    var filename = Uri.UnescapeDataString(req.Filename ?? string.Empty);
+    if (filename.Length == 0)
+    {
+        return Results.BadRequest(new { error = "filename required" });
+    }
+    var ext = Path.GetExtension(filename).ToLowerInvariant();
+    var allowedExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".png", ".jpg", ".jpeg", ".webp", ".gif" };
+    if (!allowedExtensions.Contains(ext))
+    {
+        return Results.BadRequest(new { error = "unsupported image type" });
+    }
+    var guid = Guid.NewGuid().ToString("N");
+    var objectName = $"{userId}/{guid}{ext}";
+    var upload = await storage.GenerateUploadUrlAsync("feedback", objectName, ct);
+    return Results.Ok(new { uploadUrl = upload.UploadUrl, imageUrl = $"/api/feedback/images/{objectName}" });
+}).RequireAuthorization();
+
+app.MapGet("/api/feedback/images/{*objectName}", async (string objectName, IArtifactStorage storage, CancellationToken ct) =>
+{
+    var download = await storage.GenerateDownloadUrlAsync("feedback", objectName, ct);
+    return Results.Redirect(download.DownloadUrl, permanent: false);
 }).AllowAnonymous();
 
 // --- Captcha Endpoints ---
@@ -2741,5 +2799,7 @@ internal sealed class LatestVersionCache
         }
     }
 }
+
+public sealed record FeedbackUploadRequest(string Filename);
 
 public partial class Program;

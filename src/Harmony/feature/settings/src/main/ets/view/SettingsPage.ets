@@ -147,6 +147,22 @@ export struct SettingsPage {
             this.confirmLogout()
           })
 
+        this.SectionHeader('settings.support')
+
+        this.NavRow('settings.contact_support', () => {
+          this.pageStack.pushPath({ name: RouteName.CONTACT_SUPPORT })
+        })
+
+        this.NavRow('settings.feedback', () => {
+          const param: Record<string, string> = { 'type': 'feedback' }
+          this.pageStack.pushPath({ name: RouteName.FEEDBACK, param: param })
+        })
+
+        this.NavRow('settings.report', () => {
+          const param: Record<string, string> = { 'type': 'report' }
+          this.pageStack.pushPath({ name: RouteName.FEEDBACK, param: param })
+        })
+
         // Watermark footer
         Column() {
           Row() {

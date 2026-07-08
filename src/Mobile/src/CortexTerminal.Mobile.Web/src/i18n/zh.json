@@ -463,7 +463,39 @@
     "changeAvatar": "修改头像",
     "avatarUpdated": "头像已更新",
     "selectFromAlbum": "从相册选择",
-    "cropConfirm": "确认"
+    "cropConfirm": "确认",
+    "contactSupport": "联系客服",
+    "feedback": "意见反馈",
+    "report": "投诉举报"
+  },
+  "support": {
+    "title": "联系客服",
+    "copy": "复制",
+    "copied": "已复制",
+    "copyFailed": "复制失败",
+    "scanToJoin": "扫码加入群聊",
+    "openTelegram": "打开 Telegram",
+    "loadFailed": "无法加载客服信息",
+    "retry": "重试"
+  },
+  "feedback": {
+    "titleFeedback": "意见反馈",
+    "titleReport": "投诉举报",
+    "typeLabel": "类型",
+    "typeFeedbackSuggestion": "功能建议",
+    "typeFeedbackBug": "问题反馈",
+    "typeFeedbackExperience": "体验改进",
+    "typeReportViolation": "违规内容",
+    "typeReportAbuse": "滥用行为",
+    "typeReportOther": "其他",
+    "content": "内容",
+    "contentPlaceholder": "请详细描述（至少 10 个字）",
+    "contentTooShort": "内容至少需要 10 个字",
+    "contact": "联系方式（选填）",
+    "contactPlaceholder": "邮箱 / Telegram / QQ",
+    "submit": "提交",
+    "submitted": "已提交，工单号",
+    "attachments": "截图（选填，最多 3 张）"
   },
   "sessions": {
     "title": "会话",

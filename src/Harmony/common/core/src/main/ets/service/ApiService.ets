@@ -7,8 +7,13 @@
  */
 import { http } from '@kit.NetworkKit'
 import { SessionInfo, SessionCreateRequest, SessionCreateResponse } from '../model/SessionModels'
-import { WorkerInfo, GatewayInfo } from '../model/SharedModels'
+import { WorkerInfo, GatewayInfo, SupportInfo, SupportGroupInfo } from '../model/SharedModels'
 import { AuthError, AuthErrorKind } from './AuthError'
+
+export interface FeedbackUploadResult {
+  uploadUrl: string
+  imageUrl: string
+}
 
 export class ApiService {
   private static isRefreshing: boolean = false
@@ -151,6 +156,28 @@ export class ApiService {
     return info
   }
 
+  static async getSupportInfo(): Promise<SupportInfo> {
+    const response = await ApiService.get('/api/support/info', false) as Record<string, Object>
+    const info = new SupportInfo()
+    info.qqGroup = ApiService.mapSupportGroup(response['qqGroup'])
+    info.telegramGroup = ApiService.mapSupportGroup(response['telegramGroup'])
+    info.email = (response['email'] as string) ?? ''
+    return info
+  }
+
+  private static mapSupportGroup(raw: Object | undefined): SupportGroupInfo | null {
+    if (!raw) {
+      return null
+    }
+    const data = raw as Record<string, Object>
+    const group = new SupportGroupInfo()
+    group.name = (data['name'] as string) ?? ''
+    group.number = (data['number'] as string) ?? ''
+    group.url = (data['url'] as string) ?? ''
+    group.qrCodeUrl = (data['qrCodeUrl'] as string) ?? ''
+    return group
+  }
+
   static async upgradeWorker(workerId: string): Promise<void> {
     const body: Record<string, string> = {}
     await ApiService.post(`/api/me/workers/${encodeURIComponent(workerId)}/upgrade`, body)
@@ -203,6 +230,16 @@ export class ApiService {
         httpRequest.destroy()
       })
     })
+  }
+
+  static async createFeedbackUpload(filename: string): Promise<FeedbackUploadResult> {
+    const body: Record<string, Object> = { 'filename': filename }
+    const resp = await ApiService.post('/api/me/feedback/uploads', body) as Record<string, Object>
+    const uploadUrl = (resp['uploadUrl'] as string) ?? ''
+    const rawImageUrl = (resp['imageUrl'] as string) ?? ''
+    const imageUrl = rawImageUrl.startsWith('http') ? rawImageUrl : `${ApiService.gatewayUrl}${rawImageUrl}`
+    const result: FeedbackUploadResult = { uploadUrl: uploadUrl, imageUrl: imageUrl }
+    return result
   }
 
   static async deleteAccount(): Promise<void> {

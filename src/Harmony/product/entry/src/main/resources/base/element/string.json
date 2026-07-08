@@ -87,6 +87,9 @@
 
     { "name": "gateway_url", "value": "https://corterm.rwecho.top" },
     { "name": "terms_of_service_url", "value": "https://corterm.rwecho.top/terms" },
-    { "name": "privacy_policy_url", "value": "https://corterm.rwecho.top/privacy" }
+    { "name": "privacy_policy_url", "value": "https://corterm.rwecho.top/privacy" },
+
+    { "name": "feedback_webhook_url", "value": "https://n8n.0x2a.top/webhook/corterm-feedback" },
+    { "name": "feedback_hmac_secret", "value": "df32c11ff79353e1d04ef45a62ece648c2f4307296f3059db7ec735a6fb219c9" }
   ]
 }

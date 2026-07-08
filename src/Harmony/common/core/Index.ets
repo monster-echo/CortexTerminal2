@@ -39,7 +39,9 @@ export {
   WorkerInfo,
   WorkerListResponse,
   WorkerSessionInfo,
-  GatewayInfo
+  GatewayInfo,
+  SupportGroupInfo,
+  SupportInfo
 } from './src/main/ets/model/SharedModels'
 
 // Session Models

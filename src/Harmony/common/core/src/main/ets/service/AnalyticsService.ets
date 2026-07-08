@@ -24,6 +24,9 @@ export enum AnalyticsEvent {
   ACCOUNT_DELETE = 'account_delete',
   THEME_CHANGE = 'theme_change',
   LANGUAGE_CHANGE = 'language_change',
+  VIEW_SUPPORT = 'view_support',
+  SUBMIT_FEEDBACK = 'submit_feedback',
+  SUBMIT_REPORT = 'submit_report',
 }
 
 export class AnalyticsService {

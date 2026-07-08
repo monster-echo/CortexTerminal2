@@ -83,3 +83,26 @@ export class GatewayInfo {
   latestWorkerVersion: string = ''
   latestGatewayVersion: string = ''
 }
+
+/**
+ * Support / contact info for a group or channel (QQ group / Telegram group).
+ */
+@Observed
+export class SupportGroupInfo {
+  name: string = ''
+  number: string = ''
+  url: string = ''
+  qrCodeUrl: string = ''
+}
+
+/**
+ * Support contact info served by gateway /api/support/info.
+ * qqGroup / telegramGroup are null when the gateway disables them
+ * (国内 gateway 只返 qqGroup，国外 gateway 只返 telegramGroup).
+ */
+@Observed
+export class SupportInfo {
+  qqGroup: SupportGroupInfo | null = null
+  telegramGroup: SupportGroupInfo | null = null
+  email: string = ''
+}

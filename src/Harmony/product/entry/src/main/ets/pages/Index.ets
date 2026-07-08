@@ -9,7 +9,7 @@ import { LoginPage, ActivateWorkerPage } from '@rwecho/auth'
 import { TerminalPage } from '@rwecho/terminal'
 import { ArtifactsPage } from '@rwecho/artifacts'
 import { ShellScaffold } from '../shell/ShellScaffold'
-import { AccountSecurityPage, ChangePasswordPage, WebPage } from '@rwecho/settings'
+import { AccountSecurityPage, ChangePasswordPage, WebPage, ContactSupportPage, FeedbackPage } from '@rwecho/settings'
 
 @Entry
 @Component
@@ -129,6 +129,18 @@ struct Index {
     } else if (name === RouteName.ARTIFACTS_PAGE) {
       NavDestination() {
         ArtifactsPage()
+      }
+      .hideTitleBar(true)
+      .backgroundColor($r('app.color.terminal_surface'))
+    } else if (name === RouteName.CONTACT_SUPPORT) {
+      NavDestination() {
+        ContactSupportPage()
+      }
+      .hideTitleBar(true)
+      .backgroundColor($r('app.color.terminal_surface'))
+    } else if (name === RouteName.FEEDBACK) {
+      NavDestination() {
+        FeedbackPage()
       }
       .hideTitleBar(true)
       .backgroundColor($r('app.color.terminal_surface'))

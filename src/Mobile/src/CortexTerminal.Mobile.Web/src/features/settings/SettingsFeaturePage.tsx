@@ -15,6 +15,8 @@ import {
 } from "@ionic/react";
 import {
   cameraOutline,
+  chatbubbleEllipsesOutline,
+  chatbubblesOutline,
   contrastOutline,
   documentTextOutline,
   keyOutline,
@@ -22,6 +24,7 @@ import {
   lockClosedOutline,
   logOutOutline,
   shieldCheckmarkOutline,
+  warningOutline,
 } from "ionicons/icons";
 import { RouteComponentProps } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -321,6 +324,24 @@ export default function SettingsFeaturePage({ history }: RouteComponentProps) {
           <IonItem button routerLink="/settings/security" routerDirection="forward" data-analytics-id="settings_account_security">
             <IonIcon slot="start" icon={lockClosedOutline} />
             <IonLabel>{t("settings.securitySection")}</IonLabel>
+          </IonItem>
+        </IonList>
+
+        <IonList inset>
+          <IonItemDivider>
+            <IonLabel className="py-2">{t("settings.supportSection")}</IonLabel>
+          </IonItemDivider>
+          <IonItem button onClick={() => history.push("/settings/support")} data-analytics-id="settings_contact_support">
+            <IonIcon slot="start" icon={chatbubblesOutline} />
+            <IonLabel>{t("settings.contactSupport")}</IonLabel>
+          </IonItem>
+          <IonItem button onClick={() => history.push("/settings/feedback?type=feedback")} data-analytics-id="settings_feedback">
+            <IonIcon slot="start" icon={chatbubbleEllipsesOutline} />
+            <IonLabel>{t("settings.feedback")}</IonLabel>
+          </IonItem>
+          <IonItem button onClick={() => history.push("/settings/feedback?type=report")} data-analytics-id="settings_report">
+            <IonIcon slot="start" icon={warningOutline} />
+            <IonLabel color="danger">{t("settings.report")}</IonLabel>
           </IonItem>
         </IonList>
 

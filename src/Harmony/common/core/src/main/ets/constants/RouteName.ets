@@ -10,4 +10,6 @@ export class RouteName {
   static readonly ACTIVATE_WORKER: string = 'ActivateWorker'
   static readonly WEB_PAGE: string = 'web/Page'
   static readonly ARTIFACTS_PAGE: string = 'artifacts/Page'
+  static readonly CONTACT_SUPPORT: string = 'support/Contact'
+  static readonly FEEDBACK: string = 'support/Feedback'
 }

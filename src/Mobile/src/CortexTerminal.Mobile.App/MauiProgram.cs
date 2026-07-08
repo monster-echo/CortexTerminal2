@@ -3,6 +3,7 @@ using CommunityToolkit.Maui;
 using CortexTerminal.Mobile.App.Services.Auth;
 using CortexTerminal.Mobile.App.Services.Bridge;
 using CortexTerminal.Mobile.App.Services.Terminal;
+using CortexTerminal.Mobile.App.Services.Support;
 using Microsoft.Extensions.Configuration;
 using Serilog;
 using CortexTerminal.Mobile.App.Services;
@@ -63,6 +64,11 @@ public static class MauiProgram
 		{
 			return new OAuthService(sp.GetRequiredService<Uri>(), sp.GetRequiredService<AuthService>());
 		});
+		builder.Services.AddSingleton(sp =>
+		{
+			var gatewayBaseUri = sp.GetRequiredService<Uri>();
+			return new SupportService(CreateGatewayHttpClient(gatewayBaseUri), sp.GetRequiredService<AuthService>());
+		});
 		builder.Services.AddSingleton<AppBridge>(sp =>
 		{
 			var logger = sp.GetRequiredService<ILogger<AppBridge>>();
@@ -70,8 +76,10 @@ public static class MauiProgram
 			var authService = sp.GetRequiredService<AuthService>();
 			var oauthService = sp.GetRequiredService<OAuthService>();
 			var terminalGateway = sp.GetRequiredService<TerminalGatewayService>();
+			var supportService = sp.GetRequiredService<SupportService>();
 			bridge.SetAuthServices(authService, oauthService);
 			bridge.SetTerminalGateway(terminalGateway);
+			bridge.SetSupportServices(supportService);
 			return bridge;
 		});
 
