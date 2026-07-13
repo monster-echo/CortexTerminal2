@@ -628,14 +628,21 @@ updateCommand.SetAction(async (ParseResult parseResult, CancellationToken cancel
         }
         using var doc = await JsonDocument.ParseAsync(await resp.Content.ReadAsStreamAsync(cancellationToken));
         latestVersion = null;
+        Version? best = null;
         foreach (var release in doc.RootElement.EnumerateArray())
         {
             if (!release.TryGetProperty("tag_name", out var tagEl)) continue;
             var tag = tagEl.GetString() ?? "";
-            if (tag.StartsWith("worker-v"))
+            if (!tag.StartsWith("worker-v")) continue;
+            var ver = tag["worker-v".Length..];
+            // GitHub's /releases list is NOT strictly ordered by version or date — a newer
+            // release can appear below an older one (observed: v0.5.10 listed under v0.5.9).
+            // Pick the highest semver across all returned releases, not the first one.
+            if (!Version.TryParse(ver, out var parsed)) continue;
+            if (best is null || parsed > best)
             {
-                latestVersion = tag["worker-v".Length..];
-                break;
+                best = parsed;
+                latestVersion = ver;
             }
         }
     }
