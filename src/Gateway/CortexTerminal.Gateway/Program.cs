@@ -2774,6 +2774,9 @@ internal sealed class LatestVersionCache
                 string? newWorkerLatest = null;
                 string? newGatewayLatest = null;
 
+                Version? bestWorker = null;
+                Version? bestGateway = null;
+
                 foreach (var release in doc.RootElement.EnumerateArray())
                 {
                     if (!release.TryGetProperty("tag_name", out var tagEl)) continue;
@@ -2781,14 +2784,21 @@ internal sealed class LatestVersionCache
                     var version = tag.StartsWith("worker-v") ? tag["worker-v".Length..]
                         : tag.StartsWith("gateway-v") ? tag["gateway-v".Length..]
                         : null;
-                    if (version is null) continue;
+                    if (version is null || !Version.TryParse(version, out var parsed)) continue;
 
-                    if (tag.StartsWith("worker-v") && newWorkerLatest is null)
+                    // GitHub's /releases list is NOT ordered by version or date — a newer release
+                    // can appear below an older one (observed: v0.5.10 listed under v0.5.9). Pick
+                    // the highest semver across all returned releases, not the first one.
+                    if (tag.StartsWith("worker-v") && (bestWorker is null || parsed > bestWorker))
+                    {
+                        bestWorker = parsed;
                         newWorkerLatest = version;
-                    else if (tag.StartsWith("gateway-v") && newGatewayLatest is null)
+                    }
+                    else if (tag.StartsWith("gateway-v") && (bestGateway is null || parsed > bestGateway))
+                    {
+                        bestGateway = parsed;
                         newGatewayLatest = version;
-
-                    if (newWorkerLatest is not null && newGatewayLatest is not null) break;
+                    }
                 }
 
                 if (newWorkerLatest is not null) _workerLatest = newWorkerLatest;
