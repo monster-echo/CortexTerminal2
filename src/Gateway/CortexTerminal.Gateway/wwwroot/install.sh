@@ -93,6 +93,10 @@ download_worker() {
 
   chmod +x "$INSTALL_DIR/$BIN_NAME" 2>/dev/null || true
   [ -f "$INSTALL_DIR/${BIN_NAME}.exe" ] && chmod +x "$INSTALL_DIR/${BIN_NAME}.exe" 2>/dev/null || true
+  # Agent wrapper (cortap) shipped alongside corterm. tar normally preserves its
+  # exec bit; chmod defensively in case the release archive lost it.
+  [ -f "$INSTALL_DIR/cortap" ] && chmod +x "$INSTALL_DIR/cortap" 2>/dev/null || true
+  [ -f "$INSTALL_DIR/cortap.exe" ] && chmod +x "$INSTALL_DIR/cortap.exe" 2>/dev/null || true
 
   rm -rf "$TMP_DIR"
   ok "Installed to ${BOLD}${INSTALL_DIR}${RESET}"

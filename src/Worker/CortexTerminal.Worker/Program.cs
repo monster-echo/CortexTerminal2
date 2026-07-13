@@ -610,8 +610,14 @@ updateCommand.SetAction(async (ParseResult parseResult, CancellationToken cancel
 
         var currentBinary = Process.GetCurrentProcess().MainModule?.FileName
             ?? throw new InvalidOperationException("Cannot determine current process path.");
+        var installDir = Path.GetDirectoryName(currentBinary)
+            ?? throw new InvalidOperationException("Cannot determine install directory.");
         var backupPath = currentBinary + ".bak";
 
+        // Replace the running corterm binary. Windows holds an image lock on the running
+        // exe, so rename it aside (.bak) and write the new one into the original path —
+        // the classic self-overwrite trick. Other files have no such lock and are copied
+        // in the loop below.
         if (File.Exists(backupPath)) File.Delete(backupPath);
         File.Move(currentBinary, backupPath);
         File.Copy(newBinary, currentBinary, overwrite: true);
@@ -619,8 +625,25 @@ updateCommand.SetAction(async (ParseResult parseResult, CancellationToken cancel
         {
             try { File.SetUnixFileMode(currentBinary, UnixFileMode.UserExecute | UnixFileMode.GroupExecute | UnixFileMode.OtherRead | UnixFileMode.UserRead | UnixFileMode.GroupRead); } catch { }
         }
-
         try { File.Delete(backupPath); } catch { }
+
+        // Sync the rest of the release archive over the install dir so an upgrade matches
+        // a fresh install — cortap, appsettings, service templates, etc. all refresh.
+        // Without this, a worker that predates cortap-in-archive (commit feeb091) never
+        // gains the wrapper and the shims written at startup point at a missing file.
+        // Preserve unix file modes per file so cortap keeps its exec bit (File.Copy resets
+        // mode to umask). The archive is flat (single-file publish), so top-level is enough.
+        var currentBinaryName = Path.GetFileName(currentBinary);
+        foreach (var sourceFile in Directory.EnumerateFiles(extractDir, "*", SearchOption.TopDirectoryOnly))
+        {
+            if (Path.GetFileName(sourceFile) == currentBinaryName) continue;  // corterm already replaced
+            var destFile = Path.Combine(installDir, Path.GetFileName(sourceFile));
+            File.Copy(sourceFile, destFile, overwrite: true);
+            if (!isWindows)
+            {
+                try { File.SetUnixFileMode(destFile, File.GetUnixFileMode(sourceFile)); } catch { }
+            }
+        }
 
         Console.WriteLine($"  Updated to {latestVersion}. Restarting worker ...");
 
