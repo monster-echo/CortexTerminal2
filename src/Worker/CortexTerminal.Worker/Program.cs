@@ -496,12 +496,103 @@ rootCommand.SetAction(async (ParseResult parseResult, CancellationToken cancella
     }
 
     var host = builder.Build();
+    // Self-heal before writing shims: if cortap is missing — the typical state of an install
+    // that reached this version via the pre-full-sync update path (which only copied corterm
+    // and discarded cortap) — restore the release files for the running version now.
+    await EnsureCortapPresentAsync(installDir, version, host.Services.GetRequiredService<ILogger<Program>>(), cancellationToken);
     host.Services.GetRequiredService<AgentIntegration>().EnsureShimsInstalled();
     // Install the cached agent skill (if any) before the PTY comes up so the agent sees it on
     // first launch. First run has no cache — AgentSkillSyncService populates it within seconds.
     await host.Services.GetRequiredService<AgentSkillInstaller>().InstallFromCacheAsync(cancellationToken);
     await host.RunAsync(cancellationToken);
 });
+
+// ── self-heal: restore missing release files without replacing the running corterm binary ──
+
+// Checks whether the agent wrapper (cortap) is present; if not, re-downloads the current
+// version's release archive and syncs the files. Runs on every startup but is a cheap
+// File.Exists no-op once healthy. Failures are logged and swallowed so a missing optional
+// wrapper can't keep the whole worker (and its terminal) from starting.
+static async Task EnsureCortapPresentAsync(string installDir, string version, ILogger logger, CancellationToken cancellationToken)
+{
+    var isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+    var wrapperName = isWindows ? "cortap.exe" : "cortap";
+    if (File.Exists(Path.Combine(installDir, wrapperName))) return;
+
+    logger.LogWarning("Agent wrapper {Wrapper} missing; restoring release files for v{Version} ...", wrapperName, version);
+    try
+    {
+        if (await RestoreReleaseFilesAsync(installDir, version, cancellationToken))
+            logger.LogInformation("Agent wrapper restored.");
+        else
+            logger.LogError("Agent wrapper restore failed: release archive had no files to sync.");
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "Agent wrapper self-heal failed; agent tracking disabled until next restart.");
+    }
+}
+
+// Downloads the release archive for `targetVersion`, extracts it, and overwrites every file
+// in `installDir` except the running corterm binary (already the right version; on Windows
+// also image-locked). cortap and any other missing files land in place. Returns false if the
+// archive contained nothing to copy.
+static async Task<bool> RestoreReleaseFilesAsync(string installDir, string targetVersion, CancellationToken cancellationToken)
+{
+    var isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+    var isOsx = RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
+    var arch = RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "arm64" : "x64";
+    var ridOs = isOsx ? "osx" : isWindows ? "win" : "linux";
+    var ext = isWindows ? "zip" : "tar.gz";
+    var assetName = $"corterm-{ridOs}-{arch}.{ext}";
+    var githubRepo = "monster-echo/CortexTerminal2";
+    var githubProxy = Environment.GetEnvironmentVariable("CORTERM_GITHUB_PROXY") ?? "https://proxy.0x2a.top";
+    var downloadUrl = $"{githubProxy}/https://github.com/{githubRepo}/releases/download/worker-v{targetVersion}/{assetName}";
+
+    var tmpDir = Path.Combine(Path.GetTempPath(), $"corterm-restore-{Guid.NewGuid():N}");
+    Directory.CreateDirectory(tmpDir);
+    var tmpFile = Path.Combine(tmpDir, isWindows ? "corterm.zip" : "corterm.tar.gz");
+
+    try
+    {
+        using var http = new HttpClient(new SocketsHttpHandler { Proxy = HttpClient.DefaultProxy, UseProxy = true });
+        var data = await http.GetByteArrayAsync(downloadUrl, cancellationToken);
+        await File.WriteAllBytesAsync(tmpFile, data, cancellationToken);
+
+        var extractDir = Path.Combine(tmpDir, "extracted");
+        Directory.CreateDirectory(extractDir);
+        if (isWindows)
+        {
+            System.IO.Compression.ZipFile.ExtractToDirectory(tmpFile, extractDir, overwriteFiles: true);
+        }
+        else
+        {
+            var tar = Process.Start(new ProcessStartInfo("tar", $"-xzf \"{tmpFile}\" -C \"{extractDir}\"") { UseShellExecute = false });
+            if (tar is not null) await tar.WaitForExitAsync(cancellationToken);
+        }
+
+        // Full-sync into the install dir, skipping corterm itself (right version + Windows lock).
+        // Preserve unix file modes so cortap keeps its exec bit after File.Copy.
+        var currentBinaryName = isWindows ? "corterm.exe" : "corterm";
+        var restored = false;
+        foreach (var sourceFile in Directory.EnumerateFiles(extractDir, "*", SearchOption.TopDirectoryOnly))
+        {
+            if (Path.GetFileName(sourceFile) == currentBinaryName) continue;
+            var destFile = Path.Combine(installDir, Path.GetFileName(sourceFile));
+            File.Copy(sourceFile, destFile, overwrite: true);
+            if (!isWindows)
+            {
+                try { File.SetUnixFileMode(destFile, File.GetUnixFileMode(sourceFile)); } catch { }
+            }
+            restored = true;
+        }
+        return restored;
+    }
+    finally
+    {
+        try { if (Directory.Exists(tmpDir)) Directory.Delete(tmpDir, recursive: true); } catch { }
+    }
+}
 
 // ── update command ──
 var updateCommand = new Command("update", "Update Corterm Worker to the latest version");
@@ -562,9 +653,31 @@ updateCommand.SetAction(async (ParseResult parseResult, CancellationToken cancel
         return;
     }
 
+    // Even when already on the latest version, an install that arrived here via the
+    // pre-full-sync update path is missing cortap. Re-sync instead of short-circuiting so
+    // `corterm update` self-heals — otherwise these installs are stuck (no newer version to
+    // upgrade into, and the version-equality path used to just return).
+    var wrapperName = isWindows ? "cortap.exe" : "cortap";
+    var wrapperMissing = !File.Exists(Path.Combine(installDir, wrapperName));
     if (version == latestVersion)
     {
-        Console.WriteLine($"  Already up to date ({version}).");
+        if (!wrapperMissing)
+        {
+            Console.WriteLine($"  Already up to date ({version}).");
+            return;
+        }
+        Console.WriteLine($"  Already on {version}, but {wrapperName} is missing — re-syncing release files ...");
+        try
+        {
+            await RestoreReleaseFilesAsync(installDir, version, cancellationToken);
+            Console.WriteLine($"  {wrapperName} restored. Restarting worker ...");
+            RunServiceCommand("restart");
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"  Failed to restore {wrapperName}: {ex.Message}");
+            Environment.ExitCode = 1;
+        }
         return;
     }
 
