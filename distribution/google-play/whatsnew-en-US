@@ -1,1 +1,6 @@
-Internal diagnostic build: investigate Xunfei/Doubao/9-grid numeric IME input issues.
+New "Contact Support": view QQ group number and scan to join.
+New feedback / report submission with screenshots.
+Feedback attachments now accept any file type.
+App display name localized to Chinese.
+Improved avatar upload.
+Fixed sessions being unexpectedly cascade-deleted.
