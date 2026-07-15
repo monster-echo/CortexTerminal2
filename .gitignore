@@ -33,3 +33,4 @@ src/Harmony/local.properties
 src/Harmony/signing/
 ohos-*.tgz
 .deepseek/
+.claude
