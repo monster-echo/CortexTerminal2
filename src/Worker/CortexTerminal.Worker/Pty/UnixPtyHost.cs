@@ -90,10 +90,13 @@ public sealed class UnixPtyHost : IPtyHost
     /// <summary>
     /// Resolves the launch args for a Unix shell. Bash + a Corterm-managed rcfile means the
     /// user has agent tracking enabled and we need to ensure our shims dir wins the PATH
-    /// lookup — bash is launched as <c>bash -i --rcfile=&lt;rcfile&gt;</c> so the managed
+    /// lookup — bash is launched as <c>bash --rcfile=&lt;rcfile&gt;</c> so the managed
     /// rcfile (which sources the user's .profile/.bashrc and prepends the shims dir) is the
-    /// only thing bash loads. Zsh and other shells use the standard <c>-l</c> flag because
-    /// zsh honors ZDOTDIR (set separately in the env).
+    /// only thing bash loads. The <c>-i</c> flag is deliberately omitted: <c>bash -i
+    /// --rcfile &lt;f&gt;</c> prints a usage error and exits 2 (reproduced on bash 3.2 and
+    /// 5.x), while the PTY supplies a controlling tty so bash enters interactive mode on
+    /// its own. Zsh and other shells use the standard <c>-l</c> flag because zsh honors
+    /// ZDOTDIR (set separately in the env).
     /// </summary>
     private static (string App, string[] CommandLine) ResolveUnixShell(string shellPath, IReadOnlyDictionary<string, string>? env)
     {
@@ -103,7 +106,7 @@ public sealed class UnixPtyHost : IPtyHost
             env.TryGetValue("CORTERM_BASH_RCFILE", out var rcfile) &&
             !string.IsNullOrWhiteSpace(rcfile))
         {
-            return (shellPath, new[] { "-i", "--rcfile", rcfile });
+            return (shellPath, new[] { "--rcfile", rcfile });
         }
 
         return (shellPath, new[] { "-l" });

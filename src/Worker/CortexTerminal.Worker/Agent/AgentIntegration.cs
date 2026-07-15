@@ -174,10 +174,12 @@ public sealed class AgentIntegration : IAgentIntegration
         "[[ -f \"$_corterm_real_zdotdir/.zlogin\" ]] && source \"$_corterm_real_zdotdir/.zlogin\"\n" +
         "unset _corterm_real_zdotdir\n";
 
-    // Bash rcfile passed via `bash -i --rcfile=<this file>`. Bash doesn't honor ZDOTDIR, so
-    // we launch as non-login interactive and manually source the user's .profile (login-style
-    // exports) and .bashrc (interactive customizations). Then force-prepend CORTERM_SHIMS_DIR
-    // so it always wins the PATH lookup regardless of what the user's rcfiles do to PATH.
+    // Bash rcfile passed via `bash --rcfile=<this file>` (no -i: `bash -i --rcfile <f>` prints
+    // a usage error and exits 2, and the PTY's tty already makes bash interactive). Bash
+    // doesn't honor ZDOTDIR, so we launch as non-login and manually source the user's .profile
+    // (login-style exports) and .bashrc (interactive customizations). Then force-prepend
+    // CORTERM_SHIMS_DIR so it always wins the PATH lookup regardless of what the user's
+    // rcfiles do to PATH.
     private const string BashrcBody =
         "# Corterm-managed bashrc.\n" +
         "[[ -f \"$HOME/.profile\" ]] && source \"$HOME/.profile\"\n" +

@@ -161,6 +161,57 @@ public sealed class UnixPtyHostTests
     }
 
     [Fact]
+    public async Task StartAsync_BashWithCortermRcfile_StaysAliveAndLoadsRcfile()
+    {
+        // Regression guard: `bash -i --rcfile <f>` prints a usage error and exits 2 (bash 3.2
+        // and 5.x), so a bash PTY launched with CORTERM_BASH_RCFILE died instantly and the
+        // session collapsed to a 404. The PTY's controlling tty already makes bash interactive,
+        // so we launch as `bash --rcfile <f>` (no -i) and the rcfile must still load.
+        if (OperatingSystem.IsWindows() || !File.Exists("/bin/bash"))
+        {
+            return;
+        }
+
+        var tempDirectory = CreateTempDirectory();
+        var rcfile = Path.Combine(tempDirectory, "bashrc");
+        await File.WriteAllTextAsync(rcfile, "export CORTERM_RC_PROOF=loaded-from-rcfile\n");
+
+        var previousShell = Environment.GetEnvironmentVariable("SHELL");
+        PosixShellSession? session = null;
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+
+        try
+        {
+            Environment.SetEnvironmentVariable("SHELL", "/bin/bash");
+            var environment = new Dictionary<string, string>
+            {
+                ["CORTERM_BASH_RCFILE"] = rcfile,
+            };
+
+            var host = new UnixPtyHost();
+            var process = await host.StartAsync(120, 40, environment, cts.Token);
+            session = await PosixShellSession.StartAsync(process, cts.Token);
+
+            var proof = NormalizeOutput(await session.ExecuteAsync("echo $CORTERM_RC_PROOF", cts.Token));
+            proof.Should().Contain("loaded-from-rcfile");
+
+            var alive = NormalizeOutput(await session.ExecuteAsync("echo bash-alive-ok", cts.Token));
+            alive.Should().Contain("bash-alive-ok");
+
+            await session.ExitAsync(cts.Token);
+        }
+        finally
+        {
+            if (session is not null)
+            {
+                await session.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(3));
+            }
+            Environment.SetEnvironmentVariable("SHELL", previousShell);
+            DeleteDirectoryIfPresent(tempDirectory);
+        }
+    }
+
+    [Fact]
     public async Task StartAsync_ReportsInitialSttySize_AndKeepsRespondingAfterResize()
     {
         if (OperatingSystem.IsWindows())
