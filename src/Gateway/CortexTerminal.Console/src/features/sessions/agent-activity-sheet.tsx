@@ -32,9 +32,8 @@ export function AgentActivitySheet(props: {
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <Button variant='outline' size='sm'>
+        <Button variant='outline' size='sm' title={t('terminal.agentActivity.button')}>
           <Wrench className='size-4' />
-          {t('terminal.agentActivity.button')}
         </Button>
       </SheetTrigger>
       <SheetContent side='right' className='flex w-full flex-col sm:max-w-lg'>

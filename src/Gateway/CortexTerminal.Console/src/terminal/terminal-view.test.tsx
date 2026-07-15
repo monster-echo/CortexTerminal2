@@ -97,10 +97,6 @@ vi.mock('./terminal-virtual-keys', () => ({
   applyAltModifier: (data: string) => data,
 }))
 
-vi.mock('./terminal-status-bar', () => ({
-  TerminalStatusBar: () => null,
-}))
-
 describe('TerminalView', () => {
   beforeEach(() => {
     vi.clearAllMocks()

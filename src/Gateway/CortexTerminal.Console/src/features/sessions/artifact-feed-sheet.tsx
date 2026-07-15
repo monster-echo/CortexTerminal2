@@ -77,9 +77,13 @@ export function ArtifactFeedSheet(props: { sessionId: string }) {
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <Button variant='outline' size='sm' className='relative'>
+        <Button
+          variant='outline'
+          size='sm'
+          className='relative'
+          title={t('terminal.artifacts.button')}
+        >
           <Paperclip className='size-4' />
-          {t('terminal.artifacts.button')}
           {hasUnread && (
             <span className='absolute right-1 top-1 size-2 rounded-full bg-destructive' />
           )}

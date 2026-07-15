@@ -26,9 +26,8 @@ export function SessionDetailsSheet(props: {
   return (
     <Sheet>
       <SheetTrigger asChild>
-        <Button variant='outline' size='sm'>
+        <Button variant='outline' size='sm' title={t('sessions.details.button')}>
           <Info className='size-4' />
-          {t('sessions.details.button')}
         </Button>
       </SheetTrigger>
       <SheetContent side='right' className='flex w-full flex-col sm:max-w-lg'>

@@ -185,10 +185,15 @@ export function SessionDetailPage(props: { sessionId: string }) {
     )
   }
 
+  const displayTitle = sessionDisplayTitle(
+    session.inferredTitle,
+    session.sessionId
+  )
+
   return (
     <>
       <Header>
-        <div className='flex min-w-0 flex-1 items-center gap-3'>
+        <div className='flex min-w-0 flex-1 items-center gap-2'>
           <Button variant='ghost' size='sm' asChild>
             <Link to='/sessions'>
               <ArrowLeft /> {t('sessions.backToSessions')}
@@ -201,14 +206,14 @@ export function SessionDetailPage(props: { sessionId: string }) {
                   {describeAgentKind(session.agentKind).icon}
                 </span>
               )}
-              <span className='truncate'>
-                {sessionDisplayTitle(
-                  session.inferredTitle,
-                  session.sessionId
-                )}
+              <span
+                className='min-w-0 max-w-[260px] truncate sm:max-w-[420px]'
+                title={displayTitle}
+              >
+                {displayTitle}
               </span>
             </h2>
-            <p className='truncate font-mono text-xs text-muted-foreground'>
+            <p className='max-w-[240px] truncate font-mono text-xs text-muted-foreground sm:max-w-[360px]'>
               {session.sessionId}
             </p>
           </div>
@@ -221,20 +226,20 @@ export function SessionDetailPage(props: { sessionId: string }) {
             <Button
               variant='destructive'
               size='sm'
+              title={t('sessions.terminate.button')}
               onClick={() => setTerminateOpen(true)}
             >
               <Square className='size-4' />
-              {t('sessions.terminate.button')}
             </Button>
           )}
           {!isMobile && canDelete && (
             <Button
               variant='outline'
               size='sm'
+              title={t('sessions.delete.button')}
               onClick={() => setDeleteOpen(true)}
             >
               <Trash2 className='size-4' />
-              {t('sessions.delete.button')}
             </Button>
           )}
 
@@ -262,8 +267,6 @@ export function SessionDetailPage(props: { sessionId: string }) {
         <TerminalView
           gateway={gateway}
           sessionId={session.sessionId}
-          workerId={session.workerId}
-          sessionStatus={session.status}
           onLatencyChange={(nextLatencyMs, nextLatencyState) => {
             setLatencyMs(nextLatencyMs)
             setLatencyState(nextLatencyState)

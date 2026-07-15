@@ -7,9 +7,9 @@ import type {
   TerminalGatewayConnection,
 } from '@/services/terminal-gateway'
 import { useTranslation } from 'react-i18next'
+import { useIsMobile } from '@/hooks/use-mobile'
 import { useTerminalEventLogStore } from '@/stores/terminal-event-log-store'
 import { getSessionTerminalLogKey } from './terminal-event-log'
-import { TerminalStatusBar } from './terminal-status-bar'
 import {
   TerminalViewport,
   type BrowserTerminal,
@@ -25,8 +25,6 @@ import { createTerminalSessionModel } from './useTerminalSession'
 export function TerminalView(props: {
   gateway: TerminalGateway
   sessionId: string
-  workerId?: string
-  sessionStatus?: SessionStatus
   onLatencyChange?: (
     latencyMs: number | null,
     state: 'live' | 'measuring' | 'offline'
@@ -43,22 +41,12 @@ export function TerminalView(props: {
     onSessionStatusChange,
     onAgentActivity,
     sessionId,
-    workerId,
-    sessionStatus,
   } = props
   const navigate = useNavigate()
   const { t } = useTranslation()
+  const isMobile = useIsMobile()
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [statusMessage, setStatusMessage] = useState('Connecting to terminal…')
   const [latencyProbeGeneration, setLatencyProbeGeneration] = useState(0)
-  const [terminalSize, setTerminalSize] = useState<TerminalSize>({
-    columns: 80,
-    rows: 24,
-  })
-  const [latencyMs, setLatencyMs] = useState<number | null>(null)
-  const [latencyState, setLatencyState] = useState<
-    'live' | 'measuring' | 'offline'
-  >('measuring')
   const [ctrlActive, setCtrlActive] = useState(false)
   const [altActive, setAltActive] = useState(false)
   const [sessionEnd, setSessionEnd] = useState<{
@@ -130,15 +118,10 @@ export function TerminalView(props: {
 
       const connection = connectionRef.current
       if (!connection) {
-        setStatusMessage('Terminal ready. Waiting for session connection…')
         return
       }
 
-      const size = browserTerminal.fit()
-      setTerminalSize({ columns: size.columns, rows: size.rows })
-      setStatusMessage(
-        `Live terminal attached at ${size.columns}x${size.rows}.`
-      )
+      browserTerminal.fit()
     },
     [pushEvent]
   )
@@ -154,7 +137,6 @@ export function TerminalView(props: {
       }
 
       lastSyncedSizeRef.current = size
-      setTerminalSize({ columns: size.columns, rows: size.rows })
       pushEvent(
         'xterm',
         `Viewport resize observed at ${size.columns}x${size.rows}.`
@@ -203,8 +185,6 @@ export function TerminalView(props: {
       nextLatencyMs: number | null,
       nextState: 'live' | 'measuring' | 'offline'
     ) => {
-      setLatencyMs(nextLatencyMs)
-      setLatencyState(nextState)
       onLatencyChangeRef.current?.(nextLatencyMs, nextState)
     },
     []
@@ -217,7 +197,6 @@ export function TerminalView(props: {
     void gateway
       .connect(sessionId, {
         onStdout: (payload) => {
-          setStatusMessage('Terminal stream connected.')
           sessionRef.current?.onStdout(payload)
         },
         onStderr: (payload) => {
@@ -226,12 +205,10 @@ export function TerminalView(props: {
         },
         onSessionReattached: (nextSessionId) => {
           browserTerminalRef.current?.clear()
-          setStatusMessage('Session reattached. Replaying terminal output…')
           pe('gateway', `Session reattached as ${nextSessionId}.`)
           sessionRef.current?.onSessionReattached(nextSessionId)
         },
         onReplayChunk: (payload, stream) => {
-          setStatusMessage('Replaying buffered terminal output…')
           pe(
             'session',
             `Replay ${stream} chunk received (${payload.length} bytes).`
@@ -239,7 +216,6 @@ export function TerminalView(props: {
           sessionRef.current?.onReplayChunk(payload, stream)
         },
         onReplayCompleted: () => {
-          setStatusMessage('Terminal live.')
           pe('gateway', 'Replay completed; terminal is live.')
           sessionRef.current?.onReplayCompleted()
         },
@@ -250,7 +226,6 @@ export function TerminalView(props: {
             reason: reason ?? null,
           })
           setErrorMessage(reason ?? 'Session expired.')
-          setStatusMessage('Session is no longer available.')
           handleLatencyChange(null, 'offline')
           pe('gateway', `Session expired: ${reason ?? 'unknown reason'}.`)
           sessionRef.current?.onSessionExpired()
@@ -268,9 +243,6 @@ export function TerminalView(props: {
             reason: reason ?? null,
           })
           setErrorMessage(null)
-          setStatusMessage(
-            reason ? `Session exited: ${reason}.` : 'Session exited.'
-          )
           handleLatencyChange(null, 'offline')
           pe('gateway', `Session exited: ${reason ?? 'unknown reason'}.`)
           onSessionStatusChangeRef.current?.('exited', reason ?? null)
@@ -292,15 +264,12 @@ export function TerminalView(props: {
 
         connectionRef.current = connection
         setErrorMessage(null)
-        setStatusMessage('Transport connected. Waiting for terminal sizing…')
         handleLatencyChange(null, 'measuring')
         setLatencyProbeGeneration((current) => current + 1)
         pe('gateway', 'Transport connected to terminal hub.')
         const browserTerminal = browserTerminalRef.current
         if (browserTerminal) {
-          const size = browserTerminal.fit()
-          setTerminalSize({ columns: size.columns, rows: size.rows })
-          setStatusMessage(`Terminal ready at ${size.columns}x${size.rows}.`)
+          browserTerminal.fit()
         }
       })
       .catch((error: unknown) => {
@@ -308,7 +277,6 @@ export function TerminalView(props: {
           return
         }
 
-        setStatusMessage('Terminal connection failed.')
         handleLatencyChange(null, 'offline')
         pe(
           'gateway',
@@ -386,10 +354,6 @@ export function TerminalView(props: {
   const currentSessionEnd =
     sessionEnd?.sessionId === sessionId ? sessionEnd : null
 
-  const effectiveStatus: SessionStatus | 'offline' = currentSessionEnd
-    ? currentSessionEnd.status
-    : (sessionStatus ?? (latencyState === 'offline' ? 'offline' : 'live'))
-
   const isSessionGone =
     currentSessionEnd?.status === 'expired' &&
     (currentSessionEnd.reason === 'session-not-found' ||
@@ -429,24 +393,16 @@ export function TerminalView(props: {
         onReady={handleTerminalReady}
         onResize={handleTerminalResize}
       />
-      <TerminalVirtualKeys
-        onSendData={handleTerminalData}
-        ctrlActive={ctrlActive}
-        altActive={altActive}
-        onCtrlToggle={handleCtrlToggle}
-        onAltToggle={handleAltToggle}
-        onModifiersClear={handleModifiersClear}
-      />
-      <TerminalStatusBar
-        status={effectiveStatus}
-        sessionId={sessionId}
-        workerId={workerId}
-        latencyMs={latencyMs}
-        latencyState={latencyState}
-        cols={terminalSize.columns}
-        rows={terminalSize.rows}
-        statusMessage={statusMessage}
-      />
+      {isMobile && (
+        <TerminalVirtualKeys
+          onSendData={handleTerminalData}
+          ctrlActive={ctrlActive}
+          altActive={altActive}
+          onCtrlToggle={handleCtrlToggle}
+          onAltToggle={handleAltToggle}
+          onModifiersClear={handleModifiersClear}
+        />
+      )}
     </div>
   )
 }

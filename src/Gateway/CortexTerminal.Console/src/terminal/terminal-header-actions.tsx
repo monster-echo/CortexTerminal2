@@ -30,19 +30,15 @@ export function TerminalHeaderActions(props: {
   return (
     <div className='ml-auto flex items-center gap-2'>
       <div
+        title={t('terminal.e2eLatency')}
         className={cn(
-          'inline-flex h-9 items-center gap-2 rounded-md border px-3 text-xs',
+          'inline-flex h-8 items-center gap-1 rounded-md border px-2 text-xs',
           latencyState === 'live' && 'border-emerald-500/30 bg-emerald-500/8',
           latencyState === 'measuring' && 'bg-muted/60 text-muted-foreground',
           latencyState === 'offline' && 'border-amber-500/30 bg-amber-500/10'
         )}
         >
           <Gauge className='size-4 shrink-0' />
-          {!isMobile && (
-            <span className='font-medium tracking-wide uppercase'>
-              {t('terminal.e2eLatency')}
-            </span>
-          )}
           <span className='font-mono text-foreground'>
             {formatLatency(t, latencyMs, latencyState)}
           </span>
@@ -51,8 +47,12 @@ export function TerminalHeaderActions(props: {
       {!isMobile && (
       <Sheet>
         <SheetTrigger asChild>
-          <Button variant='outline' size='sm'>
-            <TerminalSquare className='size-4' /> {t('terminal.logs.button')}
+          <Button
+            variant='outline'
+            size='sm'
+            title={t('terminal.logs.button')}
+          >
+            <TerminalSquare className='size-4' />
           </Button>
         </SheetTrigger>
         <SheetContent side='right' className='flex w-full flex-col sm:max-w-lg'>
