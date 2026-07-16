@@ -11,37 +11,29 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Test ASC API permissions
-        env:
-          ISSUER_ID: ${{ secrets.CORTEX_APPSTORE_ISSUER_ID }}
-          KEY_ID: ${{ secrets.CORTEX_APPSTORE_API_KEY_ID }}
         run: |
           set -euo pipefail
           cat > /tmp/key.p8 <<'KEYEOF'
           ${{ secrets.CORTEX_APPSTORE_API_PRIVATE_KEY }}
           KEYEOF
           
-          pip3 install --quiet jwt PyJWT cryptography 2>/dev/null || pip install --quiet jwt PyJWT cryptography 2>/dev/null || true
+          pip3 install --quiet pyjwt cryptography 2>/dev/null
           
           python3 <<'PYEOF'
-          import jwt, time, json
+          import jwt, time
+          from cryptography.hazmat.primitives import serialization
           
           with open('/tmp/key.p8') as f:
               private_key = f.read()
           
           now = int(time.time())
-          payload = {
-              'iss': '${{ secrets.CORTEX_APPSTORE_ISSUER_ID }}',
-              'iat': now,
-              'exp': now + 600,
-              'aud': 'appstoreconnect-v1'
-          }
-          headers = {
-              'alg': 'ES256',
-              'kid': '${{ secrets.CORTEX_APPSTORE_API_KEY_ID }}',
-              'typ': 'JWT'
-          }
-          token = jwt.encode(payload, private_key, algorithm='ES256', headers=headers)
-          print(f'JWT: {token[:50]}...{token[-20:]}')
+          token = jwt.encode(
+              {'iss': '${{ secrets.CORTEX_APPSTORE_ISSUER_ID }}', 'iat': now, 'exp': now + 600, 'aud': 'appstoreconnect-v1'},
+              private_key,
+              algorithm='ES256',
+              headers={'kid': '${{ secrets.CORTEX_APPSTORE_API_KEY_ID }}'}
+          )
+          print(f'JWT generated, length: {len(token)}')
           
           import urllib.request
           url = 'https://api.appstoreconnect.apple.com/v1/apps?filter%5BbundleId%5D=top.rwecho.cortexterminal&limit=1'
