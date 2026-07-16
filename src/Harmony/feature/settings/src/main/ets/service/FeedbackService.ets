@@ -1,18 +1,13 @@
 /**
  * @file FeedbackService.ets
- * @brief Submits feedback / report to the n8n webhook with HMAC-SHA256 signature.
+ * @brief Submits feedback to the n8n webhook.
  *
- * Gateway is NOT involved in the feedback flow. The app signs the compact JSON
- * body with a shared secret (compiled into string.json) and POSTs directly to
- * the n8n feedback ingestion webhook. n8n verifies the signature, appends a row
- * to Google Sheets for audit trail, and returns a ticketId.
- *
- * Signature must match n8n exactly: HMAC-SHA256(secret, JSON.stringify(body))
- * with no whitespace / indentation in the body string.
+ * Gateway is NOT involved in the feedback flow. The app POSTs the compact JSON
+ * body directly to the n8n feedback ingestion webhook. n8n appends a row to
+ * Google Sheets for audit trail and returns a ticketId. No HMAC signature —
+ * the webhook URL itself is the secret; feedback is not sensitive data.
  */
 import { http } from '@kit.NetworkKit'
-import { cryptoFramework } from '@kit.CryptoArchitectureKit'
-import { util } from '@kit.ArkTS'
 import { AuthState } from '@rwecho/core'
 
 export type FeedbackType = 'feedback' | 'report'
@@ -26,10 +21,10 @@ export interface FeedbackPayload {
 
 export class FeedbackService {
   /**
-   * Submit feedback / report to the n8n webhook. Resolves with the ticketId.
+   * Submit feedback to the n8n webhook. Resolves with the ticketId.
    * Throws on any error — UI layer catches and surfaces an error banner.
    */
-  static async submit(payload: FeedbackPayload, webhookUrl: string, secret: string, attachments: string[]): Promise<string> {
+  static async submit(payload: FeedbackPayload, webhookUrl: string, attachments: string[]): Promise<string> {
     const timestamp = Date.now()
     const body: Record<string, Object> = {
       'type': payload.type,
@@ -44,13 +39,11 @@ export class FeedbackService {
       'attachments': attachments
     }
     const bodyStr = JSON.stringify(body)
-    const signature = await FeedbackService.hmacSha256Hex(secret, bodyStr)
 
     return new Promise<string>((resolve, reject) => {
       const httpRequest = http.createHttp()
       const header: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'X-Signature': signature
+        'Content-Type': 'application/json'
       }
       httpRequest.request(webhookUrl, {
         method: http.RequestMethod.POST,
@@ -78,30 +71,5 @@ export class FeedbackService {
         httpRequest.destroy()
       })
     })
-  }
-
-  private static async hmacSha256Hex(secret: string, message: string): Promise<string> {
-    const mac = cryptoFramework.createMac('SHA256')
-    const symKeyGenerator = cryptoFramework.createSymKeyGenerator('SHA256')
-    const keyBlob: cryptoFramework.DataBlob = { data: FeedbackService.toUtf8(secret) }
-    const symKey = await symKeyGenerator.convertKey(keyBlob)
-    await mac.init(symKey)
-    await mac.update({ data: FeedbackService.toUtf8(message) })
-    const macOutput: cryptoFramework.DataBlob = mac.doFinalSync()
-    return FeedbackService.toHex(macOutput.data)
-  }
-
-  private static toUtf8(str: string): Uint8Array {
-    const encoder = new util.TextEncoder('utf-8')
-    return encoder.encodeInto(str)
-  }
-
-  private static toHex(bytes: Uint8Array): string {
-    let hex = ''
-    for (let i = 0; i < bytes.length; i++) {
-      const b = bytes[i]
-      hex += (b < 16 ? '0' : '') + b.toString(16)
-    }
-    return hex
   }
 }

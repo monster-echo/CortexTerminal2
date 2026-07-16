@@ -9,7 +9,7 @@ import { LoginPage, ActivateWorkerPage } from '@rwecho/auth'
 import { TerminalPage } from '@rwecho/terminal'
 import { ArtifactsPage } from '@rwecho/artifacts'
 import { ShellScaffold } from '../shell/ShellScaffold'
-import { AccountSecurityPage, ChangePasswordPage, WebPage, ContactSupportPage, FeedbackPage } from '@rwecho/settings'
+import { AccountSecurityPage, ChangePasswordPage, WebPage, ContactSupportPage, FeedbackPage, ImagePreviewPage } from '@rwecho/settings'
 
 @Entry
 @Component
@@ -144,6 +144,12 @@ struct Index {
       }
       .hideTitleBar(true)
       .backgroundColor($r('app.color.terminal_surface'))
+    } else if (name === RouteName.IMAGE_PREVIEW) {
+      NavDestination() {
+        ImagePreviewPage()
+      }
+      .hideTitleBar(true)
+      .backgroundColor(Color.Black)
     }
   }
 }

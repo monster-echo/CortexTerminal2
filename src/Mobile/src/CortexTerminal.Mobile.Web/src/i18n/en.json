@@ -473,8 +473,10 @@
     "copy": "Copy",
     "copied": "Copied",
     "copyFailed": "Copy failed",
-    "scanToJoin": "Scan to join the group",
+    "scanToJoin": "Scan to join the technical support group",
     "openTelegram": "Open in Telegram",
+    "qqGroupName": "Corterm",
+    "saveImage": "Save to gallery",
     "loadFailed": "Failed to load support info",
     "retry": "Retry"
   },
@@ -492,7 +494,7 @@
     "contentPlaceholder": "Describe in detail (at least 10 characters)",
     "contentTooShort": "Content must be at least 10 characters",
     "contact": "Contact (optional)",
-    "contactPlaceholder": "Email / Telegram / QQ",
+    "contactPlaceholder": "Phone / WeChat / Email",
     "submit": "Submit",
     "submitted": "Submitted, ticket",
     "attachments": "Screenshots (optional, up to 3)"

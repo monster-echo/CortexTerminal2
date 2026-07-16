@@ -331,17 +331,13 @@ export default function SettingsFeaturePage({ history }: RouteComponentProps) {
           <IonItemDivider>
             <IonLabel className="py-2">{t("settings.supportSection")}</IonLabel>
           </IonItemDivider>
-          <IonItem button onClick={() => history.push("/settings/support")} data-analytics-id="settings_contact_support">
+          <IonItem button routerLink="/settings/support" routerDirection="forward" data-analytics-id="settings_contact_support">
             <IonIcon slot="start" icon={chatbubblesOutline} />
             <IonLabel>{t("settings.contactSupport")}</IonLabel>
           </IonItem>
-          <IonItem button onClick={() => history.push("/settings/feedback?type=feedback")} data-analytics-id="settings_feedback">
+          <IonItem button routerLink="/settings/feedback" routerDirection="forward" data-analytics-id="settings_feedback">
             <IonIcon slot="start" icon={chatbubbleEllipsesOutline} />
             <IonLabel>{t("settings.feedback")}</IonLabel>
-          </IonItem>
-          <IonItem button onClick={() => history.push("/settings/feedback?type=report")} data-analytics-id="settings_report">
-            <IonIcon slot="start" icon={warningOutline} />
-            <IonLabel color="danger">{t("settings.report")}</IonLabel>
           </IonItem>
         </IonList>
 

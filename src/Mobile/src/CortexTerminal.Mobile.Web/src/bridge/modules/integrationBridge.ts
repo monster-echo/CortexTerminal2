@@ -12,4 +12,6 @@ export const integrationBridge = {
       body,
       recipient ?? null,
     ]),
+  saveImageToGallery: (imageUrl: string) =>
+    invoke("SaveImageToGalleryAsync", SuccessResponseSchema, [imageUrl]),
 };

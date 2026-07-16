@@ -29,6 +29,7 @@ export default function ContactSupportPage(_: RouteComponentProps) {
   const [info, setInfo] = useState<SupportInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -70,7 +71,7 @@ export default function ContactSupportPage(_: RouteComponentProps) {
               icon={isTelegram ? paperPlaneOutline : chatbubblesOutline}
               style={{ verticalAlign: "middle", marginRight: 6 }}
             />
-            {g.name}
+            {isTelegram ? g.name : t("support.qqGroupName")}
           </IonCardTitle>
         </IonCardHeader>
         <IonCardContent>
@@ -87,11 +88,15 @@ export default function ContactSupportPage(_: RouteComponentProps) {
               <img
                 src={g.qrCodeUrl}
                 alt="QR"
-                style={{ width: 160, height: 160, borderRadius: 8, background: "#fff" }}
+                onClick={() => setPreviewUrl(g.qrCodeUrl)}
+                style={{ width: 160, height: 160, borderRadius: 8, background: "#fff", cursor: "pointer" }}
               />
               <div style={{ marginTop: 6 }}>
                 <IonText color="medium" style={{ fontSize: 12 }}>{t("support.scanToJoin")}</IonText>
               </div>
+              <IonButton fill="outline" size="small" style={{ marginTop: 8 }} onClick={() => void nativeBridge.saveImageToGallery(g.qrCodeUrl)}>
+                {t("support.saveImage")}
+              </IonButton>
             </div>
           )}
           {isTelegram && g.url && (
@@ -129,16 +134,29 @@ export default function ContactSupportPage(_: RouteComponentProps) {
             {info.telegramGroup && renderGroup(info.telegramGroup, true)}
             {info.email && (
               <IonList inset>
-                <IonItem>
+                <IonItem button onClick={() => void nativeBridge.composeSupportEmail(t("settings.emailSubject"), t("settings.emailBody"), info.email)}>
                   <IonIcon slot="start" icon={mailOutline} />
                   <IonLabel>{info.email}</IonLabel>
-                  <IonButton slot="end" fill="clear" onClick={() => void copyToClipboard(info.email)}>
-                    {t("support.copy")}
-                  </IonButton>
                 </IonItem>
               </IonList>
             )}
           </>
+        )}
+        {previewUrl && (
+          <div
+            onClick={() => setPreviewUrl(null)}
+            style={{ position: "fixed", inset: 0, background: "#000", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 }}
+          >
+            <img src={previewUrl} alt="QR" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
+            <IonButton
+              fill="outline"
+              color="light"
+              onClick={(e) => { e.stopPropagation(); void nativeBridge.saveImageToGallery(previewUrl); }}
+              style={{ position: "absolute", bottom: 48, right: 24 }}
+            >
+              {t("support.saveImage")}
+            </IonButton>
+          </div>
         )}
       </IonContent>
     </IonPage>

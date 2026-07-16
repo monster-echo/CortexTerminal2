@@ -36,15 +36,17 @@ public sealed partial class AppBridge
         return ExecuteSafeAsync(async () =>
         {
             if (_supportService is null) throw new InvalidOperationException("SupportService not configured");
-            var file = await MainThread.InvokeOnMainThreadAsync(() => FilePicker.Default.PickAsync(new PickOptions { PickerTitle = "选择文件" }));
-            if (file is null) return (object?)null;
-            var contentType = string.IsNullOrWhiteSpace(file.ContentType) ? GuessContentType(file.FileName) : file.ContentType;
-            using var stream = await file.OpenReadAsync();
+            var photos = await MainThread.InvokeOnMainThreadAsync(() => MediaPicker.Default.PickPhotosAsync());
+            var photo = photos?.FirstOrDefault();
+            if (photo is null) return (object?)null;
+            var contentType = string.IsNullOrWhiteSpace(photo.ContentType) ? "image/png" : photo.ContentType;
+            using var stream = await photo.OpenReadAsync();
             using var ms = new MemoryStream();
             await stream.CopyToAsync(ms);
             var bytes = ms.ToArray();
-            var imageUrl = await _supportService.UploadFeedbackFileAsync(bytes, file.FileName, contentType, default);
-            return new { imageUrl, filename = file.FileName };
+            var filename = string.IsNullOrWhiteSpace(photo.FileName) ? $"feedback-{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}.jpg" : photo.FileName;
+            var imageUrl = await _supportService.UploadFeedbackFileAsync(bytes, filename, contentType, default);
+            return new { imageUrl, filename };
         });
     }
 
@@ -59,6 +61,16 @@ public sealed partial class AppBridge
             var ticketId = await _supportService.SubmitFeedbackAsync(
                 type, subtype, content, contact, username, lang, appVersion, attachmentsJson, default);
             return new { success = true, ticketId };
+        });
+    }
+
+    [BridgeMethod]
+    public Task<string> SaveImageToGalleryAsync(string imageUrl)
+    {
+        return ExecuteSafeVoidAsync(async () =>
+        {
+            if (_supportService is null) throw new InvalidOperationException("SupportService not configured");
+            await _supportService.SaveImageToGalleryAsync(imageUrl, default);
         });
     }
 

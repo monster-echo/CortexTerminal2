@@ -38,6 +38,8 @@
 	<true/>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>用于保存二维码到相册</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

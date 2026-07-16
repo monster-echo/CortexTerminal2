@@ -6,8 +6,6 @@ import {
   IonList,
   IonItem,
   IonLabel,
-  IonSelect,
-  IonSelectOption,
   IonTextarea,
   IonInput,
   IonButton,
@@ -27,39 +25,19 @@ const selectUser = (s: AuthState) => s.user;
 const selectLanguage = (s: AppStoreState) => s.language;
 const selectAppInfo = (s: AppStoreState) => s.appInfo;
 
-interface SubtypeOption {
-  value: string;
-  key: string;
-}
-
 interface AttachmentItem {
   url: string;
   name: string;
 }
 
-export default function FeedbackPage({ location }: RouteComponentProps) {
+export default function FeedbackPage(_: RouteComponentProps) {
   const { t } = useTranslation();
-  const searchParams = new URLSearchParams(location.search);
-  const type = searchParams.get("type") === "report" ? "report" : "feedback";
   const user = useAuthStore(selectUser);
   const language = useAppStore(selectLanguage);
   const appInfo = useAppStore(selectAppInfo);
   const [presentToast] = useIonToast();
   const history = useHistory();
 
-  const subtypeOptions: SubtypeOption[] = type === "report"
-    ? [
-        { value: "violation", key: "feedback.typeReportViolation" },
-        { value: "abuse", key: "feedback.typeReportAbuse" },
-        { value: "other", key: "feedback.typeReportOther" },
-      ]
-    : [
-        { value: "suggestion", key: "feedback.typeFeedbackSuggestion" },
-        { value: "bug", key: "feedback.typeFeedbackBug" },
-        { value: "experience", key: "feedback.typeFeedbackExperience" },
-      ];
-
-  const [subtype, setSubtype] = useState(subtypeOptions[0].value);
   const [content, setContent] = useState("");
   const [contact, setContact] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -68,13 +46,16 @@ export default function FeedbackPage({ location }: RouteComponentProps) {
   const [error, setError] = useState<string | null>(null);
 
   const handlePickFile = async () => {
+    setUploading(true);
+    setError(null);
     try {
       const result = await supportBridge.pickFile();
       if (!result) return;
-      setUploading(true);
       setAttachments((prev) => [...prev, { url: result.imageUrl, name: result.filename }]);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(msg);
+      void presentToast({ message: msg, duration: 3000, position: "bottom", color: "danger" });
     } finally {
       setUploading(false);
     }
@@ -90,8 +71,8 @@ export default function FeedbackPage({ location }: RouteComponentProps) {
     setError(null);
     try {
       const result = await supportBridge.submitFeedback(
-        type,
-        subtype,
+        "feedback",
+        "",
         trimmed,
         contact.trim(),
         user?.username ?? "unknown",
@@ -99,7 +80,7 @@ export default function FeedbackPage({ location }: RouteComponentProps) {
         appInfo?.appVersion ?? "unknown",
         JSON.stringify(attachments.map((a) => a.url)),
       );
-      nativeBridge.trackEvent(type === "report" ? "submit_report" : "submit_feedback");
+      nativeBridge.trackEvent("submit_feedback");
       void presentToast({
         message: `${t("feedback.submitted")} ${result.ticketId}`,
         duration: 3000,
@@ -117,26 +98,10 @@ export default function FeedbackPage({ location }: RouteComponentProps) {
   return (
     <IonPage>
       <PageHeader
-        title={t(type === "report" ? "feedback.titleReport" : "feedback.titleFeedback")}
+        title={t("feedback.titleFeedback")}
         defaultHref="/settings"
       />
       <IonContent fullscreen>
-        <IonList inset>
-          <IonItem>
-            <IonLabel slot="start">{t("feedback.typeLabel")}</IonLabel>
-            <IonSelect
-              value={subtype}
-              onIonChange={(e) => setSubtype(e.detail.value)}
-              disabled={submitting}
-              interface="popover"
-            >
-              {subtypeOptions.map((o) => (
-                <IonSelectOption key={o.value} value={o.value}>{t(o.key)}</IonSelectOption>
-              ))}
-            </IonSelect>
-          </IonItem>
-        </IonList>
-
         <IonList inset>
           <IonItem>
             <IonLabel position="stacked">{t("feedback.content")}</IonLabel>
@@ -164,20 +129,12 @@ export default function FeedbackPage({ location }: RouteComponentProps) {
             <IonLabel position="stacked">{t("feedback.attachments")}</IonLabel>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
               {attachments.map((item, idx) => (
-                <div key={idx} style={{ position: "relative", maxWidth: 180 }}>
-                  <div
-                    style={{
-                      padding: "6px 30px 6px 10px",
-                      background: "var(--ion-color-light)",
-                      borderRadius: 8,
-                      fontSize: 12,
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {item.name}
-                  </div>
+                <div key={idx} style={{ position: "relative", width: 72, height: 72 }}>
+                  <img
+                    src={item.url}
+                    alt={item.name}
+                    style={{ width: 72, height: 72, objectFit: "cover", borderRadius: 8, background: "var(--ion-color-light)" }}
+                  />
                   <IonButton
                     size="small"
                     fill="clear"

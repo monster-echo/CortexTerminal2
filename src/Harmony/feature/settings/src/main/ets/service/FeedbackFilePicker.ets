@@ -1,13 +1,20 @@
 /**
  * @file FeedbackFilePicker.ets
- * @brief Generic file picker for feedback attachments (images, PDF, video, docs).
+ * @brief Photo album picker for feedback attachments (screenshots / photos).
  *
- * Uses DocumentViewPicker (any file type) instead of photoAccessHelper so users
- * can attach PDFs, videos, documents, archives — not just photos. Reads the
- * picked file into an ArrayBuffer for direct S3 PUT (no base64 round-trip).
+ * Uses photoAccessHelper exclusively. PhotoViewPicker URIs are media-library
+ * URIs (file://media/...) that @ohos.file.fs cannot read — only photoAccessHelper
+ * can resolve them. MediaAssetManager.requestImageData streams the picked photo
+ * as an ArrayBuffer via MediaAssetDataHandler.onDataPrepared.
+ *
+ * onDataPrepared is invoked by the system, which detaches `this` — so the
+ * handler is an object literal with an arrow function (lexical closure over
+ * resolve/fetchResult), with a processed flag guarding against duplicate callbacks.
  */
-import picker from '@ohos.file.picker'
-import fs from '@ohos.file.fs'
+import { photoAccessHelper } from '@kit.MediaLibraryKit'
+import { dataSharePredicates } from '@kit.ArkData'
+import { common } from '@kit.AbilityKit'
+import { BusinessError } from '@ohos.base'
 
 const MAX_FILE_BYTES: number = 50 * 1024 * 1024 // 50 MB
 
@@ -17,68 +24,58 @@ export interface PickedFile {
   contentType: string
 }
 
-const CONTENT_TYPES: Record<string, string> = {
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.webp': 'image/webp',
-  '.gif': 'image/gif',
-  '.bmp': 'image/bmp',
-  '.pdf': 'application/pdf',
-  '.mp4': 'video/mp4',
-  '.mov': 'video/quicktime',
-  '.m4v': 'video/x-m4v',
-  '.webm': 'video/webm',
-  '.doc': 'application/msword',
-  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  '.xls': 'application/vnd.ms-excel',
-  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  '.ppt': 'application/vnd.ms-powerpoint',
-  '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  '.txt': 'text/plain',
-  '.md': 'text/markdown',
-  '.csv': 'text/csv',
-  '.zip': 'application/zip'
-}
-
 export class FeedbackFilePicker {
-  static async pick(): Promise<PickedFile | null> {
-    const options = new picker.DocumentSelectOptions()
+  static async pick(ctx: common.Context): Promise<PickedFile | null> {
+    const options = new photoAccessHelper.PhotoSelectOptions()
+    options.MIMEType = photoAccessHelper.PhotoViewMIMETypes.IMAGE_TYPE
     options.maxSelectNumber = 1
-    const docPicker = new picker.DocumentViewPicker()
-    const uris = await docPicker.select(options)
-    if (uris.length === 0) {
+    const viewer = new photoAccessHelper.PhotoViewPicker()
+    const result = await viewer.select(options)
+    if (result.photoUris.length === 0) {
       return null
     }
-    const uri = uris[0]
-    const file = fs.openSync(uri, fs.OpenMode.READ_ONLY)
-    try {
-      const stat = fs.statSync(file.fd)
-      const size = stat.size
-      if (size > MAX_FILE_BYTES) {
-        throw new Error(`文件不能超过 50MB`)
-      }
-      const buffer: ArrayBuffer = new ArrayBuffer(size)
-      fs.readSync(file.fd, buffer)
-      const filename = FeedbackFilePicker.extractFilename(uri)
-      const dot = filename.lastIndexOf('.')
-      const ext = dot >= 0 ? filename.substring(dot).toLowerCase() : ''
-      const contentType = CONTENT_TYPES[ext] || 'application/octet-stream'
-      return { bytes: buffer, filename, contentType }
-    } finally {
-      fs.closeSync(file)
-    }
-  }
+    const uri = result.photoUris[0]
 
-  private static extractFilename(uri: string): string {
-    let decoded = uri
-    try {
-      decoded = decodeURIComponent(uri)
-    } catch (_e) {
-      decoded = uri
+    const helper = photoAccessHelper.getPhotoAccessHelper(ctx)
+    const predicates = new dataSharePredicates.DataSharePredicates()
+    predicates.equalTo(photoAccessHelper.PhotoKeys.URI, uri)
+    const fetchOptions: photoAccessHelper.FetchOptions = {
+      fetchColumns: [photoAccessHelper.PhotoKeys.TITLE],
+      predicates: predicates
     }
-    const slash = decoded.lastIndexOf('/')
-    const name = slash >= 0 ? decoded.substring(slash + 1) : decoded
-    return name.length > 0 ? name : 'file'
+    const fetchResult = await helper.getAssets(fetchOptions)
+    const photoAsset = await fetchResult.getFirstObject()
+
+    const data: ArrayBuffer = await new Promise<ArrayBuffer>((resolve, reject) => {
+      let processed = false
+      const handler: photoAccessHelper.MediaAssetDataHandler<ArrayBuffer> = {
+        onDataPrepared: (d: ArrayBuffer, _map?: Map<string, string>): void => {
+          if (processed) {
+            return
+          }
+          processed = true
+          fetchResult.close()
+          resolve(d)
+        }
+      }
+      const requestOptions: photoAccessHelper.RequestOptions = {
+        deliveryMode: photoAccessHelper.DeliveryMode.HIGH_QUALITY_MODE
+      }
+      photoAccessHelper.MediaAssetManager.requestImageData(ctx, photoAsset, requestOptions, handler)
+        .catch((err: BusinessError) => {
+          fetchResult.close()
+          reject(new Error(err.message))
+        })
+    })
+
+    if (data.byteLength > MAX_FILE_BYTES) {
+      throw new Error('图片不能超过 50MB')
+    }
+    const ext = uri.substring(uri.lastIndexOf('.') + 1).toLowerCase()
+    const contentType = ext === 'jpg' || ext === 'jpeg'
+      ? 'image/jpeg'
+      : ext === 'webp' ? 'image/webp' : 'image/png'
+    const filename = `feedback-${Date.now()}.${ext.length > 0 ? ext : 'png'}`
+    return { bytes: data, filename, contentType }
   }
 }

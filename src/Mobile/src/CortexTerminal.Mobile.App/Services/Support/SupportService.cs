@@ -1,6 +1,5 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using CortexTerminal.Mobile.App.Services.Auth;
@@ -17,7 +16,6 @@ public sealed class SupportService
     private readonly AuthService _authService;
 
     private const string FeedbackWebhookUrl = "https://n8n.0x2a.top/webhook/corterm-feedback";
-    private const string FeedbackHmacSecret = "df32c11ff79353e1d04ef45a62ece648c2f4307296f3059db7ec735a6fb219c9";
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -76,12 +74,17 @@ public sealed class SupportService
             throw new InvalidOperationException("Missing uploadUrl/imageUrl in response");
 
         var putContent = new ByteArrayContent(bytes);
-        putContent.Headers.ContentType = new MediaTypeHeaderValue(contentType);
+        putContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
         var putRequest = new HttpRequestMessage(HttpMethod.Put, uploadUrl) { Content = putContent };
-        var putResponse = await _httpClient.SendAsync(putRequest, ct);
+        using var uploadClient = new HttpClient { Timeout = TimeSpan.FromSeconds(120) };
+        var putResponse = await uploadClient.SendAsync(putRequest, ct);
         if (!putResponse.IsSuccessStatusCode)
             throw new InvalidOperationException($"File upload failed ({(int)putResponse.StatusCode})");
-        return imageUrl;
+        if (imageUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+        {
+            return imageUrl;
+        }
+        return new Uri(_httpClient.BaseAddress!, imageUrl).ToString();
     }
 
     public async Task<string> SubmitFeedbackAsync(
@@ -107,13 +110,11 @@ public sealed class SupportService
             ["attachments"] = attachments,
         };
         var body = JsonSerializer.Serialize(payload, JsonOptions);
-        var signature = ComputeHmacSha256(FeedbackHmacSecret, body);
 
         var request = new HttpRequestMessage(HttpMethod.Post, FeedbackWebhookUrl)
         {
             Content = new StringContent(body, Encoding.UTF8, "application/json"),
         };
-        request.Headers.Add("X-Signature", signature);
 
         var response = await _httpClient.SendAsync(request, ct);
         var respBody = await response.Content.ReadAsStringAsync(ct);
@@ -149,12 +150,22 @@ public sealed class SupportService
         }
     }
 
-    private static string ComputeHmacSha256(string secret, string message)
+    /// <summary>
+    /// Downloads the image at <paramref name="imageUrl"/> to the cache dir and opens the
+    /// system share sheet (which exposes "Save to Photos" / "Save image" on both platforms).
+    /// Avoids fragile per-platform gallery APIs; reliable cross-platform via Essentials Share.
+    /// </summary>
+    public async Task SaveImageToGalleryAsync(string imageUrl, CancellationToken ct)
     {
-        var keyBytes = Encoding.UTF8.GetBytes(secret);
-        using var hmac = new HMACSHA256(keyBytes);
-        var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(message));
-        return Convert.ToHexString(hash).ToLowerInvariant();
+        var bytes = await _httpClient.GetByteArrayAsync(imageUrl, ct);
+        var tempFile = Path.Combine(FileSystem.CacheDirectory, $"qr_{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}.png");
+        await File.WriteAllBytesAsync(tempFile, bytes);
+        await MainThread.InvokeOnMainThreadAsync(() =>
+            Share.Default.RequestAsync(new ShareFileRequest
+            {
+                Title = "QR Code",
+                File = new ShareFile(tempFile),
+            }));
     }
 }
 

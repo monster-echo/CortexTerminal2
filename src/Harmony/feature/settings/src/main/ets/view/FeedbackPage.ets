@@ -25,11 +25,7 @@ import {
 interface AttachmentItem {
   url: string
   name: string
-}
-
-interface SubtypeOption {
-  key: string
-  value: string
+  contentType: string
 }
 
 @Component
@@ -37,7 +33,6 @@ export struct FeedbackPage {
   @Consume('pageStack') pageStack: NavPathStack
   @StorageLink('language') currentLanguage: string = 'en'
   @State feedbackType: FeedbackType = 'feedback'
-  @State subtype: string = ''
   @State content: string = ''
   @State contact: string = ''
   @State error: string = ''
@@ -47,56 +42,13 @@ export struct FeedbackPage {
 
   aboutToAppear() {
     AnalyticsService.onPageStart('support/Feedback')
-    const params = this.pageStack.getParamByName(RouteName.FEEDBACK) as Record<string, string>[]
-    if (params && params.length > 0) {
-      const last = params[params.length - 1]
-      this.feedbackType = last['type'] === 'report' ? 'report' : 'feedback'
-    }
-    const options = this.subtypeOptions()
-    if (options.length > 0) {
-      this.subtype = options[0].value
-    }
-  }
-
-  private subtypeOptions(): SubtypeOption[] {
-    if (this.feedbackType === 'report') {
-      const a: SubtypeOption = { key: 'feedback.type_report_violation', value: 'violation' }
-      const b: SubtypeOption = { key: 'feedback.type_report_abuse', value: 'abuse' }
-      const c: SubtypeOption = { key: 'feedback.type_report_other', value: 'other' }
-      const arr: SubtypeOption[] = [a, b, c]
-      return arr
-    }
-    const a: SubtypeOption = { key: 'feedback.type_feedback_suggestion', value: 'suggestion' }
-    const b: SubtypeOption = { key: 'feedback.type_feedback_bug', value: 'bug' }
-    const c: SubtypeOption = { key: 'feedback.type_feedback_experience', value: 'experience' }
-    const arr: SubtypeOption[] = [a, b, c]
-    return arr
   }
 
   build() {
     PageLayout({
-      title: I18n.get(this.feedbackType === 'report' ? 'feedback.title_report' : 'feedback.title_feedback')
-        + (this.currentLanguage ? '' : '')
+      title: I18n.get('feedback.title_feedback') + (this.currentLanguage ? '' : '')
     }) {
       Column() {
-        Text(I18n.get('feedback.type_label') + (this.currentLanguage ? '' : ''))
-          .fontSize(14)
-          .fontColor($r('app.color.terminal_on_surface_variant'))
-          .width('100%')
-          .margin({ bottom: 8 })
-
-        Scroll() {
-          Row() {
-            ForEach(this.subtypeOptions(), (opt: SubtypeOption) => {
-              this.SubtypeChip(opt)
-            })
-          }
-        }
-        .scrollable(ScrollDirection.Horizontal)
-        .scrollBar(BarState.Off)
-        .width('100%')
-        .margin({ bottom: 16 })
-
         Text(I18n.get('feedback.content') + (this.currentLanguage ? '' : ''))
           .fontSize(14)
           .fontColor($r('app.color.terminal_on_surface_variant'))
@@ -141,21 +93,42 @@ export struct FeedbackPage {
 
         Flex({ wrap: FlexWrap.Wrap }) {
           ForEach(this.attachments, (item: AttachmentItem, index: number) => {
-            Row() {
-              Text(item.name)
-                .fontSize(12)
-                .fontColor($r('app.color.terminal_primary'))
-                .maxLines(1)
-                .textOverflow({ overflow: TextOverflow.Ellipsis })
-                .layoutWeight(1)
+            Stack({ alignContent: Alignment.TopEnd }) {
+              if (this.isImageContentType(item.contentType)) {
+                Image(item.url)
+                  .width(72)
+                  .height(72)
+                  .borderRadius(8)
+                  .objectFit(ImageFit.Cover)
+              } else {
+                Column() {
+                  Text(item.name)
+                    .fontSize(10)
+                    .maxLines(2)
+                    .textOverflow({ overflow: TextOverflow.Ellipsis })
+                    .fontColor($r('app.color.terminal_on_surface_variant'))
+                    .textAlign(TextAlign.Center)
+                }
+                .width(72)
+                .height(72)
+                .borderRadius(8)
+                .backgroundColor($r('app.color.terminal_surface_container_high'))
+                .justifyContent(FlexAlign.Center)
+                .alignItems(HorizontalAlign.Center)
+                .padding(4)
+              }
               Text('×')
-                .fontSize(16)
-                .fontColor($r('app.color.terminal_error'))
-                .margin({ left: 6 })
+                .fontSize(13)
+                .fontColor($r('app.color.terminal_on_secondary_container'))
+                .backgroundColor($r('app.color.terminal_error'))
+                .width(20)
+                .height(20)
+                .borderRadius(10)
+                .textAlign(TextAlign.Center)
+                .margin({ top: -6, right: -6 })
             }
-            .padding({ left: 10, right: 10, top: 6, bottom: 6 })
-            .borderRadius(8)
-            .backgroundColor($r('app.color.terminal_surface_container_high'))
+            .width(72)
+            .height(72)
             .margin({ right: 8, bottom: 8 })
             .onClick(() => {
               clickHaptic()
@@ -222,30 +195,18 @@ export struct FeedbackPage {
     }
   }
 
-  @Builder
-  SubtypeChip(opt: SubtypeOption) {
-    Text(I18n.get(opt.key) + (this.currentLanguage ? '' : ''))
-      .fontSize(13)
-      .fontWeight(this.subtype === opt.value ? FontWeight.Medium : FontWeight.Normal)
-      .fontColor(this.subtype === opt.value
-        ? $r('app.color.terminal_on_secondary_container')
-        : $r('app.color.terminal_on_surface_variant'))
-      .padding({ left: 12, right: 12, top: 6, bottom: 6 })
-      .borderRadius(8)
-      .backgroundColor(this.subtype === opt.value
-        ? $r('app.color.terminal_secondary_container')
-        : Color.Transparent)
-      .margin({ right: 8 })
-      .onClick(() => {
-        clickHaptic()
-        this.subtype = opt.value
-      })
+  private isImageContentType(contentType: string): boolean {
+    const lower = contentType.toLowerCase()
+    return lower.startsWith('image/') ||
+      lower.endsWith('png') || lower.endsWith('jpg') || lower.endsWith('jpeg') ||
+      lower.endsWith('webp') || lower.endsWith('gif') || lower.endsWith('bmp')
   }
 
   private async pickAttachment() {
     this.error = ''
     try {
-      const picked = await FeedbackFilePicker.pick()
+      const ctx = this.getUIContext()?.getHostContext() as common.UIAbilityContext
+      const picked = await FeedbackFilePicker.pick(ctx)
       if (picked === null) {
         return
       }
@@ -253,7 +214,7 @@ export struct FeedbackPage {
       const filename = `feedback-${Date.now()}-${picked.filename}`
       const uploaded = await ApiService.createFeedbackUpload(filename)
       await ApiService.putBinaryToS3(uploaded.uploadUrl, picked.bytes)
-      const item: AttachmentItem = { url: uploaded.imageUrl, name: picked.filename }
+      const item: AttachmentItem = { url: uploaded.imageUrl, name: picked.filename, contentType: picked.contentType }
       this.attachments.push(item)
     } catch (e) {
       this.error = (e as Error).message || I18n.get('feedback.attach_failed')
@@ -273,14 +234,13 @@ export struct FeedbackPage {
     try {
       const ctx = this.getUIContext()?.getHostContext() as common.UIAbilityContext
       const webhookUrl = ctx.resourceManager.getStringByNameSync('feedback_webhook_url')
-      const secret = ctx.resourceManager.getStringByNameSync('feedback_hmac_secret')
       const payload: FeedbackPayload = {
         type: this.feedbackType,
-        subtype: this.subtype,
+        subtype: '',
         content: content,
         contact: this.contact.trim()
       }
-      const ticketId = await FeedbackService.submit(payload, webhookUrl, secret, this.attachments.map((a: AttachmentItem) => a.url))
+      const ticketId = await FeedbackService.submit(payload, webhookUrl, this.attachments.map((a: AttachmentItem) => a.url))
       AnalyticsService.onEvent(this.feedbackType === 'report'
         ? AnalyticsEvent.SUBMIT_REPORT
         : AnalyticsEvent.SUBMIT_FEEDBACK)

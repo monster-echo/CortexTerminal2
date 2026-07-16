@@ -8,6 +8,7 @@
  * the app does not decide region — it just renders whatever the gateway returns.
  */
 import { pasteboard } from '@kit.BasicServicesKit'
+import { common, Want } from '@kit.AbilityKit'
 import {
   ApiService,
   I18n,
@@ -130,7 +131,7 @@ export struct ContactSupportPage {
         SymbolGlyph(isTelegram ? $r('sys.symbol.paperplane') : $r('sys.symbol.person_2'))
           .fontSize(20)
           .fontColor([$r('app.color.terminal_secondary')])
-        Text(group.name)
+        Text(isTelegram ? group.name : I18n.get('support.qqGroupName'))
           .fontSize(16)
           .fontWeight(FontWeight.Medium)
           .fontColor($r('app.color.terminal_primary'))
@@ -156,21 +157,26 @@ export struct ContactSupportPage {
       .width('100%')
       .margin({ top: 12 })
 
-      Column() {
+      Column({ space: 8 }) {
         Image(group.qrCodeUrl)
           .width(160)
           .height(160)
           .borderRadius(12)
           .backgroundColor($r('app.color.terminal_surface_container_high'))
           .objectRepeat(ImageRepeat.NoRepeat)
+          .hitTestBehavior(HitTestMode.Transparent)
         Text(I18n.get('support.scan_to_join'))
           .fontSize(12)
           .fontColor($r('app.color.terminal_on_surface_variant'))
-          .margin({ top: 8 })
       }
       .width('100%')
       .alignItems(HorizontalAlign.Center)
       .margin({ top: 16 })
+      .onClick(() => {
+        clickHaptic()
+        const param: Record<string, string> = { 'url': group.qrCodeUrl }
+        this.pageStack.pushPath({ name: RouteName.IMAGE_PREVIEW, param: param })
+      })
 
       if (isTelegram) {
         Button(I18n.get('support.open_tg'))
@@ -204,19 +210,18 @@ export struct ContactSupportPage {
         .fontColor($r('app.color.terminal_primary'))
         .layoutWeight(1)
         .margin({ left: 8 })
-      Text(I18n.get('support.copy'))
-        .fontSize(13)
-        .fontWeight(FontWeight.Medium)
-        .fontColor($r('app.color.terminal_secondary_container'))
-        .onClick(() => {
-          clickHaptic()
-          this.copyToClipboard(email)
-        })
+      SymbolGlyph($r('sys.symbol.chevron_right'))
+        .fontSize(16)
+        .fontColor([$r('app.color.terminal_on_surface_variant')])
     }
     .width('100%')
     .padding(16)
     .borderRadius(12)
     .backgroundColor($r('app.color.terminal_surface_container'))
+    .onClick(() => {
+      clickHaptic()
+      this.openMail(email)
+    })
   }
 
   private async copyToClipboard(text: string) {
@@ -230,6 +235,22 @@ export struct ContactSupportPage {
       showI18nToast('support.copied')
     } catch (e) {
       showToast((e as Error).message || I18n.get('common.error'))
+    }
+  }
+
+  private async openMail(email: string) {
+    if (email.length === 0) {
+      return
+    }
+    try {
+      const ctx = this.getUIContext()?.getHostContext() as common.UIAbilityContext
+      const want: Want = {
+        action: 'ohos.want.action.sendData',
+        uri: `mailto:${email}`
+      }
+      await ctx.startAbility(want)
+    } catch (e) {
+      showToast((e as Error).message || I18n.get('support.mail_failed'))
     }
   }
 

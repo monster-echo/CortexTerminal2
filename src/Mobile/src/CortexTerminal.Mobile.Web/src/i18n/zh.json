@@ -473,8 +473,10 @@
     "copy": "复制",
     "copied": "已复制",
     "copyFailed": "复制失败",
-    "scanToJoin": "扫码加入群聊",
+    "scanToJoin": "扫码加入技术服务群",
     "openTelegram": "打开 Telegram",
+    "qqGroupName": "云枢终端",
+    "saveImage": "保存到相册",
     "loadFailed": "无法加载客服信息",
     "retry": "重试"
   },
@@ -492,7 +494,7 @@
     "contentPlaceholder": "请详细描述（至少 10 个字）",
     "contentTooShort": "内容至少需要 10 个字",
     "contact": "联系方式（选填）",
-    "contactPlaceholder": "邮箱 / Telegram / QQ",
+    "contactPlaceholder": "手机号 / 微信号 / 邮箱",
     "submit": "提交",
     "submitted": "已提交，工单号",
     "attachments": "截图（选填，最多 3 张）"

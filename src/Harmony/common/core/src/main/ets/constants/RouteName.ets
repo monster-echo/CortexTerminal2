@@ -12,4 +12,5 @@ export class RouteName {
   static readonly ARTIFACTS_PAGE: string = 'artifacts/Page'
   static readonly CONTACT_SUPPORT: string = 'support/Contact'
   static readonly FEEDBACK: string = 'support/Feedback'
+  static readonly IMAGE_PREVIEW: string = 'support/ImagePreview'
 }

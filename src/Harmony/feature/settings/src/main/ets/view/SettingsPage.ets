@@ -133,20 +133,6 @@ export struct SettingsPage {
           this.pageStack.pushPath({ name: RouteName.ACTIVATE_WORKER })
         })
 
-        Button(I18n.get('settings.logout') + (this.currentLanguage ? '' : ''))
-          .width('calc(100% - 40vp)')
-          .height(48)
-          .borderRadius(12)
-          .backgroundColor($r('app.color.terminal_error'))
-          .fontColor(Color.White)
-          .fontSize(16)
-          .fontWeight(FontWeight.Medium)
-          .margin({ top: 8 })
-          .onClick(() => {
-            heavyHaptic()
-            this.confirmLogout()
-          })
-
         this.SectionHeader('settings.support')
 
         this.NavRow('settings.contact_support', () => {
@@ -158,10 +144,19 @@ export struct SettingsPage {
           this.pageStack.pushPath({ name: RouteName.FEEDBACK, param: param })
         })
 
-        this.NavRow('settings.report', () => {
-          const param: Record<string, string> = { 'type': 'report' }
-          this.pageStack.pushPath({ name: RouteName.FEEDBACK, param: param })
-        })
+        Button(I18n.get('settings.logout') + (this.currentLanguage ? '' : ''))
+          .width('calc(100% - 40vp)')
+          .height(48)
+          .borderRadius(12)
+          .backgroundColor($r('app.color.terminal_error'))
+          .fontColor(Color.White)
+          .fontSize(16)
+          .fontWeight(FontWeight.Medium)
+          .margin({ top: 24 })
+          .onClick(() => {
+            heavyHaptic()
+            this.confirmLogout()
+          })
 
         // Watermark footer
         Column() {

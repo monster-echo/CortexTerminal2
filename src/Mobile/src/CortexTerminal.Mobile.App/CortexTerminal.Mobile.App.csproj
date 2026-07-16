@@ -79,7 +79,10 @@
 
 	<ItemGroup>
 		<!-- App Icon -->
-                <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#08080A" BaseSize="512,512" ForegroundScale="0.65" />
+                <!-- Android: adaptive 前景缩进安全区，避免 launcher 裁切导致贴边 -->
+                <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#08080A" BaseSize="512,512" ForegroundScale="0.65" Condition="'$(TargetFramework)' == 'net10.0-android'" />
+                <!-- iOS / Mac / Windows: 整图直接用，scale 默认 1.0 让前景与底图重合，避免重影 -->
+                <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#08080A" BaseSize="512,512" Condition="'$(TargetFramework)' != 'net10.0-android'" />
 
                 <!-- Splash Screen -->
                 <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#08080A" BaseSize="128,128" />
