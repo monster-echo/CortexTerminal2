@@ -230,6 +230,19 @@ jobs:
           api-key-id: ${{ secrets.CORTEX_APPSTORE_API_KEY_ID }}
           api-private-key: ${{ secrets.CORTEX_APPSTORE_API_PRIVATE_KEY }}
 
+      - name: Update App Store whatsNew
+        env:
+          CORTEX_APPSTORE_ISSUER_ID: ${{ secrets.CORTEX_APPSTORE_ISSUER_ID }}
+          CORTEX_APPSTORE_API_KEY_ID: ${{ secrets.CORTEX_APPSTORE_API_KEY_ID }}
+          ASC_KEY_PATH: /tmp/asc_key.p8
+        run: |
+          set -euo pipefail
+          cat > $ASC_KEY_PATH <<'KEYEOF'
+          ${{ secrets.CORTEX_APPSTORE_API_PRIVATE_KEY }}
+          KEYEOF
+          python3 -m pip install --quiet pyjwt cryptography
+          python3 scripts/update_asc_whatsnew.py distribution/app-store
+
       - name: Upload iOS build artifact
         uses: actions/upload-artifact@v6
         with:
