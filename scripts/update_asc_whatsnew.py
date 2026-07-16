@@ -66,7 +66,9 @@ def main():
     print(f"App ID: {app_id}")
 
     # Find latest appStoreVersion
-    versions = api_get(token, f"apps/{app_id}/appStoreVersions?limit=1&sort=-version")
+    versions = api_get(token, f"apps/{app_id}/appStoreVersions?limit=5")
+    if not versions.get("data"):
+        fatal("No appStoreVersions found. Create an App Store version first in App Store Connect.")
     version_id = versions["data"][0]["id"]
     print(f"App Store Version ID: {version_id}")
 
