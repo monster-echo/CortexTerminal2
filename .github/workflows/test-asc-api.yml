@@ -20,17 +20,37 @@ jobs:
           ${{ secrets.CORTEX_APPSTORE_API_PRIVATE_KEY }}
           KEYEOF
           
-          echo "=== key file ==="
-          wc -l /tmp/key.p8
-          head -1 /tmp/key.p8 | wc -c
-          tail -1 /tmp/key.p8 | wc -c
+          pip3 install --quiet jwt PyJWT cryptography 2>/dev/null || pip install --quiet jwt PyJWT cryptography 2>/dev/null || true
           
-          header=$(printf '{"alg":"ES256","kid":"%s","typ":"JWT"}' "$KEY_ID" | base64 -w0 | tr -d '=' | tr '/+' '_-')
-          payload=$(printf '{"iss":"%s","iat":%d,"exp":%d,"aud":"appstoreconnect-v1"}' "$ISSUER_ID" $(date +%s) $(($(date +%s)+600)) | base64 -w0 | tr -d '=' | tr '/+' '_-')
-          signature=$(printf '%s.%s' "$header" "$payload" | openssl dgst -sha256 -sign /tmp/key.p8 | base64 -w0 | tr -d '=' | tr '/+' '_-')
-          JWT="${header}.${payload}.${signature}"
+          python3 <<'PYEOF'
+          import jwt, time, json
           
-          URL="https://api.appstoreconnect.apple.com/v1/apps?filter%5BbundleId%5D=top.rwecho.cortexterminal&limit=1"
-          HTTP_CODE=$(curl -s -o /tmp/asc_resp.json -w "%{http_code}" -H "Authorization: Bearer $JWT" "$URL")
-          echo "HTTP: $HTTP_CODE"
-          head -c 200 /tmp/asc_resp.json
+          with open('/tmp/key.p8') as f:
+              private_key = f.read()
+          
+          now = int(time.time())
+          payload = {
+              'iss': '${{ secrets.CORTEX_APPSTORE_ISSUER_ID }}',
+              'iat': now,
+              'exp': now + 600,
+              'aud': 'appstoreconnect-v1'
+          }
+          headers = {
+              'alg': 'ES256',
+              'kid': '${{ secrets.CORTEX_APPSTORE_API_KEY_ID }}',
+              'typ': 'JWT'
+          }
+          token = jwt.encode(payload, private_key, algorithm='ES256', headers=headers)
+          print(f'JWT: {token[:50]}...{token[-20:]}')
+          
+          import urllib.request
+          url = 'https://api.appstoreconnect.apple.com/v1/apps?filter%5BbundleId%5D=top.rwecho.cortexterminal&limit=1'
+          req = urllib.request.Request(url, headers={'Authorization': f'Bearer {token}'})
+          try:
+              resp = urllib.request.urlopen(req)
+              print(f'HTTP: {resp.status}')
+              print(resp.read().decode()[:300])
+          except urllib.error.HTTPError as e:
+              print(f'HTTP: {e.code}')
+              print(e.read().decode()[:300])
+          PYEOF
