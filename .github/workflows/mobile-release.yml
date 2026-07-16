@@ -240,7 +240,7 @@ jobs:
           cat > $ASC_KEY_PATH <<'KEYEOF'
           ${{ secrets.CORTEX_APPSTORE_API_PRIVATE_KEY }}
           KEYEOF
-          python3 -m pip install --quiet pyjwt cryptography
+          python3 -m pip install --quiet --break-system-packages pyjwt cryptography
           python3 scripts/update_asc_whatsnew.py distribution/app-store
 
       - name: Upload iOS build artifact
