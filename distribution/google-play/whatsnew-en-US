@@ -1,3 +1,3 @@
-Contact support upgrade: renamed group, tap email to compose, fullscreen QR preview with save-to-album.
-Simplified feedback: no more type picker, just content + contact + screenshots (photo picker).
-Settings: logout moved to bottom, report entry removed.
+New: Contact Support (QQ group / email), Feedback with screenshots.
+Localized app name to Chinese, Worker online upgrade.
+Fixed icon padding and navbar tint on older Android versions.
