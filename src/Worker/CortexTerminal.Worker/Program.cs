@@ -69,11 +69,19 @@ static Dictionary<string, JsonElement>? DecodeJwtPayload(string token)
     {
         var parts = token.Split('.');
         if (parts.Length < 2) return null;
-        var payload = parts[1];
+        // JWT payloads are base64url-encoded ('-'/'_' instead of '+'/'/', no padding).
+        var payload = parts[1].Replace('-', '+').Replace('_', '/');
         var padLen = 4 - payload.Length % 4;
         if (padLen != 4) payload += new string('=', padLen);
         var json = Convert.FromBase64String(payload);
-        return JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json);
+        // JsonSerializer.Deserialize<Dictionary<string,JsonElement>> is reflection-based and
+        // disabled under PublishTrimmed (the type isn't registered in WorkerJsonContext, so it
+        // throws InvalidOperationException at runtime). JsonDocument is reflection-free and trims.
+        using var doc = JsonDocument.Parse(json);
+        var claims = new Dictionary<string, JsonElement>();
+        foreach (var prop in doc.RootElement.EnumerateObject())
+            claims[prop.Name] = prop.Value.Clone();
+        return claims;
     }
     catch
     {
@@ -169,6 +177,9 @@ static string FormatExpiry(string token)
     return $"expires in {remaining.Minutes}m";
 }
 
+// ── Helper: format worker uptime ──
+static string FormatUptime(TimeSpan u) => $"{(int)u.TotalDays}d {u.Hours}h {u.Minutes}m";
+
 // ── CLI Definition ──
 var rootCommand = new RootCommand("Corterm Worker — remote terminal agent");
 
@@ -219,8 +230,13 @@ statusCommand.SetAction((ParseResult parseResult) =>
 
     Console.WriteLine($"  Version: {version}");
     Console.WriteLine($"  PID:     {Environment.ProcessId}");
-    var uptime = DateTime.UtcNow - Process.GetCurrentProcess().StartTime.ToUniversalTime();
-    Console.WriteLine($"  Uptime:  {(int)uptime.TotalDays}d {uptime.Hours}h {uptime.Minutes}m");
+    // Uptime comes from the daemon's recorded start time (.worker-state); `status` is a
+    // separate short-lived process whose own StartTime is always ~0.
+    var statePath = Path.Combine(installDir, ".worker-state");
+    var uptimeText = File.Exists(statePath) && long.TryParse(File.ReadAllText(statePath).Trim(), out var startedAt)
+        ? FormatUptime(DateTimeOffset.UtcNow - DateTimeOffset.FromUnixTimeSeconds(startedAt))
+        : "n/a";
+    Console.WriteLine($"  Uptime:  {uptimeText}");
     Console.WriteLine($"  Gateway: {gatewayUrl}");
     Console.WriteLine($"  Worker:  {workerId}");
 
@@ -386,6 +402,10 @@ rootCommand.SetAction(async (ParseResult parseResult, CancellationToken cancella
     Console.WriteLine($"Corterm Worker {version}");
     Console.WriteLine($"  Gateway: {gatewayUrl}");
     Console.WriteLine($"  Worker:  {workerId}");
+
+    // Record daemon start time so `corterm status` (a separate process) can report real uptime.
+    File.WriteAllText(Path.Combine(installDir, ".worker-state"),
+        DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString());
 
     var builder = Host.CreateApplicationBuilder();
     builder.Configuration.AddJsonFile(Path.Combine(installDir, "appsettings.json"), optional: true, reloadOnChange: true);
