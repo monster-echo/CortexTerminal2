@@ -16,8 +16,12 @@ jobs:
           KEY_ID: ${{ secrets.CORTEX_APPSTORE_API_KEY_ID }}
         run: |
           set -euo pipefail
-          # Write private key directly (env vars strip newlines)
           printf '%s\n' '${{ secrets.CORTEX_APPSTORE_API_PRIVATE_KEY }}' > /tmp/key.p8
+          
+          echo "=== key file ==="
+          wc -l /tmp/key.p8
+          head -1 /tmp/key.p8
+          tail -1 /tmp/key.p8
           
           header=$(printf '{"alg":"ES256","kid":"%s","typ":"JWT"}' "$KEY_ID" | base64 -w0 | tr -d '=' | tr '/+' '_-')
           payload=$(printf '{"iss":"%s","iat":%d,"exp":%d,"aud":"appstoreconnect-v1"}' "$ISSUER_ID" $(date +%s) $(($(date +%s)+600)) | base64 -w0 | tr -d '=' | tr '/+' '_-')
