@@ -275,23 +275,79 @@ public sealed class SessionRecoveryCoordinatorTests
     }
 
     [Fact]
-    public async Task ReconcileWorkerSessionsAsync_NeverExpiresAttachedSessions()
+    public async Task ReconcileWorkerSessionsAsync_NeverExpiresAttachedSessionWithLiveClient()
     {
-        // CRITICAL safety invariant: an Attached session has a live client. The worker snapshot
-        // is not authoritative for such sessions (a client could be reattaching concurrently),
-        // so reconcile must NEVER expire Attached — otherwise it races the reattach and kills a
-        // live terminal.
+        // CRITICAL safety invariant: an Attached session that HAS a live client must not be
+        // expired by reconcile. The worker snapshot is not authoritative for such sessions — a
+        // client could be reattaching concurrently, and expiring would race that reattach and
+        // kill a live terminal. Only Attached sessions with NO client (Rebind-promoted,
+        // worker-unconfirmed) are reconcile-able.
         var (coordinator, _) = CreateCoordinator();
-        var attached = (await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), null, CancellationToken.None)).Response!.SessionId;
-        attached.Should().NotBeNull();
-        coordinator.TryGetSession(attached, out var afterCreate).Should().BeTrue();
-        afterCreate.AttachmentState.Should().Be(SessionAttachmentState.Attached);
+        var sessionId = (await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), null, CancellationToken.None)).Response!.SessionId;
+        // A client attaches → AttachedClientConnectionId is set.
+        (await coordinator.ReattachSessionAsync("user-1", new ReattachSessionRequest(sessionId), "client-A", DateTimeOffset.UtcNow, CancellationToken.None))
+            .IsSuccess.Should().BeTrue();
+        coordinator.TryGetSession(sessionId, out var withClient).Should().BeTrue();
+        withClient.AttachmentState.Should().Be(SessionAttachmentState.Attached);
+        withClient.AttachedClientConnectionId.Should().Be("client-A");
 
         var expired = await coordinator.ReconcileWorkerSessionsAsync("user-1", "worker-1", new HashSet<string>());
 
         expired.Should().BeEmpty();
-        coordinator.TryGetSession(attached, out var stillAttached).Should().BeTrue();
+        coordinator.TryGetSession(sessionId, out var stillAttached).Should().BeTrue();
         stillAttached.AttachmentState.Should().Be(SessionAttachmentState.Attached);
+        stillAttached.AttachedClientConnectionId.Should().Be("client-A");
+    }
+
+    [Fact]
+    public async Task ReconcileWorkerSessionsAsync_ExpiresAttachedGhostWithoutClient()
+    {
+        // Regression (sess_9d6 / sess_3116): when a worker PROCESS restarts it loses every
+        // shell, so its ReportWorkerSessions snapshot is empty. But RebindActiveSessions had
+        // already re-promoted the worker's old Recovering sessions back to Attached on reconnect
+        // — with no client and without confirming the worker still holds the shell. Reconcile
+        // must expire these no-client Attached ghosts; otherwise the session list shows them
+        // "active" forever while the terminal is blank/dead.
+        var (coordinator, _) = CreateCoordinator();
+        var sessionId = (await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), null, CancellationToken.None)).Response!.SessionId;
+        coordinator.TryGetSession(sessionId, out var created).Should().BeTrue();
+        created.AttachmentState.Should().Be(SessionAttachmentState.Attached);
+        created.AttachedClientConnectionId.Should().BeNull();
+
+        // Worker SignalR drops → Recovering …
+        await coordinator.TransitionToRecovering("worker-1", "worker-conn-1");
+        // … worker reconnects; Rebind re-promotes Recovering → Attached (no client, unconfirmed).
+        await coordinator.RebindActiveSessions("user-1", "worker-1", "worker-conn-restarted");
+        coordinator.TryGetSession(sessionId, out var rebound).Should().BeTrue();
+        rebound.AttachmentState.Should().Be(SessionAttachmentState.Attached);
+        rebound.AttachedClientConnectionId.Should().BeNull();
+
+        // Worker reports an empty snapshot (process restarted, shell gone).
+        var expired = await coordinator.ReconcileWorkerSessionsAsync("user-1", "worker-1", new HashSet<string>());
+
+        expired.Should().ContainSingle().Which.Should().Be(sessionId);
+        coordinator.TryGetSession(sessionId, out var ghost).Should().BeTrue();
+        ghost.AttachmentState.Should().Be(SessionAttachmentState.Expired);
+        ghost.ExitReason.Should().Be("worker-restart");
+    }
+
+    [Fact]
+    public async Task ReconcileWorkerSessionsAsync_KeepsAttachedWithoutClientWhenReportedLive()
+    {
+        // An Attached session with no client that the worker DOES report as live must be kept —
+        // e.g. a freshly created shell before any client has attached. Only absence from the
+        // worker's snapshot marks a session as a restart-ghost.
+        var (coordinator, _) = CreateCoordinator();
+        var sessionId = (await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), null, CancellationToken.None)).Response!.SessionId;
+        coordinator.TryGetSession(sessionId, out var created).Should().BeTrue();
+        created.AttachmentState.Should().Be(SessionAttachmentState.Attached);
+        created.AttachedClientConnectionId.Should().BeNull();
+
+        var expired = await coordinator.ReconcileWorkerSessionsAsync("user-1", "worker-1", new HashSet<string> { sessionId });
+
+        expired.Should().BeEmpty();
+        coordinator.TryGetSession(sessionId, out var kept).Should().BeTrue();
+        kept.AttachmentState.Should().Be(SessionAttachmentState.Attached);
     }
 
     [Fact]

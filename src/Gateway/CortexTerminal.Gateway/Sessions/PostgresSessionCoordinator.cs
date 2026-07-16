@@ -570,13 +570,22 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
                     continue;
                 }
 
-                // NEVER touch Attached sessions. An Attached session has a live client, and the
-                // worker snapshot only proves which shells the worker holds — a client could be
-                // reattaching concurrently. Expiring Attached here would race that reattach and
-                // kill a live terminal. Only DetachedGracePeriod (no client, shell claimed alive)
-                // and Recovering (worker was already gone) are safe to reconcile against the
-                // worker's snapshot.
-                if (session.AttachmentState is not (SessionAttachmentState.DetachedGracePeriod
+                // Shield only Attached sessions that actually have a live client. An Attached
+                // session with no client was promoted by RebindActiveSessions on worker reconnect
+                // and is not yet confirmed live by the worker's snapshot — exactly the ghost left
+                // behind when a worker process restarted and lost its shells. Expiring it is safe.
+                // A genuine client reattach sets AttachedClientConnectionId; those stay shielded so
+                // we never race a reattaching client and kill a live terminal. DetachedGracePeriod
+                // (no client, shell claimed alive) and Recovering (worker was already gone) remain
+                // fully reconcile-able.
+                if (session.AttachmentState == SessionAttachmentState.Attached
+                    && !string.IsNullOrEmpty(session.AttachedClientConnectionId))
+                {
+                    continue;
+                }
+
+                if (session.AttachmentState is not (SessionAttachmentState.Attached
+                                                    or SessionAttachmentState.DetachedGracePeriod
                                                     or SessionAttachmentState.Recovering))
                 {
                     continue;
