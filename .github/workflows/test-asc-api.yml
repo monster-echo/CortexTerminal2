@@ -16,12 +16,14 @@ jobs:
           KEY_ID: ${{ secrets.CORTEX_APPSTORE_API_KEY_ID }}
         run: |
           set -euo pipefail
-          printf '%s\n' '${{ secrets.CORTEX_APPSTORE_API_PRIVATE_KEY }}' > /tmp/key.p8
+          cat > /tmp/key.p8 <<'KEYEOF'
+          ${{ secrets.CORTEX_APPSTORE_API_PRIVATE_KEY }}
+          KEYEOF
           
           echo "=== key file ==="
           wc -l /tmp/key.p8
-          head -1 /tmp/key.p8
-          tail -1 /tmp/key.p8
+          head -1 /tmp/key.p8 | wc -c
+          tail -1 /tmp/key.p8 | wc -c
           
           header=$(printf '{"alg":"ES256","kid":"%s","typ":"JWT"}' "$KEY_ID" | base64 -w0 | tr -d '=' | tr '/+' '_-')
           payload=$(printf '{"iss":"%s","iat":%d,"exp":%d,"aud":"appstoreconnect-v1"}' "$ISSUER_ID" $(date +%s) $(($(date +%s)+600)) | base64 -w0 | tr -d '=' | tr '/+' '_-')
@@ -31,4 +33,4 @@ jobs:
           URL="https://api.appstoreconnect.apple.com/v1/apps?filter%5BbundleId%5D=top.rwecho.cortexterminal&limit=1"
           HTTP_CODE=$(curl -s -o /tmp/asc_resp.json -w "%{http_code}" -H "Authorization: Bearer $JWT" "$URL")
           echo "HTTP: $HTTP_CODE"
-          head -c 500 /tmp/asc_resp.json
+          head -c 200 /tmp/asc_resp.json
