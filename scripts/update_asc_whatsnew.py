@@ -66,7 +66,7 @@ def main():
     print(f"App ID: {app_id}")
 
     # Find latest appStoreVersion
-    versions = api_get(token, f"apps/{app_id}/appStoreVersions?limit=1&sort=-createdDate")
+    versions = api_get(token, f"apps/{app_id}/appStoreVersions?limit=1&sort=-version")
     version_id = versions["data"][0]["id"]
     print(f"App Store Version ID: {version_id}")
 
