@@ -116,7 +116,8 @@ public sealed class SupportService
             Content = new StringContent(body, Encoding.UTF8, "application/json"),
         };
 
-        var response = await _httpClient.SendAsync(request, ct);
+        using var n8nClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+        var response = await n8nClient.SendAsync(request, ct);
         var respBody = await response.Content.ReadAsStringAsync(ct);
         if (!response.IsSuccessStatusCode)
             throw new InvalidOperationException($"Feedback submit failed ({(int)response.StatusCode})");
