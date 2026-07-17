@@ -89,7 +89,7 @@ export default function ContactSupportPage(_: RouteComponentProps) {
                 src={g.qrCodeUrl}
                 alt="QR"
                 onClick={() => setPreviewUrl(g.qrCodeUrl)}
-                style={{ width: 160, height: 160, borderRadius: 8, background: "#fff", cursor: "pointer" }}
+                style={{ width: 160, height: 160, objectFit: "contain", borderRadius: 8, background: "#fff", cursor: "pointer" }}
               />
               <div style={{ marginTop: 6 }}>
                 <IonText color="medium" style={{ fontSize: 12 }}>{t("support.scanToJoin")}</IonText>
