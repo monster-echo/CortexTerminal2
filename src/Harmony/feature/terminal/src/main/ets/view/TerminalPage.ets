@@ -147,6 +147,7 @@ export struct TerminalPage {
   private webviewReady: boolean = false
   private terminalLive: boolean = false
   private initialFitDone: boolean = false
+  private isReplaying: boolean = false
   private pendingBatch: string[] = []
   private flushScheduled: boolean = false
   private connectTimer: number = -1
@@ -396,20 +397,25 @@ export struct TerminalPage {
 
     switch (frame.type) {
       case 'output':
-      case 'replay':
         this.writeOutput(frame.payload)
         break
 
+      case 'replay':
+        // Buffer replay chunks without rendering; flushed in one write on
+        // replayCompleted so the screen doesn't visibly redraw top-to-bottom.
+        this.pendingBatch.push(frame.payload)
+        break
+
       case 'replaying':
+        this.isReplaying = true
         this.stateManager.setState(TerminalState.Replaying)
         break
 
       case 'replayCompleted':
-        try {
-          this.webviewController.runJavaScript('clearTerminal()')
-        } catch (e) {
-          console.warn('Failed to clear terminal: ' + (e as Error).message)
-        }
+        // Flush all buffered replay in a single write. No clearTerminal() —
+        // term.clear() truncates the buffer to 1 line, wiping replay history.
+        this.isReplaying = false
+        this.flushPendingOutput()
         break
 
       case 'live':
@@ -474,6 +480,9 @@ export struct TerminalPage {
   }
 
   private flushPendingOutput() {
+    if (this.isReplaying) {
+      return
+    }
     if (!this.webviewReady || this.pendingBatch.length === 0) {
       return
     }
