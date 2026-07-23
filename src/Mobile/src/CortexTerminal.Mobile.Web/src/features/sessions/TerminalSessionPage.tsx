@@ -146,6 +146,9 @@ export default function TerminalSessionPage({
 
   const terminalRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<Terminal | null>(null);
+  // Buffers replay chunks until replayCompleted, then written in one shot to
+  // avoid the visible top-to-bottom redraw on every session entry.
+  const replayBufferRef = useRef<Uint8Array[]>([]);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const resizeTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const resizeSyncTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -448,12 +451,19 @@ export default function TerminalSessionPage({
       };
       if (event.sessionId && event.sessionId !== sessionId) return;
 
-      if (
-        (event.type === "terminal.replay" ||
-          event.type === "terminal.output") &&
-        event.base64 &&
-        term
-      ) {
+      if (event.type === "terminal.replay" && event.base64 && term) {
+        // Buffer replay chunks; flushed in one write on replayCompleted.
+        try {
+          replayBufferRef.current.push(
+            normalizeTerminalOutput(decodeBase64ToBytes(event.base64)),
+          );
+        } catch {
+          /* ignore decode errors */
+        }
+        setStatusMessage(t("terminal.replaying"));
+        return;
+      }
+      if (event.type === "terminal.output" && event.base64 && term) {
         try {
           term.write(
             normalizeTerminalOutput(decodeBase64ToBytes(event.base64)),
@@ -462,11 +472,7 @@ export default function TerminalSessionPage({
         } catch {
           /* ignore decode errors */
         }
-        if (event.type === "terminal.replay") {
-          setStatusMessage(t("terminal.replaying"));
-        } else {
-          setStatusMessage(t("terminal.live"));
-        }
+        setStatusMessage(t("terminal.live"));
         return;
       }
 
@@ -487,6 +493,23 @@ export default function TerminalSessionPage({
         setStatusMessage(t("terminal.reattached"));
       }
       if (event.type === "terminal.replayCompleted") {
+        // Flush all buffered replay chunks in a single write.
+        const buffered = replayBufferRef.current;
+        replayBufferRef.current = [];
+        if (term && buffered.length > 0) {
+          const total = buffered.reduce((sum, b) => sum + b.length, 0);
+          const merged = new Uint8Array(total);
+          let offset = 0;
+          for (const b of buffered) {
+            merged.set(b, offset);
+            offset += b.length;
+          }
+          try {
+            term.write(merged, () => {});
+          } catch {
+            /* ignore write errors */
+          }
+        }
         setStatusMessage(t("terminal.live"));
         if (loadingRef.current) {
           loadingRef.current = false;
