@@ -13,6 +13,8 @@ export struct SettingsPage {
   @State editError: string = ''
   @State isSaving: boolean = false
   @State isUploadingAvatar: boolean = false
+  @State scrollbackBytes: number = 524288
+  @State scrollbackSaving: boolean = false
   @State devTapCount: number = 0
   @State showDevOptions: boolean = false
   @StorageLink('webglEnabled') webglEnabled: boolean = true
@@ -22,7 +24,47 @@ export struct SettingsPage {
   aboutToAppear() {
     AnalyticsService.onPageStart('settings/Page')
     this.loadProfile()
+    this.loadScrollback()
     this.showDevOptions = AppStorage.get<boolean>('showDevOptions') ?? false
+  }
+
+  private async loadScrollback() {
+    try {
+      this.scrollbackBytes = await ApiService.getScrollbackMaxBytes()
+    } catch (e) {
+      console.warn('[Settings] loadScrollback failed: ' + (e as Error).message)
+    }
+  }
+
+  private async saveScrollback(bytes: number) {
+    if (this.scrollbackSaving || bytes === this.scrollbackBytes) {
+      return
+    }
+    this.scrollbackSaving = true
+    const previous = this.scrollbackBytes
+    this.scrollbackBytes = bytes
+    try {
+      await ApiService.updateScrollbackMaxBytes(bytes)
+    } catch (e) {
+      this.scrollbackBytes = previous
+      showToast((e as Error).message || I18n.get('common.error'))
+    } finally {
+      this.scrollbackSaving = false
+    }
+  }
+
+  private isActiveScrollback(value: number): boolean {
+    const v = this.scrollbackBytes
+    if (v >= 5242880) {
+      return value === 5242880
+    }
+    if (v >= 2097152) {
+      return value === 2097152
+    }
+    if (v >= 1048576) {
+      return value === 1048576
+    }
+    return value === 524288
   }
 
   build() {
@@ -90,6 +132,34 @@ export struct SettingsPage {
           Row() {
             this.LanguageOption('settings.language_zh', 'zh')
             this.LanguageOption('settings.language_en', 'en')
+          }
+        }
+        .width('calc(100% - 40vp)')
+        .padding(14)
+        .borderRadius(12)
+        .backgroundColor($r('app.color.terminal_surface_container'))
+        .margin({ bottom: 8 })
+
+        this.SectionHeader('settings.terminal')
+
+        Row() {
+          Column() {
+            Text(I18n.get('settings.scrollback'))
+              .fontSize(14)
+              .fontColor($r('app.color.terminal_primary'))
+            Text(I18n.get('settings.scrollback_desc'))
+              .fontSize(12)
+              .fontColor($r('app.color.terminal_on_surface_variant'))
+              .margin({ top: 2 })
+          }
+          .alignItems(HorizontalAlign.Start)
+          .layoutWeight(1)
+
+          Row() {
+            this.ScrollbackOption('512K', 524288)
+            this.ScrollbackOption('1M', 1048576)
+            this.ScrollbackOption('2M', 2097152)
+            this.ScrollbackOption('5M', 5242880)
           }
         }
         .width('calc(100% - 40vp)')
@@ -264,6 +334,25 @@ export struct SettingsPage {
         this.currentLanguage = code
         AnalyticsService.onEvent(AnalyticsEvent.LANGUAGE_CHANGE)
         showToast(I18n.get('settings.language_changed').replace('{v}', I18n.get(`settings.language_${code}`)))
+      })
+  }
+
+  @Builder
+  ScrollbackOption(label: string, value: number) {
+    Text(label)
+      .fontSize(13)
+      .fontWeight(this.isActiveScrollback(value) ? FontWeight.Medium : FontWeight.Normal)
+      .fontColor(this.isActiveScrollback(value) ?
+        $r('app.color.terminal_on_secondary_container') :
+        $r('app.color.terminal_on_surface_variant'))
+      .padding({ left: 10, right: 10, top: 6, bottom: 6 })
+      .borderRadius(8)
+      .backgroundColor(this.isActiveScrollback(value) ?
+        $r('app.color.terminal_secondary_container') :
+        Color.Transparent)
+      .onClick(() => {
+        clickHaptic()
+        this.saveScrollback(value)
       })
   }
 

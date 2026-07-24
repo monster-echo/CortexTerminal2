@@ -246,6 +246,18 @@ export class ApiService {
     await ApiService.del('/api/me/account')
   }
 
+  // ── Preference APIs ────────────────────────────────────────────────
+
+  static async getScrollbackMaxBytes(): Promise<number> {
+    const resp = await ApiService.get('/api/me/preferences') as Record<string, Object>
+    return (resp['scrollbackMaxBytes'] as number) ?? 524288
+  }
+
+  static async updateScrollbackMaxBytes(maxBytes: number): Promise<void> {
+    const body: Record<string, Object> = { 'scrollbackMaxBytes': maxBytes }
+    await ApiService.put('/api/me/preferences', body as Object)
+  }
+
   // ── Auth APIs (called by AuthService) ─────────────────────────────
 
   static async loginWithHuaweiAuthCode(authCode: string, unionID: string, openID: string): Promise<Record<string, Object>> {
