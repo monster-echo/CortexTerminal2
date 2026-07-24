@@ -151,6 +151,7 @@ export struct TerminalPage {
   private pendingBatch: string[] = []
   private flushScheduled: boolean = false
   private connectTimer: number = -1
+  private resizeDebounceTimer: number = -1
   private pageVisible: boolean = true
 
   private applyStatusBar(forceWhite: boolean): void {
@@ -163,9 +164,20 @@ export struct TerminalPage {
   }
 
   onKeyboardHeightChange() {
-    if (this.webviewReady) {
-      setTimeout(() => { this.fitAndResize() }, 100)
+    if (!this.webviewReady) {
+      return
     }
+    // Debounce: keyboard show/hide updates keyboardHeight across many
+    // animation frames. Without this each frame schedules a separate
+    // fitAndResize → multiple xterm resize/redraws stack up (the "重刷").
+    // Clear the pending fit and run only one after the height settles.
+    if (this.resizeDebounceTimer !== -1) {
+      clearTimeout(this.resizeDebounceTimer)
+    }
+    this.resizeDebounceTimer = setTimeout(() => {
+      this.resizeDebounceTimer = -1
+      this.fitAndResize()
+    }, 150) as number
   }
 
   aboutToAppear() {
@@ -198,6 +210,10 @@ export struct TerminalPage {
     if (this.connectTimer !== -1) {
       clearTimeout(this.connectTimer)
       this.connectTimer = -1
+    }
+    if (this.resizeDebounceTimer !== -1) {
+      clearTimeout(this.resizeDebounceTimer)
+      this.resizeDebounceTimer = -1
     }
     this.transport.sendDetach()
   }
