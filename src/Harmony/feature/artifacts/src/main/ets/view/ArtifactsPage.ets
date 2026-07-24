@@ -7,6 +7,7 @@
  * ArtifactChanged SignalR event for real-time updates and refetches nothing.
  */
 import { common } from '@kit.AbilityKit'
+import fs from '@kit.FileFs'
 import { window } from '@kit.ArkUI'
 import { I18n, showToast, lightHaptic, clickHaptic } from '@rwecho/core'
 import { ArtifactModel, ArtifactOrigin } from '../model/ArtifactModels'
@@ -366,6 +367,12 @@ export struct ArtifactsPage {
       const safeName: string = artifact.filename.indexOf('%') >= 0
         ? decodeURIComponent(artifact.filename) : artifact.filename
       const targetPath = `${filesDir}/downloads/${safeName}`
+      const downloadDir = `${filesDir}/downloads`
+      try {
+        fs.mkdirSync(downloadDir, true)
+      } catch (_e) {
+        // 目录已存在,忽略 —— 鸿蒙 request.downloadFile 写文件要求父目录存在,否则报 get FD
+      }
       await FileDownloader.download(getContext(this), targetPath, downloadUrl)
       showToast(safeName)
     } catch (e) {
