@@ -269,6 +269,44 @@ public sealed class AuthService
         return new AvatarUpdateResult(true, avatarUrl, null);
     }
 
+    public async Task<ScrollbackPreference> GetScrollbackPreferenceAsync(CancellationToken ct)
+    {
+        if (string.IsNullOrEmpty(_accessToken)) throw new InvalidOperationException("Not authenticated");
+
+        var request = new HttpRequestMessage(HttpMethod.Get, "/api/me/preferences");
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _accessToken);
+
+        var response = await _httpClient.SendAsync(request, ct);
+        if (!response.IsSuccessStatusCode) throw new HttpRequestException($"scrollback preferences request failed ({(int)response.StatusCode})");
+
+        var body = await response.Content.ReadAsStringAsync(ct);
+        var json = JsonSerializer.Deserialize<JsonElement>(body);
+        var maxBytes = json.TryGetProperty("scrollbackMaxBytes", out var mb) ? mb.GetInt32() : 524288;
+        var minBytes = json.TryGetProperty("scrollbackMinAllowedBytes", out var mn) ? mn.GetInt32() : 16384;
+        var maxAllowed = json.TryGetProperty("scrollbackMaxAllowedBytes", out var mx) ? mx.GetInt32() : 5242880;
+        return new ScrollbackPreference(maxBytes, minBytes, maxAllowed);
+    }
+
+    public async Task<AuthResult> UpdateScrollbackPreferenceAsync(int maxBytes, CancellationToken ct)
+    {
+        if (string.IsNullOrEmpty(_accessToken)) return new AuthResult(false, "Not authenticated");
+
+        var request = new HttpRequestMessage(HttpMethod.Put, "/api/me/preferences")
+        {
+            Content = JsonContent.Create(new { scrollbackMaxBytes = maxBytes })
+        };
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _accessToken);
+
+        var response = await _httpClient.SendAsync(request, ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            var body = await response.Content.ReadAsStringAsync(ct);
+            return new AuthResult(false, FormatError(response, ExtractError(body)));
+        }
+
+        return new AuthResult(true, null);
+    }
+
     private async Task SetTokenAsync(string token, string username, CancellationToken ct)
     {
         _accessToken = token;
@@ -325,6 +363,7 @@ public sealed record AuthResult(bool Success, string? Error, bool CaptchaRequire
 public sealed record AuthSession(string Token, string Username);
 public sealed record UserProfile(string Username, bool HasPassword, string? AvatarUrl);
 public sealed record AvatarUpdateResult(bool Success, string? AvatarUrl, string? Error);
+public sealed record ScrollbackPreference(int MaxBytes, int MinBytes, int MaxAllowedBytes);
 public sealed record CaptchaChallenge(string Id, string BackgroundImage, string SliderImage, int Y);
 public sealed record CaptchaVerifyResult(bool Success, string? CaptchaToken);
 

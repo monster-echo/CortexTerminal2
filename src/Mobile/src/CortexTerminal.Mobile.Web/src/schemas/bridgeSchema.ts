@@ -43,6 +43,13 @@ export const SuccessResponseSchema = z.object({
   success: z.boolean(),
 });
 
+export const ScrollbackPreferenceSchema = z.object({
+  maxBytes: z.number(),
+  minBytes: z.number(),
+  maxAllowedBytes: z.number(),
+});
+export type ScrollbackPreference = z.infer<typeof ScrollbackPreferenceSchema>;
+
 export const SupportGroupSchema = z.object({
   name: z.string(),
   number: z.string().optional().default(""),

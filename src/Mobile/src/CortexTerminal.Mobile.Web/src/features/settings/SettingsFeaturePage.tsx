@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   IonContent,
   IonIcon,
@@ -9,6 +9,8 @@ import {
   IonPage,
   IonModal,
   IonButton,
+  IonSegment,
+  IonSegmentButton,
   useIonActionSheet,
   useIonAlert,
   useIonToast,
@@ -35,6 +37,7 @@ import { useAppStore, type AppStoreState } from "../../store/appStore";
 import { useAuthStore, type AuthState } from "../../store/authStore";
 import { authBridge } from "../../bridge/modules/authBridge";
 import { deviceBridge } from "../../bridge/modules/deviceBridge";
+import { preferencesBridge } from "../../bridge/modules/preferencesBridge";
 import { nativeBridge } from "../../bridge/nativeBridge";
 import UserAvatar from "../../components/UserAvatar";
 import {
@@ -73,6 +76,7 @@ export default function SettingsFeaturePage({ history }: RouteComponentProps) {
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
   const [avatarSubmitting, setAvatarSubmitting] = useState(false);
+  const [scrollbackBytes, setScrollbackBytes] = useState<number>(524288);
 
   const onCropComplete = useCallback((_croppedArea: Area, croppedAreaPx: Area) => {
     setCroppedAreaPixels(croppedAreaPx);
@@ -226,6 +230,36 @@ export default function SettingsFeaturePage({ history }: RouteComponentProps) {
     });
   };
 
+  useEffect(() => {
+    void (async () => {
+      try {
+        const pref = await preferencesBridge.getScrollbackPreference();
+        setScrollbackBytes(pref.maxBytes);
+      } catch (e) {
+        console.warn("[settings] load scrollback failed", e);
+      }
+    })();
+  }, []);
+
+  const handleScrollbackChange = async (value: string | number | undefined) => {
+    if (value === undefined) return;
+    const bytes = Number(value);
+    if (!Number.isFinite(bytes) || bytes === scrollbackBytes) return;
+    const previous = scrollbackBytes;
+    setScrollbackBytes(bytes);
+    try {
+      await preferencesBridge.updateScrollbackPreference(bytes);
+    } catch (e) {
+      setScrollbackBytes(previous);
+      void presentToast({
+        message: e instanceof Error ? e.message : String(e),
+        duration: 2500,
+        position: "bottom",
+        color: "warning",
+      });
+    }
+  };
+
   const currentThemeLabel = (): string => {
     switch (colorMode) {
       case "light":
@@ -314,6 +348,30 @@ export default function SettingsFeaturePage({ history }: RouteComponentProps) {
           <IonItem button routerLink="/activate" routerDirection="root" data-analytics-id="settings_activate_worker">
             <IonIcon slot="start" icon={keyOutline} />
             <IonLabel>{t("settings.activateWorker")}</IonLabel>
+          </IonItem>
+        </IonList>
+
+        <IonList inset>
+          <IonItemDivider>
+            <IonLabel className="py-2">{t("settings.terminalSection")}</IonLabel>
+          </IonItemDivider>
+          <IonItem lines="none">
+            <IonLabel>
+              <h2>{t("settings.scrollbackLabel")}</h2>
+              <p>{t("settings.scrollbackDesc")}</p>
+            </IonLabel>
+          </IonItem>
+          <IonItem lines="none">
+            <IonSegment
+              value={String(scrollbackBytes)}
+              onIonChange={(e) => void handleScrollbackChange(e.detail.value)}
+              style={{ width: "100%" }}
+            >
+              <IonSegmentButton value="524288"><IonLabel>512K</IonLabel></IonSegmentButton>
+              <IonSegmentButton value="1048576"><IonLabel>1M</IonLabel></IonSegmentButton>
+              <IonSegmentButton value="2097152"><IonLabel>2M</IonLabel></IonSegmentButton>
+              <IonSegmentButton value="5242880"><IonLabel>5M</IonLabel></IonSegmentButton>
+            </IonSegment>
           </IonItem>
         </IonList>
 

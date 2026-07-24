@@ -1,6 +1,7 @@
 import {
   PendingNavigationStateSchema,
   PreferenceEntriesSchema,
+  ScrollbackPreferenceSchema,
   SuccessResponseSchema,
 } from "../../schemas/bridgeSchema";
 import { z } from "zod";
@@ -24,4 +25,10 @@ export const preferencesBridge = {
     ]),
   clearPendingNavigation: () =>
     invoke("ClearPendingNavigationAsync", SuccessResponseSchema),
+  getScrollbackPreference: () =>
+    invoke("GetScrollbackPreferenceAsync", ScrollbackPreferenceSchema),
+  updateScrollbackPreference: (maxBytes: number) =>
+    invoke("UpdateScrollbackPreferenceAsync", SuccessResponseSchema, [
+      maxBytes,
+    ]),
 };

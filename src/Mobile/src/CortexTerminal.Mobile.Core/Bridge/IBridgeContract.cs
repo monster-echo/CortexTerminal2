@@ -107,6 +107,13 @@ public interface IBridgeContract
     [BridgeMethod]
     Task<string> ClearPendingNavigationAsync();
 
+    // Scrollback preference
+    [BridgeMethod]
+    Task<string> GetScrollbackPreferenceAsync();
+
+    [BridgeMethod]
+    Task<string> UpdateScrollbackPreferenceAsync(int maxBytes);
+
     // Terminal gateway
     [BridgeMethod]
     Task<string> ListTerminalSessionsAsync();

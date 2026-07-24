@@ -1,1 +1,1 @@
-Terminal improvements: session history now appears all at once on entry (instead of redrawing line by line) and lands on the latest line; fixed scrolling up through history being cut off.
+New scrollback size picker (512K/1M/2M/5M) under Settings → Terminal. Larger keeps more history but slows session entry. Applies to new sessions only.
