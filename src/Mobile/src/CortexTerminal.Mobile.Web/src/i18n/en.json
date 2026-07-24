@@ -44,6 +44,7 @@
     "passwordLogin": "Sign in with password",
     "errorPasswordLogin": "Invalid username or password",
     "phoneLogin": "Phone Login",
+    "usePasswordLogin": "Use password instead",
     "verificationRequired": "Please complete verification first",
     "captchaFailed": "Verification failed, please try again",
     "captchaSuccess": "Verification successful",

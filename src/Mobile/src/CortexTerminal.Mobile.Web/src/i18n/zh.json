@@ -44,6 +44,7 @@
     "passwordLogin": "密码登录",
     "errorPasswordLogin": "用户名或密码错误",
     "phoneLogin": "手机号登录",
+    "usePasswordLogin": "用账号密码登录",
     "verificationRequired": "请先完成人机验证",
     "captchaFailed": "验证失败，请重试",
     "captchaSuccess": "验证成功",

@@ -11,10 +11,8 @@ import {
   IonNote,
   IonLabel,
   IonText,
-  IonSegment,
-  IonSegmentButton,
 } from "@ionic/react";
-import { logoApple, logoGithub, logoGoogle } from "ionicons/icons";
+import { logoApple, logoGithub, phonePortraitOutline } from "ionicons/icons";
 import { useTranslation } from "react-i18next";
 import { authBridge } from "../../bridge/modules/authBridge";
 import { nativeBridge } from "../../bridge/nativeBridge";
@@ -43,6 +41,18 @@ function useIsDark() {
 
 type LoginTab = "password" | "phone";
 
+// Google 官方多色 G 图标（ionicons 的 logoGoogle 是单色，辨识度不够）
+function GoogleColorIcon({ size = 22 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 48 48" aria-hidden="true">
+      <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z" />
+      <path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z" />
+      <path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238C29.211 35.091 26.715 36 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z" />
+      <path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-.792 2.237-2.231 4.166-4.087 5.571.001-.001 6.19 5.238 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z" />
+    </svg>
+  );
+}
+
 export default function LoginPage() {
   const { t } = useTranslation();
   const appInfo = useAppStore(selectAppInfo);
@@ -50,7 +60,6 @@ export default function LoginPage() {
   const showAppleLogin = platform === "ios" || platform === "maccatalyst";
 
   const [availableMethods, setAvailableMethods] = useState<string[]>([]);
-  const [methodsLoaded, setMethodsLoaded] = useState(false);
   const [activeTab, setActiveTab] = useState<LoginTab>("password");
 
   // Password fields
@@ -75,27 +84,14 @@ export default function LoginPage() {
   // Fetch available auth methods
   useEffect(() => {
     authBridge.getAvailableAuthMethods()
-      .then((result) => {
-        setAvailableMethods(result.methods);
-        setMethodsLoaded(true);
-      })
-      .catch(() => {
-        setAvailableMethods(["password", "github", "google", "apple"]);
-        setMethodsLoaded(true);
-      });
+      .then((result) => setAvailableMethods(result.methods))
+      .catch(() => setAvailableMethods(["password", "github", "google", "apple"]));
   }, []);
 
   const showPhoneLogin = availableMethods.includes("phone");
   const showGithub = availableMethods.includes("github");
   const showGoogle = availableMethods.includes("google");
   const showApple = showAppleLogin && availableMethods.includes("apple");
-
-  // Auto-switch tab: if phone is available, default to phone for China
-  useEffect(() => {
-    if (methodsLoaded && showPhoneLogin) {
-      setActiveTab("phone");
-    }
-  }, [methodsLoaded, showPhoneLogin]);
 
   // Countdown timer for SMS code
   useEffect(() => {
@@ -207,9 +203,21 @@ export default function LoginPage() {
   };
 
   const btnStyle = { maxWidth: 400, width: "100%" } as React.CSSProperties;
+  const iconBtnStyle = {
+    width: 48,
+    height: 48,
+    "--padding-start": "0",
+    "--padding-end": "0",
+    "--box-shadow": "none",
+    margin: "0 4px",
+  } as React.CSSProperties;
   const isLoading = loadingProvider !== null;
 
   const hasOAuth = showGithub || showGoogle || showApple;
+  // 手机号入口仅在密码表单态出现；切到手机表单后它就是当前方式，不再重复列出
+  const showPhoneButton = showPhoneLogin && activeTab === "password";
+  // 底部「其他方式」整排只在密码表单态显示；手机表单态聚焦，不再露出第三方入口
+  const showOtherRow = activeTab === "password" && (showPhoneLogin || hasOAuth);
 
   return (
     <IonPage>
@@ -230,24 +238,21 @@ export default function LoginPage() {
           </IonLabel>
           <IonNote>{t("login.subtitle")}</IonNote>
 
-          {/* Tab switcher: only show if phone login is available */}
-          {showPhoneLogin && (
-            <IonSegment
-              value={activeTab}
-              onIonChange={(e) => setActiveTab(e.detail.value as LoginTab)}
-              style={{ maxWidth: 400, width: "100%", marginTop: 16 }}
-            >
-              <IonSegmentButton value="phone">
-                <IonLabel>{t("login.phoneLogin")}</IonLabel>
-              </IonSegmentButton>
-              <IonSegmentButton value="password">
-                <IonLabel>{t("login.passwordLogin")}</IonLabel>
-              </IonSegmentButton>
-            </IonSegment>
+          {/* 手机号表单态：顶部给一个返回账号密码登录的入口 */}
+          {activeTab === "phone" && (
+            <div style={{ width: "100%", maxWidth: 400, textAlign: "left", marginTop: 12, marginBottom: 4 }}>
+              <span
+                onClick={() => { if (!isLoading) setActiveTab("password"); }}
+                style={{ fontSize: 13, color: "var(--ion-color-primary)", cursor: "pointer" }}
+                data-analytics-id="login_back_to_password"
+              >
+                ← {t("login.usePasswordLogin")}
+              </span>
+            </div>
           )}
 
           {/* Phone login form */}
-          {showPhoneLogin && activeTab === "phone" && (
+          {activeTab === "phone" && (
             <>
               <IonList lines="none" className="ion-padding-top" style={{ width: "100%", maxWidth: 400 }}>
                 <IonItem>
@@ -299,8 +304,8 @@ export default function LoginPage() {
             </>
           )}
 
-          {/* Password login form */}
-          {((!showPhoneLogin) || activeTab === "password") && (
+          {/* Password login form (默认) */}
+          {activeTab === "password" && (
             <>
               <IonList lines="none" className="ion-padding-top" style={{ width: "100%", maxWidth: 400 }}>
                 <IonItem>
@@ -344,67 +349,70 @@ export default function LoginPage() {
             </IonText>
           )}
 
-          {hasOAuth && (
+          {/* 其他方式：一排圆形小图标（手机号 + 第三方） */}
+          {showOtherRow && (
             <>
-              <div style={{ width: "100%", maxWidth: 400, textAlign: "center", paddingTop: 16, fontSize: 13, color: "var(--ion-color-medium)" }}>
-                {t("login.orSignInWith")}
+              <div style={{ display: "flex", alignItems: "center", width: "100%", maxWidth: 400, marginTop: 24, marginBottom: 12 }}>
+                <div style={{ flex: 1, height: 1, background: "var(--ion-color-step-150, #ccc)" }} />
+                <span style={{ padding: "0 14px", fontSize: 12, color: "var(--ion-color-medium)" }}>
+                  {t("login.orSignInWith")}
+                </span>
+                <div style={{ flex: 1, height: 1, background: "var(--ion-color-step-150, #ccc)" }} />
               </div>
 
-              <div className="ion-padding-top" style={{ width: "100%", maxWidth: 400 }}>
+              <div style={{ display: "flex", justifyContent: "center", alignItems: "center", width: "100%", maxWidth: 400 }}>
+                {showPhoneButton && (
+                  <IonButton
+                    shape="round"
+                    fill="outline"
+                    style={iconBtnStyle}
+                    onClick={() => setActiveTab("phone")}
+                    disabled={isLoading}
+                    data-analytics-id="login_switch_phone"
+                  >
+                    <IonIcon icon={phonePortraitOutline} style={{ fontSize: 22 }} />
+                  </IonButton>
+                )}
                 {showApple && (
                   <IonButton
-                    expand="block"
+                    shape="round"
                     fill="outline"
-                    className="ion-margin-bottom"
+                    style={iconBtnStyle}
                     onClick={() => handleOAuth("apple")}
                     disabled={isLoading}
                     data-analytics-id="login_oauth_apple"
                   >
-                    {loadingProvider === "apple" ? (
-                      <IonSpinner name="crescent" />
-                    ) : (
-                      <>
-                        <IonIcon slot="start" icon={logoApple} />
-                        {t("login.signInApple")}
-                      </>
-                    )}
+                    {loadingProvider === "apple"
+                      ? <IonSpinner name="crescent" />
+                      : <IonIcon icon={logoApple} style={{ fontSize: 22 }} />}
                   </IonButton>
                 )}
                 {showGithub && (
                   <IonButton
-                    expand="block"
+                    shape="round"
                     fill="outline"
-                    className="ion-margin-bottom"
+                    style={iconBtnStyle}
                     onClick={() => handleOAuth("github")}
                     disabled={isLoading}
                     data-analytics-id="login_oauth_github"
                   >
-                    {loadingProvider === "github" ? (
-                      <IonSpinner name="crescent" />
-                    ) : (
-                      <>
-                        <IonIcon slot="start" icon={logoGithub} />
-                        {t("login.continueGithub")}
-                      </>
-                    )}
+                    {loadingProvider === "github"
+                      ? <IonSpinner name="crescent" />
+                      : <IonIcon icon={logoGithub} style={{ fontSize: 22 }} />}
                   </IonButton>
                 )}
                 {showGoogle && (
                   <IonButton
-                    expand="block"
+                    shape="round"
                     fill="outline"
+                    style={iconBtnStyle}
                     onClick={() => handleOAuth("google")}
                     disabled={isLoading}
                     data-analytics-id="login_oauth_google"
                   >
-                    {loadingProvider === "google" ? (
-                      <IonSpinner name="crescent" />
-                    ) : (
-                      <>
-                        <IonIcon slot="start" icon={logoGoogle} />
-                        {t("login.continueGoogle")}
-                      </>
-                    )}
+                    {loadingProvider === "google"
+                      ? <IonSpinner name="crescent" />
+                      : <GoogleColorIcon size={22} />}
                   </IonButton>
                 )}
               </div>
