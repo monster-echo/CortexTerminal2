@@ -7,7 +7,7 @@
  * ArtifactChanged SignalR event for real-time updates and refetches nothing.
  */
 import { common } from '@kit.AbilityKit'
-import fs from '@kit.FileFs'
+import fs from '@ohos.file.fs'
 import { window } from '@kit.ArkUI'
 import { I18n, showToast, lightHaptic, clickHaptic } from '@rwecho/core'
 import { ArtifactModel, ArtifactOrigin } from '../model/ArtifactModels'
