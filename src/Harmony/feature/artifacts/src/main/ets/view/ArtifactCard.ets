@@ -46,8 +46,8 @@ export struct ArtifactCard {
     Column() {
       Image(this.imageUrl)
         .width('100%')
-        .height(180)
-        .borderRadius(10)
+        .height(200)
+        .borderRadius(16)
         .objectFit(ImageFit.Cover)
         .onClick(() => {
           if (this.onPreview) {
@@ -85,9 +85,10 @@ export struct ArtifactCard {
       .width('100%')
       .margin({ top: 6 })
     }
-    .padding(12)
-    .borderRadius(12)
+    .padding(16)
+    .borderRadius(16)
     .backgroundColor(this.bubbleColor())
+    .border({ width: 0.5, color: $r('app.color.terminal_outline_variant') })
   }
 
   @Builder
@@ -149,9 +150,10 @@ export struct ArtifactCard {
       }
     }
     .width('100%')
-    .padding(12)
-    .borderRadius(12)
+    .padding(16)
+    .borderRadius(16)
     .backgroundColor(this.bubbleColor())
+    .border({ width: 0.5, color: $r('app.color.terminal_outline_variant') })
     .alignItems(VerticalAlign.Top)
   }
 

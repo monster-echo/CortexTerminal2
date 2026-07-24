@@ -94,9 +94,10 @@ export struct ArtifactsPage {
             Column() {
               ForEach(this.buildGroups(), (group: ArtifactGroup) => {
                 Text(group.label)
-                  .fontSize(12)
+                  .fontSize(13)
+                  .fontWeight(FontWeight.Medium)
                   .fontColor($r('app.color.terminal_on_surface_variant'))
-                  .margin({ top: 12, bottom: 8 })
+                  .margin({ top: 20, bottom: 12 })
                 ForEach(group.items, (item: ArtifactModel) => {
                   ArtifactCard({
                     artifact: item,
@@ -105,6 +106,7 @@ export struct ArtifactsPage {
                     onDelete: (artifact: ArtifactModel) => { this.handleDelete(artifact) },
                     onPreview: (artifact: ArtifactModel) => { this.openPreview(artifact) },
                   })
+                    .margin({ bottom: 12 })
                 }, (item: ArtifactModel) => item.id)
               }, (group: ArtifactGroup) => group.key)
             }
