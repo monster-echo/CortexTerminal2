@@ -11,6 +11,24 @@
     <DebugSymbols>false</DebugSymbols>
     <PublishTrimmed>true</PublishTrimmed>
     <TrimMode>partial</TrimMode>
+    <!-- Suppress trim-analysis noise from the ASP.NET Core runtime pack. FrameworkReference
+         Microsoft.AspNetCore.App pulls in the full server stack (MVC/TagHelpers/JSInterop/…)
+         which the trimmer analyzes and flags even though this worker only uses Kestrel + minimal
+         APIs. Removing this surfaces ~110 IL2xxx errors from MVC and breaks the build, so it
+         stays. The one regression this hides that we actually care about — whole-assembly
+         pruning (IL2104) of Microsoft.AspNetCore.Http.Features, which threw FileNotFoundException
+         while Kestrel processed /agent-event in older builds — is now guaranteed structurally
+         by the explicit TrimmerRootAssembly below, instead of being relied upon to stay audible. -->
+    <!-- Suppress trim-analysis noise from the ASP.NET Core runtime pack. FrameworkReference
+         Microsoft.AspNetCore.App pulls in the full server stack (MVC/Blazor/JSInterop/…) which
+         the trimmer analyzes and flags with IL2104 even though this worker only uses Kestrel +
+         minimal APIs. A clean rebuild without this surfaces 15 IL2104 + 4 IL2026 and breaks.
+         TrimmerRootAssembly CANNOT suppress IL2104 — verified by rooting all 15 noisy assemblies:
+         every IL2104 remained, because the trimmer still analyzes rooted assemblies internally.
+         So the only way to drop this suppression is to remove FrameworkReference entirely, which
+         requires rewriting AgentEventEndpoint off Kestrel (Http.Features/Hosting/Kestrel have no
+         standalone NuGet package since .NET Core 3.0). Http.Features is rooted below as a
+         structural guarantee against the specific FileNotFoundException that triggered this work. -->
     <NoWarn>IL2026;IL3050;IL2087;IL2104</NoWarn>
     <TrimmerRemoveSymbols>true</TrimmerRemoveSymbols>
   </PropertyGroup>
@@ -20,6 +38,12 @@
   <ItemGroup>
     <ProjectReference Include="..\..\Shared\CortexTerminal.Contracts\CortexTerminal.Contracts.csproj" />
     <TrimmerRootAssembly Include="CortexTerminal.Contracts" />
+    <!-- Root the ASP.NET Core feature-interfaces assembly. It sits on the trimming edge — older
+         builds where the loopback Kestrel host's feature usage dropped below the analyzer's
+         threshold had this entire assembly pruned, throwing FileNotFoundException for
+         Microsoft.AspNetCore.Http.Features while Kestrel processed /agent-event requests.
+         Rooting it guarantees the feature interfaces survive regardless of future code churn. -->
+    <TrimmerRootAssembly Include="Microsoft.AspNetCore.Http.Features" />
   </ItemGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
