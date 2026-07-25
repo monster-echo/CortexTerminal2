@@ -334,12 +334,14 @@ forwardedHeadersOptions.KnownIPNetworks.Clear();
 forwardedHeadersOptions.KnownProxies.Clear();
 app.UseForwardedHeaders(forwardedHeadersOptions);
 
-// Auto-migrate database schema (Postgres only — in-memory provider auto-creates)
-if (!useInMemory)
+// Auto-migrate database schema (Postgres only — in-memory provider auto-creates).
+// Seed ALWAYS runs: production Postgres after migrate, AND InMemory (tests).
+// A seed failure must surface as a loud startup error, not be swallowed.
+using (var scope = app.Services.CreateScope())
 {
-    using (var scope = app.Services.CreateScope())
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    if (!useInMemory)
     {
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         try
         {
             await db.Database.MigrateAsync();
@@ -349,18 +351,19 @@ if (!useInMemory)
             var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
             logger.LogWarning(ex, "Failed to connect to PostgreSQL database.");
         }
-        // Seed outside the migration try/catch: a seed failure must surface as a
-        // loud startup error, not be swallowed as a Postgres connection warning.
-        await PlanCatalog.SeedAsync(db, membershipOptions);
     }
+    // Seed outside the migration try/catch: a seed failure must surface as a
+    // loud startup error, not be swallowed as a Postgres connection warning.
+    await PlanCatalog.SeedAsync(db, membershipOptions);
+}
 
+if (!useInMemory)
+{
     // Recover active sessions from database after restart
-    {
-        var sessionCoordinator = app.Services.GetRequiredService<ISessionCoordinator>();
-        await sessionCoordinator.RecoverActiveSessionsAsync();
-        var recoveryLogger = app.Services.GetRequiredService<ILogger<Program>>();
-        recoveryLogger.LogInformation("Session recovery completed");
-    }
+    var sessionCoordinator = app.Services.GetRequiredService<ISessionCoordinator>();
+    await sessionCoordinator.RecoverActiveSessionsAsync();
+    var recoveryLogger = app.Services.GetRequiredService<ILogger<Program>>();
+    recoveryLogger.LogInformation("Session recovery completed");
 }
 
 // Seed dev user if Users table is empty

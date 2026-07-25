@@ -106,17 +106,18 @@ public sealed class GatewayApplicationFactory : WebApplicationFactory<Program>
             """<!doctype html><html><head><title>Corterm</title></head><body></body></html>""");
         builder.UseWebRoot(_testWebRoot);
 
-        // Seed Plan catalog + default test users as a hosted service that runs during real host
-        // startup (after Program.cs) so EntitlementService resolves real Free-tier quotas
-        // (MaxWorkers=1) for authenticated test connections. Program.cs only seeds Plans under
-        // !InMemory, and the test users don't exist by default — without this the worker-quota
-        // gate (T9) would deny every RegisterWorker via the unknown-user fallback (MaxWorkers=0).
+        // Seed default test users as a hosted service that runs during real host startup
+        // (after Program.cs). Plan catalog is now seeded by Program.cs itself regardless of
+        // InMemory mode, so EntitlementService resolves real Free-tier quotas (MaxWorkers=1)
+        // for authenticated test connections. The test users still don't exist by default —
+        // without this the worker-quota gate (T9) would deny every RegisterWorker via the
+        // unknown-user fallback (MaxWorkers=0).
         builder.ConfigureServices(services => services.AddHostedService<TestDataSeeder>());
     }
 
     /// <summary>
-    /// Runs once at host startup to seed the plan catalog and the default test users into the
-    /// SAME host that serves test requests.
+    /// Runs once at host startup to seed the default test users into the SAME host that
+    /// serves test requests. (Plan catalog is seeded by Program.cs.)
     /// </summary>
     private sealed class TestDataSeeder : IHostedService
     {
@@ -127,7 +128,6 @@ public sealed class GatewayApplicationFactory : WebApplicationFactory<Program>
         {
             using var scope = _services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            await PlanCatalog.SeedAsync(db, new MembershipOptions());
             await SeedTestUserAsync(db, "test-user", "user");
             await SeedTestUserAsync(db, "test-admin", "admin");
             await db.SaveChangesAsync(cancellationToken);
