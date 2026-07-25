@@ -338,17 +338,19 @@ if (!useInMemory)
 {
     using (var scope = app.Services.CreateScope())
     {
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         try
         {
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             await db.Database.MigrateAsync();
-            await PlanCatalog.SeedAsync(db, membershipOptions);
         }
         catch (Exception ex)
         {
             var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
             logger.LogWarning(ex, "Failed to connect to PostgreSQL database.");
         }
+        // Seed outside the migration try/catch: a seed failure must surface as a
+        // loud startup error, not be swallowed as a Postgres connection warning.
+        await PlanCatalog.SeedAsync(db, membershipOptions);
     }
 
     // Recover active sessions from database after restart

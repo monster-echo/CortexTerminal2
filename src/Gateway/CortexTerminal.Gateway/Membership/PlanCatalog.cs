@@ -47,6 +47,7 @@ public static class PlanCatalog
             plan.MaxScrollbackMegabytes = maxScrollbackMb;
             plan.SortOrder = sortOrder;
             plan.UpdatedAtUtc = DateTimeOffset.UtcNow;
+            // IsActive intentionally preserved on update — admin may have deactivated a plan.
             return;
         }
         db.Plans.Add(new Plan
