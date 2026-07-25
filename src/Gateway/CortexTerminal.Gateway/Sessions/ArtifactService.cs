@@ -3,6 +3,7 @@ using CortexTerminal.Contracts.Streaming;
 using CortexTerminal.Gateway.Audit;
 using CortexTerminal.Gateway.Data;
 using CortexTerminal.Gateway.Hubs;
+using CortexTerminal.Gateway.Membership;
 using CortexTerminal.Gateway.Storage;
 using CortexTerminal.Gateway.WebSockets;
 using CortexTerminal.Gateway.Workers;
@@ -25,9 +26,11 @@ public sealed class ArtifactService(
     IHubContext<TerminalHub> terminalHub,
     IArtifactCommandDispatcher workerCommands,
     IOptions<ArtifactStorageOptions> options,
-    ILogger<ArtifactService> logger)
+    ILogger<ArtifactService> logger,
+    IEntitlementService entitlements)
 {
     private readonly ArtifactStorageOptions _options = options.Value;
+    private readonly IEntitlementService _entitlements = entitlements;
 
     private static readonly HashSet<string> ValidOrigins = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -50,7 +53,7 @@ public sealed class ArtifactService(
 
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         EnsureSessionOwnedByUser(request.SessionId, userId);
-        await EnsureSessionQuotaAvailableAsync(db, request.SessionId, ct);
+        await EnsureSessionQuotaAvailableAsync(db, request.SessionId, userId, ct);
 
         // Console uploads reject duplicate filenames (409 contract). Worker uploads use last-write-wins.
         if (await db.Artifacts.AnyAsync(a => a.SessionId == request.SessionId && a.Filename == filename, ct))
@@ -142,7 +145,7 @@ public sealed class ArtifactService(
         ArtifactEntity? loadedFromDb = null;
         if (existing is null)
         {
-            await EnsureSessionQuotaAvailableAsync(db, request.SessionId, ct);
+            await EnsureSessionQuotaAvailableAsync(db, request.SessionId, workerOwnerUserId, ct);
             existing = new ArtifactEntity
             {
                 Id = Guid.NewGuid().ToString("N"),
@@ -353,10 +356,14 @@ public sealed class ArtifactService(
         if (session.UserId != workerOwnerUserId) throw new UnauthorizedAccessException("Worker does not own session");
     }
 
-    private async Task EnsureSessionQuotaAvailableAsync(AppDbContext db, string sessionId, CancellationToken ct)
+    private async Task EnsureSessionQuotaAvailableAsync(AppDbContext db, string sessionId, string userId, CancellationToken ct)
     {
+        var entitlement = await _entitlements.GetEntitlementAsync(userId, ct);
         var count = await db.Artifacts.CountAsync(a => a.SessionId == sessionId && a.Status != ArtifactStatus.Deleted, ct);
-        if (count >= _options.MaxArtifactsPerSession) throw new InvalidOperationException("Session artifact quota exceeded");
+        if (count >= entitlement.MaxArtifactsPerSession)
+            throw new MembershipQuotaExceededException(
+                $"Artifact quota exceeded: {count}/{entitlement.MaxArtifactsPerSession} for plan {entitlement.PlanCode}.",
+                "artifact_quota_exceeded");
     }
 
     private async Task BroadcastArtifactChangeAsync(ArtifactEntity entity, string changeType, CancellationToken ct)
