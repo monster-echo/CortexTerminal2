@@ -297,6 +297,7 @@ builder.Services.AddSingleton<IArtifactStorage, S3CompatibleArtifactStorage>();
 builder.Services.AddSingleton<IArtifactCommandDispatcher, SignalRArtifactCommandDispatcher>();
 builder.Services.AddSingleton<ArtifactService>();
 builder.Services.AddSingleton<AgentActivityService>();
+builder.Services.AddSingleton<IEntitlementService, EntitlementService>();
 builder.Services.AddHostedService<ArtifactCleanupHostedService>();
 
 var useInMemory = builder.Configuration.GetValue<bool>("Database:UseInMemory");
