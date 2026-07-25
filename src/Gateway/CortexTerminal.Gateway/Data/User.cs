@@ -36,6 +36,18 @@ public class User
     [Column("status")]
     public string Status { get; set; } = "active";
 
+    [Required]
+    [StringLength(16)]
+    [Column("membership_tier")]
+    public string MembershipTier { get; set; } = "free";
+
+    [StringLength(64)]
+    [Column("membership_plan_id")]
+    public string? MembershipPlanId { get; set; }
+
+    [Column("membership_expires_at_utc")]
+    public DateTimeOffset? MembershipExpiresAtUtc { get; set; }
+
     [Column("auth_provider")]
     public string? AuthProvider { get; set; }
 
