@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using CortexTerminal.Gateway.Membership;
+using Microsoft.EntityFrameworkCore;
 
 namespace CortexTerminal.Gateway.Data;
 
@@ -26,6 +27,7 @@ public class MembershipOrder
     public string BillingPeriod { get; set; } = BillingPeriods.None;
 
     [Column("amount")]
+    [Precision(18, 2)]
     public decimal Amount { get; set; }
 
     [Required]
