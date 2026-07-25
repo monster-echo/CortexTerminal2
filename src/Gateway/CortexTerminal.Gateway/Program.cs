@@ -10,6 +10,7 @@ using CortexTerminal.Gateway.Audit;
 using CortexTerminal.Gateway.Auth;
 using CortexTerminal.Gateway.Data;
 using CortexTerminal.Gateway.Hubs;
+using CortexTerminal.Gateway.Membership;
 using CortexTerminal.Gateway.Sessions;
 using CortexTerminal.Gateway.Storage;
 using CortexTerminal.Gateway.Support;
@@ -287,6 +288,10 @@ if (int.TryParse(scrollbackEnvBytes, out var envMaxBytes) && envMaxBytes > 0)
 }
 builder.Services.AddSingleton(scrollbackSettings);
 
+var membershipOptions = new MembershipOptions();
+builder.Configuration.GetSection(MembershipOptions.SectionName).Bind(membershipOptions);
+builder.Services.AddSingleton(membershipOptions);
+
 builder.Services.Configure<ArtifactStorageOptions>(builder.Configuration.GetSection(ArtifactStorageOptions.SectionName));
 builder.Services.AddSingleton<IArtifactStorage, S3CompatibleArtifactStorage>();
 builder.Services.AddSingleton<IArtifactCommandDispatcher, SignalRArtifactCommandDispatcher>();
@@ -337,6 +342,7 @@ if (!useInMemory)
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             await db.Database.MigrateAsync();
+            await PlanCatalog.SeedAsync(db, membershipOptions);
         }
         catch (Exception ex)
         {
