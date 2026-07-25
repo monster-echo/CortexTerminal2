@@ -1853,6 +1853,33 @@ app.MapGet("/api/billing/subscription", async (ClaimsPrincipal user, IServicePro
     });
 }).RequireAuthorization();
 
+app.MapPost("/api/billing/redeem", async (RedeemRequest body, ClaimsPrincipal user, IServiceProvider serviceProvider, IAuditLogStore auditLog) =>
+{
+    var userId = GetUserId(user);
+    var normalized = (body.Code ?? "").Trim().ToUpperInvariant();
+    var membership = serviceProvider.GetRequiredService<MembershipService>();
+    Subscription sub;
+    try
+    {
+        sub = await membership.RedeemAsync(userId, normalized, CancellationToken.None);
+    }
+    catch (RedeemCodeInvalidException ex) { return Results.BadRequest(new { errorCode = RedeemCodeInvalidException.ErrorCode, message = ex.Message }); }
+    catch (RedeemCodeExhaustedException ex) { return Results.Conflict(new { errorCode = RedeemCodeExhaustedException.ErrorCode, message = ex.Message }); }
+    catch (RedeemCodeExpiredException ex) { return Results.Conflict(new { errorCode = RedeemCodeExpiredException.ErrorCode, message = ex.Message }); }
+    catch (RedeemCodeAlreadyUsedException ex) { return Results.Conflict(new { errorCode = RedeemCodeAlreadyUsedException.ErrorCode, message = ex.Message }); }
+    catch (DbUpdateException) { return Results.Conflict(new { errorCode = RedeemCodeExhaustedException.ErrorCode, message = "Redeem code is fully used." }); }
+
+    var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
+    using var scope = scopeFactory.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var plan = await db.Plans.FindAsync(sub.PlanId) ?? throw new InvalidOperationException("Plan disappeared after redeem.");
+    auditLog.Record(new AuditLogEntry(
+        Id: Guid.NewGuid().ToString("N"), Timestamp: DateTimeOffset.UtcNow,
+        UserId: userId, UserName: userId, Action: "membership.redeem",
+        TargetEntity: "subscription", TargetId: sub.Id));
+    return Results.Ok(new { tier = plan.Tier, planCode = plan.Code, isActive = true });
+}).RequireAuthorization();
+
 // ---- Gateway Info ----
 var gatewayVersion = Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3) ?? "0.0.0";
 var githubRepo = builder.Configuration["GitHub:Repo"] ?? "monster-echo/CortexTerminal2";
@@ -2760,6 +2787,7 @@ record SendPhoneLinkCodeRequest(string Phone);
 record RenameSessionRequest(string? Name);
 record UpdatePreferencesRequest(int ScrollbackMaxBytes);
 record UpdateProfileRequest(string DisplayName);
+record RedeemRequest(string Code);
 
 internal sealed class SubClaimUserIdProvider : IUserIdProvider
 {

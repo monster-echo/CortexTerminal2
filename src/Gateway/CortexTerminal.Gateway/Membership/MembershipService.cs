@@ -64,6 +64,7 @@ public sealed class MembershipService(IDbContextFactory<AppDbContext> dbFactory)
         var plan = await db.Plans.FindAsync(new object?[] { redeem.PlanId }, ct)
             ?? throw new RedeemCodeInvalidException("Redeem code references an invalid plan.");
         var user = await db.Users.FindAsync(new object?[] { userId }, ct)
+            ?? await db.Users.FirstOrDefaultAsync(u => u.Username == userId, ct)
             ?? throw new ArgumentException($"User not found: {userId}");
 
         var now = DateTimeOffset.UtcNow;
