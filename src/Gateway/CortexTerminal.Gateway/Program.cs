@@ -1822,6 +1822,37 @@ var renameSessionHandler = async (string sessionId, RenameSessionRequest request
 app.MapPut("/api/me/sessions/{sessionId}", renameSessionHandler).RequireAuthorization();
 app.MapPatch("/api/me/sessions/{sessionId}", renameSessionHandler).RequireAuthorization();
 
+// ---- Billing ----
+app.MapGet("/api/billing/plans", async (IServiceProvider serviceProvider) =>
+{
+    var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
+    using var scope = scopeFactory.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var plans = await db.Plans.Where(p => p.IsActive).OrderBy(p => p.SortOrder).ToListAsync();
+    return Results.Ok(plans.Select(p => new
+    {
+        code = p.Code, tier = p.Tier, billingPeriod = p.BillingPeriod,
+        priceAmount = p.PriceAmount, priceCurrency = p.PriceCurrency,
+        maxWorkers = p.MaxWorkers, maxArtifactsPerSession = p.MaxArtifactsPerSession,
+        maxArtifactSizeBytes = p.MaxArtifactSizeBytes, maxArtifactAgeDays = p.MaxArtifactAgeDays,
+        maxScrollbackMegabytes = p.MaxScrollbackMegabytes, featureFlags = p.FeatureFlags,
+    }));
+});   // PUBLIC — no RequireAuthorization (pricing page shows plans before login)
+
+app.MapGet("/api/billing/subscription", async (ClaimsPrincipal user, IServiceProvider serviceProvider) =>
+{
+    var userId = GetUserId(user);
+    var entitlements = serviceProvider.GetRequiredService<IEntitlementService>();
+    var e = await entitlements.GetEntitlementAsync(userId, CancellationToken.None);
+    return Results.Ok(new
+    {
+        tier = e.Tier, planCode = e.PlanCode, isActive = e.IsActive,
+        expiresAtUtc = e.ExpiresAtUtc, maxWorkers = e.MaxWorkers,
+        maxArtifactsPerSession = e.MaxArtifactsPerSession,
+        maxScrollbackMegabytes = e.MaxScrollbackMegabytes,
+    });
+}).RequireAuthorization();
+
 // ---- Gateway Info ----
 var gatewayVersion = Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3) ?? "0.0.0";
 var githubRepo = builder.Configuration["GitHub:Repo"] ?? "monster-echo/CortexTerminal2";
