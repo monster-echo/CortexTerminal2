@@ -538,12 +538,15 @@ app.MapGet("/api/me/profile", async (ClaimsPrincipal userPrincipal, IServiceProv
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var prefService = scope.ServiceProvider.GetRequiredService<UserPreferenceService>();
         var scrollback = scope.ServiceProvider.GetRequiredService<ScrollbackSettings>();
+        var entitlements = scope.ServiceProvider.GetRequiredService<IEntitlementService>();
         var user = await db.Users.FindAsync(userId);
         if (user is null)
             user = await db.Users.FirstOrDefaultAsync(u => u.Username == userId);
         if (user is null)
             return Results.NotFound(new { error = "User not found" });
 
+        var entitlement = await entitlements.GetEntitlementAsync(user.Id, CancellationToken.None);
+        var tierScrollbackBytes = entitlement.MaxScrollbackMegabytes * 1024L * 1024L;
         return Results.Ok(new
         {
             id = user.Id,
@@ -559,7 +562,7 @@ app.MapGet("/api/me/profile", async (ClaimsPrincipal userPrincipal, IServiceProv
             scrollbackMaxBytes = await prefService.GetScrollbackMaxBytesAsync(user.Id, CancellationToken.None)
                 ?? scrollback.MaxBytes,
             scrollbackMinAllowedBytes = scrollback.MinAllowedBytes,
-            scrollbackMaxAllowedBytes = scrollback.MaxAllowedBytes,
+            scrollbackMaxAllowedBytes = tierScrollbackBytes,
         });
     }
     catch (InvalidOperationException)
