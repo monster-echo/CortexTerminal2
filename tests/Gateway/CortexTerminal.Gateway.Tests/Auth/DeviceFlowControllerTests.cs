@@ -7,11 +7,14 @@ using FluentAssertions;
 using CortexTerminal.Contracts.Auth;
 using CortexTerminal.Contracts.Sessions;
 using CortexTerminal.Gateway.Data;
+using CortexTerminal.Gateway.Membership;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.IdentityModel.Tokens;
 using Xunit;
 
@@ -102,6 +105,51 @@ public sealed class GatewayApplicationFactory : WebApplicationFactory<Program>
             Path.Combine(_testWebRoot, "index.html"),
             """<!doctype html><html><head><title>Corterm</title></head><body></body></html>""");
         builder.UseWebRoot(_testWebRoot);
+
+        // Seed Plan catalog + default test users as a hosted service that runs during real host
+        // startup (after Program.cs) so EntitlementService resolves real Free-tier quotas
+        // (MaxWorkers=1) for authenticated test connections. Program.cs only seeds Plans under
+        // !InMemory, and the test users don't exist by default — without this the worker-quota
+        // gate (T9) would deny every RegisterWorker via the unknown-user fallback (MaxWorkers=0).
+        builder.ConfigureServices(services => services.AddHostedService<TestDataSeeder>());
+    }
+
+    /// <summary>
+    /// Runs once at host startup to seed the plan catalog and the default test users into the
+    /// SAME host that serves test requests.
+    /// </summary>
+    private sealed class TestDataSeeder : IHostedService
+    {
+        private readonly IServiceProvider _services;
+        public TestDataSeeder(IServiceProvider services) => _services = services;
+
+        public async Task StartAsync(CancellationToken cancellationToken)
+        {
+            using var scope = _services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await PlanCatalog.SeedAsync(db, new MembershipOptions());
+            await SeedTestUserAsync(db, "test-user", "user");
+            await SeedTestUserAsync(db, "test-admin", "admin");
+            await db.SaveChangesAsync(cancellationToken);
+        }
+
+        public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    private static async Task SeedTestUserAsync(AppDbContext db, string username, string role)
+    {
+        var existing = await db.Users.FindAsync(username);
+        if (existing is not null) return;
+        db.Users.Add(new User
+        {
+            Id = username,
+            Username = username,
+            Role = role,
+            Status = "active",
+            MembershipTier = MembershipTiers.Free,
+            CreatedAtUtc = DateTimeOffset.UtcNow,
+            UpdatedAtUtc = DateTimeOffset.UtcNow,
+        });
     }
 
     protected override void Dispose(bool disposing)

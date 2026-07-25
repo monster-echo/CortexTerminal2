@@ -41,7 +41,7 @@ public sealed class ArtifactQuotaGateTests
             await seed.SaveChangesAsync();
         }
 
-        var entitlements = new EntitlementService(factory, NullLogger<EntitlementService>.Instance);
+        var entitlements = new EntitlementService(factory, global::NSubstitute.Substitute.For<IWorkerRegistry>(), NullLogger<EntitlementService>.Instance);
         var workers = TestSessionFactory.CreateWorkerRegistry();
         workers.Register("worker-1", "worker-conn-1", ownerUserId: userId);
         var sessions = TestSessionFactory.CreateCoordinator(workers);

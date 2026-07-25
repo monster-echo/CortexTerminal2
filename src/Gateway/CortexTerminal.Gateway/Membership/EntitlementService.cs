@@ -1,10 +1,12 @@
 using CortexTerminal.Gateway.Data;
+using CortexTerminal.Gateway.Workers;
 using Microsoft.EntityFrameworkCore;
 
 namespace CortexTerminal.Gateway.Membership;
 
 public sealed class EntitlementService(
     IDbContextFactory<AppDbContext> dbFactory,
+    IWorkerRegistry workers,
     ILogger<EntitlementService> logger)
     : IEntitlementService
 {
@@ -39,8 +41,10 @@ public sealed class EntitlementService(
     public async Task EnforceWorkerQuotaAsync(string userId, CancellationToken ct)
     {
         var e = await GetEntitlementAsync(userId, ct);
-        await using var db = await dbFactory.CreateDbContextAsync(ct);
-        var onlineCount = await db.Workers.CountAsync(w => w.OwnerUserId == userId && w.IsOnline, ct);
+        // Authoritative source is the registry's in-memory live-worker set, NOT the DB:
+        // PostgresWorkerRegistry.Register persists fire-and-forget and the DB write may lag or
+        // fail silently. Strict ownership (null-owner public workers don't count).
+        var onlineCount = workers.CountOnlineWorkersForUser(userId);
         if (onlineCount >= e.MaxWorkers)
             throw new MembershipQuotaExceededException(
                 $"Worker quota exceeded: {onlineCount}/{e.MaxWorkers}. Upgrade to Pro for more devices.",

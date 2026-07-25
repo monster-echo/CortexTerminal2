@@ -1,5 +1,6 @@
 using CortexTerminal.Gateway.Data;
 using CortexTerminal.Gateway.Membership;
+using CortexTerminal.Gateway.Workers;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -14,7 +15,7 @@ public sealed class EntitlementServiceTests
         var factory = TestSessionFactory.CreateContextFactoryPublic();
         var db = await factory.CreateDbContextAsync();
         await PlanCatalog.SeedAsync(db, new MembershipOptions());
-        var svc = new EntitlementService(factory, NullLogger<EntitlementService>.Instance);
+        var svc = new EntitlementService(factory, global::NSubstitute.Substitute.For<IWorkerRegistry>(), NullLogger<EntitlementService>.Instance);
         return (db, svc);
     }
 
