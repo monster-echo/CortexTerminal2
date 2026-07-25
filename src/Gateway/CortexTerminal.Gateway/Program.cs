@@ -37,7 +37,8 @@ builder.Logging.AddSimpleConsole(options =>
 var signingKey = builder.Configuration["Auth:SigningKey"] ?? "gateway-auth-signing-key-minimum-32b";
 var gatewayAudiences = new[] { "corterm-gateway", "cortex-terminal-gateway" };
 
-string CreateAccessToken(string username, string? email = null, string? role = null)
+string CreateAccessToken(string username, string? email = null, string? role = null,
+    string? membershipTier = null, DateTimeOffset? membershipExpiresUtc = null)
 {
     var claims = new List<Claim>
     {
@@ -50,6 +51,12 @@ string CreateAccessToken(string username, string? email = null, string? role = n
         claims.Add(new Claim(JwtRegisteredClaimNames.Email, email));
     if (!string.IsNullOrEmpty(role))
         claims.Add(new Claim("role", role));
+    if (!string.IsNullOrEmpty(membershipTier))
+    {
+        claims.Add(new Claim("membership_tier", membershipTier));
+        if (membershipExpiresUtc is not null)
+            claims.Add(new Claim("membership_expires", membershipExpiresUtc.Value.ToUnixTimeSeconds().ToString()));
+    }
     var credentials = new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey)), SecurityAlgorithms.HmacSha256);
     var token = new JwtSecurityToken(
         issuer: "https://gateway.local/",
@@ -485,6 +492,9 @@ app.MapPost("/api/auth/refresh", async (ClaimsPrincipal user, IServiceProvider s
     var userId = GetUserId(user);
     var isWorker = user.HasClaim("role", "worker");
     var existingRole = user.FindFirstValue("role");
+    string? dbUserEmail = null;
+    string? dbUserMembershipTier = null;
+    DateTimeOffset? dbUserMembershipExpiresAtUtc = null;
 
     // Check user status for non-worker refresh
     if (!isWorker)
@@ -502,12 +512,19 @@ app.MapPost("/api/auth/refresh", async (ClaimsPrincipal user, IServiceProvider s
                 if (dbUser.Status == "disabled" || dbUser.Status == "deleted")
                     return Results.Json(new { error = "Account not found or has been deactivated" }, statusCode: 401);
                 existingRole = dbUser.Role;
+                dbUserEmail = dbUser.Email;
+                dbUserMembershipTier = dbUser.MembershipTier;
+                dbUserMembershipExpiresAtUtc = dbUser.MembershipExpiresAtUtc;
             }
         }
         catch (Exception) { }
     }
 
-    var accessToken = isWorker ? CreateWorkerAccessToken(userId) : CreateAccessToken(userId, role: existingRole);
+    var accessToken = isWorker
+        ? CreateWorkerAccessToken(userId)
+        : CreateAccessToken(userId, dbUserEmail, existingRole,
+            membershipTier: dbUserMembershipTier,
+            membershipExpiresUtc: dbUserMembershipExpiresAtUtc);
     return Results.Ok(new { accessToken });
 }).RequireAuthorization();
 
@@ -976,7 +993,9 @@ app.MapGet("/api/auth/callback/github", async (string? code, string? state, OAut
     if (dbUser is null || dbUser.Status == "disabled" || dbUser.Status == "deleted")
         return OAuthRedirect(redirectUrl, error: "account_disabled");
 
-    var jwt = CreateAccessToken(dbUser.Username, dbUser.Email, dbUser.Role);
+    var jwt = CreateAccessToken(dbUser.Username, dbUser.Email, dbUser.Role,
+        membershipTier: dbUser.MembershipTier,
+        membershipExpiresUtc: dbUser.MembershipExpiresAtUtc);
     auditLog.Record(new AuditLogEntry(
         Id: Guid.NewGuid().ToString("N"),
         Timestamp: DateTimeOffset.UtcNow,
@@ -1061,7 +1080,9 @@ app.MapGet("/api/auth/callback/google", async (string? code, string? state, OAut
     if (dbUser is null || dbUser.Status == "disabled" || dbUser.Status == "deleted")
         return OAuthRedirect(redirectUrl, error: "account_disabled");
 
-    var jwt = CreateAccessToken(dbUser.Username, dbUser.Email, dbUser.Role);
+    var jwt = CreateAccessToken(dbUser.Username, dbUser.Email, dbUser.Role,
+        membershipTier: dbUser.MembershipTier,
+        membershipExpiresUtc: dbUser.MembershipExpiresAtUtc);
     auditLog.Record(new AuditLogEntry(
         Id: Guid.NewGuid().ToString("N"),
         Timestamp: DateTimeOffset.UtcNow,
@@ -1142,7 +1163,9 @@ app.MapPost("/api/auth/password/login", async (PasswordLoginRequest request, ISe
         user.LastLoginAtUtc = DateTimeOffset.UtcNow;
         user.UpdatedAtUtc = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync();
-        var jwt = CreateAccessToken(user.Username, user.Email, user.Role);
+        var jwt = CreateAccessToken(user.Username, user.Email, user.Role,
+            membershipTier: user.MembershipTier,
+            membershipExpiresUtc: user.MembershipExpiresAtUtc);
         return Results.Ok(new { accessToken = jwt, username = user.Username });
     }
     catch (InvalidOperationException)
@@ -1380,7 +1403,9 @@ app.MapPost("/api/auth/phone/verify", async (VerifyCodeRequest request, PhoneCod
         return Results.BadRequest(new { error = "Account disabled" });
 
     attemptTracker.RecordSuccess(clientIp);
-    var jwt = CreateAccessToken(dbUser.Username, dbUser.Email, dbUser.Role);
+    var jwt = CreateAccessToken(dbUser.Username, dbUser.Email, dbUser.Role,
+        membershipTier: dbUser.MembershipTier,
+        membershipExpiresUtc: dbUser.MembershipExpiresAtUtc);
     auditLog.Record(new AuditLogEntry(
         Id: Guid.NewGuid().ToString("N"),
         Timestamp: DateTimeOffset.UtcNow,
@@ -1457,7 +1482,9 @@ app.MapPost("/api/auth/huawei/quick-login", async (HuaweiQuickLoginRequest reque
         if (dbUser is null || dbUser.Status == "disabled" || dbUser.Status == "deleted")
             return Results.BadRequest(new { error = "Account disabled" });
 
-        var jwt = CreateAccessToken(dbUser.Username, dbUser.Email, dbUser.Role);
+        var jwt = CreateAccessToken(dbUser.Username, dbUser.Email, dbUser.Role,
+        membershipTier: dbUser.MembershipTier,
+        membershipExpiresUtc: dbUser.MembershipExpiresAtUtc);
         auditLog.Record(new AuditLogEntry(
             Id: Guid.NewGuid().ToString("N"),
             Timestamp: DateTimeOffset.UtcNow,
@@ -1585,7 +1612,9 @@ app.MapPost("/api/auth/callback/apple", async (HttpContext ctx, OAuthStateServic
         }
     }
 
-    var jwt = CreateAccessToken(dbUser.Username, dbUser.Email, dbUser.Role);
+    var jwt = CreateAccessToken(dbUser.Username, dbUser.Email, dbUser.Role,
+        membershipTier: dbUser.MembershipTier,
+        membershipExpiresUtc: dbUser.MembershipExpiresAtUtc);
     auditLog.Record(new AuditLogEntry(
         Id: Guid.NewGuid().ToString("N"),
         Timestamp: DateTimeOffset.UtcNow,
