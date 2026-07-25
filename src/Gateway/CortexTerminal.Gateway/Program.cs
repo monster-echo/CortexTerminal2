@@ -131,6 +131,11 @@ static string GetUserId(ClaimsPrincipal user)
         ?? user.Identity?.Name
         ?? "unknown";
 
+static string GenerateCodeSegment()
+{
+    return Guid.NewGuid().ToString("N").Substring(0, 8).ToUpperInvariant();
+}
+
 static string NormalizeVersion(string version)
     => System.Text.RegularExpressions.Regex.Replace(version, @"(\.0)+$", "");
 
@@ -1880,6 +1885,65 @@ app.MapPost("/api/billing/redeem", async (RedeemRequest body, ClaimsPrincipal us
     return Results.Ok(new { tier = plan.Tier, planCode = plan.Code, isActive = true });
 }).RequireAuthorization();
 
+// ---- Admin Membership Endpoints ----
+app.MapPost("/api/admin/membership/grant", async (GrantRequest body, ClaimsPrincipal user, IServiceProvider serviceProvider, IAuditLogStore auditLog) =>
+{
+    var actorId = GetUserId(user);
+    if (!await IsAdmin(serviceProvider, actorId)) return Results.Forbid();
+
+    var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
+    using var scope = scopeFactory.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var membership = scope.ServiceProvider.GetRequiredService<MembershipService>();
+
+    var plan = await db.Plans.FirstOrDefaultAsync(p => p.Code == body.PlanCode && p.IsActive);
+    if (plan is null) return Results.BadRequest(new { error = "Unknown plan code" });
+    var target = await db.Users.FindAsync(body.UserId)
+        ?? await db.Users.FirstOrDefaultAsync(u => u.Username == body.UserId);
+    if (target is null) return Results.NotFound(new { error = "User not found" });
+
+    var sub = await membership.GrantAsync(target.Id, plan.Id, OrderChannels.Manual,
+        expiresAtUtc: body.ExpiresAtUtc, grantedByUserId: actorId, sourceRedeemCodeId: null, ct: CancellationToken.None);
+    auditLog.Record(new AuditLogEntry(
+        Id: Guid.NewGuid().ToString("N"), Timestamp: DateTimeOffset.UtcNow,
+        UserId: actorId, UserName: actorId, Action: "membership.grant",
+        TargetEntity: "user", TargetId: target.Id));
+    return Results.Ok(new { subscriptionId = sub.Id, tier = plan.Tier, expiresAtUtc = sub.ExpiresAtUtc });
+}).RequireAuthorization();
+
+app.MapPost("/api/admin/redeem-codes", async (GenerateCodesRequest body, ClaimsPrincipal user, IServiceProvider serviceProvider, IAuditLogStore auditLog) =>
+{
+    var actorId = GetUserId(user);
+    if (!await IsAdmin(serviceProvider, actorId)) return Results.Forbid();
+
+    var opts = serviceProvider.GetRequiredService<MembershipOptions>();
+    var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
+    using var scope = scopeFactory.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var plan = await db.Plans.FirstOrDefaultAsync(p => p.Code == body.PlanCode && p.IsActive);
+    if (plan is null) return Results.BadRequest(new { error = "Unknown plan code" });
+
+    var batchId = Guid.NewGuid().ToString("N");
+    var codes = new List<string>();
+    for (var i = 0; i < body.Count; i++)
+    {
+        var code = $"{opts.RedeemCodePrefix}-{GenerateCodeSegment()}";
+        db.RedeemCodes.Add(new RedeemCode
+        {
+            Code = code, PlanId = plan.Id, BillingPeriod = plan.BillingPeriod,
+            BatchId = batchId, MaxUses = body.MaxUses ?? 1,
+            ExpiresAtUtc = body.ExpiresAtUtc, CreatedByUserId = actorId, IsActive = true,
+        });
+        codes.Add(code);
+    }
+    await db.SaveChangesAsync(CancellationToken.None);
+    auditLog.Record(new AuditLogEntry(
+        Id: Guid.NewGuid().ToString("N"), Timestamp: DateTimeOffset.UtcNow,
+        UserId: actorId, UserName: actorId, Action: "membership.redeem_code_generated",
+        TargetEntity: "redeem_code", TargetId: batchId));
+    return Results.Ok(new { codes, batchId });
+}).RequireAuthorization();
+
 // ---- Gateway Info ----
 var gatewayVersion = Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3) ?? "0.0.0";
 var githubRepo = builder.Configuration["GitHub:Repo"] ?? "monster-echo/CortexTerminal2";
@@ -2788,6 +2852,8 @@ record RenameSessionRequest(string? Name);
 record UpdatePreferencesRequest(int ScrollbackMaxBytes);
 record UpdateProfileRequest(string DisplayName);
 record RedeemRequest(string Code);
+public record GrantRequest(string UserId, string PlanCode, DateTimeOffset? ExpiresAtUtc);
+public record GenerateCodesRequest(string PlanCode, int Count, int? MaxUses, DateTimeOffset? ExpiresAtUtc);
 
 internal sealed class SubClaimUserIdProvider : IUserIdProvider
 {

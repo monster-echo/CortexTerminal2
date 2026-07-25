@@ -14,6 +14,7 @@ public sealed class MembershipService(IDbContextFactory<AppDbContext> dbFactory)
         var plan = await db.Plans.FindAsync(new object?[] { planId }, ct)
             ?? throw new ArgumentException($"Plan not found: {planId}");
         var user = await db.Users.FindAsync(new object?[] { userId }, ct)
+            ?? await db.Users.FirstOrDefaultAsync(u => u.Username == userId, ct)
             ?? throw new ArgumentException($"User not found: {userId}");
 
         var now = DateTimeOffset.UtcNow;
