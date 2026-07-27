@@ -12,6 +12,7 @@ using CortexTerminal.Gateway.Data;
 using CortexTerminal.Gateway.Hubs;
 using CortexTerminal.Gateway.Sessions;
 using CortexTerminal.Gateway.Storage;
+using CortexTerminal.Gateway.Tunnels;
 using CortexTerminal.Gateway.Support;
 using CortexTerminal.Gateway.WebSockets;
 using CortexTerminal.Gateway.Tts;
@@ -287,6 +288,7 @@ if (int.TryParse(scrollbackEnvBytes, out var envMaxBytes) && envMaxBytes > 0)
 }
 builder.Services.AddSingleton(scrollbackSettings);
 
+builder.Services.Configure<TunnelOptions>(builder.Configuration.GetSection(TunnelOptions.SectionName));
 builder.Services.Configure<ArtifactStorageOptions>(builder.Configuration.GetSection(ArtifactStorageOptions.SectionName));
 builder.Services.AddSingleton<IArtifactStorage, S3CompatibleArtifactStorage>();
 builder.Services.AddSingleton<IArtifactCommandDispatcher, SignalRArtifactCommandDispatcher>();
