@@ -154,6 +154,7 @@ export const zhStrings: Record<string, string> = {
   'settings.terminal': '终端',
   'settings.scrollback': '历史记录上限',
   'settings.scrollback_desc': '值越大可回看越多历史，但进入终端时加载更久',
+  'settings.scrollback_changed': '已切换为 {v}',
   'settings.connection': '连接',
   'settings.gateway_url': '网关地址',
   'settings.account': '账户',
