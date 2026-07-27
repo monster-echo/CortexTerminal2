@@ -27,4 +27,10 @@ public sealed class SignalRWorkerCommandDispatcher(IHubContext<WorkerHub> hubCon
 
     public Task<IReadOnlyList<TerminalChunk>> RequestScrollbackAsync(string workerConnectionId, string sessionId, CancellationToken cancellationToken)
         => hubContext.Clients.Client(workerConnectionId).InvokeAsync<IReadOnlyList<TerminalChunk>>("RequestScrollback", sessionId, cancellationToken);
+
+    public Task<ProbePortResponse> ProbeTunnelPortAsync(string workerConnectionId, int port, CancellationToken cancellationToken)
+        => hubContext.Clients.Client(workerConnectionId).InvokeAsync<ProbePortResponse>("ProbeTunnelPort", port, cancellationToken);
+
+    public Task<TunnelHttpResponse> SendTunnelHttpRequestAsync(string workerConnectionId, string tunnelId, TunnelHttpRequest request, CancellationToken cancellationToken)
+        => hubContext.Clients.Client(workerConnectionId).InvokeAsync<TunnelHttpResponse>("TunnelHttpRequest", request, cancellationToken);
 }

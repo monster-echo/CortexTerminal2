@@ -221,5 +221,11 @@ public sealed class TerminalHubReconnectTests
         public Task<IReadOnlyList<TerminalChunk>> RequestScrollbackAsync(string workerConnectionId, string sessionId, CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<TerminalChunk>>(
                 _scrollback.Select(item => new TerminalChunk(sessionId, item.Stream, item.Payload)).ToArray());
+
+        public Task<ProbePortResponse> ProbeTunnelPortAsync(string workerConnectionId, int port, CancellationToken cancellationToken)
+            => Task.FromResult(new ProbePortResponse(true, null));
+
+        public Task<TunnelHttpResponse> SendTunnelHttpRequestAsync(string workerConnectionId, string tunnelId, TunnelHttpRequest request, CancellationToken cancellationToken)
+            => Task.FromResult(new TunnelHttpResponse(200, new Dictionary<string, string[]>(), Array.Empty<byte>(), null));
     }
 }

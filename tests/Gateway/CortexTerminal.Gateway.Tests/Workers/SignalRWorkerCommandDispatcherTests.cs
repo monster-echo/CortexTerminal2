@@ -96,6 +96,48 @@ public sealed class SignalRWorkerCommandDispatcherTests
         workerClient.Invocations.Should().ContainSingle()
             .Which.Method.Should().Be("CloseSession");
     }
+
+    [Fact]
+    public async Task ProbeTunnelPortAsync_TargetsOnlySelectedWorkerConnection()
+    {
+        var workerClient = new RecordingClientProxy();
+        var otherClient = new RecordingClientProxy();
+        var hubContext = new TestHubContext<WorkerHub>(new Dictionary<string, IClientProxy>
+        {
+            ["worker-1"] = workerClient,
+            ["worker-2"] = otherClient
+        });
+        var dispatcher = new SignalRWorkerCommandDispatcher(hubContext);
+
+        await dispatcher.ProbeTunnelPortAsync("worker-1", 3000, CancellationToken.None);
+
+        workerClient.Invocations.Should().ContainSingle()
+            .Which.Method.Should().Be("ProbeTunnelPort");
+        workerClient.Invocations[0].Arguments.Should().Equal(new object[] { 3000 });
+        otherClient.Invocations.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task SendTunnelHttpRequestAsync_TargetsOnlySelectedWorkerConnection()
+    {
+        var workerClient = new RecordingClientProxy();
+        var otherClient = new RecordingClientProxy();
+        var hubContext = new TestHubContext<WorkerHub>(new Dictionary<string, IClientProxy>
+        {
+            ["worker-1"] = workerClient,
+            ["worker-2"] = otherClient
+        });
+        var dispatcher = new SignalRWorkerCommandDispatcher(hubContext);
+        var req = new TunnelHttpRequest("tun-1", 8080, "GET", "/", "", new Dictionary<string, string[]>(), Array.Empty<byte>());
+
+        await dispatcher.SendTunnelHttpRequestAsync("worker-1", "tun-1", req, CancellationToken.None);
+
+        workerClient.Invocations.Should().ContainSingle()
+            .Which.Method.Should().Be("TunnelHttpRequest");
+        workerClient.Invocations[0].Arguments.Should().HaveCount(1);
+        workerClient.Invocations[0].Arguments[0].Should().BeSameAs(req);
+        otherClient.Invocations.Should().BeEmpty();
+    }
 }
 
 internal sealed class TestHubContext<THub>(IReadOnlyDictionary<string, IClientProxy> clients) : IHubContext<THub> where THub : Hub
@@ -111,9 +153,11 @@ internal sealed class TestHubContext<THub>(IReadOnlyDictionary<string, IClientPr
 
         public IClientProxy AllExcept(IReadOnlyList<string> excludedConnectionIds) => throw new NotSupportedException();
 
-        public IClientProxy Client(string connectionId)
+        IClientProxy IHubClients<IClientProxy>.Client(string connectionId) => Client(connectionId);
+
+        public ISingleClientProxy Client(string connectionId)
             => clients.TryGetValue(connectionId, out var client)
-                ? client
+                ? (ISingleClientProxy)client
                 : throw new InvalidOperationException($"Missing client {connectionId}");
 
         public IClientProxy Clients(IReadOnlyList<string> connectionIds) => throw new NotSupportedException();

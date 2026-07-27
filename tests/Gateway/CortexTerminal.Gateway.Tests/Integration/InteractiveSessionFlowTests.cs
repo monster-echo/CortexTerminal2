@@ -266,5 +266,11 @@ public sealed class InteractiveSessionFlowTests : IClassFixture<GatewayApplicati
 
         public Task<IReadOnlyList<CortexTerminal.Contracts.Streaming.TerminalChunk>> RequestScrollbackAsync(string workerConnectionId, string sessionId, CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<CortexTerminal.Contracts.Streaming.TerminalChunk>>(Array.Empty<CortexTerminal.Contracts.Streaming.TerminalChunk>());
+
+        public Task<CortexTerminal.Contracts.Streaming.ProbePortResponse> ProbeTunnelPortAsync(string workerConnectionId, int port, CancellationToken cancellationToken)
+            => Task.FromResult(new CortexTerminal.Contracts.Streaming.ProbePortResponse(true, null));
+
+        public Task<CortexTerminal.Contracts.Streaming.TunnelHttpResponse> SendTunnelHttpRequestAsync(string workerConnectionId, string tunnelId, CortexTerminal.Contracts.Streaming.TunnelHttpRequest request, CancellationToken cancellationToken)
+            => Task.FromResult(new CortexTerminal.Contracts.Streaming.TunnelHttpResponse(200, new Dictionary<string, string[]>(), Array.Empty<byte>(), null));
     }
 }

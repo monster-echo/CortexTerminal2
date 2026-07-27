@@ -10,7 +10,7 @@ namespace CortexTerminal.Gateway.Tests.Hubs;
 
 internal sealed record ClientInvocation(string Method, IReadOnlyList<object?> Arguments);
 
-internal sealed class RecordingClientProxy(Action<string, object?[]>? onSend = null) : IClientProxy
+internal sealed class RecordingClientProxy(Action<string, object?[]>? onSend = null) : ISingleClientProxy
 {
     private readonly List<ClientInvocation> _invocations = [];
 
@@ -21,6 +21,12 @@ internal sealed class RecordingClientProxy(Action<string, object?[]>? onSend = n
         onSend?.Invoke(method, args);
         _invocations.Add(new ClientInvocation(method, args));
         return Task.CompletedTask;
+    }
+
+    public Task<T> InvokeCoreAsync<T>(string method, object?[] args, CancellationToken cancellationToken = default)
+    {
+        _invocations.Add(new ClientInvocation(method, args));
+        return Task.FromResult<T>(default!);
     }
 }
 
@@ -91,6 +97,10 @@ internal sealed class NoOpWorkerCommandDispatcher : IWorkerCommandDispatcher
     public Task UpgradeWorkerAsync(string workerConnectionId, UpgradeWorkerCommand command, CancellationToken cancellationToken) => Task.CompletedTask;
     public Task<IReadOnlyList<TerminalChunk>> RequestScrollbackAsync(string workerConnectionId, string sessionId, CancellationToken cancellationToken)
         => Task.FromResult<IReadOnlyList<TerminalChunk>>(Array.Empty<TerminalChunk>());
+    public Task<ProbePortResponse> ProbeTunnelPortAsync(string workerConnectionId, int port, CancellationToken cancellationToken)
+        => Task.FromResult(new ProbePortResponse(true, null));
+    public Task<TunnelHttpResponse> SendTunnelHttpRequestAsync(string workerConnectionId, string tunnelId, TunnelHttpRequest request, CancellationToken cancellationToken)
+        => Task.FromResult(new TunnelHttpResponse(200, new Dictionary<string, string[]>(), Array.Empty<byte>(), null));
 }
 
 internal sealed class NoOpStatsService : IGatewayStatsService
@@ -136,4 +146,8 @@ internal sealed class ThrowingWorkerCommandDispatcher(string message) : IWorkerC
 
     public Task<IReadOnlyList<TerminalChunk>> RequestScrollbackAsync(string workerConnectionId, string sessionId, CancellationToken cancellationToken)
         => Task.FromException<IReadOnlyList<TerminalChunk>>(new InvalidOperationException(message));
+    public Task<ProbePortResponse> ProbeTunnelPortAsync(string workerConnectionId, int port, CancellationToken cancellationToken)
+        => Task.FromException<ProbePortResponse>(new InvalidOperationException(message));
+    public Task<TunnelHttpResponse> SendTunnelHttpRequestAsync(string workerConnectionId, string tunnelId, TunnelHttpRequest request, CancellationToken cancellationToken)
+        => Task.FromException<TunnelHttpResponse>(new InvalidOperationException(message));
 }
