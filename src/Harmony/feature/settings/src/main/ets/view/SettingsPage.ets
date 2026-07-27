@@ -36,7 +36,7 @@ export struct SettingsPage {
     }
   }
 
-  private async saveScrollback(bytes: number) {
+  private async saveScrollback(bytes: number, label: string) {
     if (this.scrollbackSaving || bytes === this.scrollbackBytes) {
       return
     }
@@ -45,6 +45,7 @@ export struct SettingsPage {
     this.scrollbackBytes = bytes
     try {
       await ApiService.updateScrollbackMaxBytes(bytes)
+      showToast(I18n.get('settings.scrollback_changed').replace('{v}', label))
     } catch (e) {
       this.scrollbackBytes = previous
       showToast((e as Error).message || I18n.get('common.error'))
@@ -65,6 +66,11 @@ export struct SettingsPage {
       return value === 1048576
     }
     return value === 524288
+  }
+
+  /** 响应式 i18n：引用 currentLanguage 让 Text/Button 订阅 language，切语言时自动刷新 */
+  private tr(key: string): string {
+    return I18n.get(key) + (this.currentLanguage ? '' : '')
   }
 
   build() {
@@ -89,7 +95,7 @@ export struct SettingsPage {
               .borderRadius(28)
           }
 
-          Text(this.displayName || (I18n.get('settings.profile') + (this.currentLanguage ? '' : '')))
+          Text(this.displayName || this.tr('settings.profile'))
             .fontSize(18)
             .fontWeight(FontWeight.Bold)
             .fontColor($r('app.color.terminal_primary'))
@@ -106,7 +112,7 @@ export struct SettingsPage {
         this.SectionHeader('settings.appearance')
 
         Row() {
-          Text(I18n.get('settings.theme') + (this.currentLanguage ? '' : ''))
+          Text(this.tr('settings.theme'))
             .fontSize(14)
             .fontColor($r('app.color.terminal_primary'))
             .layoutWeight(1)
@@ -124,7 +130,7 @@ export struct SettingsPage {
         .margin({ bottom: 8 })
 
         Row() {
-          Text(I18n.get('settings.language') + (this.currentLanguage ? '' : ''))
+          Text(this.tr('settings.language'))
             .fontSize(14)
             .fontColor($r('app.color.terminal_primary'))
             .layoutWeight(1)
@@ -142,25 +148,28 @@ export struct SettingsPage {
 
         this.SectionHeader('settings.terminal')
 
-        Row() {
-          Column() {
-            Text(I18n.get('settings.scrollback'))
+        Column() {
+          Row() {
+            Text(this.tr('settings.scrollback'))
               .fontSize(14)
               .fontColor($r('app.color.terminal_primary'))
-            Text(I18n.get('settings.scrollback_desc'))
-              .fontSize(12)
-              .fontColor($r('app.color.terminal_on_surface_variant'))
-              .margin({ top: 2 })
-          }
-          .alignItems(HorizontalAlign.Start)
-          .layoutWeight(1)
+              .layoutWeight(1)
 
-          Row() {
-            this.ScrollbackOption('512K', 524288)
-            this.ScrollbackOption('1M', 1048576)
-            this.ScrollbackOption('2M', 2097152)
-            this.ScrollbackOption('5M', 5242880)
+            Row() {
+              this.ScrollbackOption('512K', 524288)
+              this.ScrollbackOption('1M', 1048576)
+              this.ScrollbackOption('2M', 2097152)
+              this.ScrollbackOption('5M', 5242880)
+            }
           }
+          .width('100%')
+
+          Text(this.tr('settings.scrollback_desc'))
+            .width('100%')
+            .maxLines(2)
+            .fontSize(12)
+            .fontColor($r('app.color.terminal_on_surface_variant'))
+            .margin({ top: 4 })
         }
         .width('calc(100% - 40vp)')
         .padding(14)
@@ -214,7 +223,7 @@ export struct SettingsPage {
           this.pageStack.pushPath({ name: RouteName.FEEDBACK, param: param })
         })
 
-        Button(I18n.get('settings.logout') + (this.currentLanguage ? '' : ''))
+        Button(this.tr('settings.logout'))
           .width('calc(100% - 40vp)')
           .height(48)
           .borderRadius(12)
@@ -231,7 +240,7 @@ export struct SettingsPage {
         // Watermark footer
         Column() {
           Row() {
-            Text(I18n.get('settings.footer_terms') + (this.currentLanguage ? '' : ''))
+            Text(this.tr('settings.footer_terms'))
               .fontSize(13)
               .fontColor($r('app.color.terminal_secondary'))
               .onClick(() => {
@@ -245,7 +254,7 @@ export struct SettingsPage {
               .fontSize(13)
               .fontColor($r('app.color.terminal_on_surface_variant'))
 
-            Text(I18n.get('settings.footer_privacy') + (this.currentLanguage ? '' : ''))
+            Text(this.tr('settings.footer_privacy'))
               .fontSize(13)
               .fontColor($r('app.color.terminal_secondary'))
               .onClick(() => {
@@ -285,7 +294,7 @@ export struct SettingsPage {
 
   @Builder
   SectionHeader(key: string) {
-    Text(I18n.get(key) + (this.currentLanguage ? '' : ''))
+    Text(this.tr(key))
       .fontSize(13)
       .fontWeight(FontWeight.Medium)
       .fontColor($r('app.color.terminal_secondary'))
@@ -296,7 +305,7 @@ export struct SettingsPage {
 
   @Builder
   ThemeOption(key: string, value: string) {
-    Text(I18n.get(key) + (this.currentLanguage ? '' : ''))
+    Text(this.tr(key))
       .fontSize(13)
       .fontWeight(this.currentTheme === value ? FontWeight.Medium : FontWeight.Normal)
       .fontColor(this.currentTheme === value ?
@@ -318,7 +327,7 @@ export struct SettingsPage {
 
   @Builder
   LanguageOption(key: string, code: string) {
-    Text(I18n.get(key) + (this.currentLanguage ? '' : ''))
+    Text(this.tr(key))
       .fontSize(13)
       .fontWeight(this.currentLanguage === code ? FontWeight.Medium : FontWeight.Normal)
       .fontColor(this.currentLanguage === code ?
@@ -352,14 +361,14 @@ export struct SettingsPage {
         Color.Transparent)
       .onClick(() => {
         clickHaptic()
-        this.saveScrollback(value)
+        this.saveScrollback(value, label)
       })
   }
 
   @Builder
   NavRow(key: string, action: () => void) {
     Row() {
-      Text(I18n.get(key) + (this.currentLanguage ? '' : ''))
+      Text(this.tr(key))
         .fontSize(14)
         .fontColor($r('app.color.terminal_primary'))
         .layoutWeight(1)
@@ -487,7 +496,7 @@ export struct SettingsPage {
   EditProfileSheet() {
     Column() {
       Column() {
-        Text(I18n.get('security.edit_profile'))
+        Text(this.tr('security.edit_profile'))
           .fontSize(18)
           .fontWeight(FontWeight.Bold)
           .fontColor($r('app.color.terminal_primary'))
@@ -519,18 +528,18 @@ export struct SettingsPage {
           this.pickAvatar()
         })
 
-        Text(I18n.get('security.change_avatar'))
+        Text(this.tr('security.change_avatar'))
           .fontSize(13)
           .fontColor($r('app.color.terminal_secondary'))
           .margin({ top: 8, bottom: 20 })
 
-        Text(I18n.get('security.display_name'))
+        Text(this.tr('security.display_name'))
           .fontSize(14)
           .fontColor($r('app.color.terminal_on_surface_variant'))
           .width('100%')
           .margin({ bottom: 6 })
 
-        TextInput({ text: this.editDisplayName, placeholder: I18n.get('security.display_name') })
+        TextInput({ text: this.editDisplayName, placeholder: this.tr('security.display_name') })
           .width('100%')
           .height(44)
           .borderRadius(8)
@@ -553,7 +562,7 @@ export struct SettingsPage {
           if (this.isSaving) {
             LoadingProgress().width(20).height(20).color(Color.White)
           } else {
-            Text(I18n.get('common.save'))
+            Text(this.tr('common.save'))
               .fontSize(16)
               .fontWeight(FontWeight.Medium)
               .fontColor($r('app.color.terminal_on_secondary_container'))

@@ -154,6 +154,7 @@ export const enStrings: Record<string, string> = {
   'settings.terminal': 'Terminal',
   'settings.scrollback': 'Scrollback Limit',
   'settings.scrollback_desc': 'Larger keeps more history but slows session entry',
+  'settings.scrollback_changed': 'Switched to {v}',
   'settings.connection': 'Connection',
   'settings.gateway_url': 'Gateway URL',
   'settings.account': 'Account',
