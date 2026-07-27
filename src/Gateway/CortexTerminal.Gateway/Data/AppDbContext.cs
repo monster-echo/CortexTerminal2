@@ -11,6 +11,7 @@ public class AppDbContext : DbContext
     public DbSet<SessionRecordEntity> Sessions => Set<SessionRecordEntity>();
     public DbSet<UserPreference> UserPreferences => Set<UserPreference>();
     public DbSet<ArtifactEntity> Artifacts => Set<ArtifactEntity>();
+    public DbSet<TunnelEntity> Tunnels => Set<TunnelEntity>();
     public DbSet<SessionAgentEventEntity> SessionAgentEvents => Set<SessionAgentEventEntity>();
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
@@ -64,6 +65,14 @@ public class AppDbContext : DbContext
             entity.HasIndex(e => e.OwnerUserId);
             entity.HasIndex(e => e.ExpiresAtUtc);
             entity.HasIndex(e => e.SessionId);
+        });
+
+        modelBuilder.Entity<TunnelEntity>(entity =>
+        {
+            entity.HasIndex(e => e.TunnelKey).IsUnique();
+            entity.HasIndex(e => e.OwnerUserId);
+            entity.HasIndex(e => e.SessionId);
+            entity.HasIndex(e => e.ExpiresAtUtc);
         });
 
         modelBuilder.Entity<SessionAgentEventEntity>(entity =>
