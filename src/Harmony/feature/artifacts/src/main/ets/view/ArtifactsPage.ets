@@ -347,6 +347,7 @@ export struct ArtifactsPage {
     try {
       await ArtifactsService.uploadFromUri(getContext(this), this.sessionId, picked.uri, picked.filename)
       showToast(I18n.get('artifacts.upload_success'))
+      await this.loadArtifacts()
     } catch (e) {
       showToast((e as Error).message || I18n.get('artifacts.upload_failed'))
     } finally {
