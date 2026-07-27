@@ -213,6 +213,49 @@ public sealed class ContractSerializationTests
         clone.Address.Should().Be("127.0.0.1");
     }
 
+    [Fact]
+    public void TunnelHttpRequest_RoundTrips_WithRawBytes()
+    {
+        var frame = new TunnelHttpRequest(
+            "tun-1", 8080, "POST", "/api/echo", "?x=1",
+            new Dictionary<string, string[]> { ["Content-Type"] = new[] { "application/json" } },
+            new byte[] { 0x7b, 0x7d });
+        var clone = RoundTrip(frame);
+        clone.TunnelId.Should().Be("tun-1");
+        clone.Port.Should().Be(8080);
+        clone.Method.Should().Be("POST");
+        clone.Path.Should().Be("/api/echo");
+        clone.Query.Should().Be("?x=1");
+        clone.Headers["Content-Type"].Should().Equal("application/json");
+        clone.Body.Should().Equal(0x7b, 0x7d);
+    }
+
+    [Fact]
+    public void TunnelHttpResponse_RoundTrips_WithErrorMessage()
+    {
+        var frame = new TunnelHttpResponse(
+            502,
+            new Dictionary<string, string[]> { ["X-Foo"] = new[] { "bar" } },
+            new byte[] { 0x01 },
+            "upstream refused");
+        var clone = RoundTrip(frame);
+        clone.StatusCode.Should().Be(502);
+        clone.Headers["X-Foo"].Should().Equal("bar");
+        clone.Body.Should().Equal(0x01);
+        clone.ErrorMessage.Should().Be("upstream refused");
+    }
+
+    [Fact]
+    public void ProbePortRequest_Response_RoundTrips()
+    {
+        var req = RoundTrip(new ProbePortRequest(3000));
+        req.Port.Should().Be(3000);
+
+        var resp = RoundTrip(new ProbePortResponse(true, null));
+        resp.Open.Should().BeTrue();
+        resp.ErrorMessage.Should().BeNull();
+    }
+
     private static T RoundTrip<T>(T value)
         => MessagePackSerializer.Deserialize<T>(MessagePackSerializer.Serialize(value));
 }
