@@ -1,0 +1,33 @@
+using System.Security.Cryptography;
+using System.Text;
+
+namespace CortexTerminal.Gateway.Tunnels;
+
+/// <summary>生成 secret(访客访问凭据)与 tunnel key(路径标识),以及对 secret 做 SHA-256 哈希存储。</summary>
+public static class TunnelSecret
+{
+    private const int SecretByteLength = 32;
+    private const int KeyByteLength = 5;
+
+    /// <summary>32 字节随机数,编码为 URL-safe base64(无 padding)。用于 ?k= 访问凭据。</summary>
+    public static string GenerateSecret()
+        => ToUrlSafeBase64(RandomNumberGenerator.GetBytes(SecretByteLength));
+
+    /// <summary>5 字节随机数,编码为 URL-safe base64(7 字符)。用于 /t/&lt;key&gt;/ 路径标识。</summary>
+    public static string GenerateTunnelKey()
+        => ToUrlSafeBase64(RandomNumberGenerator.GetBytes(KeyByteLength));
+
+    /// <summary>SHA-256(secret) 的小写十六进制。明文 secret 永不入库。</summary>
+    public static string Hash(string secret)
+    {
+        var bytes = Encoding.UTF8.GetBytes(secret);
+        var hash = SHA256.HashData(bytes);
+        return Convert.ToHexString(hash).ToLowerInvariant();
+    }
+
+    public static bool Verify(string secret, string hash)
+        => !string.IsNullOrEmpty(secret) && Hash(secret) == hash;
+
+    private static string ToUrlSafeBase64(byte[] bytes)
+        => Convert.ToBase64String(bytes).Replace('+', '-').Replace('/', '_').TrimEnd('=');
+}
