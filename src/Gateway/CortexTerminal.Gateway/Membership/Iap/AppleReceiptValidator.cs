@@ -68,6 +68,44 @@ public class AppleReceiptValidator : IAppleReceiptValidator
         );
     }
 
+    /// <summary>
+    /// Verifies an App Store Server Notification V2 <c>signedPayload</c>. The decoded
+    /// envelope is mapped to <see cref="AppleDecodedNotification"/>; the embedded
+    /// <c>Data.SignedTransactionInfo</c> is returned as a raw JWS for the caller to verify
+    /// separately (same SignedDataVerifier, <see cref="VerifyAsync"/>). Signature / chain
+    /// failures surface as <see cref="IapWebhookSignatureInvalidException"/>.
+    /// </summary>
+    public async Task<AppleDecodedNotification> VerifyNotificationAsync(string signedPayload, CancellationToken ct)
+    {
+        var verifier = GetVerifier();
+        ResponseBodyV2DecodedPayload payload;
+        try
+        {
+            payload = await verifier.VerifyAndDecodeNotification(signedPayload);
+        }
+        catch (VerificationException ex)
+        {
+            _logger.LogWarning(ex, "Apple notification verification failed");
+            throw new IapWebhookSignatureInvalidException(ex.Message);
+        }
+        catch (FormatException ex)
+        {
+            // Same rationale as VerifyAsync: malformed JWS payloads throw FormatException from
+            // the JWT decoder before the library wraps them. Treat as a signature/payload failure.
+            _logger.LogWarning(ex, "Apple notification payload is malformed");
+            throw new IapWebhookSignatureInvalidException(ex.Message);
+        }
+
+        var data = payload.Data;
+        return new AppleDecodedNotification(
+            NotificationType: payload.NotificationType ?? "",
+            Subtype: payload.Subtype ?? "",
+            // NotificationUuid is the stable per-notification id Apple assigns; ideal idempotency key.
+            NotificationUuid: payload.NotificationUuid.ToString(),
+            SignedTransactionInfo: data?.SignedTransactionInfo
+        );
+    }
+
     private SignedDataVerifier GetVerifier()
     {
         if (_verifier is not null)

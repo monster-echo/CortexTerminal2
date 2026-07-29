@@ -317,6 +317,7 @@ builder.Services.AddSingleton<AgentActivityService>();
 builder.Services.AddSingleton<IEntitlementService, EntitlementService>();
 builder.Services.AddSingleton<MembershipService>();
 builder.Services.AddSingleton<IAppleReceiptValidator, AppleReceiptValidator>();
+builder.Services.AddSingleton<CortexTerminal.Gateway.Membership.Iap.AppleWebhookService>();
 builder.Services.AddHostedService<ArtifactCleanupHostedService>();
 
 var useInMemory = builder.Configuration.GetValue<bool>("Database:UseInMemory");
@@ -1951,6 +1952,34 @@ app.MapPost("/api/iap/purchase/verify", async (VerifyIapPurchaseRequest body, Cl
         TargetEntity: "subscription", TargetId: sub.Id));
     return Results.Ok(new { subscriptionId = sub.Id, isActive = sub.Status == SubscriptionStatuses.Active, expiresAtUtc = sub.ExpiresAtUtc });
 }).RequireAuthorization();
+
+// Apple App Store Server Notifications V2. Apple calls this endpoint directly (no auth header we
+// can validate — the trust comes from the JWS signature on the payload itself), so it is
+// anonymous. The body is the raw signedPayload JWS string; we verify the signature inside the
+// service (signature-invalid -> 400, never swallowed), dedupe by Apple's NotificationUuid, and
+// update the subscription state machine (renew / expire / refund). Returns 200 to both new and
+// duplicate events so Apple stops retrying.
+app.MapPost("/api/iap/webhook/apple", async (HttpContext ctx, IServiceProvider serviceProvider) =>
+{
+    // Apple sends the signed payload as the raw body (text/plain). Read it as a string so the
+    // JWS verifier gets exactly what Apple signed, without JSON deserialization interfering.
+    ctx.Request.EnableBuffering();
+    using var reader = new StreamReader(ctx.Request.Body);
+    var signedPayload = await reader.ReadToEndAsync();
+    if (string.IsNullOrWhiteSpace(signedPayload))
+        return Results.BadRequest(new { errorCode = "iap_webhook_empty", message = "Request body is empty." });
+
+    var service = serviceProvider.GetRequiredService<CortexTerminal.Gateway.Membership.Iap.AppleWebhookService>();
+    try
+    {
+        await service.HandleAsync(signedPayload, ctx.RequestAborted);
+    }
+    catch (IapWebhookSignatureInvalidException ex)
+    {
+        return Results.BadRequest(new { errorCode = IapWebhookSignatureInvalidException.ErrorCode, message = ex.Message });
+    }
+    return Results.Ok(new { ok = true });
+}).AllowAnonymous();
 
 // ---- Admin Membership Endpoints ----
 app.MapPost("/api/admin/membership/grant", async (GrantRequest body, ClaimsPrincipal user, IServiceProvider serviceProvider, IAuditLogStore auditLog) =>

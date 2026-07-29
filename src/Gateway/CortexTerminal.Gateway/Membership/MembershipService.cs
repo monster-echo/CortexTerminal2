@@ -158,6 +158,45 @@ public sealed class MembershipService(IDbContextFactory<AppDbContext> dbFactory)
         return sub;
     }
 
+    /// <summary>
+    /// Extends the expiry of the existing active IAP subscription for
+    /// <paramref name="verified.OriginalTransactionId"/> to the renewed transaction's expiry, and
+    /// refreshes the user's Pro tier + expiry to match. Used by the webhook on a
+    /// <c>DID_RENEW</c> / <c>SUBSCRIPTION_RENEWED</c> notification — a renewal extends a subscription
+    /// in place, it does not create a new one (unlike <see cref="GrantFromIapAsync"/>, which
+    /// short-circuits idempotently on an existing active subscription and would leave a stale expiry).
+    /// Throws <see cref="ArgumentException"/> if no matching active subscription exists.
+    /// </summary>
+    public async Task<Subscription> ExtendFromIapRenewalAsync(
+        string userId, AppleVerifiedTransaction verified, CancellationToken ct)
+    {
+        var source = SourceForChannel(OrderChannels.IapApple);
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var sub = await db.Subscriptions.FirstOrDefaultAsync(
+            s => s.Source == source && s.PlatformTransactionId == verified.OriginalTransactionId
+                 && s.Status == SubscriptionStatuses.Active, ct)
+            ?? throw new ArgumentException(
+                $"No active Apple subscription to renew for originalTransactionId: {verified.OriginalTransactionId}");
+
+        DateTimeOffset? expires = verified.ExpiresDateMs is long ms && ms > 0
+            ? DateTimeOffset.FromUnixTimeMilliseconds(ms)
+            : null;
+
+        var now = DateTimeOffset.UtcNow;
+        sub.ExpiresAtUtc = expires;
+        sub.UpdatedAtUtc = now;
+
+        var user = await db.Users.FindAsync(new object?[] { userId }, ct)
+            ?? await db.Users.FirstOrDefaultAsync(u => u.Username == userId, ct)
+            ?? throw new ArgumentException($"User not found: {userId}");
+        user.MembershipTier = MembershipTiers.Pro;
+        user.MembershipExpiresAtUtc = expires;
+        user.UpdatedAtUtc = now;
+
+        await db.SaveChangesAsync(ct);
+        return sub;
+    }
+
     internal static DateTimeOffset? ComputeExpiry(string billingPeriod, DateTimeOffset now) => billingPeriod switch
     {
         BillingPeriods.Monthly => now.AddMonths(1),

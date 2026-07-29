@@ -55,6 +55,11 @@ public sealed class IapVerifyEndpointTests
             }
             return Task.FromResult(_owner.Stub);
         }
+
+        // The verify endpoint never triggers notification verification; this stub exists only to
+        // satisfy the IAppleReceiptValidator contract (webhook tests use their own stub).
+        public Task<AppleDecodedNotification> VerifyNotificationAsync(string signedPayload, CancellationToken ct)
+            => throw new NotImplementedException();
     }
 
     private static async Task<string> SeedUserAsync(Factory factory)
