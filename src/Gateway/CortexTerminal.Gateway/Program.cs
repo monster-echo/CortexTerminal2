@@ -11,6 +11,7 @@ using CortexTerminal.Gateway.Auth;
 using CortexTerminal.Gateway.Data;
 using CortexTerminal.Gateway.Hubs;
 using CortexTerminal.Gateway.Membership;
+using CortexTerminal.Gateway.Membership.Iap;
 using CortexTerminal.Gateway.Sessions;
 using CortexTerminal.Gateway.Storage;
 using CortexTerminal.Gateway.Support;
@@ -315,6 +316,7 @@ builder.Services.AddSingleton<ArtifactService>();
 builder.Services.AddSingleton<AgentActivityService>();
 builder.Services.AddSingleton<IEntitlementService, EntitlementService>();
 builder.Services.AddSingleton<MembershipService>();
+builder.Services.AddSingleton<IAppleReceiptValidator, AppleReceiptValidator>();
 builder.Services.AddHostedService<ArtifactCleanupHostedService>();
 
 var useInMemory = builder.Configuration.GetValue<bool>("Database:UseInMemory");
@@ -1921,6 +1923,35 @@ app.MapPost("/api/billing/redeem", async (RedeemRequest body, ClaimsPrincipal us
     return Results.Ok(new { tier = plan.Tier, planCode = plan.Code, isActive = true });
 }).RequireAuthorization();
 
+// Client calls this after a successful StoreKit purchase. We verify the Apple-signed JWS,
+// then idempotently grant the entitlement. Only Apple is wired today; google/huawei are
+// future channels — anything else is a 400 so the client shows a clear error, not a 404.
+app.MapPost("/api/iap/purchase/verify", async (VerifyIapPurchaseRequest body, ClaimsPrincipal user, IServiceProvider serviceProvider, IAuditLogStore auditLog) =>
+{
+    var userId = GetUserId(user);
+    if (body.Platform != "apple")
+        return Results.BadRequest(new { errorCode = "iap_unsupported_platform", message = "Only Apple platform is supported." });
+
+    var validator = serviceProvider.GetRequiredService<IAppleReceiptValidator>();
+    var membership = serviceProvider.GetRequiredService<MembershipService>();
+    AppleVerifiedTransaction verified;
+    try { verified = await validator.VerifyAsync(body.SignedTransaction, CancellationToken.None); }
+    catch (IapReceiptInvalidException ex) { return Results.BadRequest(new { errorCode = IapReceiptInvalidException.ErrorCode, message = ex.Message }); }
+
+    Subscription sub;
+    try
+    {
+        sub = await membership.GrantFromIapAsync(userId, verified, OrderChannels.IapApple, CancellationToken.None);
+    }
+    catch (ArgumentException ex) { return Results.BadRequest(new { errorCode = "iap_invalid_product", message = ex.Message }); }
+
+    auditLog.Record(new AuditLogEntry(
+        Id: Guid.NewGuid().ToString("N"), Timestamp: DateTimeOffset.UtcNow,
+        UserId: userId, UserName: userId, Action: "membership.iap_verify",
+        TargetEntity: "subscription", TargetId: sub.Id));
+    return Results.Ok(new { subscriptionId = sub.Id, isActive = sub.Status == SubscriptionStatuses.Active, expiresAtUtc = sub.ExpiresAtUtc });
+}).RequireAuthorization();
+
 // ---- Admin Membership Endpoints ----
 app.MapPost("/api/admin/membership/grant", async (GrantRequest body, ClaimsPrincipal user, IServiceProvider serviceProvider, IAuditLogStore auditLog) =>
 {
@@ -2992,5 +3023,7 @@ internal sealed class LatestVersionCache
 }
 
 public sealed record FeedbackUploadRequest(string Filename);
+
+public sealed record VerifyIapPurchaseRequest(string Platform, string ProductId, string SignedTransaction);
 
 public partial class Program;

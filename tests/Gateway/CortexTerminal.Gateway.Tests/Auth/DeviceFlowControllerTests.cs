@@ -84,7 +84,7 @@ public sealed class DeviceFlowControllerTests : IClassFixture<GatewayApplication
     }
 }
 
-public sealed class GatewayApplicationFactory : WebApplicationFactory<Program>
+public class GatewayApplicationFactory : WebApplicationFactory<Program>
 {
     private string? _testWebRoot;
 
