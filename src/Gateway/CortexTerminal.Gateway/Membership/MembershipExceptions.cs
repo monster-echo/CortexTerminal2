@@ -30,3 +30,9 @@ public sealed class RedeemCodeAlreadyUsedException : InvalidOperationException
     public const string ErrorCode = "redeem_already_used";
     public RedeemCodeAlreadyUsedException(string message) : base(message) { }
 }
+
+public sealed class IapReceiptInvalidException : InvalidOperationException
+{
+    public const string ErrorCode = "iap_receipt_invalid";
+    public IapReceiptInvalidException(string message) : base(message) { }
+}
