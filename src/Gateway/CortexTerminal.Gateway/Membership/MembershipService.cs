@@ -1,4 +1,5 @@
 using CortexTerminal.Gateway.Data;
+using CortexTerminal.Gateway.Membership.Iap;
 using Microsoft.EntityFrameworkCore;
 
 namespace CortexTerminal.Gateway.Membership;
@@ -96,6 +97,61 @@ public sealed class MembershipService(IDbContextFactory<AppDbContext> dbFactory)
         user.MembershipTier = plan.Tier;
         user.MembershipPlanId = plan.Id;
         user.MembershipExpiresAtUtc = expiry;
+        user.UpdatedAtUtc = now;
+
+        await db.SaveChangesAsync(ct);
+        return sub;
+    }
+
+    /// <summary>
+    /// Idempotently grants a Pro subscription from a verified Apple in-app purchase
+    /// transaction. A replay of the same <see cref="AppleVerifiedTransaction.OriginalTransactionId"/>
+    /// returns the existing active subscription without creating a second order.
+    /// </summary>
+    public async Task<Subscription> GrantFromIapAsync(
+        string userId, AppleVerifiedTransaction verified, string channel, CancellationToken ct)
+    {
+        var planCode = AppleProductIds.ToPlanCode(verified.ProductId)
+            ?? throw new ArgumentException($"Unknown Apple product id: {verified.ProductId}");
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var plan = await db.Plans.FirstOrDefaultAsync(p => p.Code == planCode && p.IsActive, ct)
+            ?? throw new ArgumentException($"Plan not found: {planCode}");
+
+        // Idempotency: a verified replay of the same originalTransactionId must not double-grant.
+        var source = SourceForChannel(channel);
+        var existing = await db.Subscriptions.FirstOrDefaultAsync(
+            s => s.Source == source && s.PlatformTransactionId == verified.OriginalTransactionId
+                 && s.Status == SubscriptionStatuses.Active, ct);
+        if (existing is not null) return existing;
+
+        var now = DateTimeOffset.UtcNow;
+        DateTimeOffset? expires = verified.ExpiresDateMs is long ms && ms > 0
+            ? DateTimeOffset.FromUnixTimeMilliseconds(ms)
+            : null;
+
+        var order = new MembershipOrder
+        {
+            UserId = userId, PlanId = plan.Id, BillingPeriod = plan.BillingPeriod,
+            Amount = plan.PriceAmount, Currency = plan.PriceCurrency,
+            Channel = channel, Status = OrderStatuses.Completed, CompletedAtUtc = now,
+            ProviderOrderId = verified.OriginalTransactionId,
+        };
+        db.MembershipOrders.Add(order);
+
+        var sub = new Subscription
+        {
+            UserId = userId, PlanId = plan.Id, Status = SubscriptionStatuses.Active,
+            Period = plan.BillingPeriod, StartAtUtc = now, ExpiresAtUtc = expires,
+            Source = source, SourceOrderId = order.Id, PlatformTransactionId = verified.OriginalTransactionId,
+        };
+        db.Subscriptions.Add(sub);
+
+        var user = await db.Users.FindAsync(new object?[] { userId }, ct)
+            ?? await db.Users.FirstOrDefaultAsync(u => u.Username == userId, ct)
+            ?? throw new ArgumentException($"User not found: {userId}");
+        user.MembershipTier = plan.Tier;
+        user.MembershipPlanId = plan.Id;
+        user.MembershipExpiresAtUtc = expires;
         user.UpdatedAtUtc = now;
 
         await db.SaveChangesAsync(ct);
