@@ -304,6 +304,10 @@ var membershipOptions = new MembershipOptions();
 builder.Configuration.GetSection(MembershipOptions.SectionName).Bind(membershipOptions);
 builder.Services.AddSingleton(membershipOptions);
 
+var iapOptions = new IapOptions();
+builder.Configuration.GetSection(IapOptions.SectionName).Bind(iapOptions);
+builder.Services.AddSingleton(iapOptions);
+
 builder.Services.Configure<ArtifactStorageOptions>(builder.Configuration.GetSection(ArtifactStorageOptions.SectionName));
 builder.Services.AddSingleton<IArtifactStorage, S3CompatibleArtifactStorage>();
 builder.Services.AddSingleton<IArtifactCommandDispatcher, SignalRArtifactCommandDispatcher>();
