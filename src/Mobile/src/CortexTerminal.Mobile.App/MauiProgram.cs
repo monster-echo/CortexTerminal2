@@ -4,6 +4,7 @@ using CortexTerminal.Mobile.App.Services.Auth;
 using CortexTerminal.Mobile.App.Services.Bridge;
 using CortexTerminal.Mobile.App.Services.Terminal;
 using CortexTerminal.Mobile.App.Services.Support;
+using CortexTerminal.Mobile.App.Services.Iap;
 using Microsoft.Extensions.Configuration;
 using Serilog;
 using CortexTerminal.Mobile.App.Services;
@@ -100,6 +101,15 @@ public static class MauiProgram
 		builder.Logging.AddSerilog(dispose: true);
 
 		builder.Services.AddSingleton<PushNotificationService>();
+
+		// In-App Purchase (iOS StoreKit 1 via Plugin.InAppBilling 10.x). The NuGet is iOS-only in
+		// csproj, so the registration is iOS-only too. Resolving IIapService on other platforms
+		// (Android/Windows/MacCatalyst) throws at the DI container, surfacing the gap loudly.
+#if IOS
+		builder.Services.AddSingleton(_ => Plugin.InAppBilling.CrossInAppBilling.Current);
+		builder.Services.AddSingleton<IIapService>(sp =>
+			new IapService(sp.GetRequiredService<Plugin.InAppBilling.IInAppBilling>()));
+#endif
 
 		return builder.Build();
 	}
