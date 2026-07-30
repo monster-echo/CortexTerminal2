@@ -31,6 +31,12 @@ public sealed class IapVerifyEndpointTests
 
         public bool ValidatorThrows { get; set; }
 
+        /// <summary>
+        /// When non-null, the legacy (StoreKit 1 / MAUI) validator stub is registered and the
+        /// <see cref="LegacyStub"/> is returned; used by the legacy-path endpoint test.
+        /// </summary>
+        public AppleVerifiedTransaction? LegacyStub { get; set; }
+
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             base.ConfigureWebHost(builder);
@@ -38,6 +44,14 @@ public sealed class IapVerifyEndpointTests
             {
                 services.RemoveAll<IAppleReceiptValidator>();
                 services.AddSingleton<IAppleReceiptValidator>(new StubValidator(this));
+
+                // The legacy validator is normally a typed HttpClient; in tests we register a plain
+                // singleton instance (no HTTP calls happen because the stub short-circuits them).
+                services.RemoveAll<IAppleLegacyReceiptValidator>();
+                if (LegacyStub is not null)
+                {
+                    services.AddSingleton<IAppleLegacyReceiptValidator>(new LegacyStubValidator(LegacyStub));
+                }
             });
         }
     }
@@ -60,6 +74,18 @@ public sealed class IapVerifyEndpointTests
         // satisfy the IAppleReceiptValidator contract (webhook tests use their own stub).
         public Task<AppleDecodedNotification> VerifyNotificationAsync(string signedPayload, CancellationToken ct)
             => throw new NotImplementedException();
+    }
+
+    /// <summary>
+    /// Stub for the StoreKit 1 legacy validator — exercises the A4 routing decision
+    /// (<c>receiptFormat=legacy</c>) end-to-end through GrantFromIapAsync.
+    /// </summary>
+    private sealed class LegacyStubValidator : IAppleLegacyReceiptValidator
+    {
+        private readonly AppleVerifiedTransaction _tx;
+        public LegacyStubValidator(AppleVerifiedTransaction tx) => _tx = tx;
+        public Task<AppleVerifiedTransaction> VerifyAsync(string receiptDataBase64, CancellationToken ct)
+            => Task.FromResult(_tx);
     }
 
     private static async Task<string> SeedUserAsync(Factory factory)
@@ -92,6 +118,44 @@ public sealed class IapVerifyEndpointTests
         using var client = factory.CreateAuthenticatedClient(username);
         var resp = await client.PostAsJsonAsync("/api/iap/purchase/verify",
             new { platform = "apple", productId = AppleProductIds.ProLifetime, signedTransaction = "fake-jws" });
+
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var payload = await resp.Content.ReadFromJsonAsync<VerifyResponse>();
+        payload.Should().NotBeNull();
+        payload!.IsActive.Should().BeTrue();
+        payload.SubscriptionId.Should().NotBeNullOrWhiteSpace();
+
+        var tier = await factory.QueryAsync(async db =>
+        {
+            var user = await db.Users.AsNoTracking().FirstAsync(u => u.Username == username);
+            return user.MembershipTier;
+        });
+        tier.Should().Be(MembershipTiers.Pro);
+    }
+
+    /// <summary>
+    /// StoreKit 1 (MAUI / Plugin.InAppBilling) path: client sends <c>receiptFormat=legacy</c>
+    /// with the base64 receipt blob. The endpoint must route to
+    /// <see cref="IAppleLegacyReceiptValidator"/> and grant Pro exactly like the JWS path.
+    /// </summary>
+    [Fact]
+    public async Task Verify_LegacyReceiptFormat_RoutesToLegacyValidatorAndGrantsPro()
+    {
+        using var factory = new Factory
+        {
+            LegacyStub = new AppleVerifiedTransaction("orig-legacy", AppleProductIds.ProLifetime, null, "Non-Consumable")
+        };
+        var username = await SeedUserAsync(factory);
+
+        using var client = factory.CreateAuthenticatedClient(username);
+        var resp = await client.PostAsJsonAsync("/api/iap/purchase/verify",
+            new
+            {
+                platform = "apple",
+                productId = AppleProductIds.ProLifetime,
+                signedTransaction = "base64-receipt-data==",
+                receiptFormat = "legacy"
+            });
 
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
         var payload = await resp.Content.ReadFromJsonAsync<VerifyResponse>();

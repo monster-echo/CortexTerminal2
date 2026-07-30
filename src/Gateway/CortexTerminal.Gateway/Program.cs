@@ -317,6 +317,9 @@ builder.Services.AddSingleton<AgentActivityService>();
 builder.Services.AddSingleton<IEntitlementService, EntitlementService>();
 builder.Services.AddSingleton<MembershipService>();
 builder.Services.AddSingleton<IAppleReceiptValidator, AppleReceiptValidator>();
+// Legacy /verifyReceipt validator (StoreKit 1 / MAUI). Typed HttpClient via the factory so the
+// handler is pooled and the validator itself can stay a singleton.
+builder.Services.AddHttpClient<IAppleLegacyReceiptValidator, AppleLegacyReceiptValidator>();
 builder.Services.AddSingleton<CortexTerminal.Gateway.Membership.Iap.AppleWebhookService>();
 builder.Services.AddHostedService<ArtifactCleanupHostedService>();
 
@@ -1933,12 +1936,27 @@ app.MapPost("/api/iap/purchase/verify", async (VerifyIapPurchaseRequest body, Cl
     if (body.Platform != "apple")
         return Results.BadRequest(new { errorCode = "iap_unsupported_platform", message = "Only Apple platform is supported." });
 
-    var validator = serviceProvider.GetRequiredService<IAppleReceiptValidator>();
-    var membership = serviceProvider.GetRequiredService<MembershipService>();
+    // Route by receipt format: StoreKit 2 JWS (native iOS) vs StoreKit 1 legacy base64 blob
+    // (.NET MAUI / Plugin.InAppBilling). Both validators yield the same AppleVerifiedTransaction
+    // shape, so GrantFromIapAsync is format-agnostic.
+    var receiptFormat = string.IsNullOrWhiteSpace(body.ReceiptFormat) ? "jws" : body.ReceiptFormat.ToLowerInvariant();
     AppleVerifiedTransaction verified;
-    try { verified = await validator.VerifyAsync(body.SignedTransaction, CancellationToken.None); }
+    try
+    {
+        if (receiptFormat == "legacy")
+        {
+            var legacyValidator = serviceProvider.GetRequiredService<IAppleLegacyReceiptValidator>();
+            verified = await legacyValidator.VerifyAsync(body.SignedTransaction, CancellationToken.None);
+        }
+        else
+        {
+            var validator = serviceProvider.GetRequiredService<IAppleReceiptValidator>();
+            verified = await validator.VerifyAsync(body.SignedTransaction, CancellationToken.None);
+        }
+    }
     catch (IapReceiptInvalidException ex) { return Results.BadRequest(new { errorCode = IapReceiptInvalidException.ErrorCode, message = ex.Message }); }
 
+    var membership = serviceProvider.GetRequiredService<MembershipService>();
     Subscription sub;
     try
     {
@@ -3053,6 +3071,20 @@ internal sealed class LatestVersionCache
 
 public sealed record FeedbackUploadRequest(string Filename);
 
-public sealed record VerifyIapPurchaseRequest(string Platform, string ProductId, string SignedTransaction);
+/// <summary>
+/// Client payload for <c>POST /api/iap/purchase/verify</c>.
+/// <para>
+/// <c>SignedTransaction</c> carries either a StoreKit 2 JWS (<c>ReceiptFormat=jws</c>, the
+/// default from the native iOS/Swift client) or a base64 StoreKit 1 receipt blob
+/// (<c>ReceiptFormat=legacy</c>, produced by Plugin.InAppBilling on .NET MAUI). The endpoint
+/// routes to the matching validator by this field.
+/// </para>
+/// </summary>
+public sealed record VerifyIapPurchaseRequest(
+    string Platform,
+    string ProductId,
+    string SignedTransaction,
+    string ReceiptFormat = "jws"
+);
 
 public partial class Program;

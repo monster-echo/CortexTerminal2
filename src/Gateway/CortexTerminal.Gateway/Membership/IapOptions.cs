@@ -13,4 +13,11 @@ public sealed class AppleIapOptions
     public string KeyId { get; set; } = "";
     public string PrivateKey { get; set; } = "";
     public string Environment { get; set; } = "Production";
+
+    /// <summary>
+    /// The shared secret used to authenticate the legacy StoreKit 1
+    /// <c>/verifyReceipt</c> call (the <c>password</c> field in the request body).
+    /// Required only on the legacy path; the StoreKit 2 JWS validator does not use it.
+    /// </summary>
+    public string SharedSecret { get; set; } = "";
 }
