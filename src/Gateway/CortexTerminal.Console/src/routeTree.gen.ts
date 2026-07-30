@@ -35,6 +35,8 @@ import { Route as AuthenticatedWorkersWorkerIdRouteImport } from './routes/_auth
 import { Route as AuthenticatedSettingsGeneralRouteImport } from './routes/_authenticated/settings/general'
 import { Route as AuthenticatedSessionsNewRouteImport } from './routes/_authenticated/sessions/new'
 import { Route as AuthenticatedSessionsSessionIdRouteImport } from './routes/_authenticated/sessions/$sessionId'
+import { Route as AuthenticatedBillingRedeemCodesRouteImport } from './routes/_authenticated/billing/redeem-codes'
+import { Route as AuthenticatedBillingMembershipRouteImport } from './routes/_authenticated/billing/membership'
 
 const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
   id: '/_authenticated',
@@ -175,6 +177,18 @@ const AuthenticatedSessionsSessionIdRoute =
     path: '/$sessionId',
     getParentRoute: () => AuthenticatedSessionsRouteRoute,
   } as any)
+const AuthenticatedBillingRedeemCodesRoute =
+  AuthenticatedBillingRedeemCodesRouteImport.update({
+    id: '/billing/redeem-codes',
+    path: '/billing/redeem-codes',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedBillingMembershipRoute =
+  AuthenticatedBillingMembershipRouteImport.update({
+    id: '/billing/membership',
+    path: '/billing/membership',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -194,6 +208,8 @@ export interface FileRoutesByFullPath {
   '/terms': typeof publicTermsRoute
   '/audit-log': typeof AuthenticatedAuditLogRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/billing/membership': typeof AuthenticatedBillingMembershipRoute
+  '/billing/redeem-codes': typeof AuthenticatedBillingRedeemCodesRoute
   '/sessions/$sessionId': typeof AuthenticatedSessionsSessionIdRoute
   '/sessions/new': typeof AuthenticatedSessionsNewRoute
   '/settings/general': typeof AuthenticatedSettingsGeneralRoute
@@ -218,6 +234,8 @@ export interface FileRoutesByTo {
   '/terms': typeof publicTermsRoute
   '/audit-log': typeof AuthenticatedAuditLogRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/billing/membership': typeof AuthenticatedBillingMembershipRoute
+  '/billing/redeem-codes': typeof AuthenticatedBillingRedeemCodesRoute
   '/sessions/$sessionId': typeof AuthenticatedSessionsSessionIdRoute
   '/sessions/new': typeof AuthenticatedSessionsNewRoute
   '/settings/general': typeof AuthenticatedSettingsGeneralRoute
@@ -247,6 +265,8 @@ export interface FileRoutesById {
   '/(public)/terms': typeof publicTermsRoute
   '/_authenticated/audit-log': typeof AuthenticatedAuditLogRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/billing/membership': typeof AuthenticatedBillingMembershipRoute
+  '/_authenticated/billing/redeem-codes': typeof AuthenticatedBillingRedeemCodesRoute
   '/_authenticated/sessions/$sessionId': typeof AuthenticatedSessionsSessionIdRoute
   '/_authenticated/sessions/new': typeof AuthenticatedSessionsNewRoute
   '/_authenticated/settings/general': typeof AuthenticatedSettingsGeneralRoute
@@ -276,6 +296,8 @@ export interface FileRouteTypes {
     | '/terms'
     | '/audit-log'
     | '/dashboard'
+    | '/billing/membership'
+    | '/billing/redeem-codes'
     | '/sessions/$sessionId'
     | '/sessions/new'
     | '/settings/general'
@@ -300,6 +322,8 @@ export interface FileRouteTypes {
     | '/terms'
     | '/audit-log'
     | '/dashboard'
+    | '/billing/membership'
+    | '/billing/redeem-codes'
     | '/sessions/$sessionId'
     | '/sessions/new'
     | '/settings/general'
@@ -328,6 +352,8 @@ export interface FileRouteTypes {
     | '/(public)/terms'
     | '/_authenticated/audit-log'
     | '/_authenticated/dashboard'
+    | '/_authenticated/billing/membership'
+    | '/_authenticated/billing/redeem-codes'
     | '/_authenticated/sessions/$sessionId'
     | '/_authenticated/sessions/new'
     | '/_authenticated/settings/general'
@@ -538,6 +564,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSessionsSessionIdRouteImport
       parentRoute: typeof AuthenticatedSessionsRouteRoute
     }
+    '/_authenticated/billing/redeem-codes': {
+      id: '/_authenticated/billing/redeem-codes'
+      path: '/billing/redeem-codes'
+      fullPath: '/billing/redeem-codes'
+      preLoaderRoute: typeof AuthenticatedBillingRedeemCodesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/billing/membership': {
+      id: '/_authenticated/billing/membership'
+      path: '/billing/membership'
+      fullPath: '/billing/membership'
+      preLoaderRoute: typeof AuthenticatedBillingMembershipRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
@@ -597,6 +637,8 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedWorkersRouteRoute: typeof AuthenticatedWorkersRouteRouteWithChildren
   AuthenticatedAuditLogRoute: typeof AuthenticatedAuditLogRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedBillingMembershipRoute: typeof AuthenticatedBillingMembershipRoute
+  AuthenticatedBillingRedeemCodesRoute: typeof AuthenticatedBillingRedeemCodesRoute
   AuthenticatedUsersIndexRoute: typeof AuthenticatedUsersIndexRoute
 }
 
@@ -606,6 +648,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedWorkersRouteRoute: AuthenticatedWorkersRouteRouteWithChildren,
   AuthenticatedAuditLogRoute: AuthenticatedAuditLogRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedBillingMembershipRoute: AuthenticatedBillingMembershipRoute,
+  AuthenticatedBillingRedeemCodesRoute: AuthenticatedBillingRedeemCodesRoute,
   AuthenticatedUsersIndexRoute: AuthenticatedUsersIndexRoute,
 }
 

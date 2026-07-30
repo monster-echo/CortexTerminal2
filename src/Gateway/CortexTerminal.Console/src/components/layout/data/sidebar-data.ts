@@ -6,6 +6,8 @@ import {
   Settings,
   FileText,
   Globe,
+  CreditCard,
+  Ticket,
 } from 'lucide-react'
 import { Logo } from '@/assets/logo'
 import { type SidebarData } from '../types'
@@ -36,6 +38,8 @@ export function getSidebarData(t: TFunction, role?: string): SidebarData {
           title: t('nav.groups.admin'),
           items: [
             { title: t('nav.users'), icon: Users, url: '/users' },
+            { title: t('nav.membership'), icon: CreditCard, url: '/billing/membership' },
+            { title: t('nav.redeemCodes'), icon: Ticket, url: '/billing/redeem-codes' },
           ],
         }]
       : []),

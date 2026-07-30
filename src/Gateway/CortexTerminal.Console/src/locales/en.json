@@ -7,6 +7,8 @@
     "users": "Users",
     "settings": "Settings",
     "auditLog": "Audit Log",
+    "membership": "Membership",
+    "redeemCodes": "Redeem Codes",
     "homepage": "Homepage",
     "groups": {
       "overview": "Overview",
@@ -337,6 +339,59 @@
       "user.delete": "User Delete",
       "worker.connect": "Worker Connect",
       "worker.disconnect": "Worker Disconnect"
+    }
+  },
+  "billing": {
+    "membership": {
+      "title": "Membership Management",
+      "subtitle": "Grant a membership plan to a user.",
+      "findUser": "Find User",
+      "searchLabel": "Search by name, email, or ID",
+      "searchPlaceholder": "Search users...",
+      "selectUser": "Select a user",
+      "noUsers": "No matching users.",
+      "plan": "Plan",
+      "selectPlan": "Select a plan",
+      "expiresAt": "Expiry (optional)",
+      "expiresAtHint": "Leave blank to use the plan's default duration.",
+      "grantMembership": "Grant Membership",
+      "grant": "Grant",
+      "grantSuccess": "Membership granted.",
+      "resultTier": "Tier",
+      "resultExpiry": "Expires at",
+      "resultSubscription": "Subscription ID",
+      "errors": {
+        "selectUser": "Please select a user.",
+        "selectPlan": "Please select a plan."
+      }
+    },
+    "redeem": {
+      "title": "Redeem Code Management",
+      "subtitle": "Generate redeem codes for a plan.",
+      "generate": "Generate Codes",
+      "plan": "Plan",
+      "selectPlan": "Select a plan",
+      "planHint": "{{period}} · {{currency}} {{price}}",
+      "count": "Count",
+      "maxUses": "Max uses per code",
+      "expiresAt": "Expiry (optional)",
+      "expiresAtHint": "Leave blank for no expiry.",
+      "generateButton": "Generate",
+      "generateSuccess": "Generated {{count}} codes.",
+      "generatedCodes": "Generated Codes",
+      "batchId": "Batch",
+      "codesUnit": "codes",
+      "codeColumn": "Code",
+      "copyAll": "Copy all",
+      "copyOne": "Copy",
+      "copiedAll": "All codes copied to clipboard.",
+      "copiedOne": "Code copied to clipboard.",
+      "copyFailed": "Could not copy to clipboard.",
+      "errors": {
+        "selectPlan": "Please select a plan.",
+        "invalidCount": "Count must be a positive integer.",
+        "invalidMaxUses": "Max uses must be a positive integer."
+      }
     }
   },
   "common": {

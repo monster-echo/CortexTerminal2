@@ -173,6 +173,31 @@ export interface HourlyStatsPoint {
   bytesTransferred: number
 }
 
+export interface BillingPlan {
+  code: string
+  tier: string
+  billingPeriod: string
+  priceAmount: number
+  priceCurrency: string
+  maxWorkers: number
+  maxArtifactsPerSession: number
+  maxArtifactSizeBytes: number
+  maxArtifactAgeDays: number
+  maxScrollbackMegabytes: number
+  featureFlags: string | null
+}
+
+export interface GrantMembershipResponse {
+  subscriptionId: string
+  tier: string
+  expiresAtUtc: string
+}
+
+export interface GenerateRedeemCodesResponse {
+  codes: string[]
+  batchId: string
+}
+
 export interface AuditStats {
   loginTrend: DailyCount[]
   authProviderDistribution: ProviderCount[]
@@ -330,6 +355,18 @@ export interface ConsoleApi {
     sessionId: string,
   ): Promise<import('./agent-activity').AgentActivityEntry[]>
   getMyProfile(): Promise<MyProfile>
+  listBillingPlans(): Promise<BillingPlan[]>
+  grantMembership(params: {
+    userId: string
+    planCode: string
+    expiresAtUtc?: string
+  }): Promise<GrantMembershipResponse>
+  generateRedeemCodes(params: {
+    planCode: string
+    count: number
+    maxUses?: number
+    expiresAtUtc?: string
+  }): Promise<GenerateRedeemCodesResponse>
 }
 
 type FetchFn = (input: string, init?: RequestInit) => Promise<Response>
@@ -667,6 +704,26 @@ export function createConsoleApi(
     },
     async getMyProfile() {
       return request<MyProfile>('/api/me/profile')
+    },
+    async listBillingPlans() {
+      return request<BillingPlan[]>('/api/billing/plans')
+    },
+    async grantMembership({ userId, planCode, expiresAtUtc }) {
+      const body: Record<string, unknown> = { userId, planCode }
+      if (expiresAtUtc) body.expiresAtUtc = expiresAtUtc
+      return request<GrantMembershipResponse>('/api/admin/membership/grant', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      })
+    },
+    async generateRedeemCodes({ planCode, count, maxUses, expiresAtUtc }) {
+      const body: Record<string, unknown> = { planCode, count }
+      if (maxUses !== undefined) body.maxUses = maxUses
+      if (expiresAtUtc) body.expiresAtUtc = expiresAtUtc
+      return request<GenerateRedeemCodesResponse>('/api/admin/redeem-codes', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      })
     },
   }
 }
