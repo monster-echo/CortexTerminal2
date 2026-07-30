@@ -13,6 +13,7 @@ import SessionsPage from "./features/sessions/SessionsPage";
 import TerminalSessionPage from "./features/sessions/TerminalSessionPage";
 import WorkersPage from "./features/workers/WorkersPage";
 import ActivatePage from "./features/activate/ActivatePage";
+import PricingPage from "./features/pricing/PricingPage";
 import AccountSecurityPage from "./features/settings/AccountSecurityPage";
 import ContactSupportPage from "./features/settings/ContactSupportPage";
 import FeedbackPage from "./features/settings/FeedbackPage";
@@ -72,6 +73,7 @@ function pathToScreenName(pathname: string): string {
   if (pathname.startsWith("/sessions/")) return "terminal_session";
   if (pathname === "/workers") return "workers";
   if (pathname === "/activate") return "activate";
+  if (pathname === "/pricing") return "pricing";
   if (pathname === "/settings/security") return "account_security";
   if (pathname === "/settings") return "settings";
   return "unknown";
@@ -82,6 +84,7 @@ const ROUTE_PATTERNS = [
   "/sessions",
   "/workers",
   "/activate",
+  "/pricing",
   "/settings/security",
   "/settings",
 ];
@@ -377,6 +380,7 @@ export default function App({
           <Route exact path="/sessions/:sessionId" render={(props) => requireAuth(TerminalSessionPage, props)} />
           <Route exact path="/workers" render={() => requireAuth(WorkersPage)} />
           <Route exact path="/activate" render={() => requireAuth(ActivatePage)} />
+          <Route exact path="/pricing" render={() => requireAuth(PricingPage)} />
           <Route exact path="/settings" render={() => requireAuth(SettingsFeaturePage)} />
           <Route exact path="/settings/security" render={() => requireAuth(AccountSecurityPage)} />
           <Route exact path="/settings/support" render={() => requireAuth(ContactSupportPage)} />

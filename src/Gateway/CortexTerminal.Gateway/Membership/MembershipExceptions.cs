@@ -30,3 +30,21 @@ public sealed class RedeemCodeAlreadyUsedException : InvalidOperationException
     public const string ErrorCode = "redeem_already_used";
     public RedeemCodeAlreadyUsedException(string message) : base(message) { }
 }
+
+public sealed class IapReceiptInvalidException : InvalidOperationException
+{
+    public const string ErrorCode = "iap_receipt_invalid";
+    public IapReceiptInvalidException(string message) : base(message) { }
+}
+
+/// <summary>
+/// Raised when an App Store Server Notification's JWS signature, certificate chain,
+/// bundle id or environment check fails. Surfaces as HTTP 400 from the webhook so the
+/// caller (Apple, or an operator replaying a payload) sees a clear failure rather than
+/// the notification being silently dropped.
+/// </summary>
+public sealed class IapWebhookSignatureInvalidException : InvalidOperationException
+{
+    public const string ErrorCode = "iap_webhook_signature_invalid";
+    public IapWebhookSignatureInvalidException(string message) : base(message) { }
+}

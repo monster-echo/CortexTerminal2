@@ -11,6 +11,7 @@ using CortexTerminal.Gateway.Auth;
 using CortexTerminal.Gateway.Data;
 using CortexTerminal.Gateway.Hubs;
 using CortexTerminal.Gateway.Membership;
+using CortexTerminal.Gateway.Membership.Iap;
 using CortexTerminal.Gateway.Sessions;
 using CortexTerminal.Gateway.Storage;
 using CortexTerminal.Gateway.Support;
@@ -304,6 +305,10 @@ var membershipOptions = new MembershipOptions();
 builder.Configuration.GetSection(MembershipOptions.SectionName).Bind(membershipOptions);
 builder.Services.AddSingleton(membershipOptions);
 
+var iapOptions = new IapOptions();
+builder.Configuration.GetSection(IapOptions.SectionName).Bind(iapOptions);
+builder.Services.AddSingleton(iapOptions);
+
 builder.Services.Configure<ArtifactStorageOptions>(builder.Configuration.GetSection(ArtifactStorageOptions.SectionName));
 builder.Services.AddSingleton<IArtifactStorage, S3CompatibleArtifactStorage>();
 builder.Services.AddSingleton<IArtifactCommandDispatcher, SignalRArtifactCommandDispatcher>();
@@ -311,6 +316,11 @@ builder.Services.AddSingleton<ArtifactService>();
 builder.Services.AddSingleton<AgentActivityService>();
 builder.Services.AddSingleton<IEntitlementService, EntitlementService>();
 builder.Services.AddSingleton<MembershipService>();
+builder.Services.AddSingleton<IAppleReceiptValidator, AppleReceiptValidator>();
+// Legacy /verifyReceipt validator (StoreKit 1 / MAUI). Typed HttpClient via the factory so the
+// handler is pooled and the validator itself can stay a singleton.
+builder.Services.AddHttpClient<IAppleLegacyReceiptValidator, AppleLegacyReceiptValidator>();
+builder.Services.AddSingleton<CortexTerminal.Gateway.Membership.Iap.AppleWebhookService>();
 builder.Services.AddHostedService<ArtifactCleanupHostedService>();
 
 var useInMemory = builder.Configuration.GetValue<bool>("Database:UseInMemory");
@@ -1917,6 +1927,78 @@ app.MapPost("/api/billing/redeem", async (RedeemRequest body, ClaimsPrincipal us
     return Results.Ok(new { tier = plan.Tier, planCode = plan.Code, isActive = true });
 }).RequireAuthorization();
 
+// Client calls this after a successful StoreKit purchase. We verify the Apple-signed JWS,
+// then idempotently grant the entitlement. Only Apple is wired today; google/huawei are
+// future channels — anything else is a 400 so the client shows a clear error, not a 404.
+app.MapPost("/api/iap/purchase/verify", async (VerifyIapPurchaseRequest body, ClaimsPrincipal user, IServiceProvider serviceProvider, IAuditLogStore auditLog) =>
+{
+    var userId = GetUserId(user);
+    if (body.Platform != "apple")
+        return Results.BadRequest(new { errorCode = "iap_unsupported_platform", message = "Only Apple platform is supported." });
+
+    // Route by receipt format: StoreKit 2 JWS (native iOS) vs StoreKit 1 legacy base64 blob
+    // (.NET MAUI / Plugin.InAppBilling). Both validators yield the same AppleVerifiedTransaction
+    // shape, so GrantFromIapAsync is format-agnostic.
+    var receiptFormat = string.IsNullOrWhiteSpace(body.ReceiptFormat) ? "jws" : body.ReceiptFormat.ToLowerInvariant();
+    AppleVerifiedTransaction verified;
+    try
+    {
+        if (receiptFormat == "legacy")
+        {
+            var legacyValidator = serviceProvider.GetRequiredService<IAppleLegacyReceiptValidator>();
+            verified = await legacyValidator.VerifyAsync(body.SignedTransaction, CancellationToken.None);
+        }
+        else
+        {
+            var validator = serviceProvider.GetRequiredService<IAppleReceiptValidator>();
+            verified = await validator.VerifyAsync(body.SignedTransaction, CancellationToken.None);
+        }
+    }
+    catch (IapReceiptInvalidException ex) { return Results.BadRequest(new { errorCode = IapReceiptInvalidException.ErrorCode, message = ex.Message }); }
+
+    var membership = serviceProvider.GetRequiredService<MembershipService>();
+    Subscription sub;
+    try
+    {
+        sub = await membership.GrantFromIapAsync(userId, verified, OrderChannels.IapApple, CancellationToken.None);
+    }
+    catch (ArgumentException ex) { return Results.BadRequest(new { errorCode = "iap_invalid_product", message = ex.Message }); }
+
+    auditLog.Record(new AuditLogEntry(
+        Id: Guid.NewGuid().ToString("N"), Timestamp: DateTimeOffset.UtcNow,
+        UserId: userId, UserName: userId, Action: "membership.iap_verify",
+        TargetEntity: "subscription", TargetId: sub.Id));
+    return Results.Ok(new { subscriptionId = sub.Id, isActive = sub.Status == SubscriptionStatuses.Active, expiresAtUtc = sub.ExpiresAtUtc });
+}).RequireAuthorization();
+
+// Apple App Store Server Notifications V2. Apple calls this endpoint directly (no auth header we
+// can validate — the trust comes from the JWS signature on the payload itself), so it is
+// anonymous. The body is the raw signedPayload JWS string; we verify the signature inside the
+// service (signature-invalid -> 400, never swallowed), dedupe by Apple's NotificationUuid, and
+// update the subscription state machine (renew / expire / refund). Returns 200 to both new and
+// duplicate events so Apple stops retrying.
+app.MapPost("/api/iap/webhook/apple", async (HttpContext ctx, IServiceProvider serviceProvider) =>
+{
+    // Apple sends the signed payload as the raw body (text/plain). Read it as a string so the
+    // JWS verifier gets exactly what Apple signed, without JSON deserialization interfering.
+    ctx.Request.EnableBuffering();
+    using var reader = new StreamReader(ctx.Request.Body);
+    var signedPayload = await reader.ReadToEndAsync();
+    if (string.IsNullOrWhiteSpace(signedPayload))
+        return Results.BadRequest(new { errorCode = "iap_webhook_empty", message = "Request body is empty." });
+
+    var service = serviceProvider.GetRequiredService<CortexTerminal.Gateway.Membership.Iap.AppleWebhookService>();
+    try
+    {
+        await service.HandleAsync(signedPayload, ctx.RequestAborted);
+    }
+    catch (IapWebhookSignatureInvalidException ex)
+    {
+        return Results.BadRequest(new { errorCode = IapWebhookSignatureInvalidException.ErrorCode, message = ex.Message });
+    }
+    return Results.Ok(new { ok = true });
+}).AllowAnonymous();
+
 // ---- Admin Membership Endpoints ----
 app.MapPost("/api/admin/membership/grant", async (GrantRequest body, ClaimsPrincipal user, IServiceProvider serviceProvider, IAuditLogStore auditLog) =>
 {
@@ -2988,5 +3070,21 @@ internal sealed class LatestVersionCache
 }
 
 public sealed record FeedbackUploadRequest(string Filename);
+
+/// <summary>
+/// Client payload for <c>POST /api/iap/purchase/verify</c>.
+/// <para>
+/// <c>SignedTransaction</c> carries either a StoreKit 2 JWS (<c>ReceiptFormat=jws</c>, the
+/// default from the native iOS/Swift client) or a base64 StoreKit 1 receipt blob
+/// (<c>ReceiptFormat=legacy</c>, produced by Plugin.InAppBilling on .NET MAUI). The endpoint
+/// routes to the matching validator by this field.
+/// </para>
+/// </summary>
+public sealed record VerifyIapPurchaseRequest(
+    string Platform,
+    string ProductId,
+    string SignedTransaction,
+    string ReceiptFormat = "jws"
+);
 
 public partial class Program;

@@ -58,3 +58,18 @@ public static class SubscriptionSources
     public const string IapGoogle = "iap_google";
     public const string IapHuawei = "iap_huawei";
 }
+
+public static class AppleProductIds
+{
+    public const string ProMonth = "corterm.pro.month";
+    public const string ProYear = "corterm.pro.year";
+    public const string ProLifetime = "corterm.pro.lifetime";
+
+    public static string? ToPlanCode(string productId) => productId switch
+    {
+        ProMonth => PlanCodes.ProMonth,
+        ProYear => PlanCodes.ProYear,
+        ProLifetime => PlanCodes.ProLifetime,
+        _ => null,
+    };
+}

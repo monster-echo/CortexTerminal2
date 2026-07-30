@@ -6,5 +6,7 @@
         <array>
             <string>$(AppIdentifierPrefix)top.rwecho.cortexterminal</string>
         </array>
+        <key>com.apple.developer.in-app-purchase</key>
+        <true/>
     </dict>
 </plist>
