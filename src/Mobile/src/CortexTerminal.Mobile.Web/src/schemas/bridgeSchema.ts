@@ -204,6 +204,23 @@ export const UpdateAvatarResponseSchema = z.object({
   avatarUrl: z.string().nullable().optional(),
 });
 
+// IAP billing — success carries the server-verified entitlement; failure carries an errorCode the
+// UI branches on (user_cancelled is a no-op, purchase_failed/verify_failed show a retry CTA).
+export const PurchasePlanResponseSchema = z.object({
+  success: z.boolean(),
+  isActive: z.boolean().optional(),
+  expiresAtUtc: z.string().nullable().optional(),
+  subscriptionId: z.string().nullable().optional(),
+  errorCode: z.string().optional(),
+  message: z.string().optional(),
+});
+
+export const RestorePurchasesResponseSchema = z.object({
+  success: z.boolean(),
+  errorCode: z.string().optional(),
+  message: z.string().optional(),
+});
+
 export const HasClipboardTextSchema = z.object({
   hasText: z.boolean(),
 });
@@ -241,3 +258,5 @@ export type DeleteAccountResponse = z.infer<typeof DeleteAccountResponseSchema>;
 export type ChangePasswordResponse = z.infer<typeof ChangePasswordResponseSchema>;
 export type UserProfileResponse = z.infer<typeof UserProfileResponseSchema>;
 export type UpdateAvatarResponse = z.infer<typeof UpdateAvatarResponseSchema>;
+export type PurchasePlanResponse = z.infer<typeof PurchasePlanResponseSchema>;
+export type RestorePurchasesResponse = z.infer<typeof RestorePurchasesResponseSchema>;

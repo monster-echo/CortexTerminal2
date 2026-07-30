@@ -81,6 +81,17 @@ public static class MauiProgram
 			bridge.SetAuthServices(authService, oauthService);
 			bridge.SetTerminalGateway(terminalGateway);
 			bridge.SetSupportServices(supportService);
+#if IOS
+			// Billing is iOS-only (IIapService / Plugin.InAppBilling are iOS-registered). The
+			// gateway HttpClient is a fresh client (no UnauthorizedHandler — purchase verify is a
+			// one-shot call and a 401 should surface as verify_failed, not trigger a token refresh
+			// loop in the middle of a StoreKit flow).
+			var gatewayBaseUri = sp.GetRequiredService<Uri>();
+			bridge.SetBillingServices(
+				sp.GetRequiredService<IIapService>(),
+				authService,
+				CreateGatewayHttpClient(gatewayBaseUri));
+#endif
 			return bridge;
 		});
 
