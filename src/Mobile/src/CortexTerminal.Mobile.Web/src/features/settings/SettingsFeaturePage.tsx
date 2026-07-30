@@ -26,6 +26,7 @@ import {
   lockClosedOutline,
   logOutOutline,
   shieldCheckmarkOutline,
+  starOutline,
   warningOutline,
 } from "ionicons/icons";
 import { RouteComponentProps } from "react-router-dom";
@@ -348,6 +349,10 @@ export default function SettingsFeaturePage({ history }: RouteComponentProps) {
           <IonItem button routerLink="/activate" routerDirection="root" data-analytics-id="settings_activate_worker">
             <IonIcon slot="start" icon={keyOutline} />
             <IonLabel>{t("settings.activateWorker")}</IonLabel>
+          </IonItem>
+          <IonItem button routerLink="/pricing" routerDirection="root" data-analytics-id="settings_membership">
+            <IonIcon slot="start" icon={starOutline} />
+            <IonLabel>{t("settings.membership")}</IonLabel>
           </IonItem>
         </IonList>
 
