@@ -535,7 +535,8 @@
     "open": "打开",
     "revoke": "撤销",
     "creating": "创建中...",
-    "revoked": "已撤销"
+    "revoked": "已撤销",
+    "invalidPort": "端口必须是 1 到 65535 之间的数字"
   },
   "workers": {
     "title": "工作节点",

@@ -1,5 +1,6 @@
 import {
   IonBadge,
+  IonButton,
   IonButtons,
   IonContent,
   IonHeader,
@@ -19,6 +20,7 @@ import {
   arrowForwardOutline,
   clipboardOutline,
   copyOutline,
+  gitNetworkOutline,
 } from "ionicons/icons";
 import { RouteComponentProps } from "react-router-dom";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -33,6 +35,7 @@ import { nativeBridge } from "../../bridge/nativeBridge";
 import { transport } from "../../bridge/runtime";
 import { useKeyboardToolbar } from "./useKeyboardToolbar";
 import { useTouchScroll } from "./useTouchScroll";
+import PortForwardingModal from "../tunnels/PortForwardingModal";
 
 const selectRemoveSession = (s: SessionState) => s.removeSession;
 const selectRecentSessions = (s: SessionState) => s.recentSessions;
@@ -156,6 +159,7 @@ export default function TerminalSessionPage({
   const containerHeightRef = useRef<number>(0);
   const cellHeightRef = useRef<number>(0);
 
+  const [tunnelOpen, setTunnelOpen] = useState(false);
   const [ctrlActive, setCtrlActive] = useState(false);
   const [altActive, setAltActive] = useState(false);
   const [hasClipboard, setHasClipboard] = useState(false);
@@ -729,38 +733,45 @@ export default function TerminalSessionPage({
             <IonMenuButton />
           </IonButtons>
           <IonTitle>{session?.title ?? t("terminal.session")}</IonTitle>
-          <IonBadge
-            slot="end"
-            color={session?.status === "running" ? "success" : "medium"}
-            style={{ marginRight: 8, cursor: "pointer" }}
-            onClick={() => {
-              const term = xtermRef.current;
-              const cols = term?.cols ?? "?";
-              const rows = term?.rows ?? "?";
-              const lat = latency !== null ? `${Math.round(latency)}ms` : "—";
-              void presentActionSheet({
-                header: t("terminal.sessionDetails"),
-                subHeader: `${t("terminal.status")}: ${statusMessage}`,
-                buttons: [
-                  {
-                    text: `${t("terminal.cols")}: ${cols}`,
-                    role: "destructive" as any,
-                  },
-                  {
-                    text: `${t("terminal.rows")}: ${rows}`,
-                    role: "destructive" as any,
-                  },
-                  {
-                    text: `${t("terminal.latency")}: ${lat}`,
-                    role: "destructive" as any,
-                  },
-                  { text: t("common.ok"), role: "cancel" },
-                ],
-              });
-            }}
-          >
-            {latency !== null ? `${Math.round(latency)}ms` : statusMessage}
-          </IonBadge>
+          <IonButtons slot="end">
+            <IonButton
+              onClick={() => setTunnelOpen(true)}
+              aria-label={t("tunnels.title")}
+            >
+              <IonIcon slot="icon-only" icon={gitNetworkOutline} />
+            </IonButton>
+            <IonBadge
+              color={session?.status === "running" ? "success" : "medium"}
+              style={{ marginRight: 8, cursor: "pointer" }}
+              onClick={() => {
+                const term = xtermRef.current;
+                const cols = term?.cols ?? "?";
+                const rows = term?.rows ?? "?";
+                const lat = latency !== null ? `${Math.round(latency)}ms` : "—";
+                void presentActionSheet({
+                  header: t("terminal.sessionDetails"),
+                  subHeader: `${t("terminal.status")}: ${statusMessage}`,
+                  buttons: [
+                    {
+                      text: `${t("terminal.cols")}: ${cols}`,
+                      role: "destructive" as any,
+                    },
+                    {
+                      text: `${t("terminal.rows")}: ${rows}`,
+                      role: "destructive" as any,
+                    },
+                    {
+                      text: `${t("terminal.latency")}: ${lat}`,
+                      role: "destructive" as any,
+                    },
+                    { text: t("common.ok"), role: "cancel" },
+                  ],
+                });
+              }}
+            >
+              {latency !== null ? `${Math.round(latency)}ms` : statusMessage}
+            </IonBadge>
+          </IonButtons>
         </IonToolbar>
       </IonHeader>
       <IonContent
@@ -880,6 +891,11 @@ export default function TerminalSessionPage({
           )}
         </div>
       </IonContent>
+      <PortForwardingModal
+        isOpen={tunnelOpen}
+        sessionId={sessionId}
+        onDismiss={() => setTunnelOpen(false)}
+      />
     </IonPage>
   );
 }

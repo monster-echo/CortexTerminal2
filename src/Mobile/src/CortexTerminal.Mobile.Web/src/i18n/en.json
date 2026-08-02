@@ -535,7 +535,8 @@
     "open": "Open",
     "revoke": "Revoke",
     "creating": "Creating...",
-    "revoked": "Revoked"
+    "revoked": "Revoked",
+    "invalidPort": "Port must be a number between 1 and 65535"
   },
   "workers": {
     "title": "Workers",
