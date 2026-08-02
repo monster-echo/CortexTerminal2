@@ -13,9 +13,9 @@ public static class TunnelSecret
     public static string GenerateSecret()
         => ToUrlSafeBase64(RandomNumberGenerator.GetBytes(SecretByteLength));
 
-    /// <summary>5 字节随机数,编码为 URL-safe base64(7 字符)。用于 /t/&lt;key&gt;/ 路径标识。</summary>
+    /// <summary>5 字节随机数编码为 10 位小写 hex(40 bit 熵),仅含 0-9a-f,满足 DNS 子域名规范。用于 &lt;key&gt;.tunnel.&lt;RootDomain&gt;/ 子域名标识。</summary>
     public static string GenerateTunnelKey()
-        => ToUrlSafeBase64(RandomNumberGenerator.GetBytes(KeyByteLength));
+        => Convert.ToHexString(RandomNumberGenerator.GetBytes(KeyByteLength)).ToLowerInvariant();
 
     /// <summary>SHA-256(secret) 的小写十六进制。明文 secret 永不入库。</summary>
     public static string Hash(string secret)
