@@ -41,7 +41,8 @@ export {
   WorkerSessionInfo,
   GatewayInfo,
   SupportGroupInfo,
-  SupportInfo
+  SupportInfo,
+  TunnelInfo
 } from './src/main/ets/model/SharedModels'
 
 // Session Models

@@ -7,7 +7,7 @@
  */
 import { http } from '@kit.NetworkKit'
 import { SessionInfo, SessionCreateRequest, SessionCreateResponse } from '../model/SessionModels'
-import { WorkerInfo, GatewayInfo, SupportInfo, SupportGroupInfo } from '../model/SharedModels'
+import { WorkerInfo, GatewayInfo, SupportInfo, SupportGroupInfo, TunnelInfo } from '../model/SharedModels'
 import { AuthError, AuthErrorKind } from './AuthError'
 
 export interface FeedbackUploadResult {
@@ -132,6 +132,40 @@ export class ApiService {
         httpRequest.destroy()
       })
     })
+  }
+
+  // ── Tunnel APIs ───────────────────────────────────────────────────
+
+  static async createTunnel(sessionId: string, port: number): Promise<TunnelInfo> {
+    const body: Record<string, Object> = { 'port': port }
+    const resp = await ApiService.post(
+      `/api/me/sessions/${encodeURIComponent(sessionId)}/tunnels`, body as Object) as Record<string, Object>
+    return ApiService.mapTunnel(resp)
+  }
+
+  static async listTunnels(sessionId: string): Promise<TunnelInfo[]> {
+    const resp = await ApiService.get(
+      `/api/me/sessions/${encodeURIComponent(sessionId)}/tunnels`) as Record<string, Object>
+    const arr = (resp['tunnels'] as Object[]) ?? []
+    return arr.map((item: Object) => ApiService.mapTunnel(item as Record<string, Object>))
+  }
+
+  static async revokeTunnel(tunnelId: string): Promise<void> {
+    await ApiService.del(`/api/me/tunnels/${encodeURIComponent(tunnelId)}`)
+  }
+
+  private static mapTunnel(item: Record<string, Object>): TunnelInfo {
+    const t = new TunnelInfo()
+    t.tunnelId = (item['tunnelId'] as string) ?? ''
+    t.tunnelKey = (item['tunnelKey'] as string) ?? ''
+    t.port = (item['port'] as number) ?? 0
+    t.sessionId = (item['sessionId'] as string) ?? ''
+    t.workerId = (item['workerId'] as string) ?? ''
+    t.url = (item['url'] as string) ?? ''
+    t.secret = (item['secret'] as string) ?? ''
+    t.expiresAtUtc = (item['expiresAtUtc'] as string) ?? ''
+    t.createdAtUtc = (item['createdAtUtc'] as string) ?? ''
+    return t
   }
 
   // ── Worker APIs ───────────────────────────────────────────────────

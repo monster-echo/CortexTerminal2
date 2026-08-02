@@ -274,4 +274,20 @@ export const enStrings: Record<string, string> = {
   'artifacts.size_bytes': '{n} B',
   'artifacts.size_kb': '{n} KB',
   'artifacts.size_mb': '{n} MB',
+
+  // ── Tunnel (Port Forwarding) ───────────────────────────────────────
+  'tunnel.title': 'Port Forwarding',
+  'tunnel.create': 'Create',
+  'tunnel.port_placeholder': 'Enter port, e.g. 8080',
+  'tunnel.empty': 'No tunnels for this session',
+  'tunnel.copy_link': 'Copy Link',
+  'tunnel.preview': 'Preview',
+  'tunnel.revoke': 'Revoke',
+  'tunnel.revoke_confirm_title': 'Revoke Port Forward',
+  'tunnel.revoke_confirm_message': 'Revoke this forward? The link will stop working immediately.',
+  'tunnel.copied': 'Link copied',
+  'tunnel.created': 'Forward created',
+  'tunnel.port_invalid': 'Enter a port between 1 and 65535',
+  'tunnel.quota': 'Tunnel quota reached for this session',
+  'tunnel.port_not_listening': 'Port is not listening. Make sure the service is running.',
 }

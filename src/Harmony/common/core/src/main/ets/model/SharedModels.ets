@@ -106,3 +106,19 @@ export class SupportInfo {
   telegramGroup: SupportGroupInfo | null = null
   email: string = ''
 }
+
+/**
+ * Information about a port forwarding tunnel created on a session.
+ */
+@Observed
+export class TunnelInfo {
+  tunnelId: string = ''
+  tunnelKey: string = ''
+  port: number = 0
+  sessionId: string = ''
+  workerId: string = ''
+  url: string = ''
+  secret: string = ''
+  expiresAtUtc: string = ''
+  createdAtUtc: string = ''
+}

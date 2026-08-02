@@ -274,4 +274,20 @@ export const zhStrings: Record<string, string> = {
   'artifacts.size_bytes': '{n} B',
   'artifacts.size_kb': '{n} KB',
   'artifacts.size_mb': '{n} MB',
+
+  // ── Tunnel (Port Forwarding) ───────────────────────────────────────
+  'tunnel.title': '端口转发',
+  'tunnel.create': '创建',
+  'tunnel.port_placeholder': '输入端口号，如 8080',
+  'tunnel.empty': '该会话暂无端口转发',
+  'tunnel.copy_link': '复制链接',
+  'tunnel.preview': '预览',
+  'tunnel.revoke': '撤销',
+  'tunnel.revoke_confirm_title': '撤销端口转发',
+  'tunnel.revoke_confirm_message': '确定撤销该转发？链接将立即失效。',
+  'tunnel.copied': '链接已复制',
+  'tunnel.created': '转发已创建',
+  'tunnel.port_invalid': '请输入 1-65535 之间的端口号',
+  'tunnel.quota': '已达该会话的转发配额上限',
+  'tunnel.port_not_listening': '端口未监听，请确认服务已启动',
 }
