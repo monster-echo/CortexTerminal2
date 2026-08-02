@@ -129,6 +129,47 @@ public sealed class TunnelMiddlewareTests
     }
 
     [Fact]
+    public async Task Get_when_disabled_returns_503()
+    {
+        await using var ctx = await SeedAsync(settings: new Dictionary<string, string>
+        {
+            ["Tunnels:Enabled"] = "false",
+        });
+
+        using var response = await ctx.Client.GetAsync($"/t/{ctx.Tunnel.TunnelKey}/?k={ctx.Tunnel.Secret}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+    }
+
+    [Fact]
+    public async Task Get_over_rate_limit_returns_429()
+    {
+        await using var ctx = await SeedAsync(settings: new Dictionary<string, string>
+        {
+            ["Tunnels:MaxQpsPerTunnel"] = "2",
+        });
+        ctx.Factory.Dispatcher
+            .SendTunnelHttpRequestAsync(
+                ctx.Tunnel.WorkerConnectionId,
+                ctx.Tunnel.TunnelId,
+                Arg.Any<TunnelHttpRequest>(),
+                Arg.Any<CancellationToken>())
+            .Returns(new TunnelHttpResponse(200, new Dictionary<string, string[]>(), Array.Empty<byte>(), null));
+
+        using (var first = await ctx.Client.GetAsync($"/t/{ctx.Tunnel.TunnelKey}/?k={ctx.Tunnel.Secret}"))
+        {
+            first.StatusCode.Should().Be(HttpStatusCode.OK);
+        }
+        using (var second = await ctx.Client.GetAsync($"/t/{ctx.Tunnel.TunnelKey}/?k={ctx.Tunnel.Secret}"))
+        {
+            second.StatusCode.Should().Be(HttpStatusCode.OK);
+        }
+        using var third = await ctx.Client.GetAsync($"/t/{ctx.Tunnel.TunnelKey}/?k={ctx.Tunnel.Secret}");
+
+        third.StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
+    }
+
+    [Fact]
     public async Task Get_via_subdomain_host_preserves_full_path_and_dispatches()
     {
         await using var ctx = await SeedAsync();
@@ -182,9 +223,11 @@ public sealed class TunnelMiddlewareTests
         captured[0].Path.Should().Be("/");
     }
 
-    private static async Task<SeededContext> SeedAsync(bool workerOnline = true)
+    private static async Task<SeededContext> SeedAsync(
+        bool workerOnline = true,
+        IReadOnlyDictionary<string, string>? settings = null)
     {
-        var factory = new TunnelMiddlewareFactory();
+        var factory = new TunnelMiddlewareFactory(settings);
         // CreateClient starts the host so Services (and the in-memory TunnelRegistry) is live.
         var client = factory.CreateClient();
         var tunnel = await factory.SeedTunnelAsync();
@@ -227,6 +270,13 @@ public sealed class TunnelMiddlewareTests
 /// <summary>Custom factory: replaces the worker registry + command dispatcher with NSubstitute mocks.</summary>
 internal sealed class TunnelMiddlewareFactory : WebApplicationFactory<Program>
 {
+    private readonly IReadOnlyDictionary<string, string>? _settings;
+
+    public TunnelMiddlewareFactory(IReadOnlyDictionary<string, string>? settings = null)
+    {
+        _settings = settings;
+    }
+
     public IWorkerRegistry Workers { get; } = Substitute.For<IWorkerRegistry>();
     public IWorkerCommandDispatcher Dispatcher { get; } = Substitute.For<IWorkerCommandDispatcher>();
 
@@ -236,6 +286,13 @@ internal sealed class TunnelMiddlewareFactory : WebApplicationFactory<Program>
         builder.UseSetting("Database:UseInMemory", "true");
         builder.UseSetting("Database:InMemoryDbName", $"corterm_gateway_test_{Guid.NewGuid():N}");
         builder.UseSetting("Tunnels:RootDomain", "tunnel.test");
+        if (_settings is not null)
+        {
+            foreach (var (key, value) in _settings)
+            {
+                builder.UseSetting(key, value);
+            }
+        }
 
         builder.ConfigureServices(services =>
         {

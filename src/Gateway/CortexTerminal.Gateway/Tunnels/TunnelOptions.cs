@@ -16,6 +16,12 @@ public sealed class TunnelOptions
     /// <summary>单 session 最多 tunnel 数。</summary>
     public int MaxTunnelsPerSession { get; set; } = 3;
 
+    /// <summary>全局开关。false 时中间件返回 503,创建端点拒绝。可由 env TUNNELS_ENABLED 覆盖。</summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>每 tunnel 每秒最大请求数。超限返回 429。</summary>
+    public int MaxQpsPerTunnel { get; set; } = 50;
+
     /// <summary>端口探活超时。</summary>
     public TimeSpan ProbeTimeout { get; set; } = TimeSpan.FromSeconds(2);
 

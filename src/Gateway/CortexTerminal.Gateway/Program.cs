@@ -290,7 +290,17 @@ if (int.TryParse(scrollbackEnvBytes, out var envMaxBytes) && envMaxBytes > 0)
 builder.Services.AddSingleton(scrollbackSettings);
 
 builder.Services.Configure<TunnelOptions>(builder.Configuration.GetSection(TunnelOptions.SectionName));
+// Env TUNNELS_ENABLED=false 是全局熔断开关。默认配置 provider 会把裸 env 名映射为顶层 key 而非
+// Tunnels:Enabled,故这里显式读取,保证部署侧一个环境变量即可关停端口转发。
+builder.Services.PostConfigure<TunnelOptions>(o =>
+{
+    if (bool.TryParse(Environment.GetEnvironmentVariable("TUNNELS_ENABLED"), out var enabled))
+        o.Enabled = enabled;
+});
+// TunnelQuota 的构造函数注入具体类型,这里把经过 Configure + PostConfigure 的实例注册为 singleton。
+builder.Services.AddSingleton<TunnelOptions>(sp => sp.GetRequiredService<IOptions<TunnelOptions>>().Value);
 builder.Services.AddSingleton<TunnelRegistry>();
+builder.Services.AddSingleton<TunnelQuota>();
 builder.Services.Configure<ArtifactStorageOptions>(builder.Configuration.GetSection(ArtifactStorageOptions.SectionName));
 builder.Services.AddSingleton<IArtifactStorage, S3CompatibleArtifactStorage>();
 builder.Services.AddSingleton<IArtifactCommandDispatcher, SignalRArtifactCommandDispatcher>();
@@ -1760,6 +1770,9 @@ app.MapPost("/api/me/sessions/{sessionId}/tunnels", async (
     var userId = GetUserId(user);
     if (session.UserId != userId)
         return Results.Forbid();
+
+    if (!tunnelOptions.Value.Enabled)
+        return Results.Problem("Port forwarding is disabled.", statusCode: StatusCodes.Status503ServiceUnavailable);
 
     if (session.AttachmentState is SessionAttachmentState.Exited or SessionAttachmentState.Expired)
         return Results.Problem("Session is no longer running.", statusCode: StatusCodes.Status409Conflict);

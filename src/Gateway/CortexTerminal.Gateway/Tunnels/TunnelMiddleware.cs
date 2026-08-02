@@ -13,7 +13,8 @@ public sealed class TunnelMiddleware(RequestDelegate next, ILogger<TunnelMiddlew
         TunnelRegistry registry,
         IWorkerRegistry workers,
         IWorkerCommandDispatcher dispatcher,
-        IOptions<TunnelOptions> options)
+        IOptions<TunnelOptions> options,
+        TunnelQuota quota)
     {
         var host = context.Request.Host.Host;
         var optionsValue = options.Value;
@@ -54,6 +55,13 @@ public sealed class TunnelMiddleware(RequestDelegate next, ILogger<TunnelMiddlew
             return;
         }
 
+        // 全局熔断开关:只锁公网 tunnel 入口;非 tunnel 请求(key 为空)已在上面放行,不受熔断影响。
+        if (!optionsValue.Enabled)
+        {
+            await WriteErrorAsync(context, StatusCodes.Status503ServiceUnavailable, "Port forwarding is disabled.");
+            return;
+        }
+
         var tunnel = await registry.FindByKeyAsync(key);
         if (tunnel is null)
         {
@@ -78,6 +86,12 @@ public sealed class TunnelMiddleware(RequestDelegate next, ILogger<TunnelMiddlew
             || !string.Equals(worker.ConnectionId, tunnel.WorkerConnectionId, StringComparison.Ordinal))
         {
             await WriteErrorAsync(context, StatusCodes.Status502BadGateway, "Worker is offline. Start the worker and reattach the session.");
+            return;
+        }
+
+        if (!quota.TryAcquire(tunnel.Id))
+        {
+            await WriteErrorAsync(context, StatusCodes.Status429TooManyRequests, "Rate limit exceeded.");
             return;
         }
 
