@@ -523,6 +523,20 @@
     "rename": "重命名会话",
     "namePlaceholder": "输入会话名称"
   },
+  "tunnels": {
+    "title": "端口转发",
+    "create": "创建",
+    "portLabel": "端口",
+    "portPlaceholder": "例如 3000",
+    "noTunnels": "该会话暂无端口转发",
+    "expires": "过期时间 {{time}}",
+    "shareLink": "分享链接",
+    "copyLink": "复制链接",
+    "open": "打开",
+    "revoke": "撤销",
+    "creating": "创建中...",
+    "revoked": "已撤销"
+  },
   "workers": {
     "title": "工作节点",
     "loading": "加载中...",

@@ -523,6 +523,20 @@
     "rename": "Rename Session",
     "namePlaceholder": "Enter session name"
   },
+  "tunnels": {
+    "title": "Port Forwarding",
+    "create": "Create",
+    "portLabel": "Port",
+    "portPlaceholder": "e.g. 3000",
+    "noTunnels": "No tunnels for this session",
+    "expires": "Expires {{time}}",
+    "shareLink": "Share Link",
+    "copyLink": "Copy Link",
+    "open": "Open",
+    "revoke": "Revoke",
+    "creating": "Creating...",
+    "revoked": "Revoked"
+  },
   "workers": {
     "title": "Workers",
     "loading": "Loading workers",
