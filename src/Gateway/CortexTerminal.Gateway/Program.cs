@@ -332,6 +332,9 @@ forwardedHeadersOptions.KnownIPNetworks.Clear();
 forwardedHeadersOptions.KnownProxies.Clear();
 app.UseForwardedHeaders(forwardedHeadersOptions);
 
+// Visitor HTTP entry point: intercept /t/<key>/... before auth/static files, validate tunnel secret.
+app.UseMiddleware<TunnelMiddleware>();
+
 // Auto-migrate database schema (Postgres only — in-memory provider auto-creates)
 if (!useInMemory)
 {
