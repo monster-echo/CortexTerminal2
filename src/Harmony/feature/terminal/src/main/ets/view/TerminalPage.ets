@@ -18,6 +18,7 @@ import { TransportFrame } from '../model/TerminalTransportModels'
 import { TerminalState } from '../model/TerminalState'
 import { XtermWebview } from './XtermWebview'
 import { VirtualKeyBar } from './VirtualKeyBar'
+import { TunnelPanel } from './TunnelPanel'
 
 class TerminalSize { cols: number = 0; rows: number = 0 }
 
@@ -133,6 +134,7 @@ export struct TerminalPage {
   @State lastPingTime: number = 0
   @State ctrlActive: boolean = false
   @State altActive: boolean = false
+  @State showTunnelSheet: boolean = false
   private detailDialog: CustomDialogController = new CustomDialogController({
     builder: SessionDetailDialog({ status: '', cols: 0, rows: 0, latencyMs: -1 }),
     autoCancel: true,
@@ -268,6 +270,20 @@ export struct TerminalPage {
         })
 
         Button() {
+          SymbolGlyph($r('sys.symbol.link'))
+            .fontSize(18)
+            .fontColor([$r('app.color.terminal_primary')])
+        }
+        .width(40)
+        .height(40)
+        .borderRadius(20)
+        .backgroundColor(Color.Transparent)
+        .onClick(() => {
+          clickHaptic()
+          this.showTunnelSheet = true
+        })
+
+        Button() {
           SymbolGlyph($r('sys.symbol.paperplane'))
             .fontSize(18)
             .fontColor([$r('app.color.terminal_primary')])
@@ -362,7 +378,21 @@ export struct TerminalPage {
     .width('100%')
     .height('100%')
     .backgroundColor($r('app.color.terminal_surface'))
+    .bindSheet($$this.showTunnelSheet, this.TunnelSheetContent(), {
+      height: SheetSize.LARGE,
+      showClose: true,
+      backgroundColor: $r('app.color.terminal_surface'),
+      onDisappear: () => { this.showTunnelSheet = false }
+    })
     }
+  }
+
+  @Builder
+  TunnelSheetContent() {
+    TunnelPanel({
+      sessionId: this.sessionId,
+      onClose: () => { this.showTunnelSheet = false }
+    })
   }
 
   private async connectSession() {
