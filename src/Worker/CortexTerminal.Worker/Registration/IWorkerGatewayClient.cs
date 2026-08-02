@@ -18,6 +18,8 @@ public interface IWorkerGatewayClient : IAsyncDisposable
     IDisposable OnReconnected(Func<string?, Task> handler);
     IDisposable OnClosed(Func<Exception?, Task> handler);
     IDisposable OnNotifyArtifactUploaded(Func<NotifyArtifactUploadedFrame, Task> handler);
+    IDisposable OnProbeTunnelPort(Func<int, ProbePortResponse> handler);
+    IDisposable OnTunnelHttpRequest(Func<TunnelHttpRequest, TunnelHttpResponse> handler);
     Task ForwardStdoutAsync(TerminalChunk chunk, CancellationToken cancellationToken);
     Task ForwardStderrAsync(TerminalChunk chunk, CancellationToken cancellationToken);
     Task ForwardLatencyProbeAsync(LatencyProbeFrame frame, CancellationToken cancellationToken);

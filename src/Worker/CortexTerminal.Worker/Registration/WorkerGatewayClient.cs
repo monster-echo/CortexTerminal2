@@ -51,6 +51,12 @@ public sealed class WorkerGatewayClient : IWorkerGatewayClient
     public IDisposable OnNotifyArtifactUploaded(Func<NotifyArtifactUploadedFrame, Task> handler)
         => _connection.On<NotifyArtifactUploadedFrame>("NotifyArtifactUploaded", handler);
 
+    public IDisposable OnProbeTunnelPort(Func<int, ProbePortResponse> handler)
+        => _connection.On<int, ProbePortResponse>("ProbeTunnelPort", handler);
+
+    public IDisposable OnTunnelHttpRequest(Func<TunnelHttpRequest, TunnelHttpResponse> handler)
+        => _connection.On<TunnelHttpRequest, TunnelHttpResponse>("TunnelHttpRequest", handler);
+
     public IDisposable OnReconnected(Func<string?, Task> handler)
     {
         lock (_sync)
