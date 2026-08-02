@@ -11,6 +11,7 @@ using CortexTerminal.Worker.Logging;
 using CortexTerminal.Worker.Pty;
 using CortexTerminal.Worker.Registration;
 using CortexTerminal.Worker.Runtime;
+using CortexTerminal.Worker.Tunnels;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -484,12 +485,21 @@ rootCommand.SetAction(async (ParseResult parseResult, CancellationToken cancella
         return new TokenRefreshService(httpClient, tokenStore, () => currentToken, t => currentToken = t, configuration, lifetime, logger);
     });
 
+    // Tunnel reverse-proxy + port probe executor. AddHttpClient<TunnelHost> wires a dedicated
+    // HttpClient (8MB max response) into TunnelHost's constructor. The handler must NOT use the
+    // system proxy: the reverse-proxy targets http://localhost:<port>, and honoring
+    // HTTP(S)_PROXY (e.g. 127.0.0.1:1081) would send the localhost request to the proxy, which
+    // can't reach the worker's loopback — killing every tunneled request.
+    builder.Services.AddHttpClient<TunnelHost>(c => { c.MaxResponseContentBufferSize = 8 * 1024 * 1024; })
+        .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { UseProxy = false });
+
     builder.Services.AddHostedService(services => new WorkerRuntimeHost(
         workerId,
         services.GetRequiredService<IWorkerGatewayClient>(),
         services.GetRequiredService<IPtyHost>(),
         services.GetRequiredService<ILoggerFactory>(),
         services.GetRequiredService<IHostApplicationLifetime>(),
+        services.GetRequiredService<TunnelHost>(),
         ResolveMetricsCollectorOrNull(services),
         agentIntegration: services.GetService<IAgentIntegration>()));
 

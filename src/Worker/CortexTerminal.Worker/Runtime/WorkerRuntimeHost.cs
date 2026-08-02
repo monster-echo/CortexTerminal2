@@ -10,6 +10,7 @@ using CortexTerminal.Worker.Artifacts;
 using CortexTerminal.Worker.Metrics;
 using CortexTerminal.Worker.Pty;
 using CortexTerminal.Worker.Registration;
+using CortexTerminal.Worker.Tunnels;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -22,6 +23,7 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
     private readonly IPtyHost _ptyHost;
     private readonly HttpClient _httpClient;
     private readonly ArtifactMirror _artifactMirror;
+    private readonly TunnelHost _tunnelHost;
     private readonly long _maxArtifactSizeBytes;
     private readonly IAgentIntegration? _agentIntegration;
     private readonly ILogger<WorkerRuntimeHost> _logger;
@@ -38,6 +40,8 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
     private static readonly TimeSpan DefaultReconnectInterval = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan DefaultMetricsInterval = TimeSpan.FromSeconds(5);
     private const long DefaultMaxArtifactSizeBytes = 50 * 1024 * 1024;
+    private static readonly TimeSpan ProbeTimeout = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan ForwardTimeout = TimeSpan.FromSeconds(30);
 
     public WorkerRuntimeHost(
         string workerId,
@@ -45,10 +49,11 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         IPtyHost ptyHost,
         ILoggerFactory loggerFactory,
         IHostApplicationLifetime lifetime,
+        TunnelHost tunnelHost,
         ISystemMetricsCollector? metricsCollector = null,
         TimeSpan? metricsInterval = null,
         IAgentIntegration? agentIntegration = null)
-        : this(workerId, gatewayClient, ptyHost, new HttpClient(), new ArtifactMirror(new HttpClient(), loggerFactory.CreateLogger<ArtifactMirror>()), DefaultMaxArtifactSizeBytes, loggerFactory, lifetime, DefaultReconnectInterval, metricsCollector, metricsInterval, agentIntegration) { }
+        : this(workerId, gatewayClient, ptyHost, new HttpClient(), new ArtifactMirror(new HttpClient(), loggerFactory.CreateLogger<ArtifactMirror>()), DefaultMaxArtifactSizeBytes, loggerFactory, lifetime, DefaultReconnectInterval, tunnelHost, metricsCollector, metricsInterval, agentIntegration) { }
 
     internal WorkerRuntimeHost(
         string workerId,
@@ -60,6 +65,7 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         ILoggerFactory loggerFactory,
         IHostApplicationLifetime lifetime,
         TimeSpan reconnectInterval,
+        TunnelHost tunnelHost,
         ISystemMetricsCollector? metricsCollector = null,
         TimeSpan? metricsInterval = null,
         IAgentIntegration? agentIntegration = null)
@@ -74,6 +80,7 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         _lifetime = lifetime;
         _logger = loggerFactory.CreateLogger<WorkerRuntimeHost>();
         _reconnectInterval = reconnectInterval;
+        _tunnelHost = tunnelHost;
         _metricsCollector = metricsCollector;
         _metricsInterval = metricsInterval ?? DefaultMetricsInterval;
         _agentIntegration = agentIntegration;
@@ -94,6 +101,8 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         _subscriptions.Add(_gatewayClient.OnUpgradeWorker(HandleUpgradeWorkerAsync));
         _subscriptions.Add(_gatewayClient.OnRequestScrollback(HandleRequestScrollbackAsync));
         _subscriptions.Add(_gatewayClient.OnNotifyArtifactUploaded(HandleNotifyArtifactUploadedAsync));
+        _subscriptions.Add(_gatewayClient.OnProbeTunnelPort(port => _tunnelHost.ProbePort(port, ProbeTimeout)));
+        _subscriptions.Add(_gatewayClient.OnTunnelHttpRequest(req => _tunnelHost.HandleRequestAsync(req, ForwardTimeout, CancellationToken.None).GetAwaiter().GetResult()));
         _subscriptions.Add(_gatewayClient.OnReconnected(connectionId =>
         {
             _logger.LogInformation("Worker {WorkerId} reconnected to gateway, connection={ConnectionId}.", _workerId, connectionId);

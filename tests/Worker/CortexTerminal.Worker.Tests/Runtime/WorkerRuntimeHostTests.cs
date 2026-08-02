@@ -6,6 +6,7 @@ using CortexTerminal.Worker.Artifacts;
 using CortexTerminal.Worker.Pty;
 using CortexTerminal.Worker.Registration;
 using CortexTerminal.Worker.Runtime;
+using CortexTerminal.Worker.Tunnels;
 using FluentAssertions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -22,7 +23,7 @@ public sealed class WorkerRuntimeHostTests
     {
         var process = new ControlledPtyProcess();
         var gateway = new FakeWorkerGatewayClient();
-        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(process), NullLoggerFactory.Instance, NewLifetime());
+        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(process), NullLoggerFactory.Instance, NewLifetime(), new TunnelHost(new HttpClient(), NullLogger<TunnelHost>.Instance));
 
         await host.StartAsync(CancellationToken.None);
         await gateway.RaiseStartSessionAsync(new StartSessionCommand("sess-1", 120, 40, 5 * 1024 * 1024));
@@ -48,7 +49,7 @@ public sealed class WorkerRuntimeHostTests
         // active sessions the snapshot is empty — but the call must happen, so the gateway can
         // treat any pre-existing gateway-side sessions for this worker as gone.
         var gateway = new FakeWorkerGatewayClient();
-        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()), NullLoggerFactory.Instance, NewLifetime());
+        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()), NullLoggerFactory.Instance, NewLifetime(), new TunnelHost(new HttpClient(), NullLogger<TunnelHost>.Instance));
 
         await host.StartAsync(CancellationToken.None);
 
@@ -60,7 +61,7 @@ public sealed class WorkerRuntimeHostTests
     public async Task Reconnected_ReRegistersWithoutDuplicatingTrackedSessions()
     {
         var gateway = new FakeWorkerGatewayClient();
-        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()), NullLoggerFactory.Instance, NewLifetime());
+        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()), NullLoggerFactory.Instance, NewLifetime(), new TunnelHost(new HttpClient(), NullLogger<TunnelHost>.Instance));
 
         await host.StartAsync(CancellationToken.None);
         await gateway.RaiseStartSessionAsync(new StartSessionCommand("sess-1", 120, 40, 5 * 1024 * 1024));
@@ -74,7 +75,7 @@ public sealed class WorkerRuntimeHostTests
     public async Task DuplicateStart_ForwardsStartFailureWithoutReplacingActiveSession()
     {
         var gateway = new FakeWorkerGatewayClient();
-        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()), NullLoggerFactory.Instance, NewLifetime());
+        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()), NullLoggerFactory.Instance, NewLifetime(), new TunnelHost(new HttpClient(), NullLogger<TunnelHost>.Instance));
 
         await host.StartAsync(CancellationToken.None);
         await gateway.RaiseStartSessionAsync(new StartSessionCommand("sess-1", 120, 40, 5 * 1024 * 1024));
@@ -94,7 +95,8 @@ public sealed class WorkerRuntimeHostTests
             gateway,
             new ThrowingPtyHost(new PtySupportException("pty-start-failed", "spawn exploded")),
             NullLoggerFactory.Instance,
-            NewLifetime());
+            NewLifetime(),
+            new TunnelHost(new HttpClient(), NullLogger<TunnelHost>.Instance));
 
         await host.StartAsync(CancellationToken.None);
         await gateway.RaiseStartSessionAsync(new StartSessionCommand("sess-1", 120, 40, 5 * 1024 * 1024));
@@ -115,7 +117,7 @@ public sealed class WorkerRuntimeHostTests
     {
         var process = new ControlledPtyProcess();
         var gateway = new FakeWorkerGatewayClient();
-        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(process), NullLoggerFactory.Instance, NewLifetime());
+        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(process), NullLoggerFactory.Instance, NewLifetime(), new TunnelHost(new HttpClient(), NullLogger<TunnelHost>.Instance));
 
         await host.StartAsync(CancellationToken.None);
         await gateway.RaiseStartSessionAsync(new StartSessionCommand("sess-1", 120, 40, 5 * 1024 * 1024));
@@ -136,7 +138,8 @@ public sealed class WorkerRuntimeHostTests
             new HttpClient(),
             new ArtifactMirror(new HttpClient(), NullLogger<ArtifactMirror>.Instance),
             50 * 1024 * 1024,
-            NullLoggerFactory.Instance, NewLifetime(), TimeSpan.FromMilliseconds(50));
+            NullLoggerFactory.Instance, NewLifetime(), TimeSpan.FromMilliseconds(50),
+            new TunnelHost(new HttpClient(), NullLogger<TunnelHost>.Instance));
 
         await host.StartAsync(CancellationToken.None);
         gateway.RegisteredWorkerIds.Should().ContainSingle(); // initial register
@@ -164,7 +167,8 @@ public sealed class WorkerRuntimeHostTests
             new HttpClient(),
             new ArtifactMirror(new HttpClient(), NullLogger<ArtifactMirror>.Instance),
             50 * 1024 * 1024,
-            NullLoggerFactory.Instance, NewLifetime(), TimeSpan.FromMilliseconds(50));
+            NullLoggerFactory.Instance, NewLifetime(), TimeSpan.FromMilliseconds(50),
+            new TunnelHost(new HttpClient(), NullLogger<TunnelHost>.Instance));
 
         await host.StartAsync(CancellationToken.None);
         var startCountBefore = gateway.StartCallCount;
@@ -192,7 +196,8 @@ public sealed class WorkerRuntimeHostTests
             new HttpClient(),
             new ArtifactMirror(new HttpClient(), NullLogger<ArtifactMirror>.Instance),
             50 * 1024 * 1024,
-            NullLoggerFactory.Instance, NewLifetime(), TimeSpan.FromMilliseconds(50));
+            NullLoggerFactory.Instance, NewLifetime(), TimeSpan.FromMilliseconds(50),
+            new TunnelHost(new HttpClient(), NullLogger<TunnelHost>.Instance));
 
         await host.StartAsync(CancellationToken.None);
         gateway.RegisteredWorkerIds.Clear();
@@ -223,7 +228,8 @@ public sealed class WorkerRuntimeHostTests
             new HttpClient(),
             new ArtifactMirror(new HttpClient(), NullLogger<ArtifactMirror>.Instance),
             50 * 1024 * 1024,
-            NullLoggerFactory.Instance, lifetime, TimeSpan.FromMilliseconds(50));
+            NullLoggerFactory.Instance, lifetime, TimeSpan.FromMilliseconds(50),
+            new TunnelHost(new HttpClient(), NullLogger<TunnelHost>.Instance));
 
         await host.StartAsync(CancellationToken.None);
 
@@ -251,7 +257,8 @@ public sealed class WorkerRuntimeHostTests
 
         await using var host = new WorkerRuntimeHost(
             "worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()),
-            NullLoggerFactory.Instance, lifetime);
+            NullLoggerFactory.Instance, lifetime,
+            new TunnelHost(new HttpClient(), NullLogger<TunnelHost>.Instance));
 
         await host.StartAsync(CancellationToken.None);
 
@@ -262,7 +269,7 @@ public sealed class WorkerRuntimeHostTests
     public async Task Upgrade_RejectedWhenPlatformMismatches()
     {
         var gateway = new FakeWorkerGatewayClient();
-        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()), NullLoggerFactory.Instance, NewLifetime());
+        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()), NullLoggerFactory.Instance, NewLifetime(), new TunnelHost(new HttpClient(), NullLogger<TunnelHost>.Instance));
 
         await host.StartAsync(CancellationToken.None);
 
@@ -286,7 +293,7 @@ public sealed class WorkerRuntimeHostTests
     public async Task Upgrade_AcceptedWhenPlatformMatches()
     {
         var gateway = new FakeWorkerGatewayClient();
-        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()), NullLoggerFactory.Instance, NewLifetime());
+        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()), NullLoggerFactory.Instance, NewLifetime(), new TunnelHost(new HttpClient(), NullLogger<TunnelHost>.Instance));
 
         await host.StartAsync(CancellationToken.None);
 
@@ -411,6 +418,12 @@ internal sealed class FakeWorkerGatewayClient : IWorkerGatewayClient
 
     public IDisposable OnRequestScrollback(Func<string, IReadOnlyList<TerminalChunk>> handler)
         => Register(_scrollbackHandlers, handler);
+
+    public IDisposable OnProbeTunnelPort(Func<int, ProbePortResponse> handler)
+        => new DelegateDisposable(() => { });
+
+    public IDisposable OnTunnelHttpRequest(Func<TunnelHttpRequest, TunnelHttpResponse> handler)
+        => new DelegateDisposable(() => { });
 
     public IDisposable OnReconnected(Func<string?, Task> handler)
         => Register(_reconnectHandlers, handler);

@@ -84,6 +84,8 @@ public sealed class GatewayAgentEventSinkTests
         public IDisposable OnCloseSession(Func<CloseSessionRequest, Task> handler) => NoOpDisposable.Instance;
         public IDisposable OnUpgradeWorker(Func<UpgradeWorkerCommand, Task> handler) => NoOpDisposable.Instance;
         public IDisposable OnRequestScrollback(Func<string, IReadOnlyList<TerminalChunk>> handler) => NoOpDisposable.Instance;
+        public IDisposable OnProbeTunnelPort(Func<int, ProbePortResponse> handler) => NoOpDisposable.Instance;
+        public IDisposable OnTunnelHttpRequest(Func<TunnelHttpRequest, TunnelHttpResponse> handler) => NoOpDisposable.Instance;
         public IDisposable OnNotifyArtifactUploaded(Func<NotifyArtifactUploadedFrame, Task> handler) => NoOpDisposable.Instance;
         public IDisposable OnReconnected(Func<string?, Task> handler) => NoOpDisposable.Instance;
         public IDisposable OnClosed(Func<Exception?, Task> handler) => NoOpDisposable.Instance;
