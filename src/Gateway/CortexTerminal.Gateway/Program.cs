@@ -1796,8 +1796,9 @@ app.MapPost("/api/me/sessions/{sessionId}/tunnels", async (
 
     auditLog.Record(httpContext.CreateAuditEntry(userId, userId, "tunnel.created", "tunnel", entity.Id));
 
-    var host = httpContext.Request.Host.Value;
-    var url = $"{httpContext.Request.Scheme}://{host}{options.RoutePrefix}{key}/?k={secret}";
+    var url = !string.IsNullOrEmpty(options.RootDomain)
+        ? $"https://{key}.{options.RootDomain}/?k={secret}"
+        : $"{httpContext.Request.Scheme}://{httpContext.Request.Host.Value}{options.RoutePrefix}{key}/?k={secret}";
     return Results.Ok(new TunnelDto(entity.Id, entity.TunnelKey, entity.Port, entity.SessionId, entity.WorkerId, url, secret, entity.ExpiresAtUtc, entity.CreatedAtUtc));
 }).RequireAuthorization();
 

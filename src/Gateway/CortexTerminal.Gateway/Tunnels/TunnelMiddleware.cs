@@ -15,19 +15,38 @@ public sealed class TunnelMiddleware(RequestDelegate next, ILogger<TunnelMiddlew
         IWorkerCommandDispatcher dispatcher,
         IOptions<TunnelOptions> options)
     {
-        var path = context.Request.Path.Value ?? string.Empty;
-        var prefix = options.Value.RoutePrefix;
+        var host = context.Request.Host.Host;
+        var optionsValue = options.Value;
+        var key = string.Empty;
+        var subPath = string.Empty;
+        var prefix = optionsValue.RoutePrefix;
 
-        if (!path.StartsWith(prefix, StringComparison.Ordinal))
+        // 子域名模式:Host == "<key>.<RootDomain>"
+        if (!string.IsNullOrEmpty(optionsValue.RootDomain) && !string.IsNullOrEmpty(host)
+            && host.EndsWith("." + optionsValue.RootDomain, StringComparison.OrdinalIgnoreCase))
         {
-            await next(context);
-            return;
+            var sub = host.Substring(0, host.Length - optionsValue.RootDomain.Length - 1);
+            if (!string.IsNullOrEmpty(sub) && sub.IndexOf('.') < 0) // 单段子域名才算 tunnel key
+            {
+                key = sub;
+                subPath = context.Request.Path.Value ?? "/";
+            }
         }
 
-        var withoutPrefix = path.Substring(prefix.Length);
-        var slashIdx = withoutPrefix.IndexOf('/');
-        var key = slashIdx < 0 ? withoutPrefix : withoutPrefix.Substring(0, slashIdx);
-        var subPath = slashIdx < 0 ? "/" : withoutPrefix.Substring(slashIdx);
+        // 路径式 fallback:RoutePrefix
+        if (string.IsNullOrEmpty(key))
+        {
+            var path = context.Request.Path.Value ?? string.Empty;
+            if (!path.StartsWith(prefix, StringComparison.Ordinal))
+            {
+                await next(context);
+                return;
+            }
+            var withoutPrefix = path.Substring(prefix.Length);
+            var slashIdx = withoutPrefix.IndexOf('/');
+            key = slashIdx < 0 ? withoutPrefix : withoutPrefix.Substring(0, slashIdx);
+            subPath = slashIdx < 0 ? "/" : withoutPrefix.Substring(slashIdx);
+        }
 
         if (string.IsNullOrEmpty(key))
         {

@@ -128,6 +128,60 @@ public sealed class TunnelMiddlewareTests
         response.StatusCode.Should().Be(HttpStatusCode.BadGateway);
     }
 
+    [Fact]
+    public async Task Get_via_subdomain_host_preserves_full_path_and_dispatches()
+    {
+        await using var ctx = await SeedAsync();
+        ctx.Client.DefaultRequestHeaders.Host = $"{ctx.Tunnel.TunnelKey}.tunnel.test";
+
+        var body = Encoding.UTF8.GetBytes("hello from worker");
+        var captured = new List<TunnelHttpRequest>();
+        ctx.Factory.Dispatcher
+            .SendTunnelHttpRequestAsync(
+                ctx.Tunnel.WorkerConnectionId,
+                ctx.Tunnel.TunnelId,
+                Arg.Do<TunnelHttpRequest>(r => captured.Add(r)),
+                Arg.Any<CancellationToken>())
+            .Returns(new TunnelHttpResponse(
+                200,
+                new Dictionary<string, string[]> { ["X-Tunnel-Id"] = [ctx.Tunnel.TunnelId] },
+                body,
+                null));
+
+        using var response = await ctx.Client.GetAsync($"/foo/bar?k={ctx.Tunnel.Secret}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await response.Content.ReadAsStringAsync()).Should().Be("hello from worker");
+
+        captured.Should().ContainSingle();
+        captured[0].Method.Should().Be("GET");
+        captured[0].Path.Should().Be("/foo/bar");
+        captured[0].Query.Should().Be($"?k={ctx.Tunnel.Secret}");
+        captured[0].Port.Should().Be(ctx.Tunnel.Port);
+    }
+
+    [Fact]
+    public async Task Get_via_subdomain_host_root_path_dispatches()
+    {
+        await using var ctx = await SeedAsync();
+        ctx.Client.DefaultRequestHeaders.Host = $"{ctx.Tunnel.TunnelKey}.tunnel.test";
+
+        var captured = new List<TunnelHttpRequest>();
+        ctx.Factory.Dispatcher
+            .SendTunnelHttpRequestAsync(
+                ctx.Tunnel.WorkerConnectionId,
+                ctx.Tunnel.TunnelId,
+                Arg.Do<TunnelHttpRequest>(r => captured.Add(r)),
+                Arg.Any<CancellationToken>())
+            .Returns(new TunnelHttpResponse(200, new Dictionary<string, string[]>(), Array.Empty<byte>(), null));
+
+        using var response = await ctx.Client.GetAsync($"/?k={ctx.Tunnel.Secret}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        captured.Should().ContainSingle();
+        captured[0].Path.Should().Be("/");
+    }
+
     private static async Task<SeededContext> SeedAsync(bool workerOnline = true)
     {
         var factory = new TunnelMiddlewareFactory();
@@ -181,6 +235,7 @@ internal sealed class TunnelMiddlewareFactory : WebApplicationFactory<Program>
         builder.UseEnvironment("Development");
         builder.UseSetting("Database:UseInMemory", "true");
         builder.UseSetting("Database:InMemoryDbName", $"corterm_gateway_test_{Guid.NewGuid():N}");
+        builder.UseSetting("Tunnels:RootDomain", "tunnel.test");
 
         builder.ConfigureServices(services =>
         {

@@ -7,6 +7,9 @@ public sealed class TunnelOptions
     /// <summary>路径式入口前缀(M1)。M2 改泛域名后此字段废弃。</summary>
     public string RoutePrefix { get; set; } = "/t/";
 
+    /// <summary>子域名模式的根域名,如 "tunnel.corterm.rwecho.top"。为空则仅用路径式 RoutePrefix。</summary>
+    public string? RootDomain { get; set; }
+
     /// <summary>tunnel 默认寿命。</summary>
     public TimeSpan DefaultTtl { get; set; } = TimeSpan.FromHours(24);
 
