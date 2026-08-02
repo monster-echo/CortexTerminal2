@@ -246,6 +246,35 @@ public sealed class TerminalGatewayService
         response.EnsureSuccessStatusCode();
     }
 
+    public async Task<TunnelDto> CreateTunnelAsync(string sessionId, int port, CancellationToken cancellationToken)
+    {
+        var token = await RequireTokenAsync(cancellationToken);
+        using var request = CreateRequest(HttpMethod.Post, $"/api/me/sessions/{Uri.EscapeDataString(sessionId)}/tunnels", token);
+        request.Content = JsonContent.Create(new CreateTunnelRequest(port));
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<TunnelDto>(cancellationToken)
+            ?? throw new InvalidOperationException("Create tunnel returned empty body.");
+    }
+
+    public async Task<IReadOnlyList<TunnelDto>> ListTunnelsAsync(string sessionId, CancellationToken cancellationToken)
+    {
+        var token = await RequireTokenAsync(cancellationToken);
+        using var request = CreateRequest(HttpMethod.Get, $"/api/me/sessions/{Uri.EscapeDataString(sessionId)}/tunnels", token);
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        var list = await response.Content.ReadFromJsonAsync<TunnelListResponse>(cancellationToken);
+        return list?.Tunnels ?? throw new InvalidOperationException("List tunnels returned empty body.");
+    }
+
+    public async Task RevokeTunnelAsync(string tunnelId, CancellationToken cancellationToken)
+    {
+        var token = await RequireTokenAsync(cancellationToken);
+        using var request = CreateRequest(HttpMethod.Delete, $"/api/me/tunnels/{Uri.EscapeDataString(tunnelId)}", token);
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
     public async Task DisconnectAsync()
     {
         if (_connection is null)

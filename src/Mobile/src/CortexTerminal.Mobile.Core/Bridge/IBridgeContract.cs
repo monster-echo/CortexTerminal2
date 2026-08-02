@@ -148,6 +148,15 @@ public interface IBridgeContract
     [BridgeMethod]
     Task<string> UpgradeTerminalWorkerAsync(string workerId);
 
+    [BridgeMethod]
+    Task<string> CreateTunnelAsync(string sessionId, int port);
+
+    [BridgeMethod]
+    Task<string> ListTunnelsAsync(string sessionId);
+
+    [BridgeMethod]
+    Task<string> RevokeTunnelAsync(string tunnelId);
+
     // 认证
     [BridgeMethod]
     Task<string> GetCaptchaChallengeAsync();
