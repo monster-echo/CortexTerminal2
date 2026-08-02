@@ -23,6 +23,7 @@ using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using BCrypt.Net;
 
@@ -289,6 +290,7 @@ if (int.TryParse(scrollbackEnvBytes, out var envMaxBytes) && envMaxBytes > 0)
 builder.Services.AddSingleton(scrollbackSettings);
 
 builder.Services.Configure<TunnelOptions>(builder.Configuration.GetSection(TunnelOptions.SectionName));
+builder.Services.AddSingleton<TunnelRegistry>();
 builder.Services.Configure<ArtifactStorageOptions>(builder.Configuration.GetSection(ArtifactStorageOptions.SectionName));
 builder.Services.AddSingleton<IArtifactStorage, S3CompatibleArtifactStorage>();
 builder.Services.AddSingleton<IArtifactCommandDispatcher, SignalRArtifactCommandDispatcher>();
@@ -1734,6 +1736,100 @@ app.MapPost("/api/me/sessions/{sessionId}/terminate", async (
     ));
 
     return Results.Accepted($"/api/me/sessions/{Uri.EscapeDataString(sessionId)}", new { message = "Termination requested." });
+}).RequireAuthorization();
+
+app.MapPost("/api/me/sessions/{sessionId}/tunnels", async (
+    string sessionId,
+    CreateTunnelRequest body,
+    ClaimsPrincipal user,
+    ISessionCoordinator sessions,
+    IWorkerRegistry workers,
+    IWorkerCommandDispatcher workerCommands,
+    TunnelRegistry tunnelRegistry,
+    IOptions<TunnelOptions> tunnelOptions,
+    IAuditLogStore auditLog,
+    HttpContext httpContext,
+    CancellationToken cancellationToken) =>
+{
+    if (!sessions.TryGetSession(sessionId, out var session))
+        return Results.NotFound();
+
+    var userId = GetUserId(user);
+    if (session.UserId != userId)
+        return Results.Forbid();
+
+    if (session.AttachmentState is SessionAttachmentState.Exited or SessionAttachmentState.Expired)
+        return Results.Problem("Session is no longer running.", statusCode: StatusCodes.Status409Conflict);
+
+    if (!workers.TryGetWorker(session.WorkerId, out var worker))
+        return Results.Problem("Worker is offline.", statusCode: StatusCodes.Status503ServiceUnavailable);
+
+    if (!string.Equals(worker.ConnectionId, session.WorkerConnectionId, StringComparison.Ordinal))
+        return Results.Problem("Session is bound to a stale worker connection.", statusCode: StatusCodes.Status409Conflict);
+
+    var options = tunnelOptions.Value;
+    var active = await tunnelRegistry.CountActiveForSessionAsync(sessionId);
+    if (active >= options.MaxTunnelsPerSession)
+        return Results.Problem($"Tunnel quota reached ({options.MaxTunnelsPerSession} per session).", statusCode: StatusCodes.Status429TooManyRequests);
+
+    if (body.Port <= 0 || body.Port > 65535)
+        return Results.BadRequest("Port must be between 1 and 65535.");
+
+    var probe = await workerCommands.ProbeTunnelPortAsync(worker.ConnectionId, body.Port, cancellationToken);
+    if (!probe.Open)
+        return Results.Problem($"Port {body.Port} is not listening on worker: {probe.ErrorMessage}", statusCode: StatusCodes.Status502BadGateway);
+
+    var secret = TunnelSecret.GenerateSecret();
+    var key = TunnelSecret.GenerateTunnelKey();
+    var entity = await tunnelRegistry.CreateAsync(
+        tunnelKey: key,
+        secretHash: TunnelSecret.Hash(secret),
+        ownerUserId: userId,
+        workerId: session.WorkerId,
+        workerConnectionId: worker.ConnectionId,
+        sessionId: sessionId,
+        port: body.Port,
+        ttl: options.DefaultTtl);
+
+    auditLog.Record(httpContext.CreateAuditEntry(userId, userId, "tunnel.created", "tunnel", entity.Id));
+
+    var host = httpContext.Request.Host.Value;
+    var url = $"{httpContext.Request.Scheme}://{host}{options.RoutePrefix}{key}/?k={secret}";
+    return Results.Ok(new TunnelDto(entity.Id, entity.TunnelKey, entity.Port, entity.SessionId, entity.WorkerId, url, secret, entity.ExpiresAtUtc, entity.CreatedAtUtc));
+}).RequireAuthorization();
+
+app.MapGet("/api/me/sessions/{sessionId}/tunnels", async (
+    string sessionId,
+    ClaimsPrincipal user,
+    ISessionCoordinator sessions,
+    TunnelRegistry tunnelRegistry,
+    IOptions<TunnelOptions> tunnelOptions,
+    CancellationToken cancellationToken) =>
+{
+    if (!sessions.TryGetSession(sessionId, out var session))
+        return Results.NotFound();
+    var userId = GetUserId(user);
+    if (session.UserId != userId)
+        return Results.Forbid();
+    var list = await tunnelRegistry.ListForSessionAsync(sessionId, userId);
+    return Results.Ok(new TunnelListResponse(
+        list.Select(t => new TunnelDto(t.Id, t.TunnelKey, t.Port, t.SessionId, t.WorkerId, $"{tunnelOptions.Value.RoutePrefix}{t.TunnelKey}/", null, t.ExpiresAtUtc, t.CreatedAtUtc)).ToList()));
+}).RequireAuthorization();
+
+app.MapDelete("/api/me/tunnels/{tunnelId}", async (
+    string tunnelId,
+    ClaimsPrincipal user,
+    TunnelRegistry tunnelRegistry,
+    IAuditLogStore auditLog,
+    HttpContext httpContext,
+    CancellationToken cancellationToken) =>
+{
+    var userId = GetUserId(user);
+    var revoked = await tunnelRegistry.RevokeAsync(tunnelId, userId);
+    if (!revoked)
+        return Results.NotFound();
+    auditLog.Record(httpContext.CreateAuditEntry(userId, userId, "tunnel.revoked", "tunnel", tunnelId));
+    return Results.NoContent();
 }).RequireAuthorization();
 
 app.MapDelete("/api/me/sessions/{sessionId}", async (
