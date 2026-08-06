@@ -1,6 +1,7 @@
 using CortexTerminal.Contracts.Sessions;
 using CortexTerminal.Contracts.Streaming;
 using CortexTerminal.Gateway.Audit;
+using CortexTerminal.Gateway.Membership;
 using CortexTerminal.Gateway.Sessions;
 using CortexTerminal.Gateway.Stats;
 using CortexTerminal.Gateway.WebSockets;
@@ -23,6 +24,7 @@ public sealed class WorkerHub(
     ISessionStatsService sessionStats,
     ArtifactService artifacts,
     AgentActivityService agentActivity,
+    IEntitlementService entitlements,
     ILogger<WorkerHub> logger) : Hub
 {
     private string GetUserId()
@@ -34,6 +36,10 @@ public sealed class WorkerHub(
     public async Task RegisterWorker(string workerId)
     {
         var userId = GetUserId();
+        // Enforce plan quota BEFORE registering — authoritative source is the registry's in-memory
+        // live-worker set (DB write is fire-and-forget). Throws MembershipQuotaExceededException
+        // (an InvalidOperationException); SignalR surfaces it to the client as a HubException.
+        await entitlements.EnforceWorkerQuotaAsync(userId, Context.ConnectionAborted);
         workers.Register(workerId, Context.ConnectionId, ownerUserId: userId);
         var reboundSessionCount = await sessions.RebindActiveSessions(userId, workerId, Context.ConnectionId);
         logger.LogInformation(

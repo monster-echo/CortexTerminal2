@@ -249,6 +249,9 @@ public sealed class WorkerHubTests
         var hub = new CortexTerminal.Gateway.Tests.Sessions.Fakes.ArtifactTestHubContext();
         var (_, _, artifacts) = TestSessionFactory.CreateArtifactService(workers, storage, hub, dispatcher);
         var agentActivity = TestSessionFactory.CreateAgentActivityService(hub);
+        // These hub tests bypass the quota gate (they pre-register workers via the registry then
+        // call RegisterWorker to exercise rebind/replay logic) — the gate must never fire here.
+        var entitlements = new NoOpEntitlementService();
         return (WorkerHub)Activator.CreateInstance(
             typeof(WorkerHub),
             workers,
@@ -260,6 +263,7 @@ public sealed class WorkerHubTests
             new NoOpSessionStatsService(),
             artifacts,
             agentActivity,
+            entitlements,
             NullLogger<WorkerHub>.Instance)!;
     }
 

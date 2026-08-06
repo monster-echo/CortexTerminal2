@@ -10,6 +10,7 @@ using CortexTerminal.Gateway.Audit;
 using CortexTerminal.Gateway.Auth;
 using CortexTerminal.Gateway.Data;
 using CortexTerminal.Gateway.Hubs;
+using CortexTerminal.Gateway.Membership;
 using CortexTerminal.Gateway.Sessions;
 using CortexTerminal.Gateway.Storage;
 using CortexTerminal.Gateway.Support;
@@ -36,7 +37,8 @@ builder.Logging.AddSimpleConsole(options =>
 var signingKey = builder.Configuration["Auth:SigningKey"] ?? "gateway-auth-signing-key-minimum-32b";
 var gatewayAudiences = new[] { "corterm-gateway", "cortex-terminal-gateway" };
 
-string CreateAccessToken(string username, string? email = null, string? role = null)
+string CreateAccessToken(string username, string? email = null, string? role = null,
+    string? membershipTier = null, DateTimeOffset? membershipExpiresUtc = null)
 {
     var claims = new List<Claim>
     {
@@ -49,6 +51,12 @@ string CreateAccessToken(string username, string? email = null, string? role = n
         claims.Add(new Claim(JwtRegisteredClaimNames.Email, email));
     if (!string.IsNullOrEmpty(role))
         claims.Add(new Claim("role", role));
+    if (!string.IsNullOrEmpty(membershipTier))
+    {
+        claims.Add(new Claim("membership_tier", membershipTier));
+        if (membershipExpiresUtc is not null)
+            claims.Add(new Claim("membership_expires", membershipExpiresUtc.Value.ToUnixTimeSeconds().ToString()));
+    }
     var credentials = new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey)), SecurityAlgorithms.HmacSha256);
     var token = new JwtSecurityToken(
         issuer: "https://gateway.local/",
@@ -129,6 +137,11 @@ static string GetUserId(ClaimsPrincipal user)
         ?? user.FindFirstValue(JwtRegisteredClaimNames.Sub)
         ?? user.Identity?.Name
         ?? "unknown";
+
+static string GenerateCodeSegment()
+{
+    return Guid.NewGuid().ToString("N").Substring(0, 8).ToUpperInvariant();
+}
 
 static string NormalizeVersion(string version)
     => System.Text.RegularExpressions.Regex.Replace(version, @"(\.0)+$", "");
@@ -287,11 +300,17 @@ if (int.TryParse(scrollbackEnvBytes, out var envMaxBytes) && envMaxBytes > 0)
 }
 builder.Services.AddSingleton(scrollbackSettings);
 
+var membershipOptions = new MembershipOptions();
+builder.Configuration.GetSection(MembershipOptions.SectionName).Bind(membershipOptions);
+builder.Services.AddSingleton(membershipOptions);
+
 builder.Services.Configure<ArtifactStorageOptions>(builder.Configuration.GetSection(ArtifactStorageOptions.SectionName));
 builder.Services.AddSingleton<IArtifactStorage, S3CompatibleArtifactStorage>();
 builder.Services.AddSingleton<IArtifactCommandDispatcher, SignalRArtifactCommandDispatcher>();
 builder.Services.AddSingleton<ArtifactService>();
 builder.Services.AddSingleton<AgentActivityService>();
+builder.Services.AddSingleton<IEntitlementService, EntitlementService>();
+builder.Services.AddSingleton<MembershipService>();
 builder.Services.AddHostedService<ArtifactCleanupHostedService>();
 
 var useInMemory = builder.Configuration.GetValue<bool>("Database:UseInMemory");
@@ -328,14 +347,16 @@ forwardedHeadersOptions.KnownIPNetworks.Clear();
 forwardedHeadersOptions.KnownProxies.Clear();
 app.UseForwardedHeaders(forwardedHeadersOptions);
 
-// Auto-migrate database schema (Postgres only — in-memory provider auto-creates)
-if (!useInMemory)
+// Auto-migrate database schema (Postgres only — in-memory provider auto-creates).
+// Seed ALWAYS runs: production Postgres after migrate, AND InMemory (tests).
+// A seed failure must surface as a loud startup error, not be swallowed.
+using (var scope = app.Services.CreateScope())
 {
-    using (var scope = app.Services.CreateScope())
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    if (!useInMemory)
     {
         try
         {
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             await db.Database.MigrateAsync();
         }
         catch (Exception ex)
@@ -344,14 +365,18 @@ if (!useInMemory)
             logger.LogWarning(ex, "Failed to connect to PostgreSQL database.");
         }
     }
+    // Seed outside the migration try/catch: a seed failure must surface as a
+    // loud startup error, not be swallowed as a Postgres connection warning.
+    await PlanCatalog.SeedAsync(db, membershipOptions);
+}
 
+if (!useInMemory)
+{
     // Recover active sessions from database after restart
-    {
-        var sessionCoordinator = app.Services.GetRequiredService<ISessionCoordinator>();
-        await sessionCoordinator.RecoverActiveSessionsAsync();
-        var recoveryLogger = app.Services.GetRequiredService<ILogger<Program>>();
-        recoveryLogger.LogInformation("Session recovery completed");
-    }
+    var sessionCoordinator = app.Services.GetRequiredService<ISessionCoordinator>();
+    await sessionCoordinator.RecoverActiveSessionsAsync();
+    var recoveryLogger = app.Services.GetRequiredService<ILogger<Program>>();
+    recoveryLogger.LogInformation("Session recovery completed");
 }
 
 // Seed dev user if Users table is empty
@@ -467,6 +492,9 @@ app.MapPost("/api/auth/refresh", async (ClaimsPrincipal user, IServiceProvider s
     var userId = GetUserId(user);
     var isWorker = user.HasClaim("role", "worker");
     var existingRole = user.FindFirstValue("role");
+    string? dbUserEmail = null;
+    string? dbUserMembershipTier = null;
+    DateTimeOffset? dbUserMembershipExpiresAtUtc = null;
 
     // Check user status for non-worker refresh
     if (!isWorker)
@@ -484,12 +512,19 @@ app.MapPost("/api/auth/refresh", async (ClaimsPrincipal user, IServiceProvider s
                 if (dbUser.Status == "disabled" || dbUser.Status == "deleted")
                     return Results.Json(new { error = "Account not found or has been deactivated" }, statusCode: 401);
                 existingRole = dbUser.Role;
+                dbUserEmail = dbUser.Email;
+                dbUserMembershipTier = dbUser.MembershipTier;
+                dbUserMembershipExpiresAtUtc = dbUser.MembershipExpiresAtUtc;
             }
         }
         catch (Exception) { }
     }
 
-    var accessToken = isWorker ? CreateWorkerAccessToken(userId) : CreateAccessToken(userId, role: existingRole);
+    var accessToken = isWorker
+        ? CreateWorkerAccessToken(userId)
+        : CreateAccessToken(userId, dbUserEmail, existingRole,
+            membershipTier: dbUserMembershipTier,
+            membershipExpiresUtc: dbUserMembershipExpiresAtUtc);
     return Results.Ok(new { accessToken });
 }).RequireAuthorization();
 
@@ -503,12 +538,15 @@ app.MapGet("/api/me/profile", async (ClaimsPrincipal userPrincipal, IServiceProv
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var prefService = scope.ServiceProvider.GetRequiredService<UserPreferenceService>();
         var scrollback = scope.ServiceProvider.GetRequiredService<ScrollbackSettings>();
+        var entitlements = scope.ServiceProvider.GetRequiredService<IEntitlementService>();
         var user = await db.Users.FindAsync(userId);
         if (user is null)
             user = await db.Users.FirstOrDefaultAsync(u => u.Username == userId);
         if (user is null)
             return Results.NotFound(new { error = "User not found" });
 
+        var entitlement = await entitlements.GetEntitlementAsync(user.Id, CancellationToken.None);
+        var tierScrollbackBytes = entitlement.MaxScrollbackMegabytes * 1024L * 1024L;
         return Results.Ok(new
         {
             id = user.Id,
@@ -524,7 +562,7 @@ app.MapGet("/api/me/profile", async (ClaimsPrincipal userPrincipal, IServiceProv
             scrollbackMaxBytes = await prefService.GetScrollbackMaxBytesAsync(user.Id, CancellationToken.None)
                 ?? scrollback.MaxBytes,
             scrollbackMinAllowedBytes = scrollback.MinAllowedBytes,
-            scrollbackMaxAllowedBytes = scrollback.MaxAllowedBytes,
+            scrollbackMaxAllowedBytes = tierScrollbackBytes,
         });
     }
     catch (InvalidOperationException)
@@ -958,7 +996,9 @@ app.MapGet("/api/auth/callback/github", async (string? code, string? state, OAut
     if (dbUser is null || dbUser.Status == "disabled" || dbUser.Status == "deleted")
         return OAuthRedirect(redirectUrl, error: "account_disabled");
 
-    var jwt = CreateAccessToken(dbUser.Username, dbUser.Email, dbUser.Role);
+    var jwt = CreateAccessToken(dbUser.Username, dbUser.Email, dbUser.Role,
+        membershipTier: dbUser.MembershipTier,
+        membershipExpiresUtc: dbUser.MembershipExpiresAtUtc);
     auditLog.Record(new AuditLogEntry(
         Id: Guid.NewGuid().ToString("N"),
         Timestamp: DateTimeOffset.UtcNow,
@@ -1043,7 +1083,9 @@ app.MapGet("/api/auth/callback/google", async (string? code, string? state, OAut
     if (dbUser is null || dbUser.Status == "disabled" || dbUser.Status == "deleted")
         return OAuthRedirect(redirectUrl, error: "account_disabled");
 
-    var jwt = CreateAccessToken(dbUser.Username, dbUser.Email, dbUser.Role);
+    var jwt = CreateAccessToken(dbUser.Username, dbUser.Email, dbUser.Role,
+        membershipTier: dbUser.MembershipTier,
+        membershipExpiresUtc: dbUser.MembershipExpiresAtUtc);
     auditLog.Record(new AuditLogEntry(
         Id: Guid.NewGuid().ToString("N"),
         Timestamp: DateTimeOffset.UtcNow,
@@ -1124,7 +1166,9 @@ app.MapPost("/api/auth/password/login", async (PasswordLoginRequest request, ISe
         user.LastLoginAtUtc = DateTimeOffset.UtcNow;
         user.UpdatedAtUtc = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync();
-        var jwt = CreateAccessToken(user.Username, user.Email, user.Role);
+        var jwt = CreateAccessToken(user.Username, user.Email, user.Role,
+            membershipTier: user.MembershipTier,
+            membershipExpiresUtc: user.MembershipExpiresAtUtc);
         return Results.Ok(new { accessToken = jwt, username = user.Username });
     }
     catch (InvalidOperationException)
@@ -1362,7 +1406,9 @@ app.MapPost("/api/auth/phone/verify", async (VerifyCodeRequest request, PhoneCod
         return Results.BadRequest(new { error = "Account disabled" });
 
     attemptTracker.RecordSuccess(clientIp);
-    var jwt = CreateAccessToken(dbUser.Username, dbUser.Email, dbUser.Role);
+    var jwt = CreateAccessToken(dbUser.Username, dbUser.Email, dbUser.Role,
+        membershipTier: dbUser.MembershipTier,
+        membershipExpiresUtc: dbUser.MembershipExpiresAtUtc);
     auditLog.Record(new AuditLogEntry(
         Id: Guid.NewGuid().ToString("N"),
         Timestamp: DateTimeOffset.UtcNow,
@@ -1439,7 +1485,9 @@ app.MapPost("/api/auth/huawei/quick-login", async (HuaweiQuickLoginRequest reque
         if (dbUser is null || dbUser.Status == "disabled" || dbUser.Status == "deleted")
             return Results.BadRequest(new { error = "Account disabled" });
 
-        var jwt = CreateAccessToken(dbUser.Username, dbUser.Email, dbUser.Role);
+        var jwt = CreateAccessToken(dbUser.Username, dbUser.Email, dbUser.Role,
+        membershipTier: dbUser.MembershipTier,
+        membershipExpiresUtc: dbUser.MembershipExpiresAtUtc);
         auditLog.Record(new AuditLogEntry(
             Id: Guid.NewGuid().ToString("N"),
             Timestamp: DateTimeOffset.UtcNow,
@@ -1567,7 +1615,9 @@ app.MapPost("/api/auth/callback/apple", async (HttpContext ctx, OAuthStateServic
         }
     }
 
-    var jwt = CreateAccessToken(dbUser.Username, dbUser.Email, dbUser.Role);
+    var jwt = CreateAccessToken(dbUser.Username, dbUser.Email, dbUser.Role,
+        membershipTier: dbUser.MembershipTier,
+        membershipExpiresUtc: dbUser.MembershipExpiresAtUtc);
     auditLog.Record(new AuditLogEntry(
         Id: Guid.NewGuid().ToString("N"),
         Timestamp: DateTimeOffset.UtcNow,
@@ -1808,6 +1858,123 @@ var renameSessionHandler = async (string sessionId, RenameSessionRequest request
 };
 app.MapPut("/api/me/sessions/{sessionId}", renameSessionHandler).RequireAuthorization();
 app.MapPatch("/api/me/sessions/{sessionId}", renameSessionHandler).RequireAuthorization();
+
+// ---- Billing ----
+app.MapGet("/api/billing/plans", async (IServiceProvider serviceProvider) =>
+{
+    var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
+    using var scope = scopeFactory.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var plans = await db.Plans.Where(p => p.IsActive).OrderBy(p => p.SortOrder).ToListAsync();
+    return Results.Ok(plans.Select(p => new
+    {
+        code = p.Code, tier = p.Tier, billingPeriod = p.BillingPeriod,
+        priceAmount = p.PriceAmount, priceCurrency = p.PriceCurrency,
+        maxWorkers = p.MaxWorkers, maxArtifactsPerSession = p.MaxArtifactsPerSession,
+        maxArtifactSizeBytes = p.MaxArtifactSizeBytes, maxArtifactAgeDays = p.MaxArtifactAgeDays,
+        maxScrollbackMegabytes = p.MaxScrollbackMegabytes, featureFlags = p.FeatureFlags,
+    }));
+});   // PUBLIC — no RequireAuthorization (pricing page shows plans before login)
+
+app.MapGet("/api/billing/subscription", async (ClaimsPrincipal user, IServiceProvider serviceProvider) =>
+{
+    var userId = GetUserId(user);
+    var entitlements = serviceProvider.GetRequiredService<IEntitlementService>();
+    var e = await entitlements.GetEntitlementAsync(userId, CancellationToken.None);
+    return Results.Ok(new
+    {
+        tier = e.Tier, planCode = e.PlanCode, isActive = e.IsActive,
+        expiresAtUtc = e.ExpiresAtUtc, maxWorkers = e.MaxWorkers,
+        maxArtifactsPerSession = e.MaxArtifactsPerSession,
+        maxScrollbackMegabytes = e.MaxScrollbackMegabytes,
+    });
+}).RequireAuthorization();
+
+app.MapPost("/api/billing/redeem", async (RedeemRequest body, ClaimsPrincipal user, IServiceProvider serviceProvider, IAuditLogStore auditLog) =>
+{
+    var userId = GetUserId(user);
+    var normalized = (body.Code ?? "").Trim().ToUpperInvariant();
+    var membership = serviceProvider.GetRequiredService<MembershipService>();
+    Subscription sub;
+    try
+    {
+        sub = await membership.RedeemAsync(userId, normalized, CancellationToken.None);
+    }
+    catch (RedeemCodeInvalidException ex) { return Results.BadRequest(new { errorCode = RedeemCodeInvalidException.ErrorCode, message = ex.Message }); }
+    catch (RedeemCodeExhaustedException ex) { return Results.Conflict(new { errorCode = RedeemCodeExhaustedException.ErrorCode, message = ex.Message }); }
+    catch (RedeemCodeExpiredException ex) { return Results.Conflict(new { errorCode = RedeemCodeExpiredException.ErrorCode, message = ex.Message }); }
+    catch (RedeemCodeAlreadyUsedException ex) { return Results.Conflict(new { errorCode = RedeemCodeAlreadyUsedException.ErrorCode, message = ex.Message }); }
+    catch (DbUpdateException) { return Results.Conflict(new { errorCode = RedeemCodeExhaustedException.ErrorCode, message = "Redeem code is fully used." }); }
+
+    var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
+    using var scope = scopeFactory.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var plan = await db.Plans.FindAsync(sub.PlanId) ?? throw new InvalidOperationException("Plan disappeared after redeem.");
+    auditLog.Record(new AuditLogEntry(
+        Id: Guid.NewGuid().ToString("N"), Timestamp: DateTimeOffset.UtcNow,
+        UserId: userId, UserName: userId, Action: "membership.redeem",
+        TargetEntity: "subscription", TargetId: sub.Id));
+    return Results.Ok(new { tier = plan.Tier, planCode = plan.Code, isActive = true });
+}).RequireAuthorization();
+
+// ---- Admin Membership Endpoints ----
+app.MapPost("/api/admin/membership/grant", async (GrantRequest body, ClaimsPrincipal user, IServiceProvider serviceProvider, IAuditLogStore auditLog) =>
+{
+    var actorId = GetUserId(user);
+    if (!await IsAdmin(serviceProvider, actorId)) return Results.Forbid();
+
+    var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
+    using var scope = scopeFactory.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var membership = scope.ServiceProvider.GetRequiredService<MembershipService>();
+
+    var plan = await db.Plans.FirstOrDefaultAsync(p => p.Code == body.PlanCode && p.IsActive);
+    if (plan is null) return Results.BadRequest(new { error = "Unknown plan code" });
+    var target = await db.Users.FindAsync(body.UserId)
+        ?? await db.Users.FirstOrDefaultAsync(u => u.Username == body.UserId);
+    if (target is null) return Results.NotFound(new { error = "User not found" });
+
+    var sub = await membership.GrantAsync(target.Id, plan.Id, OrderChannels.Manual,
+        expiresAtUtc: body.ExpiresAtUtc, grantedByUserId: actorId, sourceRedeemCodeId: null, ct: CancellationToken.None);
+    auditLog.Record(new AuditLogEntry(
+        Id: Guid.NewGuid().ToString("N"), Timestamp: DateTimeOffset.UtcNow,
+        UserId: actorId, UserName: actorId, Action: "membership.grant",
+        TargetEntity: "user", TargetId: target.Id));
+    return Results.Ok(new { subscriptionId = sub.Id, tier = plan.Tier, expiresAtUtc = sub.ExpiresAtUtc });
+}).RequireAuthorization();
+
+app.MapPost("/api/admin/redeem-codes", async (GenerateCodesRequest body, ClaimsPrincipal user, IServiceProvider serviceProvider, IAuditLogStore auditLog) =>
+{
+    var actorId = GetUserId(user);
+    if (!await IsAdmin(serviceProvider, actorId)) return Results.Forbid();
+
+    var opts = serviceProvider.GetRequiredService<MembershipOptions>();
+    var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
+    using var scope = scopeFactory.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var plan = await db.Plans.FirstOrDefaultAsync(p => p.Code == body.PlanCode && p.IsActive);
+    if (plan is null) return Results.BadRequest(new { error = "Unknown plan code" });
+
+    var batchId = Guid.NewGuid().ToString("N");
+    var codes = new List<string>();
+    for (var i = 0; i < body.Count; i++)
+    {
+        var code = $"{opts.RedeemCodePrefix}-{GenerateCodeSegment()}";
+        db.RedeemCodes.Add(new RedeemCode
+        {
+            Code = code, PlanId = plan.Id, BillingPeriod = plan.BillingPeriod,
+            BatchId = batchId, MaxUses = body.MaxUses ?? 1,
+            ExpiresAtUtc = body.ExpiresAtUtc, CreatedByUserId = actorId, IsActive = true,
+        });
+        codes.Add(code);
+    }
+    await db.SaveChangesAsync(CancellationToken.None);
+    auditLog.Record(new AuditLogEntry(
+        Id: Guid.NewGuid().ToString("N"), Timestamp: DateTimeOffset.UtcNow,
+        UserId: actorId, UserName: actorId, Action: "membership.redeem_code_generated",
+        TargetEntity: "redeem_code", TargetId: batchId));
+    return Results.Ok(new { codes, batchId });
+}).RequireAuthorization();
 
 // ---- Gateway Info ----
 var gatewayVersion = Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3) ?? "0.0.0";
@@ -2716,6 +2883,9 @@ record SendPhoneLinkCodeRequest(string Phone);
 record RenameSessionRequest(string? Name);
 record UpdatePreferencesRequest(int ScrollbackMaxBytes);
 record UpdateProfileRequest(string DisplayName);
+record RedeemRequest(string Code);
+public record GrantRequest(string UserId, string PlanCode, DateTimeOffset? ExpiresAtUtc);
+public record GenerateCodesRequest(string PlanCode, int Count, int? MaxUses, DateTimeOffset? ExpiresAtUtc);
 
 internal sealed class SubClaimUserIdProvider : IUserIdProvider
 {
