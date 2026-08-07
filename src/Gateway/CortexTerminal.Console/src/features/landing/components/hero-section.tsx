@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { Download } from 'lucide-react'
 import { InstallCommand } from './install-command'
+import { DesktopDownload } from './desktop-download'
 
 export function HeroSection() {
   const { t } = useTranslation()
@@ -20,26 +21,26 @@ export function HeroSection() {
         {t('landing.heroDesc')}
       </p>
 
-      <InstallCommand className='mb-4' />
-
-      <p className='mb-2 text-[13px] text-[#71717a]'>
-        {t('landing.installHint')}
-      </p>
-      <div className='mb-12 flex flex-wrap justify-center gap-2'>
-        {[
-          'linux/amd64',
-          'linux/arm64',
-          'macOS (Apple Silicon)',
-          'Windows x64',
-          'Docker',
-        ].map((tag) => (
-          <span
-            key={tag}
-            className='rounded-full border border-[#2e2e36] px-2.5 py-[3px] font-mono text-xs text-[#71717a]'
-          >
-            {tag}
-          </span>
-        ))}
+      {/* 统一安装入口：桌面端下载 | 服务器 CLI */}
+      <div className='mx-auto mb-12 grid max-w-[900px] grid-cols-1 gap-6 text-left md:grid-cols-2'>
+        <div className='rounded-xl border border-[#2e2e36] bg-[#1a1a1d] p-5'>
+          <h2 className='mb-1 text-lg font-semibold text-[#e4e4e7]'>
+            {t('landing.installDesktopTitle')}
+          </h2>
+          <p className='mb-4 text-[13px] leading-relaxed text-[#71717a]'>
+            {t('landing.installDesktopDesc')}
+          </p>
+          <DesktopDownload />
+        </div>
+        <div className='rounded-xl border border-[#2e2e36] bg-[#1a1a1d] p-5'>
+          <h2 className='mb-1 text-lg font-semibold text-[#e4e4e7]'>
+            {t('landing.installServerTitle')}
+          </h2>
+          <p className='mb-4 text-[13px] leading-relaxed text-[#71717a]'>
+            {t('landing.installServerDesc')}
+          </p>
+          <InstallCommand />
+        </div>
       </div>
 
       <div className='mt-10 flex flex-wrap items-start justify-center gap-6 border-t border-[#2e2e36] pt-10'>
