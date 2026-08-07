@@ -98,6 +98,65 @@ public sealed class TunnelMiddlewareTests
     }
 
     [Fact]
+    public async Task Get_sets_secret_cookie_on_first_query_auth()
+    {
+        await using var ctx = await SeedAsync();
+        ctx.Factory.Dispatcher
+            .SendTunnelHttpRequestAsync(
+                ctx.Tunnel.WorkerConnectionId,
+                ctx.Tunnel.TunnelId,
+                Arg.Any<TunnelHttpRequest>(),
+                Arg.Any<CancellationToken>())
+            .Returns(new TunnelHttpResponse(200, new Dictionary<string, string[]>(), Array.Empty<byte>(), null));
+
+        using var response = await ctx.Client.GetAsync($"/t/{ctx.Tunnel.TunnelKey}/?k={ctx.Tunnel.Secret}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.Headers.TryGetValues("Set-Cookie", out var setCookies).Should().BeTrue();
+        setCookies.Should().ContainMatch($"k={ctx.Tunnel.Secret}*");
+    }
+
+    [Fact]
+    public async Task Get_with_cookie_but_without_query_returns_200()
+    {
+        await using var ctx = await SeedAsync();
+        // Secure cookie 在 http 下不被自动转发,手动提取 Set-Cookie 后带上。
+        using var client = ctx.Factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
+
+        var body = Encoding.UTF8.GetBytes("hello from worker");
+        var captured = new List<TunnelHttpRequest>();
+        ctx.Factory.Dispatcher
+            .SendTunnelHttpRequestAsync(
+                ctx.Tunnel.WorkerConnectionId,
+                ctx.Tunnel.TunnelId,
+                Arg.Do<TunnelHttpRequest>(r => captured.Add(r)),
+                Arg.Any<CancellationToken>())
+            .Returns(new TunnelHttpResponse(
+                200,
+                new Dictionary<string, string[]> { ["X-Tunnel-Id"] = [ctx.Tunnel.TunnelId] },
+                body,
+                null));
+
+        string cookie;
+        using (var first = await client.GetAsync($"/t/{ctx.Tunnel.TunnelKey}/?k={ctx.Tunnel.Secret}"))
+        {
+            first.StatusCode.Should().Be(HttpStatusCode.OK);
+            cookie = ExtractSecretCookie(first);
+        }
+        captured.Clear();
+
+        var request = new HttpRequestMessage(HttpMethod.Get, $"/t/{ctx.Tunnel.TunnelKey}/assets/app.css");
+        request.Headers.Add("Cookie", cookie);
+        using var response = await client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await response.Content.ReadAsStringAsync()).Should().Be("hello from worker");
+        captured.Should().ContainSingle();
+        captured[0].Path.Should().Be("/assets/app.css");
+        captured[0].Query.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task Get_with_multi_segment_subpath_preserves_path()
     {
         await using var ctx = await SeedAsync();
@@ -221,6 +280,16 @@ public sealed class TunnelMiddlewareTests
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         captured.Should().ContainSingle();
         captured[0].Path.Should().Be("/");
+    }
+
+    /// <summary>从 Set-Cookie 响应头提取 "k=&lt;value&gt;" cookie,形式如 "k=xxx; expires=...; path=/; ..."。</summary>
+    private static string ExtractSecretCookie(HttpResponseMessage response)
+    {
+        response.Headers.TryGetValues("Set-Cookie", out var setCookies).Should().BeTrue();
+        var setCookie = setCookies.Should().ContainSingle().Which;
+        var pair = setCookie.Split(';').First();
+        pair.Substring(0, pair.IndexOf('=')).Should().Be("k");
+        return pair;
     }
 
     private static async Task<SeededContext> SeedAsync(

@@ -75,11 +75,26 @@ public sealed class TunnelMiddleware(RequestDelegate next, ILogger<TunnelMiddlew
             return;
         }
 
-        var secret = context.Request.Query["k"].FirstOrDefault() ?? string.Empty;
+        var querySecret = context.Request.Query["k"].FirstOrDefault();
+        var cookieSecret = context.Request.Cookies["k"];
+        var secret = !string.IsNullOrEmpty(querySecret) ? querySecret : (cookieSecret ?? string.Empty);
         if (!TunnelSecret.Verify(secret, tunnel.SecretHash))
         {
             await WriteErrorAsync(context, StatusCodes.Status401Unauthorized, "Invalid or missing tunnel secret.");
             return;
+        }
+
+        // 首次经 query 校验通过 → 种 cookie,后续子资源请求(相对路径无 ?k=)带 cookie 免输 secret
+        if (string.IsNullOrEmpty(cookieSecret))
+        {
+            context.Response.Cookies.Append("k", secret, new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = true,
+                SameSite = SameSiteMode.Lax,
+                Path = "/",
+                Expires = tunnel.ExpiresAtUtc,
+            });
         }
 
         if (!workers.TryGetWorker(tunnel.WorkerId, out var worker)
