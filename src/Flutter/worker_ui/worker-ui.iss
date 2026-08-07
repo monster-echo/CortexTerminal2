@@ -20,7 +20,8 @@ DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 PrivilegesRequired=lowest
 OutputDir=release
-OutputBaseFilename=云枢终端-{#MyAppVersion}-setup
+; ASCII 文件名：中文在 gh release 上传时会丢字符（-0.1.0-setup.exe）
+OutputBaseFilename=corterm-ui-{#MyAppVersion}-setup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
