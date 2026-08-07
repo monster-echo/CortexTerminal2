@@ -7,6 +7,19 @@ namespace CortexTerminal.Worker.Auth;
 
 public sealed record RefreshTokenResponse(string AccessToken);
 
+/// <summary>
+/// A structured device-flow milestone for programmatic callers (e.g. <c>corterm login --json</c>).
+/// <c>Stage</c> is <c>"code"</c> (device code issued, waiting for authorization),
+/// <c>"success"</c> (token saved), or <c>"error"</c> (poll failed or timed out; see <c>Message</c>).
+/// </summary>
+public sealed record DeviceFlowStage(
+    string Stage,
+    string? VerificationUri = null,
+    string? UserCode = null,
+    int? ExpiresInSeconds = null,
+    int? PollIntervalSeconds = null,
+    string? Message = null);
+
 public sealed class DeviceFlowLoginService
 {
     private readonly HttpClient _httpClient;
@@ -18,7 +31,15 @@ public sealed class DeviceFlowLoginService
         _tokenStore = tokenStore;
     }
 
-    public async Task LoginAsync(CancellationToken cancellationToken)
+    public Task LoginAsync(CancellationToken cancellationToken)
+        => LoginAsync(cancellationToken, onStage: null);
+
+    /// <summary>
+    /// Runs the device flow. When <paramref name="onStage"/> is non-null, human console output is
+    /// suppressed and each milestone is pushed through the callback (for <c>--json</c> callers);
+    /// otherwise the original interactive console behavior is preserved.
+    /// </summary>
+    public async Task LoginAsync(CancellationToken cancellationToken, Action<DeviceFlowStage>? onStage)
     {
         // 1. Start device flow
         using var startResponse = await _httpClient.PostAsync("/api/auth/device-flow", content: null, cancellationToken);
@@ -26,14 +47,21 @@ public sealed class DeviceFlowLoginService
         var start = await startResponse.Content.ReadFromJsonAsync(WorkerJsonContext.Default.DeviceFlowStartResponse, cancellationToken)
             ?? throw new InvalidOperationException("Empty response from device-flow endpoint.");
 
-        // 2. Display instructions
-        Console.WriteLine();
-        Console.WriteLine("  To authenticate this worker, visit:");
-        Console.WriteLine($"    {start.VerificationUri}");
-        Console.WriteLine();
-        Console.WriteLine($"  Enter code: {start.UserCode}");
-        Console.WriteLine();
-        Console.WriteLine("  Waiting for authorization...");
+        // 2. Display instructions (or emit the device-code stage to programmatic callers)
+        if (onStage is not null)
+        {
+            onStage(new DeviceFlowStage("code", start.VerificationUri, start.UserCode, start.ExpiresInSeconds, start.PollIntervalSeconds));
+        }
+        else
+        {
+            Console.WriteLine();
+            Console.WriteLine("  To authenticate this worker, visit:");
+            Console.WriteLine($"    {start.VerificationUri}");
+            Console.WriteLine();
+            Console.WriteLine($"  Enter code: {start.UserCode}");
+            Console.WriteLine();
+            Console.WriteLine("  Waiting for authorization...");
+        }
 
         // 3. Poll until confirmed or expired
         var deadline = DateTime.UtcNow.AddSeconds(start.ExpiresInSeconds);
@@ -59,11 +87,25 @@ public sealed class DeviceFlowLoginService
 
                 if (errorCode == "expired_token")
                 {
-                    Console.WriteLine("  Device code expired. Please try again.");
+                    if (onStage is not null)
+                    {
+                        onStage(new DeviceFlowStage("error", Message: "Device code expired. Please try again."));
+                    }
+                    else
+                    {
+                        Console.WriteLine("  Device code expired. Please try again.");
+                    }
                     return;
                 }
 
-                Console.WriteLine($"  Error: {errorCode}");
+                if (onStage is not null)
+                {
+                    onStage(new DeviceFlowStage("error", Message: $"Error: {errorCode}"));
+                }
+                else
+                {
+                    Console.WriteLine($"  Error: {errorCode}");
+                }
                 return;
             }
 
@@ -73,13 +115,27 @@ public sealed class DeviceFlowLoginService
             if (token is not null)
             {
                 await _tokenStore.SaveAccessTokenAsync(token.AccessToken, cancellationToken);
-                Console.WriteLine("  Worker authenticated successfully!");
-                Console.WriteLine("  Token saved. Run 'corterm' to start the worker.");
+                if (onStage is not null)
+                {
+                    onStage(new DeviceFlowStage("success"));
+                }
+                else
+                {
+                    Console.WriteLine("  Worker authenticated successfully!");
+                    Console.WriteLine("  Token saved. Run 'corterm' to start the worker.");
+                }
                 return;
             }
         }
 
-        Console.WriteLine("  Timed out waiting for authorization.");
+        if (onStage is not null)
+        {
+            onStage(new DeviceFlowStage("error", Message: "Timed out waiting for authorization."));
+        }
+        else
+        {
+            Console.WriteLine("  Timed out waiting for authorization.");
+        }
     }
 
     public async Task<string?> RefreshTokenAsync(string currentToken, CancellationToken cancellationToken)

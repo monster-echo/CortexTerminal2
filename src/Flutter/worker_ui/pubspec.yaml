@@ -1,0 +1,77 @@
+name: worker_ui
+description: "Corterm Worker 本机控制面板 — 用 UI 替代 corterm/cortap 命令行。"
+publish_to: 'none'
+
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  # 用户可设置的二进制路径 / 主题 / 语言
+  shared_preferences: ^2.5.0
+  # 登录设备码二维码（纯 Dart，无原生依赖）
+  qr_flutter: ^4.1.0
+  # 拼接 home 目录与二进制名
+  path: ^1.9.0
+  # 系统托盘（macOS 菜单栏 / Win / Linux）+ 右键菜单
+  tray_manager: ^0.2.3
+  # 窗口管理：关闭隐藏到托盘、显示/聚焦
+  window_manager: ^0.4.3
+  # 开机启动
+  launch_at_startup: ^0.5.0
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+# For information on the generic Dart part of this file, see the
+# following page: https://dart.dev/tools/pub/pubspec
+
+# The following section is specific to Flutter packages.
+flutter:
+
+  # The following line ensures that the Material Icons font is
+  # included with your application, so that you can use the icons in
+  # the material Icons class.
+  uses-material-design: true
+
+  # 托盘菜单栏图标（macOS template）
+  assets:
+    - assets/tray_icon.png
+    # 内置 worker 二进制（一体：装 App 即带 worker，首跑自动装到 ~/.corterm）
+    - assets/bin/corterm
+    - assets/bin/cortap
+    - assets/bin/appsettings.json
+
+  # An image asset can refer to one or more resolution-specific "variants", see
+  # https://flutter.dev/to/resolution-aware-images
+
+  # For details regarding adding assets from package dependencies, see
+  # https://flutter.dev/to/asset-from-package
+
+  # To add custom fonts to your application, add a fonts section here,
+  # in this "flutter" section. Each entry in this list should have a
+  # "family" key with the font family name, and a "fonts" key with a
+  # list giving the asset and other descriptors for the font. For
+  # example:
+  # fonts:
+  #   - family: Schyler
+  #     fonts:
+  #       - asset: fonts/Schyler-Regular.ttf
+  #       - asset: fonts/Schyler-Italic.ttf
+  #         style: italic
+  #   - family: Trajan Pro
+  #     fonts:
+  #       - asset: fonts/TrajanPro.ttf
+  #       - asset: fonts/TrajanPro_Bold.ttf
+  #         weight: 700
+  #
+  # For details regarding fonts from package dependencies,
+  # see https://flutter.dev/to/font-from-package

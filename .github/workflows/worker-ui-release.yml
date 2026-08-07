@@ -1,0 +1,161 @@
+name: Worker UI Release
+
+# Flutter 桌面控制面板（云枢终端）。与 worker 分开发布：
+# - worker 走 worker-release.yml（worker-v* tag）
+# - UI 走这里（ui-v* tag），构建时下载最新 worker release 的二进制打进 assets/bin，
+#   保证「装 UI 即带 worker」用的是正式 worker 版本。
+on:
+  push:
+    tags: ['ui-v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build-macos:
+    name: Build macOS UI
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Download worker binaries (osx-arm64)
+        run: |
+          latest=$(gh release list --limit 50 --json tagName --jq '[.[].tagName | select(startswith("worker-v"))][0]')
+          echo "bundling worker release: $latest"
+          mkdir -p /tmp/worker src/Flutter/worker_ui/assets/bin
+          gh release download "$latest" --pattern 'corterm-osx-arm64.tar.gz' --dir /tmp/worker
+          tar -xzf /tmp/worker/corterm-osx-arm64.tar.gz -C /tmp/worker
+          cp /tmp/worker/corterm /tmp/worker/cortap /tmp/worker/appsettings.json src/Flutter/worker_ui/assets/bin/
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Build release
+        working-directory: src/Flutter/worker_ui
+        run: |
+          flutter pub get
+          flutter build macos --release
+
+      - name: Package .dmg
+        run: |
+          # 标准 macOS 拖拽安装包：.app + /Applications 快捷方式
+          mkdir -p /tmp/dmg-root
+          cp -R src/Flutter/worker_ui/build/macos/Build/Products/Release/worker_ui.app /tmp/dmg-root/
+          ln -s /Applications /tmp/dmg-root/Applications
+          hdiutil create -volname "云枢终端" -srcfolder /tmp/dmg-root -ov \
+            -format UDZO /tmp/worker-ui-macos.dmg
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: worker-ui-macos
+          path: /tmp/worker-ui-macos.dmg
+
+  build-windows:
+    name: Build Windows UI
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Download worker binaries (win-x64)
+        shell: bash
+        run: |
+          latest=$(gh release list --limit 50 --json tagName --jq '[.[].tagName | select(startswith("worker-v"))][0]')
+          echo "bundling worker release: $latest"
+          mkdir -p /tmp/worker src/Flutter/worker_ui/assets/bin
+          gh release download "$latest" --pattern 'corterm-win-x64.zip' --dir /tmp/worker
+          cd /tmp/worker && unzip -o corterm-win-x64.zip -d win && cd -
+          cp /tmp/worker/win/corterm.exe /tmp/worker/win/cortap.exe /tmp/worker/win/appsettings.json src/Flutter/worker_ui/assets/bin/
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Build release
+        working-directory: src/Flutter/worker_ui
+        run: |
+          flutter pub get
+          flutter build windows --release
+
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Extract version
+        id: ver
+        shell: bash
+        run: echo "version=${GITHUB_REF#refs/tags/ui-v}" >> "$GITHUB_OUTPUT"
+
+      - name: Build installer (.exe)
+        working-directory: src/Flutter/worker_ui
+        run: iscc "/DMyAppVersion=${{ steps.ver.outputs.version }}" worker-ui.iss
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: worker-ui-windows
+          path: src/Flutter/worker_ui/release/*.exe
+
+  build-linux:
+    name: Build Linux UI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Install Linux deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build libgtk-3-dev liblzma-dev
+
+      - name: Download worker binaries (linux-x64)
+        run: |
+          latest=$(gh release list --limit 50 --json tagName --jq '[.[].tagName | select(startswith("worker-v"))][0]')
+          echo "bundling worker release: $latest"
+          mkdir -p /tmp/worker src/Flutter/worker_ui/assets/bin
+          gh release download "$latest" --pattern 'corterm-linux-x64.tar.gz' --dir /tmp/worker
+          tar -xzf /tmp/worker/corterm-linux-x64.tar.gz -C /tmp/worker
+          cp /tmp/worker/corterm /tmp/worker/cortap /tmp/worker/appsettings.json src/Flutter/worker_ui/assets/bin/
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Build release
+        working-directory: src/Flutter/worker_ui
+        run: |
+          flutter pub get
+          flutter build linux --release
+
+      - name: Package
+        run: |
+          tar -czf /tmp/worker-ui-linux.tar.gz -C src/Flutter/worker_ui/build/linux/x64/release/bundle .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: worker-ui-linux
+          path: /tmp/worker-ui-linux.tar.gz
+
+  release:
+    name: Publish GitHub Release
+    needs: [build-macos, build-windows, build-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: /tmp/artifacts
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          gh release create "$tag" \
+            /tmp/artifacts/worker-ui-macos/worker-ui-macos.dmg \
+            /tmp/artifacts/worker-ui-windows/*.exe \
+            /tmp/artifacts/worker-ui-linux/worker-ui-linux.tar.gz \
+            --title "云枢终端 UI $tag" \
+            --notes "Worker UI (云枢终端) — 桌面控制面板。内置 worker 二进制。"

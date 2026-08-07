@@ -32,6 +32,53 @@ public sealed class CommandTests
     }
 
     [Fact]
+    public void Sessions_WithJson_EmitsJsonArray()
+    {
+        var savedHome = Environment.GetEnvironmentVariable("HOME");
+        try
+        {
+            var (exit, stdout) = CaptureStdout(() => SessionsCommand.Run(new[] { "--json" }));
+            exit.Should().Be(0);
+            // Must parse as a JSON array (empty or not) — never the human table.
+            var arr = System.Text.Json.Nodes.JsonNode.Parse(stdout).Should().BeOfType<JsonArray>().Subject;
+            foreach (var item in arr)
+            {
+                var obj = item.Should().BeOfType<JsonObject>().Subject;
+                obj["sessionId"].Should().NotBeNull();
+                obj["isActive"].Should().NotBeNull();
+                obj["isCrashed"].Should().NotBeNull();
+            }
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("HOME", savedHome);
+        }
+    }
+
+    [Fact]
+    public void Sessions_BuildJson_ExposesShapeAndIsCrashedDerivation()
+    {
+        var active = new SessionInfo("sess-active", "claude", "/work", DateTimeOffset.UtcNow, null, 100, 5, DateTimeOffset.UtcNow, isActive: true);
+        var crashed = new SessionInfo("sess-crashed", "claude", "/work", DateTimeOffset.UtcNow, null, 999, 3, DateTimeOffset.UtcNow, isActive: false);
+        var ended = new SessionInfo("sess-ended", "codex", "/work", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, null, 1, DateTimeOffset.UtcNow, isActive: false);
+
+        var json = SessionsCommand.BuildJson(new[] { active, crashed, ended });
+        json.Count.Should().Be(3);
+
+        var activeObj = json[0]!.AsObject();
+        activeObj["sessionId"]!.GetValue<string>().Should().Be("sess-active");
+        activeObj["isActive"]!.GetValue<bool>().Should().BeTrue();
+        activeObj["isCrashed"]!.GetValue<bool>().Should().BeFalse();
+
+        var crashedObj = json[1]!.AsObject();
+        crashedObj["isActive"]!.GetValue<bool>().Should().BeFalse();
+        crashedObj["isCrashed"]!.GetValue<bool>().Should().BeTrue();
+
+        var endedObj = json[2]!.AsObject();
+        endedObj["isCrashed"]!.GetValue<bool>().Should().BeFalse();
+    }
+
+    [Fact]
     public async Task Events_GrepFilter_ReturnsOnlyMatchingLines()
     {
         using var home = new TempHome();
