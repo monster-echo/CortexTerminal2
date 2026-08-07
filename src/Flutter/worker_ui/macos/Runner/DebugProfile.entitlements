@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- 关掉 App Sandbox：本 App 要管理用户主目录里的 worker（~/.corterm）、
+	     调用 corterm/cortap 子进程、读写文件，必须是非沙盒应用（同 iTerm2/VS Code）。
+	     keep cs.allow-jit 供 debug 模式 JIT VM 使用。 -->
+	<key>com.apple.security.cs.allow-jit</key>
+	<true/>
+</dict>
+</plist>
