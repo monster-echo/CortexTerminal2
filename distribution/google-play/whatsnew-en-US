@@ -1,1 +1,1 @@
-New scrollback size picker (512K/1M/2M/5M) under Settings → Terminal. Larger keeps more history but slows session entry. Applies to new sessions only.
+Port forwarding is here: forward local dev servers from a terminal session to a secure public URL, then share the link and preview React/Vite apps on any device.
