@@ -88,6 +88,23 @@ public sealed class DeviceFlowLoginServiceTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task LoginAsync_WithOnStage_EmitsCodeThenSuccess()
+    {
+        var httpClient = _server.CreateClient();
+        var service = new DeviceFlowLoginService(httpClient, _tokenStore);
+        var stages = new List<DeviceFlowStage>();
+
+        await service.LoginAsync(CancellationToken.None, stage => stages.Add(stage));
+
+        stages.Select(s => s.Stage).Should().Equal("code", "success");
+        stages[0].UserCode.Should().Be("ABCD-1234");
+        stages[0].VerificationUri.Should().Be("https://corterm.rwecho.top/activate");
+        stages[0].ExpiresInSeconds.Should().Be(900);
+        var saved = await _tokenStore.GetAccessTokenAsync(CancellationToken.None);
+        saved.Should().Be("test-access-token");
+    }
+
+    [Fact]
     public async Task RefreshTokenAsync_WithValidToken_ReturnsNewToken()
     {
         var httpClient = _server.CreateClient();

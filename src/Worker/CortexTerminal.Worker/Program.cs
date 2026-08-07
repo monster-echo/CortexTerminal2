@@ -4,6 +4,8 @@ using System.Net.Http.Json;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using System.Text.Json.Nodes;
+using CortexTerminal.Worker;
 using CortexTerminal.Worker.Agent;
 using CortexTerminal.Worker.Agent.Adapters;
 using CortexTerminal.Worker.Auth;
@@ -91,7 +93,7 @@ static Dictionary<string, JsonElement>? DecodeJwtPayload(string token)
 }
 
 // ── Helper: run OS service command (start/stop/restart) ──
-static void RunServiceCommand(string action)
+static (bool Ok, string Message, string? Error) RunServiceCommand(string action)
 {
     var isOsx = RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
     var isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
@@ -140,19 +142,31 @@ static void RunServiceCommand(string action)
     });
     if (proc is null)
     {
-        Console.Error.WriteLine($"  Failed to run: {program} {args}");
-        Environment.ExitCode = 1;
-        return;
+        return (false, "", $"Failed to run: {program} {args}");
     }
     proc.WaitForExit();
     if (proc.ExitCode != 0)
     {
         var stderr = proc.StandardError.ReadToEnd();
-        Console.Error.WriteLine($"  Failed to {action} worker (exit code {proc.ExitCode}).{(!string.IsNullOrEmpty(stderr) ? $"\n  {stderr.Trim()}" : "")}");
-        Environment.ExitCode = 1;
-        return;
+        return (false, "", $"Failed to {action} worker (exit code {proc.ExitCode}).{(!string.IsNullOrEmpty(stderr) ? $"\n  {stderr.Trim()}" : "")}");
     }
-    Console.WriteLine($"  Worker {action}ed.");
+    return (true, $"Worker {action}ed.", null);
+}
+
+// ── Helper: run a service action command, rendering JSON or human output ──
+static int RunServiceAction(ParseResult parseResult, string action, bool json)
+{
+    var result = RunServiceCommand(action);
+    if (json)
+    {
+        Console.Out.WriteLine(CliJson.Service(action, result.Ok, result.Message, result.Error).ToJsonString());
+    }
+    else
+    {
+        Console.WriteLine(result.Message);
+        if (!result.Ok && result.Error is not null) Console.Error.WriteLine(result.Error);
+    }
+    return result.Ok ? 0 : 1;
 }
 
 // ── Helper: check if token is expired ──
@@ -184,16 +198,31 @@ static string FormatUptime(TimeSpan u) => $"{(int)u.TotalDays}d {u.Hours}h {u.Mi
 // ── CLI Definition ──
 var rootCommand = new RootCommand("Corterm Worker — remote terminal agent");
 
+// Helper: build a `--json` option (one instance per subcommand). Root-level options in
+// System.CommandLine 2.0.7 are only parsed when they precede the subcommand, which would
+// force the awkward `corterm --json status` form — so each subcommand gets its own.
+static Option<bool> CreateJsonOption() => new Option<bool>("json", "--json") { Description = "Emit machine-readable JSON to stdout" };
+
 // ── login command ──
 var loginCommand = new Command("login", "Authenticate with a gateway");
+var loginJson = CreateJsonOption();
+loginCommand.Add(loginJson);
 loginCommand.SetAction(async (ParseResult parseResult, CancellationToken cancellationToken) =>
 {
+    var json = parseResult.GetValue(loginJson);
     var gatewayUrl = ResolveGatewayUrl(installDir);
     var gatewayBaseUrl = new Uri(gatewayUrl);
 
-    Console.WriteLine();
-    Console.WriteLine($"  Gateway: {gatewayUrl}");
-    Console.WriteLine();
+    if (json)
+    {
+        Console.Error.WriteLine($"Gateway: {gatewayUrl}");
+    }
+    else
+    {
+        Console.WriteLine();
+        Console.WriteLine($"  Gateway: {gatewayUrl}");
+        Console.WriteLine();
+    }
 
     var tokenStore = new FileWorkerTokenStore(installDir);
     var handler = new SocketsHttpHandler
@@ -208,107 +237,208 @@ loginCommand.SetAction(async (ParseResult parseResult, CancellationToken cancell
         Timeout = TimeSpan.FromSeconds(30),
     };
     var loginService = new DeviceFlowLoginService(httpClient, tokenStore);
-    await loginService.LoginAsync(cancellationToken);
+    if (json)
+    {
+        await loginService.LoginAsync(cancellationToken, stage =>
+        {
+            Console.Out.WriteLine(CliJson.LoginStage(
+                stage.Stage,
+                stage.VerificationUri,
+                stage.UserCode,
+                stage.ExpiresInSeconds,
+                stage.PollIntervalSeconds,
+                stage.Message).ToJsonString());
+            Console.Out.Flush();
+        });
+    }
+    else
+    {
+        await loginService.LoginAsync(cancellationToken);
+    }
 });
 
 // ── logout command ──
 var logoutCommand = new Command("logout", "Clear saved credentials");
+var logoutJson = CreateJsonOption();
+logoutCommand.Add(logoutJson);
 logoutCommand.SetAction(async (ParseResult parseResult, CancellationToken cancellationToken) =>
 {
+    var json = parseResult.GetValue(logoutJson);
     var tokenStore = new FileWorkerTokenStore(installDir);
     await tokenStore.ClearAsync(cancellationToken);
-    Console.WriteLine("  Logged out. Run 'corterm login' to authenticate.");
+    if (json)
+    {
+        Console.Out.WriteLine(CliJson.Logout(true, "Logged out. Run 'corterm login' to authenticate.").ToJsonString());
+    }
+    else
+    {
+        Console.WriteLine("  Logged out. Run 'corterm login' to authenticate.");
+    }
 });
 
 // ── status command ──
 var statusCommand = new Command("status", "Show authentication and connection status");
+var statusJson = CreateJsonOption();
+statusCommand.Add(statusJson);
 statusCommand.SetAction((ParseResult parseResult) =>
 {
+    var json = parseResult.GetValue(statusJson);
     var gatewayUrl = ResolveGatewayUrl(installDir);
     var workerId = ResolveWorkerId();
     var tokenStore = new FileWorkerTokenStore(installDir);
     var token = tokenStore.GetAccessTokenAsync(CancellationToken.None).GetAwaiter().GetResult();
 
-    Console.WriteLine($"  Version: {version}");
-    Console.WriteLine($"  PID:     {Environment.ProcessId}");
     // Uptime comes from the daemon's recorded start time (.worker-state); `status` is a
     // separate short-lived process whose own StartTime is always ~0.
     var statePath = Path.Combine(installDir, ".worker-state");
     var uptimeText = File.Exists(statePath) && long.TryParse(File.ReadAllText(statePath).Trim(), out var startedAt)
         ? FormatUptime(DateTimeOffset.UtcNow - DateTimeOffset.FromUnixTimeSeconds(startedAt))
         : "n/a";
-    Console.WriteLine($"  Uptime:  {uptimeText}");
-    Console.WriteLine($"  Gateway: {gatewayUrl}");
-    Console.WriteLine($"  Worker:  {workerId}");
 
-    if (string.IsNullOrWhiteSpace(token))
+    var authenticated = !string.IsNullOrWhiteSpace(token);
+    string? user = null;
+    string? authExpiry = null;
+    if (authenticated)
     {
-        Console.WriteLine("  Status:  Not authenticated");
-    }
-    else
-    {
-        var payload = DecodeJwtPayload(token);
-        var username = payload?.TryGetValue("unique_name", out var nameEl) == true
+        var payload = DecodeJwtPayload(token!);
+        user = payload?.TryGetValue("unique_name", out var nameEl) == true
             ? nameEl.GetString()
             : payload?.TryGetValue("sub", out var subEl) == true
                 ? subEl.GetString()
                 : null;
-        var expiry = FormatExpiry(token);
-        Console.WriteLine($"  User:    {username ?? "unknown"}");
-        Console.WriteLine($"  Status:  Authenticated ({expiry})");
+        authExpiry = FormatExpiry(token!);
+    }
 
-        // Fetch gateway info and worker list
+    // Fetch gateway info and worker list (tolerating network errors)
+    JsonObject? gatewayInfo = null;
+    var updateAvailable = false;
+    var workersList = new List<JsonObject>();
+    if (authenticated)
+    {
         try
         {
             using var http = new HttpClient(new SocketsHttpHandler { Proxy = HttpClient.DefaultProxy, UseProxy = true });
             http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
             http.Timeout = TimeSpan.FromSeconds(5);
 
-            var infoResp = http.GetFromJsonAsync<JsonElement>($"{gatewayUrl}/api/gateway/info").GetAwaiter().GetResult();
-            Console.WriteLine();
-            Console.WriteLine("  Gateway Version: " + (infoResp.TryGetProperty("version", out var gv) ? gv.GetString() : "—"));
-            var latestWorker = infoResp.TryGetProperty("latestWorkerVersion", out var lw) ? lw.GetString() : null;
-            if (latestWorker is not null)
-                Console.WriteLine($"  Latest Worker:   {latestWorker}{(latestWorker.Replace(".0", "") != version.Replace(".0", "") ? "  (update available)" : "")}");
-
-            var workersResp = http.GetFromJsonAsync<JsonElement[]>($"{gatewayUrl}/api/me/workers").GetAwaiter().GetResult();
-            if (workersResp is not null && workersResp.Length > 0)
+            // JsonDocument.ParseAsync is reflection-free and trims safely. GetFromJsonAsync<JsonElement>
+            // is reflection-based and throws under PublishTrimmed (JsonSerializer.IsReflectionEnabledByDefault
+            // is false) — the original `corterm status` swallowed this and never showed gateway info/workers.
+            using (var infoResp = http.GetAsync($"{gatewayUrl}/api/gateway/info").GetAwaiter().GetResult())
+            using (var infoDoc = JsonDocument.ParseAsync(infoResp.Content.ReadAsStream()).GetAwaiter().GetResult())
             {
-                Console.WriteLine();
-                Console.WriteLine("  Workers:");
-                foreach (var w in workersResp)
+                var infoRoot = infoDoc.RootElement;
+                var gVersion = infoRoot.TryGetProperty("version", out var gv) ? gv.GetString() : null;
+                var latestWorker = infoRoot.TryGetProperty("latestWorkerVersion", out var lw) ? lw.GetString() : null;
+                gatewayInfo = new JsonObject { ["version"] = gVersion, ["latestWorkerVersion"] = latestWorker };
+                updateAvailable = latestWorker is not null && latestWorker.Replace(".0", "") != version.Replace(".0", "");
+            }
+
+            using (var workersResp = http.GetAsync($"{gatewayUrl}/api/me/workers").GetAwaiter().GetResult())
+            using (var workersDoc = JsonDocument.ParseAsync(workersResp.Content.ReadAsStream()).GetAwaiter().GetResult())
+            {
+                var workersRoot = workersDoc.RootElement;
+                if (workersRoot.ValueKind == JsonValueKind.Array)
                 {
-                    var name = w.TryGetProperty("name", out var n) ? n.GetString() : w.TryGetProperty("workerId", out var wid) ? wid.GetString() : "?";
-                    var isOnline = w.TryGetProperty("isOnline", out var on) && on.GetBoolean();
-                    var wVer = w.TryGetProperty("version", out var wv) ? wv.GetString() : "—";
-                    var os = w.TryGetProperty("operatingSystem", out var osEl) ? osEl.GetString() : "";
-                    var statusIcon = isOnline ? "●" : "○";
-                    Console.WriteLine($"    {statusIcon} {name}  v{wVer}  {os}{(!isOnline ? "  (offline)" : "")}");
+                    foreach (var w in workersRoot.EnumerateArray())
+                    {
+                        workersList.Add(CliJson.Worker(
+                            w.TryGetProperty("workerId", out var wid) ? wid.GetString() ?? "" : "",
+                            w.TryGetProperty("name", out var n) ? n.GetString() : null,
+                            w.TryGetProperty("hostname", out var hn) ? hn.GetString() : null,
+                            w.TryGetProperty("operatingSystem", out var osEl) ? osEl.GetString() : null,
+                            w.TryGetProperty("architecture", out var ar) ? ar.GetString() : null,
+                            w.TryGetProperty("version", out var wv) ? wv.GetString() : null,
+                            w.TryGetProperty("isOnline", out var on) && on.GetBoolean(),
+                            w.TryGetProperty("lastSeenAtUtc", out var ls) ? ls.GetString() : null,
+                            w.TryGetProperty("sessionCount", out var sc) && sc.ValueKind == JsonValueKind.Number ? sc.GetInt32() : null,
+                            w.TryGetProperty("cpuUsagePercent", out var cpu) && cpu.ValueKind == JsonValueKind.Number ? cpu.GetDouble() : null,
+                            w.TryGetProperty("memoryUsagePercent", out var mem) && mem.ValueKind == JsonValueKind.Number ? mem.GetDouble() : null));
+                    }
                 }
             }
         }
-        catch
+        catch (Exception ex)
         {
+            if (json) Console.Error.WriteLine($"status: gateway fetch failed: {ex}");
             // Network errors should not block status display
+        }
+    }
+
+    var workers = new JsonArray();
+    foreach (var w in workersList) workers.Add((JsonNode)w);
+
+    if (json)
+    {
+        Console.Out.WriteLine(CliJson.Status(
+            version, Environment.ProcessId, uptimeText, gatewayUrl, workerId,
+            authenticated, user, authExpiry, gatewayInfo, updateAvailable, workers).ToJsonString());
+        return;
+    }
+
+    Console.WriteLine($"  Version: {version}");
+    Console.WriteLine($"  PID:     {Environment.ProcessId}");
+    Console.WriteLine($"  Uptime:  {uptimeText}");
+    Console.WriteLine($"  Gateway: {gatewayUrl}");
+    Console.WriteLine($"  Worker:  {workerId}");
+
+    if (!authenticated)
+    {
+        Console.WriteLine("  Status:  Not authenticated");
+    }
+    else
+    {
+        Console.WriteLine($"  User:    {user ?? "unknown"}");
+        Console.WriteLine($"  Status:  Authenticated ({authExpiry})");
+
+        if (gatewayInfo is not null)
+        {
+            Console.WriteLine();
+            var gVersion = gatewayInfo["version"]?.GetValue<string>();
+            var latestWorker = gatewayInfo["latestWorkerVersion"]?.GetValue<string>();
+            Console.WriteLine("  Gateway Version: " + (gVersion ?? "—"));
+            if (latestWorker is not null)
+                Console.WriteLine($"  Latest Worker:   {latestWorker}{(updateAvailable ? "  (update available)" : "")}");
+        }
+
+        if (workersList.Count > 0)
+        {
+            Console.WriteLine();
+            Console.WriteLine("  Workers:");
+            foreach (var w in workersList)
+            {
+                var name = w["name"]?.GetValue<string>() ?? w["workerId"]?.GetValue<string>() ?? "?";
+                var isOnline = w["isOnline"]?.GetValue<bool>() ?? false;
+                var wVer = w["version"]?.GetValue<string>() ?? "—";
+                var os = w["operatingSystem"]?.GetValue<string>() ?? "";
+                var statusIcon = isOnline ? "●" : "○";
+                Console.WriteLine($"    {statusIcon} {name}  v{wVer}  {os}{(!isOnline ? "  (offline)" : "")}");
+            }
         }
     }
 });
 
 // ── doctor command ──
 var doctorCommand = new Command("doctor", "Diagnose connectivity and configuration issues");
+var doctorJson = CreateJsonOption();
+doctorCommand.Add(doctorJson);
 doctorCommand.SetAction(async (ParseResult parseResult, CancellationToken cancellationToken) =>
 {
+    var json = parseResult.GetValue(doctorJson);
     var gatewayUrl = ResolveGatewayUrl(installDir);
     var workerId = ResolveWorkerId();
     var tokenStore = new FileWorkerTokenStore(installDir);
 
-    Console.WriteLine("  Checking Corterm Worker...");
-    Console.WriteLine();
+    if (!json)
+    {
+        Console.WriteLine("  Checking Corterm Worker...");
+        Console.WriteLine();
+    }
 
-    var failed = 0;
+    var checks = new List<(string Name, bool Ok, string Detail)>();
 
     // Check 1: Gateway URL
-    Console.WriteLine($"  [\u2713] Gateway URL: {gatewayUrl}");
+    checks.Add(("Gateway URL", true, gatewayUrl));
 
     // Check 2: Gateway reachable
     var gatewayBaseUrl = new Uri(gatewayUrl);
@@ -319,39 +449,36 @@ doctorCommand.SetAction(async (ParseResult parseResult, CancellationToken cancel
         var sw = System.Diagnostics.Stopwatch.StartNew();
         await http.GetAsync("/api/auth/device-flow", cancellationToken);
         sw.Stop();
-        Console.WriteLine($"  [\u2713] Gateway reachable (latency: {sw.ElapsedMilliseconds}ms)");
+        checks.Add(("Gateway reachable", true, $"latency: {sw.ElapsedMilliseconds}ms"));
     }
     catch (Exception ex)
     {
-        failed++;
-        Console.WriteLine($"  [\u2717] Gateway unreachable ({ex.InnerException?.Message ?? ex.Message})");
+        checks.Add(("Gateway reachable", false, ex.InnerException?.Message ?? ex.Message));
     }
 
     // Check 3: Auth token present
     var token = await tokenStore.GetAccessTokenAsync(cancellationToken);
     if (!string.IsNullOrWhiteSpace(token))
     {
-        Console.WriteLine("  [\u2713] Auth token present");
+        checks.Add(("Auth token present", true, "present"));
 
         // Check 4: Auth token valid
         if (IsTokenExpired(token))
         {
-            failed++;
-            Console.WriteLine("  [\u2717] Auth token expired");
+            checks.Add(("Auth token valid", false, "expired"));
         }
         else
         {
-            Console.WriteLine($"  [\u2713] Auth token valid ({FormatExpiry(token)})");
+            checks.Add(("Auth token valid", true, FormatExpiry(token)));
         }
     }
     else
     {
-        failed++;
-        Console.WriteLine("  [\u2717] Auth token missing");
+        checks.Add(("Auth token present", false, "missing"));
     }
 
     // Check 5: Worker ID
-    Console.WriteLine($"  [\u2713] Worker ID: {workerId}");
+    checks.Add(("Worker ID", true, workerId));
 
     // Check 6: PTY support
     try
@@ -359,24 +486,38 @@ doctorCommand.SetAction(async (ParseResult parseResult, CancellationToken cancel
         var ptyHost = new UnixPtyHost();
         var process = await ptyHost.StartAsync(80, 24, cancellationToken);
         await process.DisposeAsync();
-        Console.WriteLine("  [\u2713] PTY support: available");
+        checks.Add(("PTY support", true, "available"));
     }
     catch (Exception ex)
     {
-        failed++;
-        Console.WriteLine($"  [\u2717] PTY support: unavailable ({ex.Message})");
+        checks.Add(("PTY support", false, ex.Message));
     }
 
-    Console.WriteLine();
-    if (failed == 0)
+    var failed = checks.Count(c => !c.Ok);
+
+    if (json)
     {
-        Console.WriteLine("  All checks passed.");
+        Console.Out.WriteLine(CliJson.Doctor(checks).ToJsonString());
     }
     else
     {
-        Console.WriteLine($"  {failed} check(s) failed. Run 'corterm login' to re-authenticate.");
-        Environment.ExitCode = 1;
+        foreach (var (name, ok, detail) in checks)
+        {
+            var icon = ok ? "[✓]" : "[✗]";
+            Console.WriteLine($"  {icon} {name}: {detail}");
+        }
+        Console.WriteLine();
+        if (failed == 0)
+        {
+            Console.WriteLine("  All checks passed.");
+        }
+        else
+        {
+            Console.WriteLine($"  {failed} check(s) failed. Run 'corterm login' to re-authenticate.");
+        }
     }
+
+    return failed > 0 ? 1 : 0;
 });
 
 // ── root command (default: start worker daemon) ──
@@ -626,10 +767,20 @@ static async Task<bool> RestoreReleaseFilesAsync(string installDir, string targe
 
 // ── update command ──
 var updateCommand = new Command("update", "Update Corterm Worker to the latest version");
+var updateJson = CreateJsonOption();
+updateCommand.Add(updateJson);
+var checkOnly = new Option<bool>("check", "--check") { Description = "Only check for the latest version without downloading" };
+updateCommand.Add(checkOnly);
 updateCommand.SetAction(async (ParseResult parseResult, CancellationToken cancellationToken) =>
 {
-    Console.WriteLine($"  Current version: {version}");
-    Console.WriteLine("  Checking for updates...");
+    var json = parseResult.GetValue(updateJson);
+    var check = parseResult.GetValue(checkOnly);
+
+    // Human text is suppressed in JSON mode so stdout carries only machine-readable JSON.
+    var say = (string msg) => { if (!json) Console.WriteLine(msg); };
+
+    say($"  Current version: {version}");
+    say("  Checking for updates...");
 
     var githubRepo = "monster-echo/CortexTerminal2";
     var isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
@@ -652,9 +803,9 @@ updateCommand.SetAction(async (ParseResult parseResult, CancellationToken cancel
         using var resp = await http.GetAsync($"https://api.github.com/repos/{githubRepo}/releases", cancellationToken);
         if (!resp.IsSuccessStatusCode)
         {
+            if (json) Console.Out.WriteLine(CliJson.UpdateStage("error", message: $"Failed to fetch releases: {(int)resp.StatusCode} {resp.ReasonPhrase}").ToJsonString());
             Console.Error.WriteLine($"  Failed to fetch releases: {(int)resp.StatusCode} {resp.ReasonPhrase}");
-            Environment.ExitCode = 1;
-            return;
+            return 1;
         }
         using var doc = await JsonDocument.ParseAsync(await resp.Content.ReadAsStreamAsync(cancellationToken));
         latestVersion = null;
@@ -678,16 +829,36 @@ updateCommand.SetAction(async (ParseResult parseResult, CancellationToken cancel
     }
     catch (Exception ex)
     {
+        if (json) Console.Out.WriteLine(CliJson.UpdateStage("error", message: $"Failed to check for updates: {ex.Message}").ToJsonString());
         Console.Error.WriteLine($"  Failed to check for updates: {ex.Message}");
-        Environment.ExitCode = 1;
-        return;
+        return 1;
     }
 
     if (string.IsNullOrEmpty(latestVersion))
     {
+        if (json) Console.Out.WriteLine(CliJson.UpdateStage("error", message: "Could not determine latest worker version.").ToJsonString());
         Console.Error.WriteLine("  Could not determine latest worker version.");
-        Environment.ExitCode = 1;
-        return;
+        return 1;
+    }
+
+    // --check: report the latest version without downloading anything
+    if (check)
+    {
+        var updateAvailable = latestVersion != version;
+        var checkDownloadUrl = $"{githubProxy}/https://github.com/{githubRepo}/releases/latest/download/{assetName}";
+        if (json)
+        {
+            Console.Out.WriteLine(CliJson.UpdateCheck(version, latestVersion, updateAvailable, assetName, checkDownloadUrl).ToJsonString());
+        }
+        else
+        {
+            Console.WriteLine($"  Latest version: {latestVersion}");
+            Console.WriteLine(updateAvailable
+                ? $"  Update available: {assetName}"
+                : $"  Already up to date ({version}).");
+            Console.WriteLine($"  Download: {checkDownloadUrl}");
+        }
+        return 0;
     }
 
     // Even when already on the latest version, an install that arrived here via the
@@ -700,25 +871,37 @@ updateCommand.SetAction(async (ParseResult parseResult, CancellationToken cancel
     {
         if (!wrapperMissing)
         {
-            Console.WriteLine($"  Already up to date ({version}).");
-            return;
+            if (json) Console.Out.WriteLine(CliJson.UpdateStage("done", version: version, message: "Already up to date.").ToJsonString());
+            else say($"  Already up to date ({version}).");
+            return 0;
         }
-        Console.WriteLine($"  Already on {version}, but {wrapperName} is missing — re-syncing release files ...");
+        say($"  Already on {version}, but {wrapperName} is missing — re-syncing release files ...");
+        if (json) Console.Out.WriteLine(CliJson.UpdateStage("check", version: version, message: $"{wrapperName} missing, re-syncing").ToJsonString());
         try
         {
             await RestoreReleaseFilesAsync(installDir, version, cancellationToken);
-            Console.WriteLine($"  {wrapperName} restored. Restarting worker ...");
-            RunServiceCommand("restart");
+            say($"  {wrapperName} restored. Restarting worker ...");
+            if (json) Console.Out.WriteLine(CliJson.UpdateStage("install", version: version, message: $"{wrapperName} restored").ToJsonString());
+            var svc = RunServiceCommand("restart");
+            if (!svc.Ok)
+            {
+                if (json) Console.Out.WriteLine(CliJson.UpdateStage("error", message: svc.Error).ToJsonString());
+                Console.Error.WriteLine(svc.Error);
+                return 1;
+            }
+            if (json) Console.Out.WriteLine(CliJson.UpdateStage("done", version: version).ToJsonString());
         }
         catch (Exception ex)
         {
+            if (json) Console.Out.WriteLine(CliJson.UpdateStage("error", message: $"Failed to restore {wrapperName}: {ex.Message}").ToJsonString());
             Console.Error.WriteLine($"  Failed to restore {wrapperName}: {ex.Message}");
-            Environment.ExitCode = 1;
+            return 1;
         }
-        return;
+        return 0;
     }
 
-    Console.WriteLine($"  New version available: {latestVersion}");
+    say($"  New version available: {latestVersion}");
+    if (json) Console.Out.WriteLine(CliJson.UpdateStage("check", version: latestVersion).ToJsonString());
 
     // Download
     var downloadUrl = $"{githubProxy}/https://github.com/{githubRepo}/releases/latest/download/{assetName}";
@@ -728,10 +911,12 @@ updateCommand.SetAction(async (ParseResult parseResult, CancellationToken cancel
 
     try
     {
-        Console.WriteLine($"  Downloading {assetName}...");
+        say($"  Downloading {assetName}...");
+        if (json) Console.Out.WriteLine(CliJson.UpdateStage("download", bytes: 0, message: assetName).ToJsonString());
         var data = await http.GetByteArrayAsync(downloadUrl, cancellationToken);
         await File.WriteAllBytesAsync(tmpFile, data, cancellationToken);
-        Console.WriteLine($"  Download complete ({data.Length} bytes).");
+        say($"  Download complete ({data.Length} bytes).");
+        if (json) Console.Out.WriteLine(CliJson.UpdateStage("download", bytes: data.Length, message: assetName).ToJsonString());
 
         // Extract
         var extractDir = Path.Combine(tmpDir, "extracted");
@@ -749,13 +934,15 @@ updateCommand.SetAction(async (ParseResult parseResult, CancellationToken cancel
             });
             if (tar is not null) await tar.WaitForExitAsync(cancellationToken);
         }
+        say("  Extracting...");
+        if (json) Console.Out.WriteLine(CliJson.UpdateStage("extract").ToJsonString());
 
         var newBinary = Path.Combine(extractDir, isWindows ? "corterm.exe" : "corterm");
         if (!File.Exists(newBinary))
         {
+            if (json) Console.Out.WriteLine(CliJson.UpdateStage("error", message: $"Binary not found in archive at {newBinary}").ToJsonString());
             Console.Error.WriteLine($"  Error: binary not found in archive at {newBinary}");
-            Environment.ExitCode = 1;
-            return;
+            return 1;
         }
 
         var currentBinary = Process.GetCurrentProcess().MainModule?.FileName
@@ -795,35 +982,57 @@ updateCommand.SetAction(async (ParseResult parseResult, CancellationToken cancel
             }
         }
 
-        Console.WriteLine($"  Updated to {latestVersion}. Restarting worker ...");
+        say($"  Updated to {latestVersion}. Restarting worker ...");
+        if (json) Console.Out.WriteLine(CliJson.UpdateStage("install", version: latestVersion).ToJsonString());
 
-        RunServiceCommand("restart");
+        var svcResult = RunServiceCommand("restart");
+        if (!svcResult.Ok)
+        {
+            if (json) Console.Out.WriteLine(CliJson.UpdateStage("error", message: svcResult.Error).ToJsonString());
+            Console.Error.WriteLine(svcResult.Error);
+            return 1;
+        }
+        if (json) Console.Out.WriteLine(CliJson.UpdateStage("done", version: latestVersion).ToJsonString());
+    }
+    catch (Exception ex)
+    {
+        if (json) Console.Out.WriteLine(CliJson.UpdateStage("error", message: ex.Message).ToJsonString());
+        Console.Error.WriteLine($"  Update failed: {ex.Message}");
+        return 1;
     }
     finally
     {
         try { if (Directory.Exists(tmpDir)) Directory.Delete(tmpDir, recursive: true); } catch { }
     }
+
+    return 0;
 });
 
 // ── start command ──
 var startCommand = new Command("start", "Start the worker service");
+var startJson = CreateJsonOption();
+startCommand.Add(startJson);
 startCommand.SetAction((ParseResult parseResult) =>
 {
-    RunServiceCommand("start");
+    return RunServiceAction(parseResult, "start", parseResult.GetValue(startJson));
 });
 
 // ── stop command ──
 var stopCommand = new Command("stop", "Stop the worker service");
+var stopJson = CreateJsonOption();
+stopCommand.Add(stopJson);
 stopCommand.SetAction((ParseResult parseResult) =>
 {
-    RunServiceCommand("stop");
+    return RunServiceAction(parseResult, "stop", parseResult.GetValue(stopJson));
 });
 
 // ── restart command ──
 var restartCommand = new Command("restart", "Restart the worker service");
+var restartJson = CreateJsonOption();
+restartCommand.Add(restartJson);
 restartCommand.SetAction((ParseResult parseResult) =>
 {
-    RunServiceCommand("restart");
+    return RunServiceAction(parseResult, "restart", parseResult.GetValue(restartJson));
 });
 
 rootCommand.Subcommands.Add(loginCommand);
