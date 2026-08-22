@@ -74,7 +74,10 @@ curl -fsSL https://corterm.rwecho.top/install.sh | sh
 ```powershell
 powershell -Command "irm https://corterm.rwecho.top/install.ps1 | iex"
 ```
-
+** 手动安装** 
+- 在release 页面下载worker, 解压到`C:\users\your_usr_name\.corterm` 目录下
+- 在该目录下运行 `corterm.exe login`, 获取激活码
+- 在手机app 云枢终端上输入激活码即可
 ### 3. 打开浏览器
 
 访问 `http://localhost:5045`，登录后即可开启终端会话。
