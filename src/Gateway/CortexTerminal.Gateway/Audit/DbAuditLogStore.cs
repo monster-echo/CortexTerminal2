@@ -3,11 +3,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CortexTerminal.Gateway.Audit;
 
-public sealed class PostgresAuditLogStore : IAuditLogStore
+public sealed class DbAuditLogStore : IAuditLogStore
 {
     private readonly IDbContextFactory<AppDbContext> _contextFactory;
 
-    public PostgresAuditLogStore(IDbContextFactory<AppDbContext> contextFactory)
+    public DbAuditLogStore(IDbContextFactory<AppDbContext> contextFactory)
     {
         _contextFactory = contextFactory;
     }

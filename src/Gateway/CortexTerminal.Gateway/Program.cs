@@ -313,9 +313,9 @@ var sqliteConnectionString = builder.Configuration["GATEWAY_SQLITE_CONNECTION_ST
     ?? "Data Source=corterm_gateway.db";
 builder.Services.AddDbContextFactory<AppDbContext>(options =>
     options.UseSqlite(sqliteConnectionString));
-builder.Services.AddSingleton<IAuditLogStore, PostgresAuditLogStore>();
-builder.Services.AddSingleton<IWorkerRegistry, PostgresWorkerRegistry>();
-builder.Services.AddSingleton<ISessionCoordinator, PostgresSessionCoordinator>();
+builder.Services.AddSingleton<IAuditLogStore, DbAuditLogStore>();
+builder.Services.AddSingleton<IWorkerRegistry, DbWorkerRegistry>();
+builder.Services.AddSingleton<ISessionCoordinator, DbSessionCoordinator>();
 
 var oAuthOptions = new OAuthOptions();
 builder.Configuration.GetSection("Auth").Bind(oAuthOptions);
@@ -337,16 +337,10 @@ app.UseMiddleware<TunnelMiddleware>();
 // Auto-migrate database schema
 {
     using var scope = app.Services.CreateScope();
-    try
-    {
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await db.Database.MigrateAsync();
-    }
-    catch (Exception ex)
-    {
-        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-        logger.LogWarning(ex, "Failed to connect to SQLite database.");
-    }
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    await db.Database.MigrateAsync();
+    var migrateLogger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    migrateLogger.LogInformation("Database migration completed");
 }
 
 // Recover active sessions from database after restart

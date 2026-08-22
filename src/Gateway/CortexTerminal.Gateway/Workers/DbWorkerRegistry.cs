@@ -4,14 +4,14 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CortexTerminal.Gateway.Workers;
 
-public sealed class PostgresWorkerRegistry : IWorkerRegistry
+public sealed class DbWorkerRegistry : IWorkerRegistry
 {
     private readonly ConcurrentDictionary<string, RegisteredWorker> _workers = new();
     private readonly ConcurrentDictionary<string, WorkerMetrics> _metrics = new();
     private readonly IDbContextFactory<AppDbContext> _contextFactory;
-    private readonly ILogger<PostgresWorkerRegistry> _logger;
+    private readonly ILogger<DbWorkerRegistry> _logger;
 
-    public PostgresWorkerRegistry(IDbContextFactory<AppDbContext> contextFactory, ILogger<PostgresWorkerRegistry> logger)
+    public DbWorkerRegistry(IDbContextFactory<AppDbContext> contextFactory, ILogger<DbWorkerRegistry> logger)
     {
         _contextFactory = contextFactory;
         _logger = logger;
