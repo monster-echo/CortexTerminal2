@@ -1,6 +1,5 @@
 ﻿using System;
 using Microsoft.EntityFrameworkCore.Migrations;
-using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
@@ -37,11 +36,11 @@ namespace CortexTerminal.Gateway.Migrations
                 columns: table => new
                 {
                     id = table.Column<long>(type: "bigint", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                        .Annotation("Sqlite:Autoincrement", true),
                     session_id = table.Column<string>(type: "text", nullable: false),
                     event_type = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
                     payload = table.Column<string>(type: "text", nullable: false),
-                    created_at_utc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
+                    created_at_utc = table.Column<DateTimeOffset>(type: "TEXT", nullable: false)
                 },
                 constraints: table =>
                 {

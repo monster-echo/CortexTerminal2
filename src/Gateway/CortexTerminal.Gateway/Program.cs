@@ -308,22 +308,11 @@ builder.Services.AddSingleton<ArtifactService>();
 builder.Services.AddSingleton<AgentActivityService>();
 builder.Services.AddHostedService<ArtifactCleanupHostedService>();
 
-var useInMemory = builder.Configuration.GetValue<bool>("Database:UseInMemory");
-
-if (useInMemory)
-{
-    var inMemoryDbName = builder.Configuration["Database:InMemoryDbName"] ?? "corterm_gateway";
-    builder.Services.AddDbContextFactory<AppDbContext>(options =>
-        options.UseInMemoryDatabase(inMemoryDbName));
-}
-else
-{
-    var connectionString = builder.Configuration["GATEWAY_POSTGRES_CONNECTION_STRING"]
-        ?? builder.Configuration.GetConnectionString("DefaultConnection")
-        ?? throw new InvalidOperationException("PostgreSQL connection string is required. Set GATEWAY_POSTGRES_CONNECTION_STRING or ConnectionStrings:DefaultConnection.");
-    builder.Services.AddDbContextFactory<AppDbContext>(options =>
-        options.UseNpgsql(connectionString));
-}
+var sqliteConnectionString = builder.Configuration["GATEWAY_SQLITE_CONNECTION_STRING"]
+    ?? builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? "Data Source=corterm_gateway.db";
+builder.Services.AddDbContextFactory<AppDbContext>(options =>
+    options.UseSqlite(sqliteConnectionString));
 builder.Services.AddSingleton<IAuditLogStore, PostgresAuditLogStore>();
 builder.Services.AddSingleton<IWorkerRegistry, PostgresWorkerRegistry>();
 builder.Services.AddSingleton<ISessionCoordinator, PostgresSessionCoordinator>();
@@ -345,30 +334,27 @@ app.UseForwardedHeaders(forwardedHeadersOptions);
 // Visitor HTTP entry point: intercept /t/<key>/... before auth/static files, validate tunnel secret.
 app.UseMiddleware<TunnelMiddleware>();
 
-// Auto-migrate database schema (Postgres only — in-memory provider auto-creates)
-if (!useInMemory)
+// Auto-migrate database schema
 {
-    using (var scope = app.Services.CreateScope())
+    using var scope = app.Services.CreateScope();
+    try
     {
-        try
-        {
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            await db.Database.MigrateAsync();
-        }
-        catch (Exception ex)
-        {
-            var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-            logger.LogWarning(ex, "Failed to connect to PostgreSQL database.");
-        }
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await db.Database.MigrateAsync();
     }
+    catch (Exception ex)
+    {
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+        logger.LogWarning(ex, "Failed to connect to SQLite database.");
+    }
+}
 
-    // Recover active sessions from database after restart
-    {
-        var sessionCoordinator = app.Services.GetRequiredService<ISessionCoordinator>();
-        await sessionCoordinator.RecoverActiveSessionsAsync();
-        var recoveryLogger = app.Services.GetRequiredService<ILogger<Program>>();
-        recoveryLogger.LogInformation("Session recovery completed");
-    }
+// Recover active sessions from database after restart
+{
+    var sessionCoordinator = app.Services.GetRequiredService<ISessionCoordinator>();
+    await sessionCoordinator.RecoverActiveSessionsAsync();
+    var recoveryLogger = app.Services.GetRequiredService<ILogger<Program>>();
+    recoveryLogger.LogInformation("Session recovery completed");
 }
 
 // Seed dev user if Users table is empty
