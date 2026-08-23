@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
+
 
 #nullable disable
 
@@ -21,9 +21,9 @@ namespace CortexTerminal.Gateway.Migrations
 #pragma warning disable 612, 618
             modelBuilder
                 .HasAnnotation("ProductVersion", "10.0.4")
-                .HasAnnotation("Relational:MaxIdentifierLength", 63);
+                .HasAnnotation("Relational:MaxIdentifierLength", 64);
 
-            NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
+
 
             modelBuilder.Entity("CortexTerminal.Gateway.Data.ArtifactEntity", b =>
                 {
@@ -165,7 +165,7 @@ namespace CortexTerminal.Gateway.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("id");
 
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
 
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone")
@@ -506,7 +506,7 @@ namespace CortexTerminal.Gateway.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("id");
 
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
 
                     b.Property<string>("Key")
                         .IsRequired()

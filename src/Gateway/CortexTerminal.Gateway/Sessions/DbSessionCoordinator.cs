@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CortexTerminal.Gateway.Sessions;
 
-public sealed class PostgresSessionCoordinator : ISessionCoordinator
+public sealed class DbSessionCoordinator : ISessionCoordinator
 {
     private readonly IWorkerRegistry _workers;
     private readonly ConcurrentDictionary<string, SessionRecord> _sessions = new();
@@ -15,12 +15,12 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
     private readonly TimeProvider _timeProvider;
     private readonly IDbContextFactory<AppDbContext> _contextFactory;
 
-    private readonly ILogger<PostgresSessionCoordinator> _logger;
+    private readonly ILogger<DbSessionCoordinator> _logger;
 
-    public PostgresSessionCoordinator(
+    public DbSessionCoordinator(
         IWorkerRegistry workers,
         IDbContextFactory<AppDbContext> contextFactory,
-        ILogger<PostgresSessionCoordinator> logger,
+        ILogger<DbSessionCoordinator> logger,
         TimeProvider? timeProvider = null)
     {
         _workers = workers;

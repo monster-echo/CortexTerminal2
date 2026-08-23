@@ -16,16 +16,15 @@ namespace CortexTerminal.Gateway.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // PostgreSQL only. The in-memory dev provider never hits this path.
             migrationBuilder.Sql(@"
 INSERT INTO ""UserIdentities"" (""id"", ""user_id"", ""auth_provider"", ""auth_provider_id"", ""password_hash"", ""created_at_utc"")
 SELECT
-    regexp_replace(gen_random_uuid()::text, '-', '', 'g'),
+    lower(hex(randomblob(4))) || lower(hex(randomblob(4))) || lower(hex(randomblob(4))) || lower(hex(randomblob(4))),
     u.""id"",
     'password',
     u.""username"",
     u.""password_hash"",
-    NOW() AT TIME ZONE 'UTC'
+    strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 FROM ""Users"" u
 WHERE u.""password_hash"" IS NOT NULL
   AND u.""password_hash"" <> ''

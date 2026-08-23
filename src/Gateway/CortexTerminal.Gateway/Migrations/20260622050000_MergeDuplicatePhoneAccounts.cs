@@ -69,7 +69,7 @@ DELETE FROM ""Users"" WHERE id = '" + FromUserId + @"';
             // rollback exists only to satisfy EF's migration contract.
             migrationBuilder.Sql(@"
 INSERT INTO ""Users"" (id, username, auth_provider, role, status, created_at_utc, updated_at_utc)
-SELECT '" + FromUserId + @"', 'phone_5543', 'phone', 'user', 'active', NOW() AT TIME ZONE 'UTC', NOW() AT TIME ZONE 'UTC'
+SELECT '" + FromUserId + @"', 'phone_5543', 'phone', 'user', 'active', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 WHERE NOT EXISTS (SELECT 1 FROM ""Users"" WHERE id = '" + FromUserId + @"');
 ");
         }

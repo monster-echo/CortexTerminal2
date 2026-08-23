@@ -28,19 +28,20 @@ namespace CortexTerminal.Gateway.Migrations
             migrationBuilder.Sql(@"
 INSERT INTO ""UserIdentities"" (id, user_id, auth_provider, auth_provider_id, email, phone_normalized, password_hash, created_at_utc)
 SELECT
-    regexp_replace(gen_random_uuid()::text, '-', '', 'g'),
+    lower(hex(randomblob(4))) || lower(hex(randomblob(4))) || lower(hex(randomblob(4))) || lower(hex(randomblob(4))),
     u.""id"",
     'password',
     u.""username"",
     u.""email"",
     CASE
         WHEN u.""auth_provider"" IN ('phone', 'huawei') AND u.""auth_provider_id"" IS NOT NULL
-             AND char_length(regexp_replace(u.""auth_provider_id"", '[^0-9]', '', 'g')) >= 11
-        THEN substring(regexp_replace(u.""auth_provider_id"", '[^0-9]', '', 'g') from char_length(regexp_replace(u.""auth_provider_id"", '[^0-9]', '', 'g')) - 10)
+             AND length(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(u.""auth_provider_id"", '0',''),  '1',''), '2',''), '3',''), '4',''), '5',''), '6',''), '7',''), '8',''), '9','')) = 0
+             AND length(u.""auth_provider_id"") >= 11
+        THEN substr(u.""auth_provider_id"", length(u.""auth_provider_id"") - 10)
         ELSE NULL
     END,
     u.""password_hash"",
-    NOW() AT TIME ZONE 'UTC'
+    strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 FROM ""Users"" u
 WHERE u.""password_hash"" IS NOT NULL
   AND u.""password_hash"" <> ''
@@ -56,9 +57,9 @@ WHERE u.""password_hash"" IS NOT NULL
             //    have a country-code prefix (>11 digits).
             migrationBuilder.Sql(@"
 UPDATE ""UserIdentities""
-SET phone_normalized = substring(phone_normalized from char_length(phone_normalized) - 10)
+SET phone_normalized = substr(phone_normalized, length(phone_normalized) - 10)
 WHERE phone_normalized IS NOT NULL
-  AND char_length(phone_normalized) > 11;
+  AND length(phone_normalized) > 11;
 ");
         }
 

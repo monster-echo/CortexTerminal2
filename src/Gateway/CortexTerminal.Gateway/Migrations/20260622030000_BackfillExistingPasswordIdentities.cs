@@ -20,31 +20,38 @@ namespace CortexTerminal.Gateway.Migrations
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.Sql(@"
-UPDATE ""UserIdentities"" ui
-SET password_hash = u.""password_hash""
-FROM ""Users"" u
-WHERE ui.""user_id"" = u.""id""
-  AND ui.""auth_provider"" = 'password'
-  AND u.""password_hash"" IS NOT NULL
-  AND u.""password_hash"" <> ''
-  AND (ui.""password_hash"" IS NULL OR ui.""password_hash"" = '');
+UPDATE ""UserIdentities""
+SET password_hash = (
+    SELECT u.""password_hash""
+    FROM ""Users"" u
+    WHERE u.""id"" = ""UserIdentities"".""user_id""
+      AND u.""password_hash"" IS NOT NULL
+      AND u.""password_hash"" <> ''
+)
+WHERE ""auth_provider"" = 'password'
+  AND (""password_hash"" IS NULL OR ""password_hash"" = '')
+  AND EXISTS (
+    SELECT 1 FROM ""Users"" u
+    WHERE u.""id"" = ""UserIdentities"".""user_id""
+      AND u.""password_hash"" IS NOT NULL
+      AND u.""password_hash"" <> ''
+  );
 ");
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            // Best-effort reversal: null out the password_hash values that this
-            // migration could have written. The pre-Phase-1 Users.password_hash
-            // column is untouched, so logins fall back to it if this is rolled back.
             migrationBuilder.Sql(@"
-UPDATE ""UserIdentities"" ui
+UPDATE ""UserIdentities""
 SET password_hash = NULL
-FROM ""Users"" u
-WHERE ui.""user_id"" = u.""id""
-  AND ui.""auth_provider"" = 'password'
-  AND u.""password_hash"" IS NOT NULL
-  AND u.""password_hash"" <> '';
+WHERE ""auth_provider"" = 'password'
+  AND EXISTS (
+    SELECT 1 FROM ""Users"" u
+    WHERE u.""id"" = ""UserIdentities"".""user_id""
+      AND u.""password_hash"" IS NOT NULL
+      AND u.""password_hash"" <> ''
+  );
 ");
         }
     }
