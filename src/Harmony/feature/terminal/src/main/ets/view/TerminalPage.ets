@@ -535,6 +535,11 @@ export struct TerminalPage {
     this.pendingBatch = []
     try {
       this.webviewController.runJavaScript(`writeBatchedOutput("${packed}")`)
+        .catch((e: Error) => {
+          // Bridge-level failure (JS syntax error, webview gone) — surface it,
+          // don't leave an unhandled rejection silently swallowing the batch.
+          console.error('Failed to write terminal batch: ' + e.message)
+        })
     } catch (e) {
       throw new Error('Failed to write terminal batch: ' + (e as Error).message)
     }

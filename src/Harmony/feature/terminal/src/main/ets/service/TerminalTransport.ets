@@ -88,7 +88,6 @@ export class TerminalTransport {
       frame.sessionId = (chunk['sessionId'] as string) ?? this.sessionId
       frame.stream = (chunk['stream'] as string) ?? 'stdout'
       frame.payload = this.payloadToBase64(chunk['payload'])
-      console.info(`[Transport] StdoutChunk: payload=${frame.payload.substring(0, 60)}`)
       this.emitFrame(frame)
     })
 
@@ -99,7 +98,6 @@ export class TerminalTransport {
       frame.sessionId = (chunk['sessionId'] as string) ?? this.sessionId
       frame.stream = (chunk['stream'] as string) ?? 'stderr'
       frame.payload = this.payloadToBase64(chunk['payload'])
-      console.info(`[Transport] StderrChunk: payload=${frame.payload.substring(0, 60)}`)
       this.emitFrame(frame)
     })
 
@@ -152,7 +150,6 @@ export class TerminalTransport {
       if (sendTime !== undefined) {
         this.pendingProbes.delete(probeId)
         const rtt = Date.now() - sendTime
-        console.info(`[LatencyProbeAck] probeId=${probeId}, rtt=${rtt}ms`)
         const frame = new TransportFrame()
         frame.type = 'latencyAck'
         frame.probeId = probeId
@@ -196,13 +193,10 @@ export class TerminalTransport {
       console.warn('[Transport] sendInput skipped: not connected')
       return
     }
-    console.info(`[Transport] sendInput: base64=${base64Payload}`)
     const params = new WriteInputParams()
     params.sessionId = this.sessionId
     params.payload = base64Payload
-    this.connection.send('WriteInput', params).then(() => {
-      console.info('[Transport] WriteInput sent OK')
-    }).catch((e: Error) => {
+    this.connection.send('WriteInput', params).catch((e: Error) => {
       console.error('[Transport] WriteInput failed: ' + e.message)
     })
   }
@@ -330,7 +324,6 @@ export class TerminalTransport {
       }
       const probeId = `probe-${now}-${Math.floor(Math.random() * 100000)}`
       this.pendingProbes.set(probeId, now)
-      console.info(`[LatencyProbe] sending probeId=${probeId}, pending=${this.pendingProbes.size}`)
       const params = new ProbeLatencyParams()
       params.sessionId = this.sessionId
       params.probeId = probeId

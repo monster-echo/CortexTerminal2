@@ -106,11 +106,22 @@
       const container = document.getElementById('terminal-container');
       term.open(container);
 
-      // Register resize handler BEFORE fit() so the initial resize event is captured
+      // Register resize handler BEFORE fit() so the initial resize event is captured.
+      // Debounced 150ms (MAUI parity: RESIZE_DEBOUNCE_MS): keyboard animation produces
+      // many intermediate sizes; sending each one SIGWINCHes the server, making
+      // full-screen apps redraw per intermediate size (the residual "刷屏").
+      var resizeSyncTimer = null;
+      var pendingSize = null;
       term.onResize(function(size) {
-        if (h5Port) {
-          h5Port.postMessage(JSON.stringify({ type: 'resize', cols: size.cols, rows: size.rows }));
-        }
+        pendingSize = size;
+        if (resizeSyncTimer) clearTimeout(resizeSyncTimer);
+        resizeSyncTimer = setTimeout(function() {
+          resizeSyncTimer = null;
+          if (h5Port && pendingSize) {
+            h5Port.postMessage(JSON.stringify({ type: 'resize', cols: pendingSize.cols, rows: pendingSize.rows }));
+            pendingSize = null;
+          }
+        }, 150);
       });
 
       // Fit immediately to ensure correct size before any output arrives
@@ -427,14 +438,21 @@
     }
 
     // === Window resize handling ===
+    // Debounced 150ms (MAUI parity): keyboard show/hide fires window resize per
+    // animation frame; an undebounced fit() reflows the whole 64k-row scrollback
+    // and redraws per intermediate size (visible flicker). One fit after settle.
+    var resizeFitTimer = null;
     window.addEventListener('resize', function() {
-      if (fitAddon) {
+      if (!fitAddon) return;
+      if (resizeFitTimer) clearTimeout(resizeFitTimer);
+      resizeFitTimer = setTimeout(function() {
+        resizeFitTimer = null;
         try {
           fitAddon.fit();
         } catch(e) {
-          // Ignore fit errors during resize
+          console.warn('fitAddon.fit() failed:', e);
         }
-      }
+      }, 150);
     });
   </script>
 </body>
