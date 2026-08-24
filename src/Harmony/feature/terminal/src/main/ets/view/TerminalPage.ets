@@ -453,13 +453,28 @@ export struct TerminalPage {
         break
 
       case 'replaying':
+        // SessionReattached arrives before replay chunks. Reset the terminal here —
+        // NOT on replayCompleted — so a re-attach replaces the old screen instead of
+        // stacking the full history on top (MAUI parity: term.reset() on reattached).
+        // term.reset() clears scrollback too; term.clear() truncates to 1 line. Drop
+        // stale buffered output from the previous connection so it can't bleed into
+        // the fresh replay.
         this.isReplaying = true
+        this.pendingBatch = []
+        this.flushScheduled = false
+        try {
+          this.webviewController.runJavaScript('resetTerminal()').catch((e: Error) => {
+            console.warn('Failed to reset terminal: ' + e.message)
+          })
+        } catch (e) {
+          console.warn('Failed to reset terminal: ' + (e as Error).message)
+        }
         this.stateManager.setState(TerminalState.Replaying)
         break
 
       case 'replayCompleted':
-        // Flush all buffered replay in a single write. No clearTerminal() —
-        // term.clear() truncates the buffer to 1 line, wiping replay history.
+        // Flush all buffered replay in a single write. No clear here — the screen
+        // was already reset on 'replaying', so writing only the fresh history is correct.
         this.isReplaying = false
         this.flushPendingOutput()
         break
