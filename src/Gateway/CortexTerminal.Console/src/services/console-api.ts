@@ -221,49 +221,6 @@ export interface AdminWorkerSummary {
   ownerUserId: string | null
 }
 
-export type ArtifactStatus = 'pending' | 'ready' | 'deleted'
-export type ArtifactOrigin = 'console' | 'worker'
-export type ArtifactFileCategory =
-  | 'image'
-  | 'pdf'
-  | 'video'
-  | 'audio'
-  | 'archive'
-  | 'code'
-  | 'text'
-  | 'unknown'
-
-export interface ArtifactInfo {
-  id: string
-  sessionId: string
-  filename: string
-  sizeBytes: number
-  status: ArtifactStatus
-  origin: ArtifactOrigin
-  fileCategory: ArtifactFileCategory
-  uploadedAt: string
-  expiresAt: string
-}
-
-export interface UploadUrlResponse {
-  artifactId: string
-  uploadUrl: string
-  s3Key: string
-  expiresAt: string
-}
-
-export interface DownloadUrlResponse {
-  downloadUrl: string
-  expiresAt: string
-}
-
-export interface ArtifactChangedEvent {
-  sessionId: string
-  artifactId: string
-  changeType: 'created' | 'updated' | 'deleted'
-  artifact: ArtifactInfo | null
-}
-
 export class ConsoleApiError extends Error {
   constructor(
     message: string,
@@ -311,21 +268,6 @@ export interface ConsoleApi {
   getAdminWorkers(): Promise<AdminWorkerSummary[]>
   getMyStats(): Promise<MyStats>
   getAdminUserActivity(): Promise<AdminUserActivity>
-  listArtifacts(sessionId: string): Promise<ArtifactInfo[]>
-  createArtifactUpload(
-    sessionId: string,
-    filename: string,
-    sizeBytes: number,
-    contentSha256?: string
-  ): Promise<UploadUrlResponse>
-  completeArtifactUpload(
-    sessionId: string,
-    artifactId: string,
-    contentSha256: string
-  ): Promise<void>
-  getArtifactDownloadUrl(sessionId: string, artifactId: string): Promise<DownloadUrlResponse>
-  deleteArtifact(sessionId: string, artifactId: string): Promise<void>
-  uploadArtifactToS3(uploadUrl: string, file: Blob): Promise<void>
   listAgentEvents(
     sessionId: string,
   ): Promise<import('./agent-activity').AgentActivityEntry[]>
@@ -615,55 +557,10 @@ export function createConsoleApi(
     getAdminUserActivity() {
       return request<AdminUserActivity>('/api/admin/user-activity')
     },
-    async listArtifacts(sessionId) {
-      return request<ArtifactInfo[]>(
-        `/api/sessions/${encodeURIComponent(sessionId)}/artifacts`
-      )
-    },
-    async createArtifactUpload(sessionId, filename, sizeBytes, contentSha256) {
-      const body: Record<string, unknown> = { filename, sizeBytes, origin: 'console' }
-      if (contentSha256) body.contentSha256 = contentSha256
-      return request<UploadUrlResponse>(
-        `/api/sessions/${encodeURIComponent(sessionId)}/artifacts`,
-        {
-          method: 'POST',
-          body: JSON.stringify(body),
-        }
-      )
-    },
-    async completeArtifactUpload(sessionId, artifactId, contentSha256) {
-      await request(
-        `/api/sessions/${encodeURIComponent(sessionId)}/artifacts/${encodeURIComponent(artifactId)}/complete`,
-        {
-          method: 'POST',
-          body: JSON.stringify({ artifactId, contentSha256 }),
-        }
-      )
-    },
-    async getArtifactDownloadUrl(sessionId, artifactId) {
-      return request<DownloadUrlResponse>(
-        `/api/sessions/${encodeURIComponent(sessionId)}/artifacts/${encodeURIComponent(artifactId)}/download`
-      )
-    },
-    async deleteArtifact(sessionId, artifactId) {
-      await requestVoid(
-        `/api/sessions/${encodeURIComponent(sessionId)}/artifacts/${encodeURIComponent(artifactId)}`,
-        { method: 'DELETE' }
-      )
-    },
     async listAgentEvents(sessionId) {
       return request<AgentActivityEntry[]>(
         `/api/sessions/${encodeURIComponent(sessionId)}/agent-events`
       )
-    },
-    async uploadArtifactToS3(uploadUrl, file) {
-      const response = await fetchFn(uploadUrl, {
-        method: 'PUT',
-        body: file,
-      })
-      if (!response.ok) {
-        throw new ConsoleApiError(`S3 upload failed: ${response.status}`, response.status)
-      }
     },
     async getMyProfile() {
       return request<MyProfile>('/api/me/profile')

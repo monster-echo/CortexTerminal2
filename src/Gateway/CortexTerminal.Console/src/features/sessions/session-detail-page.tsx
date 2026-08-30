@@ -25,7 +25,6 @@ import { ConfirmDialog } from '@/components/confirm-dialog'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { SessionDetailsSheet } from './session-details-sheet'
-import { ArtifactFeedSheet } from './artifact-feed-sheet'
 import { AgentActivitySheet } from './agent-activity-sheet'
 import { useAgentActivity } from './use-agent-activity'
 
@@ -251,7 +250,6 @@ export function SessionDetailPage(props: { sessionId: string }) {
             />
           )}
 
-          {!isMobile && <ArtifactFeedSheet sessionId={sessionId} />}
 
           {!isMobile && (
             <AgentActivitySheet
