@@ -201,16 +201,19 @@ cortap events --last 50
 
 崩溃的 session（pid 文件指向已死进程且 meta.json 无 `endedAt`）会在下一次 `cortap` 启动时被检测到，并在 meta.json 中标记 `crashed: true`。
 
-## 会话文件（Session Artifacts）
+## 远程文件（文件夹管理）
 
-每个终端会话都内置了 WeChat 文件助手风格的文件流。文件在 Console 与 Worker 之间通过 S3 兼容存储（AWS S3、MinIO、Cloudflare R2）流转。Gateway 只签发 presigned URL，从不中转文件字节 —— 托管服务的带宽完全不被文件流量影响。
+手机端的「远程文件」页面是一个面向 Worker 会话根目录（即 PTY 工作目录，用户主目录）的只读文件夹管理器。不再向 shell 或 AI agent 注入任何 prompt、skill 或环境变量：文件就在 shell 工作的地方，agent 对传输完全无感。
 
-**非对称自动同步：**
+**能力：**
 
-- Console 上传的文件会立即落到 Worker 的 `$CORTERM_ARTIFACTS_DIR` 目录里，shell（包括 Claude Code 之类的 AI agent）可以马上读到。
-- Worker 输出（`echo foo > $CORTERM_ARTIFACTS_DIR/log.txt`）通过 SignalR 实时出现在你手机上的"Worker 同步"气泡里。**不会**自动下载到手机 —— 你点击气泡时才按需拉取。
+- 浏览会话根目录的实时目录树（含 dotfile；指向根目录内部的软链可正常跟随）。
+- 按需下载任意文件：点击时 Worker 才把文件推到 S3，手机再从 S3 拉取。
+- 上传文件到当前浏览的目录：全程 sha256 校验，同名覆盖。
 
-**数据流时序：** Gateway 全程只签发 presigned URL，文件字节始终在 Console/Worker 与 S3 之间直传。
+手机端不提供新建/重命名/删除 —— 文件管理请在终端里完成，一如既往。
+
+**数据流：** Gateway 只负责签发 presigned URL 和传输状态，文件字节始终在 Console/Worker 与 S3 之间直连。传输有上限（默认单文件 50MB），中转对象会被自动回收。
 
 ```mermaid
 sequenceDiagram
@@ -221,34 +224,41 @@ sequenceDiagram
     participant W as Worker
 
     rect rgb(227, 245, 254)
-    note over C,W: Console → Worker（投递文件到 shell 工作目录）
-    C->>G: 请求 presigned PUT URL
-    G->>C: 返回 presigned PUT URL
-    C->>S3: PUT 文件字节
-    C->>G: CompleteArtifactUpload
-    G->>W: SignalR NotifyArtifactUploaded（携带 GET URL）
-    W->>S3: GET 并校验 sha256
-    W->>W: 落入 $CORTERM_ARTIFACTS_DIR
+    note over C,W: 浏览
+    C->>G: GET /files?path=docs
+    G->>W: SignalR ListFiles（请求/响应）
+    W->>W: 校验路径（含 symlink 逃逸检查）
+    W-->>G: FileListing
+    G-->>C: 目录条目
     end
 
     rect rgb(232, 245, 233)
-    note over C,W: Worker → Console（shell 产出文件）
-    W->>W: 监测到 $CORTERM_ARTIFACTS_DIR 新文件
-    W->>G: 请求 presigned PUT URL
-    G->>W: 返回 presigned PUT URL
-    W->>S3: PUT 文件字节
-    W->>G: CompleteArtifactUpload
-    G->>C: SignalR 推送 artifact 气泡
-    Note over C: 不自动下载，点按需拉取
-    C->>G: 请求 presigned GET URL
-    G->>C: 返回 presigned GET URL
+    note over C,W: 上传（落到当前目录）
+    C->>G: POST /files/uploads {dir, file, sha256}
+    G->>C: presigned PUT URL
+    C->>S3: PUT 文件字节
+    C->>G: POST /files/uploads/{id}/complete
+    G->>W: SignalR MirrorUploadedFile（携带 GET URL）
+    W->>S3: GET，校验 sha256
+    W->>W: 原子写入目标目录
+    W-->>G: ack（200 = 已落盘）
+    end
+
+    rect rgb(255, 244, 230)
+    note over C,W: 下载（惰性 S3 中转）
+    C->>G: POST /files/downloads {path}
+    G->>W: SignalR BeginFileUpload（同步校验）
+    W->>S3: PUT 文件字节（后台，presigned URL 经 RPC 申请）
+    W->>G: CompleteFileTransfer
+    loop 每 2 秒轮询
+        C->>G: GET /files/downloads/{id}
+    end
+    G->>C: ready + presigned GET URL
     C->>S3: GET 文件字节
     end
 ```
 
-**过期模型：** 每个 artifact 默认有 7 天 TTL。Session terminate 时该 session 的所有 artifact 过期时间会收紧到 24 小时宽限期。后台服务定期清理 S3 + DB。
-
-**Claude Code 自动注入上下文：** 用户下一次提交 prompt 时,Corterm hook 会把已上传的文件列表自动注入 Claude Code 的 context —— 不需要手动 `@$CORTERM_ARTIFACTS_DIR/foo.png`。Claude 看到文件列表后自己决定是否读取。(Codex 支持在 roadmap 里。)
+**安全模型：** 手机发来的每个路径都会在 Worker 上校验 —— 必须解析在会话根目录内，且每一级 symlink 都追踪到最终目标（指向根外的软链会被拒绝）。传输请求按会话与用户双重鉴权；传输状态保存在 Gateway 内存中，Gateway 重启表现为可重试的 404，而不是陈旧状态。
 
 ### 配置
 
@@ -262,10 +272,13 @@ Gateway `appsettings.json`：
   "AccessKey": "...",
   "SecretKey": "...",
   "ForcePathStyle": false,
-  "PresignedUrlTtl": "00:05:00",
-  "MaxArtifactSizeBytes": 52428800,
-  "MaxArtifactAgeDays": 7,
-  "GracePeriodHours": 24
+  "PresignedUrlTtl": "00:05:00"
+},
+"RemoteFiles": {
+  "MaxTransferSizeBytes": 52428800,
+  "PendingTransferTtl": "00:15:00",
+  "ObjectRetention": "01:00:00",
+  "CleanupInterval": "00:10:00"
 }
 ```
 
@@ -275,11 +288,11 @@ Gateway `appsettings.json`：
 docker compose -f deploy/docker-compose.minio.yml up -d
 ```
 
-然后把 `Storage:Endpoint` 指向 `http://localhost:9000`，并把 `ForcePathStyle` 设为 `true`。
+然后把 `Storage:Endpoint` 指向 `http://localhost:9000` 并设置 `ForcePathStyle: true`。
 
 ### Worker 契约
 
-PTY 进程会继承 `CORTERM_ARTIFACTS_DIR=~/.corterm/sessions/{sessionId}/artifacts/` 环境变量。Worker 自动上传写入此目录的文件，并自动下载 Console 上传的文件。**Worker 全程不持有 S3 凭证** —— 它向 Gateway 申请 presigned URL，跟 Console 完全对称。
+Worker 负责路径安全与文件操作：列目录、镜像上传（`.downloading` 临时文件、sha256 校验、原子 rename）、经 Gateway 签发的 presigned URL 推送下载。**Worker 全程不持有 S3 凭证** —— 与 Console 完全对称。
 
 ## 许可证
 

@@ -201,16 +201,19 @@ cortap events --last 50
 
 Crashed sessions (where the PID file points to a dead process with no `endedAt`) are detected on next `cortap` invocation and marked `crashed: true` in `meta.json`.
 
-## Session Artifacts (File Transfer)
+## Remote Files (Folder Manager)
 
-Corterm ships with a WeChat-File-Helper-style file feed for every terminal session. Files flow Console ↔ Worker through S3-compatible storage (AWS S3, MinIO, Cloudflare R2). The Gateway brokers presigned URLs and never relays file bytes -- bandwidth stays cheap on the hosted plan.
+The phone's files page is a read-only folder manager over the Worker's session root -- the PTY working directory (the user's home). No prompt, skill, or environment variable is injected into your shell or AI agents: files live where your shell works, and the agent needs to know nothing.
 
-**Asymmetric sync:**
+**Capabilities:**
 
-- Console uploads land in `$CORTERM_ARTIFACTS_DIR` on the Worker instantly so the shell (and AI agents like Claude Code) can read them.
-- Worker outputs (`echo foo > $CORTERM_ARTIFACTS_DIR/log.txt`) appear as Worker-side bubbles in real time via SignalR. Nothing auto-downloads to your phone -- tap a bubble to fetch on demand.
+- Browse the live directory tree of the session root (dotfiles included, symlinks that stay inside the root are followed).
+- Download any file on demand: the Worker pushes it to S3 only when you tap it, then your phone fetches it.
+- Upload files into the currently browsed directory: sha256 verified end to end, existing files are overwritten.
 
-**Data flow:** the Gateway only brokers presigned URLs; file bytes always travel directly between Console/Worker and S3.
+There is no mkdir/rename/delete from the phone -- manage files in the terminal, the way you already do.
+
+**Data flow:** the Gateway only brokers presigned URLs and transfers state; file bytes always travel directly between Console/Worker and S3. Transfers are capped (default 50 MB per file) and the transit objects are reaped automatically.
 
 ```mermaid
 sequenceDiagram
@@ -221,34 +224,41 @@ sequenceDiagram
     participant W as Worker
 
     rect rgb(227, 245, 254)
-    note over C,W: Console → Worker (drop a file into the shell's cwd)
-    C->>G: request presigned PUT URL
-    G->>C: presigned PUT URL
-    C->>S3: PUT file bytes
-    C->>G: CompleteArtifactUpload
-    G->>W: SignalR NotifyArtifactUploaded (with GET URL)
-    W->>S3: GET, verify sha256
-    W->>W: write into $CORTERM_ARTIFACTS_DIR
+    note over C,W: Browse
+    C->>G: GET /files?path=docs
+    G->>W: SignalR ListFiles (request/response)
+    W->>W: validate path (symlink-escape aware)
+    W-->>G: FileListing
+    G-->>C: entries
     end
 
     rect rgb(232, 245, 233)
-    note over C,W: Worker → Console (shell produces a file)
-    W->>W: detects new file in $CORTERM_ARTIFACTS_DIR
-    W->>G: request presigned PUT URL
-    G->>W: presigned PUT URL
-    W->>S3: PUT file bytes
-    W->>G: CompleteArtifactUpload
-    G->>C: SignalR artifact bubble
-    Note over C: tap to fetch on demand (no auto-download)
-    C->>G: request presigned GET URL
-    G->>C: presigned GET URL
+    note over C,W: Upload (into the browsed dir)
+    C->>G: POST /files/uploads {dir, file, sha256}
+    G->>C: presigned PUT URL
+    C->>S3: PUT file bytes
+    C->>G: POST /files/uploads/{id}/complete
+    G->>W: SignalR MirrorUploadedFile (with GET URL)
+    W->>S3: GET, verify sha256
+    W->>W: atomic write into the target dir
+    W-->>G: ack (200 = file on disk)
+    end
+
+    rect rgb(255, 244, 230)
+    note over C,W: Download (lazy S3 relay)
+    C->>G: POST /files/downloads {path}
+    G->>W: SignalR BeginFileUpload (sync validation)
+    W->>S3: PUT file bytes (background, presigned URL via RPC)
+    W->>G: CompleteFileTransfer
+    loop poll every 2s
+        C->>G: GET /files/downloads/{id}
+    end
+    G->>C: ready + presigned GET URL
     C->>S3: GET file bytes
     end
 ```
 
-**Expiration:** every artifact has a 7-day TTL. Terminating a session tightens its artifacts to a 24h grace window. A background sweep cleans S3 + DB.
-
-**Claude Code auto-context:** when the user submits their next prompt, the Corterm hook lists uploaded files in Claude Code's context automatically -- no need to manually `@$CORTERM_ARTIFACTS_DIR/foo.png`. The agent sees the file list and decides whether to read it. (Codex support is on the roadmap.)
+**Security model:** every path from the phone is validated on the Worker -- it must resolve inside the session root, with every symlink followed to its final target (a link pointing outside the root is rejected). Transfer requests are authorized per session and per user; the in-memory transfer registry means a Gateway restart surfaces as a retryable 404 rather than stale state.
 
 ### Configuration
 
@@ -262,10 +272,13 @@ Gateway `appsettings.json`:
   "AccessKey": "...",
   "SecretKey": "...",
   "ForcePathStyle": false,
-  "PresignedUrlTtl": "00:05:00",
-  "MaxArtifactSizeBytes": 52428800,
-  "MaxArtifactAgeDays": 7,
-  "GracePeriodHours": 24
+  "PresignedUrlTtl": "00:05:00"
+},
+"RemoteFiles": {
+  "MaxTransferSizeBytes": 52428800,
+  "PendingTransferTtl": "00:15:00",
+  "ObjectRetention": "01:00:00",
+  "CleanupInterval": "00:10:00"
 }
 ```
 
@@ -279,7 +292,7 @@ Then point `Storage:Endpoint` at `http://localhost:9000` and set `ForcePathStyle
 
 ### Worker contract
 
-PTY processes inherit `CORTERM_ARTIFACTS_DIR=~/.corterm/sessions/{sessionId}/artifacts/`. The Worker auto-uploads files written there and auto-downloads files uploaded from the Console. **The Worker never holds S3 credentials** -- it asks the Gateway for presigned URLs, same as the Console.
+The Worker owns path safety and file operations: it lists directories, mirrors uploads (`.downloading` temp file, sha256 check, atomic rename), and pushes downloads via Gateway-issued presigned URLs. **The Worker never holds S3 credentials** -- same as the Console.
 
 ## License
 

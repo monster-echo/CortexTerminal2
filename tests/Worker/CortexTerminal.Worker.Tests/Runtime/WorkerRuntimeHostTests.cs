@@ -471,11 +471,32 @@ internal sealed class FakeWorkerGatewayClient : IWorkerGatewayClient
     public IDisposable OnBeginFileUpload(Func<BeginFileUploadRequest, Task<FileOperationAck>> handler)
         => new DelegateDisposable(() => { });
 
+    /// <summary>Optional responder for <see cref="RequestFileUploadUrlAsync"/>; default returns a synthetic URL.</summary>
+    public Func<FileUploadUrlRequest, TransferUploadUrlResponse>? FileUploadUrlResponder { get; set; }
+
+    public List<FileUploadUrlRequest> FileUploadUrlRequests { get; } = [];
+    public List<CompleteFileTransferRequest> CompletedTransfers { get; } = [];
+
     public Task<TransferUploadUrlResponse> RequestFileUploadUrlAsync(FileUploadUrlRequest request, CancellationToken ct)
-        => throw new NotSupportedException();
+    {
+        FileUploadUrlRequests.Add(request);
+        return Task.FromResult(FileUploadUrlResponder?.Invoke(request)
+            ?? new TransferUploadUrlResponse($"https://s3.test/put/{request.RequestId}", DateTimeOffset.UtcNow.AddMinutes(15)));
+    }
 
     public Task CompleteFileTransferAsync(CompleteFileTransferRequest request, CancellationToken ct)
-        => throw new NotSupportedException();
+    {
+        CompletedTransfers.Add(request);
+        _transferCompletionSignal.TrySetResult(request);
+        return Task.CompletedTask;
+    }
+
+    private readonly TaskCompletionSource<CompleteFileTransferRequest> _transferCompletionSignal =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    /// <summary>Waits until the worker reports any transfer completion (success or failure).</summary>
+    public Task<CompleteFileTransferRequest> WaitForTransferCompletionAsync(TimeSpan? timeout = null)
+        => _transferCompletionSignal.Task.WaitAsync(timeout ?? TimeSpan.FromSeconds(10));
 
     public Task ReportWorkerSessionsAsync(WorkerSessionsSnapshot snapshot, CancellationToken ct)
     {

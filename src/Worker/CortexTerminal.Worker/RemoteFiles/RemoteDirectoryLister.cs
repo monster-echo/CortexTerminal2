@@ -60,7 +60,7 @@ public sealed class RemoteDirectoryLister(string root, int maxEntries)
             .ToArray();
 
         return new FileListingResult(
-            Listing: new FileListing(relativePath?.Trim() ?? "", mapped, truncated),
+            Listing: new FileListing(relativePath ?? "", mapped, truncated),
             Error: null);
     }
 }

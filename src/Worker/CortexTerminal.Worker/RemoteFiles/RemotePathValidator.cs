@@ -28,19 +28,22 @@ public static class RemotePathValidator
         fullPath = root;
         error = null;
 
-        var trimmed = relativePath?.Trim() ?? "";
-        if (trimmed.Length > MaxPathLength)
+        // No trimming: the path must resolve exactly as the browser saw it. A file literally
+        // named "note " is legal on Unix; silently stripping its space would break the link
+        // between the listing and the filesystem.
+        var raw = relativePath ?? "";
+        if (raw.Length > MaxPathLength)
         {
             error = Invalid("path exceeds 1024 characters");
             return false;
         }
 
-        if (trimmed is "" or ".")
+        if (raw is "" or ".")
         {
             return true;
         }
 
-        var normalized = trimmed.Replace('\\', '/');
+        var normalized = raw.Replace('\\', '/');
         if (Path.IsPathRooted(normalized))
         {
             error = Invalid("absolute paths are not allowed");
