@@ -17,7 +17,9 @@ public interface IWorkerGatewayClient : IAsyncDisposable
     IDisposable OnRequestScrollback(Func<string, IReadOnlyList<TerminalChunk>> handler);
     IDisposable OnReconnected(Func<string?, Task> handler);
     IDisposable OnClosed(Func<Exception?, Task> handler);
-    IDisposable OnNotifyArtifactUploaded(Func<NotifyArtifactUploadedFrame, Task> handler);
+    IDisposable OnListFiles(Func<string?, Task<FileListingResult>> handler);
+    IDisposable OnMirrorUploadedFile(Func<FileMirrorRequest, Task<FileOperationAck>> handler);
+    IDisposable OnBeginFileUpload(Func<BeginFileUploadRequest, Task<FileOperationAck>> handler);
     IDisposable OnProbeTunnelPort(Func<int, ProbePortResponse> handler);
     IDisposable OnTunnelHttpRequest(Func<TunnelHttpRequest, TunnelHttpResponse> handler);
     Task ForwardStdoutAsync(TerminalChunk chunk, CancellationToken cancellationToken);
@@ -35,7 +37,6 @@ public interface IWorkerGatewayClient : IAsyncDisposable
     Task ForwardAgentCompactingAsync(AgentCompactingFrame frame, CancellationToken ct);
     Task ForwardAgentTitleUpdatedAsync(AgentTitleUpdatedFrame frame, CancellationToken ct);
     Task SendWorkerInfoAsync(WorkerInfoFrame info, CancellationToken ct);
-    Task<UploadUrlResponse> RequestArtifactUploadUrlAsync(CreateArtifactRequest request, CancellationToken ct);
-    Task<CompleteArtifactAck> CompleteArtifactUploadAsync(CompleteArtifactRequest request, CancellationToken ct);
-    Task ReportArtifactDeletedAsync(ReportArtifactDeletedFrame frame, CancellationToken ct);
+    Task<TransferUploadUrlResponse> RequestFileUploadUrlAsync(FileUploadUrlRequest request, CancellationToken ct);
+    Task CompleteFileTransferAsync(CompleteFileTransferRequest request, CancellationToken ct);
 }

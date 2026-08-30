@@ -2,7 +2,6 @@ using System.Collections.Concurrent;
 using System.Net;
 using CortexTerminal.Contracts.Sessions;
 using CortexTerminal.Contracts.Streaming;
-using CortexTerminal.Worker.Artifacts;
 using CortexTerminal.Worker.Pty;
 using CortexTerminal.Worker.Registration;
 using CortexTerminal.Worker.Runtime;
@@ -136,7 +135,6 @@ public sealed class WorkerRuntimeHostTests
         await using var host = new WorkerRuntimeHost(
             "worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()),
             new HttpClient(),
-            new ArtifactMirror(new HttpClient(), NullLogger<ArtifactMirror>.Instance),
             50 * 1024 * 1024,
             NullLoggerFactory.Instance, NewLifetime(), TimeSpan.FromMilliseconds(50),
             new TunnelHost(new HttpClient(), NullLogger<TunnelHost>.Instance));
@@ -165,7 +163,6 @@ public sealed class WorkerRuntimeHostTests
         await using var host = new WorkerRuntimeHost(
             "worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()),
             new HttpClient(),
-            new ArtifactMirror(new HttpClient(), NullLogger<ArtifactMirror>.Instance),
             50 * 1024 * 1024,
             NullLoggerFactory.Instance, NewLifetime(), TimeSpan.FromMilliseconds(50),
             new TunnelHost(new HttpClient(), NullLogger<TunnelHost>.Instance));
@@ -194,7 +191,6 @@ public sealed class WorkerRuntimeHostTests
         await using var host = new WorkerRuntimeHost(
             "worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()),
             new HttpClient(),
-            new ArtifactMirror(new HttpClient(), NullLogger<ArtifactMirror>.Instance),
             50 * 1024 * 1024,
             NullLoggerFactory.Instance, NewLifetime(), TimeSpan.FromMilliseconds(50),
             new TunnelHost(new HttpClient(), NullLogger<TunnelHost>.Instance));
@@ -226,7 +222,6 @@ public sealed class WorkerRuntimeHostTests
         await using var host = new WorkerRuntimeHost(
             "worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()),
             new HttpClient(),
-            new ArtifactMirror(new HttpClient(), NullLogger<ArtifactMirror>.Instance),
             50 * 1024 * 1024,
             NullLoggerFactory.Instance, lifetime, TimeSpan.FromMilliseconds(50),
             new TunnelHost(new HttpClient(), NullLogger<TunnelHost>.Instance));
@@ -467,16 +462,19 @@ internal sealed class FakeWorkerGatewayClient : IWorkerGatewayClient
     public Task SendWorkerInfoAsync(WorkerInfoFrame info, CancellationToken ct)
         => Task.CompletedTask;
 
-    public IDisposable OnNotifyArtifactUploaded(Func<NotifyArtifactUploadedFrame, Task> handler)
+    public IDisposable OnListFiles(Func<string?, Task<FileListingResult>> handler)
         => new DelegateDisposable(() => { });
 
-    public Task<UploadUrlResponse> RequestArtifactUploadUrlAsync(CreateArtifactRequest request, CancellationToken ct)
+    public IDisposable OnMirrorUploadedFile(Func<FileMirrorRequest, Task<FileOperationAck>> handler)
+        => new DelegateDisposable(() => { });
+
+    public IDisposable OnBeginFileUpload(Func<BeginFileUploadRequest, Task<FileOperationAck>> handler)
+        => new DelegateDisposable(() => { });
+
+    public Task<TransferUploadUrlResponse> RequestFileUploadUrlAsync(FileUploadUrlRequest request, CancellationToken ct)
         => throw new NotSupportedException();
 
-    public Task<CompleteArtifactAck> CompleteArtifactUploadAsync(CompleteArtifactRequest request, CancellationToken ct)
-        => throw new NotSupportedException();
-
-    public Task ReportArtifactDeletedAsync(ReportArtifactDeletedFrame frame, CancellationToken ct)
+    public Task CompleteFileTransferAsync(CompleteFileTransferRequest request, CancellationToken ct)
         => throw new NotSupportedException();
 
     public Task ReportWorkerSessionsAsync(WorkerSessionsSnapshot snapshot, CancellationToken ct)

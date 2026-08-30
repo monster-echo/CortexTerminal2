@@ -1,6 +1,5 @@
 using CortexTerminal.Contracts.Streaming;
 using CortexTerminal.Worker.Agent;
-using CortexTerminal.Worker.Artifacts;
 using CortexTerminal.Worker.Pty;
 using CortexTerminal.Worker.Registration;
 using Microsoft.Extensions.Logging;
@@ -12,8 +11,6 @@ public sealed class WorkerSessionRuntime : IAsyncDisposable
     private readonly PtySession _session;
     private readonly CancellationTokenSource _lifetime = new();
     private readonly ILogger<WorkerSessionRuntime> _logger;
-    private readonly ArtifactSyncService? _artifactSync;
-    private readonly string? _artifactsDir;
     private readonly IAgentIntegration? _agentIntegration;
     private IPtyProcess? _process;
     private Task? _stdoutPump;
@@ -26,27 +23,13 @@ public sealed class WorkerSessionRuntime : IAsyncDisposable
         IPtyHost ptyHost,
         IWorkerGatewayClient gatewayClient,
         ILogger<WorkerSessionRuntime> logger,
-        int maxBytes)
-        : this(sessionId, ptyHost, gatewayClient, logger, maxBytes, artifactsDir: null, artifactSync: null, agentIntegration: null)
-    {
-    }
-
-    public WorkerSessionRuntime(
-        string sessionId,
-        IPtyHost ptyHost,
-        IWorkerGatewayClient gatewayClient,
-        ILogger<WorkerSessionRuntime> logger,
         int maxBytes,
-        string? artifactsDir,
-        ArtifactSyncService? artifactSync,
         IAgentIntegration? agentIntegration = null)
     {
         SessionId = sessionId;
         GatewayClient = gatewayClient;
         _logger = logger;
         _session = new PtySession(ptyHost, new ScrollbackBuffer(maxBytes));
-        _artifactsDir = artifactsDir;
-        _artifactSync = artifactSync;
         _agentIntegration = agentIntegration;
     }
 
@@ -57,10 +40,6 @@ public sealed class WorkerSessionRuntime : IAsyncDisposable
     public async Task StartAsync(int columns, int rows, CancellationToken cancellationToken)
     {
         var env = new Dictionary<string, string>();
-        if (!string.IsNullOrEmpty(_artifactsDir))
-        {
-            env["CORTERM_ARTIFACTS_DIR"] = _artifactsDir;
-        }
         if (_agentIntegration is { Enabled: true })
         {
             env["CORTERM_SESSION_ID"] = SessionId;
@@ -93,12 +72,6 @@ public sealed class WorkerSessionRuntime : IAsyncDisposable
         _stdoutPump = PumpAsync(_session.ReadStdoutChunksAsync(SessionId, _lifetime.Token), GatewayClient.ForwardStdoutAsync);
         _stderrPump = PumpAsync(_session.ReadStderrChunksAsync(SessionId, _lifetime.Token), GatewayClient.ForwardStderrAsync);
         _ = ObserveExitAsync(_process);
-
-        if (_artifactSync is not null)
-        {
-            try { await _artifactSync.StartAsync(cancellationToken); }
-            catch (Exception ex) { _logger.LogWarning(ex, "Artifact sync service failed to start for session {SessionId}.", SessionId); }
-        }
     }
 
     public Task WriteInputAsync(byte[] payload, CancellationToken cancellationToken)
@@ -125,11 +98,6 @@ public sealed class WorkerSessionRuntime : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         await CloseAsync(CancellationToken.None);
-        if (_artifactSync is not null)
-        {
-            try { await _artifactSync.DisposeAsync(); }
-            catch (Exception ex) { _logger.LogWarning(ex, "Artifact sync service disposal failed for session {SessionId}.", SessionId); }
-        }
         _lifetime.Dispose();
     }
 

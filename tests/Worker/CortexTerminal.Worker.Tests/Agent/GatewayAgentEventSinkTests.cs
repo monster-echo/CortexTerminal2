@@ -72,11 +72,9 @@ public sealed class GatewayAgentEventSinkTests
         public Task ForwardAgentNotifiedAsync(AgentNotifiedFrame frame, CancellationToken ct) => Task.CompletedTask;
         public Task ForwardAgentCompactingAsync(AgentCompactingFrame frame, CancellationToken ct) => Task.CompletedTask;
         public Task SendWorkerInfoAsync(WorkerInfoFrame info, CancellationToken ct) => Task.CompletedTask;
-        public Task<UploadUrlResponse> RequestArtifactUploadUrlAsync(CreateArtifactRequest request, CancellationToken ct)
+        public Task<TransferUploadUrlResponse> RequestFileUploadUrlAsync(FileUploadUrlRequest request, CancellationToken ct)
             => throw new NotImplementedException();
-        public Task<CompleteArtifactAck> CompleteArtifactUploadAsync(CompleteArtifactRequest request, CancellationToken ct)
-            => throw new NotImplementedException();
-        public Task ReportArtifactDeletedAsync(ReportArtifactDeletedFrame frame, CancellationToken ct) => Task.CompletedTask;
+        public Task CompleteFileTransferAsync(CompleteFileTransferRequest request, CancellationToken ct) => Task.CompletedTask;
         public IDisposable OnStartSession(Func<StartSessionCommand, Task> handler) => NoOpDisposable.Instance;
         public IDisposable OnWriteInput(Func<WriteInputFrame, Task> handler) => NoOpDisposable.Instance;
         public IDisposable OnLatencyProbe(Func<LatencyProbeFrame, Task> handler) => NoOpDisposable.Instance;
@@ -84,9 +82,11 @@ public sealed class GatewayAgentEventSinkTests
         public IDisposable OnCloseSession(Func<CloseSessionRequest, Task> handler) => NoOpDisposable.Instance;
         public IDisposable OnUpgradeWorker(Func<UpgradeWorkerCommand, Task> handler) => NoOpDisposable.Instance;
         public IDisposable OnRequestScrollback(Func<string, IReadOnlyList<TerminalChunk>> handler) => NoOpDisposable.Instance;
+        public IDisposable OnListFiles(Func<string?, Task<FileListingResult>> handler) => NoOpDisposable.Instance;
+        public IDisposable OnMirrorUploadedFile(Func<FileMirrorRequest, Task<FileOperationAck>> handler) => NoOpDisposable.Instance;
+        public IDisposable OnBeginFileUpload(Func<BeginFileUploadRequest, Task<FileOperationAck>> handler) => NoOpDisposable.Instance;
         public IDisposable OnProbeTunnelPort(Func<int, ProbePortResponse> handler) => NoOpDisposable.Instance;
         public IDisposable OnTunnelHttpRequest(Func<TunnelHttpRequest, TunnelHttpResponse> handler) => NoOpDisposable.Instance;
-        public IDisposable OnNotifyArtifactUploaded(Func<NotifyArtifactUploadedFrame, Task> handler) => NoOpDisposable.Instance;
         public IDisposable OnReconnected(Func<string?, Task> handler) => NoOpDisposable.Instance;
         public IDisposable OnClosed(Func<Exception?, Task> handler) => NoOpDisposable.Instance;
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;

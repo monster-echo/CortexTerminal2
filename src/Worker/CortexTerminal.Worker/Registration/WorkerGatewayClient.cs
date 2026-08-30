@@ -48,8 +48,14 @@ public sealed class WorkerGatewayClient : IWorkerGatewayClient
     public IDisposable OnRequestScrollback(Func<string, IReadOnlyList<TerminalChunk>> handler)
         => _connection.On<string, IReadOnlyList<TerminalChunk>>("RequestScrollback", handler);
 
-    public IDisposable OnNotifyArtifactUploaded(Func<NotifyArtifactUploadedFrame, Task> handler)
-        => _connection.On<NotifyArtifactUploadedFrame>("NotifyArtifactUploaded", handler);
+    public IDisposable OnListFiles(Func<string?, Task<FileListingResult>> handler)
+        => _connection.On<string?, FileListingResult>("ListFiles", handler);
+
+    public IDisposable OnMirrorUploadedFile(Func<FileMirrorRequest, Task<FileOperationAck>> handler)
+        => _connection.On<FileMirrorRequest, FileOperationAck>("MirrorUploadedFile", handler);
+
+    public IDisposable OnBeginFileUpload(Func<BeginFileUploadRequest, Task<FileOperationAck>> handler)
+        => _connection.On<BeginFileUploadRequest, FileOperationAck>("BeginFileUpload", handler);
 
     public IDisposable OnProbeTunnelPort(Func<int, ProbePortResponse> handler)
         => _connection.On<int, ProbePortResponse>("ProbeTunnelPort", handler);
@@ -134,14 +140,11 @@ public sealed class WorkerGatewayClient : IWorkerGatewayClient
     public Task SendWorkerInfoAsync(WorkerInfoFrame info, CancellationToken ct)
         => _connection.InvokeAsync("UpdateWorkerInfo", info, ct);
 
-    public Task<UploadUrlResponse> RequestArtifactUploadUrlAsync(CreateArtifactRequest request, CancellationToken ct)
-        => _connection.InvokeAsync<UploadUrlResponse>("RequestArtifactUploadUrl", request, ct);
+    public Task<TransferUploadUrlResponse> RequestFileUploadUrlAsync(FileUploadUrlRequest request, CancellationToken ct)
+        => _connection.InvokeAsync<TransferUploadUrlResponse>("RequestFileUploadUrl", request, ct);
 
-    public Task<CompleteArtifactAck> CompleteArtifactUploadAsync(CompleteArtifactRequest request, CancellationToken ct)
-        => _connection.InvokeAsync<CompleteArtifactAck>("CompleteArtifactUpload", request, ct);
-
-    public Task ReportArtifactDeletedAsync(ReportArtifactDeletedFrame frame, CancellationToken ct)
-        => _connection.SendAsync("ReportArtifactDeleted", frame, ct);
+    public Task CompleteFileTransferAsync(CompleteFileTransferRequest request, CancellationToken ct)
+        => _connection.SendAsync("CompleteFileTransfer", request, ct);
 
     public ValueTask DisposeAsync() => _connection.DisposeAsync();
 
