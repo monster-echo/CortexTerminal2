@@ -1,6 +1,11 @@
 namespace CortexTerminal.Gateway.Storage;
 
-public sealed class ArtifactStorageOptions
+/// <summary>
+/// S3-compatible object storage connection settings. Bound from the "Storage" section —
+/// the same key the retired artifact storage used, so production environment injection
+/// keeps working unchanged across the RemoteFiles migration.
+/// </summary>
+public sealed class ObjectStorageOptions
 {
     public const string SectionName = "Storage";
 
@@ -17,12 +22,4 @@ public sealed class ArtifactStorageOptions
     public bool ForcePathStyle { get; set; } = true;
 
     public TimeSpan PresignedUrlTtl { get; set; } = TimeSpan.FromMinutes(15);
-
-    public long MaxArtifactSizeBytes { get; set; } = 50 * 1024 * 1024;
-
-    public int MaxArtifactAgeDays { get; set; } = 7;
-
-    public int GracePeriodHours { get; set; } = 24;
-
-    public int MaxArtifactsPerSession { get; set; } = 100;
 }

@@ -2,6 +2,7 @@ using CortexTerminal.Contracts.Sessions;
 using CortexTerminal.Contracts.Streaming;
 using CortexTerminal.Gateway.Audit;
 using CortexTerminal.Gateway.Hubs;
+using CortexTerminal.Gateway.RemoteFiles;
 using CortexTerminal.Gateway.Sessions;
 using CortexTerminal.Gateway.Stats;
 using CortexTerminal.Gateway.Tests.Workers;
@@ -165,10 +166,13 @@ public sealed class TerminalHubReconnectTests
         ReplayCoordinator replayCoordinator,
         IReadOnlyDictionary<string, IClientProxy>? terminalClients = null)
     {
-        var storage = new CortexTerminal.Gateway.Tests.Sessions.Fakes.FakeArtifactStorage();
-        var dispatcher = new CortexTerminal.Gateway.Tests.Sessions.Fakes.RecordingArtifactCommandDispatcher();
         var hub = new CortexTerminal.Gateway.Tests.Sessions.Fakes.ArtifactTestHubContext();
-        var (_, _, artifacts) = TestSessionFactory.CreateArtifactService(workers, storage, hub, dispatcher);
+        var remoteFiles = new RemoteFileService(
+            sessions,
+            new NoOpWorkerCommandDispatcher(),
+            new FakeS3ObjectBroker(),
+            new PendingTransferRegistry(),
+            Microsoft.Extensions.Options.Options.Create(new RemoteFilesOptions()));
         var agentActivity = TestSessionFactory.CreateAgentActivityService(hub);
         return (WorkerHub)Activator.CreateInstance(
             typeof(WorkerHub),
@@ -179,7 +183,7 @@ public sealed class TerminalHubReconnectTests
             new TestHubContext<TerminalHub>(terminalClients ?? new Dictionary<string, IClientProxy>()),
             new NoOpStatsService(),
             new NoOpSessionStatsService(),
-            artifacts,
+            remoteFiles,
             agentActivity,
             NullLogger<WorkerHub>.Instance)!;
     }
@@ -221,6 +225,15 @@ public sealed class TerminalHubReconnectTests
         public Task<IReadOnlyList<TerminalChunk>> RequestScrollbackAsync(string workerConnectionId, string sessionId, CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<TerminalChunk>>(
                 _scrollback.Select(item => new TerminalChunk(sessionId, item.Stream, item.Payload)).ToArray());
+
+        public Task<FileListingResult> ListFilesAsync(string workerConnectionId, string relativePath, CancellationToken cancellationToken)
+            => Task.FromResult(new FileListingResult(null, new FileOperationError(FileTransferErrorCode.TransferFailed, "not supported")));
+
+        public Task<FileOperationAck> MirrorUploadedFileAsync(string workerConnectionId, FileMirrorRequest request, CancellationToken cancellationToken)
+            => Task.FromResult(new FileOperationAck(false, new FileOperationError(FileTransferErrorCode.TransferFailed, "not supported")));
+
+        public Task<FileOperationAck> BeginFileUploadAsync(string workerConnectionId, BeginFileUploadRequest request, CancellationToken cancellationToken)
+            => Task.FromResult(new FileOperationAck(false, new FileOperationError(FileTransferErrorCode.TransferFailed, "not supported")));
 
         public Task<ProbePortResponse> ProbeTunnelPortAsync(string workerConnectionId, int port, CancellationToken cancellationToken)
             => Task.FromResult(new ProbePortResponse(true, null));

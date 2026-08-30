@@ -2,6 +2,7 @@ using CortexTerminal.Contracts.Sessions;
 using CortexTerminal.Contracts.Streaming;
 using CortexTerminal.Gateway.Audit;
 using CortexTerminal.Gateway.Hubs;
+using CortexTerminal.Gateway.RemoteFiles;
 using CortexTerminal.Gateway.Sessions;
 using CortexTerminal.Gateway.Stats;
 using CortexTerminal.Gateway.Tests.Workers;
@@ -244,10 +245,13 @@ public sealed class WorkerHubTests
         ReplayCoordinator replayCoordinator,
         IReadOnlyDictionary<string, IClientProxy> terminalClients)
     {
-        var storage = new CortexTerminal.Gateway.Tests.Sessions.Fakes.FakeArtifactStorage();
-        var dispatcher = new CortexTerminal.Gateway.Tests.Sessions.Fakes.RecordingArtifactCommandDispatcher();
         var hub = new CortexTerminal.Gateway.Tests.Sessions.Fakes.ArtifactTestHubContext();
-        var (_, _, artifacts) = TestSessionFactory.CreateArtifactService(workers, storage, hub, dispatcher);
+        var remoteFiles = new RemoteFileService(
+            sessions,
+            new NoOpWorkerCommandDispatcher(),
+            new FakeS3ObjectBroker(),
+            new PendingTransferRegistry(),
+            Microsoft.Extensions.Options.Options.Create(new RemoteFilesOptions()));
         var agentActivity = TestSessionFactory.CreateAgentActivityService(hub);
         return (WorkerHub)Activator.CreateInstance(
             typeof(WorkerHub),
@@ -258,7 +262,7 @@ public sealed class WorkerHubTests
             new TestHubContext<TerminalHub>(terminalClients),
             new NoOpStatsService(),
             new NoOpSessionStatsService(),
-            artifacts,
+            remoteFiles,
             agentActivity,
             NullLogger<WorkerHub>.Instance)!;
     }

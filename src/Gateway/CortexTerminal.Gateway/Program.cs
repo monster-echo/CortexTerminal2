@@ -10,6 +10,7 @@ using CortexTerminal.Gateway.Audit;
 using CortexTerminal.Gateway.Auth;
 using CortexTerminal.Gateway.Data;
 using CortexTerminal.Gateway.Hubs;
+using CortexTerminal.Gateway.RemoteFiles;
 using CortexTerminal.Gateway.Sessions;
 using CortexTerminal.Gateway.Storage;
 using CortexTerminal.Gateway.Tunnels;
@@ -131,6 +132,24 @@ static string GetUserId(ClaimsPrincipal user)
         ?? user.FindFirstValue(JwtRegisteredClaimNames.Sub)
         ?? user.Identity?.Name
         ?? "unknown";
+
+// RemoteFileServiceException codes → HTTP statuses. Not-found codes map to 404, caller
+// mistakes to 400, and anything unexpected on the worker side surfaces as a 502 so the
+// phone renders it instead of treating it as its own bug.
+static IResult MapFileError(CortexTerminal.Gateway.RemoteFiles.RemoteFileServiceException ex)
+    => ex.Code switch
+    {
+        CortexTerminal.Contracts.Sessions.FileTransferErrorCode.PathNotFound
+            or CortexTerminal.Contracts.Sessions.FileTransferErrorCode.NotADirectory
+            or CortexTerminal.Contracts.Sessions.FileTransferErrorCode.FileNotFound
+            or CortexTerminal.Contracts.Sessions.FileTransferErrorCode.TransferNotFound => Results.NotFound(new { error = ex.Message }),
+        CortexTerminal.Contracts.Sessions.FileTransferErrorCode.AccessDenied => Results.Json(null, statusCode: StatusCodes.Status403Forbidden),
+        CortexTerminal.Contracts.Sessions.FileTransferErrorCode.PathInvalid
+            or CortexTerminal.Contracts.Sessions.FileTransferErrorCode.FileTooLarge
+            or CortexTerminal.Contracts.Sessions.FileTransferErrorCode.TooManyEntries
+            or CortexTerminal.Contracts.Sessions.FileTransferErrorCode.ShaMismatch => Results.BadRequest(new { error = ex.Message }),
+        _ => Results.Json(new { error = ex.Message }, statusCode: StatusCodes.Status502BadGateway),
+    };
 
 static string NormalizeVersion(string version)
     => System.Text.RegularExpressions.Regex.Replace(version, @"(\.0)+$", "");
@@ -301,12 +320,13 @@ builder.Services.PostConfigure<TunnelOptions>(o =>
 builder.Services.AddSingleton<TunnelOptions>(sp => sp.GetRequiredService<IOptions<TunnelOptions>>().Value);
 builder.Services.AddSingleton<TunnelRegistry>();
 builder.Services.AddSingleton<TunnelQuota>();
-builder.Services.Configure<ArtifactStorageOptions>(builder.Configuration.GetSection(ArtifactStorageOptions.SectionName));
-builder.Services.AddSingleton<IArtifactStorage, S3CompatibleArtifactStorage>();
-builder.Services.AddSingleton<IArtifactCommandDispatcher, SignalRArtifactCommandDispatcher>();
-builder.Services.AddSingleton<ArtifactService>();
+builder.Services.Configure<CortexTerminal.Gateway.Storage.ObjectStorageOptions>(builder.Configuration.GetSection(CortexTerminal.Gateway.Storage.ObjectStorageOptions.SectionName));
+builder.Services.Configure<CortexTerminal.Gateway.RemoteFiles.RemoteFilesOptions>(builder.Configuration.GetSection(CortexTerminal.Gateway.RemoteFiles.RemoteFilesOptions.SectionName));
+builder.Services.AddSingleton<CortexTerminal.Gateway.Storage.IS3ObjectBroker, CortexTerminal.Gateway.Storage.S3ObjectBroker>();
+builder.Services.AddSingleton<CortexTerminal.Gateway.RemoteFiles.PendingTransferRegistry>();
+builder.Services.AddSingleton<CortexTerminal.Gateway.RemoteFiles.RemoteFileService>();
 builder.Services.AddSingleton<AgentActivityService>();
-builder.Services.AddHostedService<ArtifactCleanupHostedService>();
+builder.Services.AddHostedService<CortexTerminal.Gateway.RemoteFiles.TransferObjectCleanupService>();
 
 var useInMemory = builder.Configuration.GetValue<bool>("Database:UseInMemory");
 
@@ -1235,7 +1255,7 @@ app.MapGet("/api/support/info", (SupportOptions opts, HttpContext httpCtx) =>
 
 // --- Feedback Image Upload ---
 
-app.MapPost("/api/me/feedback/uploads", async (FeedbackUploadRequest req, IArtifactStorage storage, HttpContext ctx, CancellationToken ct) =>
+app.MapPost("/api/me/feedback/uploads", async (FeedbackUploadRequest req, IS3ObjectBroker storage, HttpContext ctx, CancellationToken ct) =>
 {
     var userId = GetUserId(ctx.User);
     var filename = Uri.UnescapeDataString(req.Filename ?? string.Empty);
@@ -1258,14 +1278,14 @@ app.MapPost("/api/me/feedback/uploads", async (FeedbackUploadRequest req, IArtif
     }
     var guid = Guid.NewGuid().ToString("N");
     var objectName = $"{userId}/{guid}{ext}";
-    var upload = await storage.GenerateUploadUrlAsync("feedback", objectName, ct);
-    return Results.Ok(new { uploadUrl = upload.UploadUrl, imageUrl = $"/api/feedback/files/{objectName}" });
+    var upload = await storage.GeneratePutUrlAsync($"feedback/{objectName}", ct);
+    return Results.Ok(new { uploadUrl = upload.Url, imageUrl = $"/api/feedback/files/{objectName}" });
 }).RequireAuthorization();
 
-app.MapGet("/api/feedback/files/{*objectName}", async (string objectName, IArtifactStorage storage, CancellationToken ct) =>
+app.MapGet("/api/feedback/files/{*objectName}", async (string objectName, IS3ObjectBroker storage, CancellationToken ct) =>
 {
-    var download = await storage.GenerateDownloadUrlAsync("feedback", objectName, ct);
-    return Results.Redirect(download.DownloadUrl, permanent: false);
+    var download = await storage.GenerateGetUrlAsync($"feedback/{objectName}", ct);
+    return Results.Redirect(download.Url, permanent: false);
 }).AllowAnonymous();
 
 // --- Captcha Endpoints ---
@@ -1855,7 +1875,6 @@ app.MapDelete("/api/me/sessions/{sessionId}", async (
     ISessionCoordinator sessions,
     IWorkerRegistry workers,
     IWorkerCommandDispatcher workerCommands,
-    ArtifactService artifacts,
     IAuditLogStore auditLog,
     HttpContext httpContext,
     CancellationToken cancellationToken) =>
@@ -1881,9 +1900,6 @@ app.MapDelete("/api/me/sessions/{sessionId}", async (
             _ => SessionOperationError(StatusCodes.Status409Conflict, "Session could not be deleted.")
         };
     }
-
-    // Tighten artifact TTLs to grace window so the UI updates and the cleanup service can finish them off.
-    await artifacts.OnSessionTerminatedAsync(sessionId, cancellationToken);
 
     auditLog.Record(httpContext.CreateAuditEntry(
         userId,
@@ -2571,12 +2587,52 @@ app.MapDelete("/api/users/{userId}", async (string userId, ClaimsPrincipal user,
     return Results.Ok();
 }).RequireAuthorization();
 
-// ---- Artifacts ----
-app.MapGet("/api/sessions/{sessionId}/artifacts", async (string sessionId, ClaimsPrincipal user, ArtifactService artifacts) =>
+// ---- Remote files ----
+// Phone-side file manager over the session root (the worker's PTY cwd). Browsing is a
+// live worker RPC; uploads/downloads relay bytes through presigned S3 URLs (never through
+// the gateway). See RemoteFileService for the flow orchestration.
+app.MapGet("/api/sessions/{sessionId}/files", async (string sessionId, string? path, ClaimsPrincipal user, RemoteFileService files) =>
 {
     var userId = GetUserId(user);
-    var rows = await artifacts.ListAsync(userId, sessionId, CancellationToken.None);
-    return Results.Ok(rows);
+    try { return Results.Ok(await files.ListAsync(userId, sessionId, path, CancellationToken.None)); }
+    catch (UnauthorizedAccessException) { return Results.Forbid(); }
+    catch (RemoteFileServiceException ex) { return MapFileError(ex); }
+}).RequireAuthorization();
+
+app.MapPost("/api/sessions/{sessionId}/files/uploads", async (string sessionId, CreateFileUploadRequest body, ClaimsPrincipal user, RemoteFileService files) =>
+{
+    var userId = GetUserId(user);
+    try { return Results.Ok(await files.CreateUploadAsync(userId, sessionId, body.DirPath, body.Filename, body.SizeBytes, body.Sha256, CancellationToken.None)); }
+    catch (UnauthorizedAccessException) { return Results.Forbid(); }
+    catch (RemoteFileServiceException ex) { return MapFileError(ex); }
+}).RequireAuthorization();
+
+app.MapPost("/api/sessions/{sessionId}/files/uploads/{requestId}/complete", async (string sessionId, string requestId, ClaimsPrincipal user, RemoteFileService files) =>
+{
+    var userId = GetUserId(user);
+    try
+    {
+        await files.CompleteUploadAsync(userId, requestId, CancellationToken.None);
+        return Results.Ok();
+    }
+    catch (UnauthorizedAccessException) { return Results.Forbid(); }
+    catch (RemoteFileServiceException ex) { return MapFileError(ex); }
+}).RequireAuthorization();
+
+app.MapPost("/api/sessions/{sessionId}/files/downloads", async (string sessionId, CreateFileDownloadRequest body, ClaimsPrincipal user, RemoteFileService files) =>
+{
+    var userId = GetUserId(user);
+    try { return Results.Ok(new { requestId = await files.StartDownloadAsync(userId, sessionId, body.Path, CancellationToken.None) }); }
+    catch (UnauthorizedAccessException) { return Results.Forbid(); }
+    catch (RemoteFileServiceException ex) { return MapFileError(ex); }
+}).RequireAuthorization();
+
+app.MapGet("/api/sessions/{sessionId}/files/downloads/{requestId}", async (string sessionId, string requestId, ClaimsPrincipal user, RemoteFileService files) =>
+{
+    var userId = GetUserId(user);
+    try { return Results.Ok(await files.PollDownloadAsync(userId, requestId, CancellationToken.None)); }
+    catch (UnauthorizedAccessException) { return Results.Forbid(); }
+    catch (RemoteFileServiceException ex) { return MapFileError(ex); }
 }).RequireAuthorization();
 
 // ---- Agent activity ----
@@ -2588,46 +2644,6 @@ app.MapGet("/api/sessions/{sessionId}/agent-events", async (
     var userId = GetUserId(user);
     var rows = await agentActivity.ListEventsAsync(sessionId, userId, CancellationToken.None);
     return Results.Ok(rows);
-}).RequireAuthorization();
-
-app.MapPost("/api/sessions/{sessionId}/artifacts", async (string sessionId, CreateArtifactRequest body, ClaimsPrincipal user, ArtifactService artifacts) =>
-{
-    var userId = GetUserId(user);
-    var request = body with { SessionId = sessionId, Origin = ArtifactOrigin.Console };
-    UploadUrlResponse resp;
-    try { resp = await artifacts.CreateForConsoleUploadAsync(userId, request, CancellationToken.None); }
-    catch (UnauthorizedAccessException) { return Results.Forbid(); }
-    catch (InvalidOperationException ex) { return Results.Conflict(new { message = ex.Message }); }
-    catch (ArgumentException ex) { return Results.BadRequest(new { message = ex.Message }); }
-    return Results.Ok(resp);
-}).RequireAuthorization();
-
-app.MapPost("/api/sessions/{sessionId}/artifacts/{artifactId}/complete", async (string sessionId, string artifactId, CompleteArtifactRequest body, ClaimsPrincipal user, ArtifactService artifacts) =>
-{
-    var userId = GetUserId(user);
-    try { await artifacts.CompleteConsoleUploadAsync(userId, artifactId, body.ContentSha256, CancellationToken.None); }
-    catch (UnauthorizedAccessException) { return Results.Forbid(); }
-    catch (InvalidOperationException ex) { return Results.BadRequest(new { message = ex.Message }); }
-    return Results.Ok(new CompleteArtifactAck(Success: true, Error: null));
-}).RequireAuthorization();
-
-app.MapGet("/api/sessions/{sessionId}/artifacts/{artifactId}/download", async (string sessionId, string artifactId, ClaimsPrincipal user, ArtifactService artifacts) =>
-{
-    var userId = GetUserId(user);
-    DownloadUrlResponse resp;
-    try { resp = await artifacts.GetDownloadUrlAsync(userId, artifactId, CancellationToken.None); }
-    catch (UnauthorizedAccessException) { return Results.Forbid(); }
-    catch (InvalidOperationException ex) { return Results.BadRequest(new { message = ex.Message }); }
-    return Results.Ok(resp);
-}).RequireAuthorization();
-
-app.MapDelete("/api/sessions/{sessionId}/artifacts/{artifactId}", async (string sessionId, string artifactId, ClaimsPrincipal user, ArtifactService artifacts) =>
-{
-    var userId = GetUserId(user);
-    try { await artifacts.DeleteAsync(userId, artifactId, CancellationToken.None); }
-    catch (UnauthorizedAccessException) { return Results.Forbid(); }
-    catch (InvalidOperationException ex) { return Results.BadRequest(new { message = ex.Message }); }
-    return Results.Ok();
 }).RequireAuthorization();
 
 // Fallback to index.html for client-side routing
@@ -2933,5 +2949,9 @@ internal sealed class LatestVersionCache
 }
 
 public sealed record FeedbackUploadRequest(string Filename);
+
+public sealed record CreateFileUploadRequest(string DirPath, string Filename, long SizeBytes, string Sha256);
+
+public sealed record CreateFileDownloadRequest(string Path);
 
 public partial class Program;

@@ -267,6 +267,15 @@ public sealed class InteractiveSessionFlowTests : IClassFixture<GatewayApplicati
         public Task<IReadOnlyList<CortexTerminal.Contracts.Streaming.TerminalChunk>> RequestScrollbackAsync(string workerConnectionId, string sessionId, CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<CortexTerminal.Contracts.Streaming.TerminalChunk>>(Array.Empty<CortexTerminal.Contracts.Streaming.TerminalChunk>());
 
+        public Task<CortexTerminal.Contracts.Sessions.FileListingResult> ListFilesAsync(string workerConnectionId, string relativePath, CancellationToken cancellationToken)
+            => Task.FromResult(new CortexTerminal.Contracts.Sessions.FileListingResult(null, new CortexTerminal.Contracts.Sessions.FileOperationError(CortexTerminal.Contracts.Sessions.FileTransferErrorCode.TransferFailed, "not supported")));
+
+        public Task<CortexTerminal.Contracts.Sessions.FileOperationAck> MirrorUploadedFileAsync(string workerConnectionId, CortexTerminal.Contracts.Sessions.FileMirrorRequest request, CancellationToken cancellationToken)
+            => Task.FromResult(new CortexTerminal.Contracts.Sessions.FileOperationAck(false, new CortexTerminal.Contracts.Sessions.FileOperationError(CortexTerminal.Contracts.Sessions.FileTransferErrorCode.TransferFailed, "not supported")));
+
+        public Task<CortexTerminal.Contracts.Sessions.FileOperationAck> BeginFileUploadAsync(string workerConnectionId, CortexTerminal.Contracts.Sessions.BeginFileUploadRequest request, CancellationToken cancellationToken)
+            => Task.FromResult(new CortexTerminal.Contracts.Sessions.FileOperationAck(false, new CortexTerminal.Contracts.Sessions.FileOperationError(CortexTerminal.Contracts.Sessions.FileTransferErrorCode.TransferFailed, "not supported")));
+
         public Task<CortexTerminal.Contracts.Streaming.ProbePortResponse> ProbeTunnelPortAsync(string workerConnectionId, int port, CancellationToken cancellationToken)
             => Task.FromResult(new CortexTerminal.Contracts.Streaming.ProbePortResponse(true, null));
 
