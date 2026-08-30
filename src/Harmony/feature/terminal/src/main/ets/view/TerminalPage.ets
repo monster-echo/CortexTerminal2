@@ -294,7 +294,7 @@ export struct TerminalPage {
         .backgroundColor(Color.Transparent)
         .onClick(() => {
           clickHaptic()
-          this.openArtifacts()
+          this.openFiles()
         })
       }
       .width('100%')
@@ -755,8 +755,8 @@ export struct TerminalPage {
     this.pageStack.replacePath({ name: RouteName.SESSION_HOME })
   }
 
-  private openArtifacts() {
+  private openFiles() {
     const param: Record<string, string> = { 'sessionId': this.sessionId }
-    this.pageStack.pushPath({ name: RouteName.ARTIFACTS_PAGE, param })
+    this.pageStack.pushPath({ name: RouteName.FILES_PAGE, param })
   }
 }

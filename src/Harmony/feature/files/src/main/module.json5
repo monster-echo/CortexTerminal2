@@ -1,6 +1,6 @@
 {
   "module": {
-    "name": "artifacts",
+    "name": "files",
     "type": "har",
     "deviceTypes": ["phone", "tablet", "2in1"]
   }

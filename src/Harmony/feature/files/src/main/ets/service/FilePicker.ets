@@ -1,6 +1,6 @@
 /**
  * @file FilePicker.ets
- * @brief Wraps @ohos.file.picker.DocumentViewPicker for selecting a single file.
+ * @brief Wraps @ohos.file.picker.DocumentViewPicker for selecting multiple files.
  */
 import picker from '@ohos.file.picker'
 
@@ -15,17 +15,16 @@ export class FilePickerResult {
 }
 
 export class FilePicker {
-  static async selectSingle(): Promise<FilePickerResult | null> {
+  static async selectMultiple(maxSelectNumber: number): Promise<FilePickerResult[]> {
     const options = new picker.DocumentSelectOptions()
-    options.maxSelectNumber = 1
+    options.maxSelectNumber = maxSelectNumber
     const viewer = new picker.DocumentViewPicker()
     const uris = await viewer.select(options)
-    if (uris.length === 0) {
-      return null
+    const results: FilePickerResult[] = []
+    for (let i = 0; i < uris.length; i++) {
+      results.push(new FilePickerResult(uris[i], FilePicker.extractFilename(uris[i])))
     }
-    const uri = uris[0]
-    const filename = FilePicker.extractFilename(uri)
-    return new FilePickerResult(uri, filename)
+    return results
   }
 
   static extractFilename(uri: string): string {

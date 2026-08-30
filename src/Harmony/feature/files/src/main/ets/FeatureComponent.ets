@@ -1,17 +1,17 @@
 /**
  * @file FeatureComponent.ets
- * @brief Artifacts feature route entry.
+ * @brief Files feature route entry.
  */
 import { registerRoute } from 'routermodule'
-import { ArtifactsPage } from './view/ArtifactsPage'
+import { FileBrowserPage } from './view/FileBrowserPage'
 
-registerRoute({ name: 'artifacts/Page' })
+registerRoute({ name: 'files/Page' })
 
 @Component
-export struct ArtifactsPageRoute {
+export struct FilesPageRoute {
   build() {
     NavDestination() {
-      ArtifactsPage()
+      FileBrowserPage()
     }
     .hideTitleBar(true)
     .backgroundColor($r('app.color.terminal_surface'))

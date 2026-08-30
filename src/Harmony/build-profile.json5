@@ -96,8 +96,8 @@
       "srcPath": "./feature/session"
     },
     {
-      "name": "artifacts",
-      "srcPath": "./feature/artifacts"
+      "name": "files",
+      "srcPath": "./feature/files"
     },
     {
       "name": "signalr",

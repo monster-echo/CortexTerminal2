@@ -66,47 +66,44 @@ export class ApiService {
     await ApiService.put(`/api/me/sessions/${encodeURIComponent(sessionId)}`, body as Object)
   }
 
-  // ── Artifact APIs ────────────────────────────────────────────────
+  // ── Remote file APIs ─────────────────────────────────────────────
 
-  static async listArtifacts(sessionId: string): Promise<Object[]> {
-    return await ApiService.get(`/api/sessions/${encodeURIComponent(sessionId)}/artifacts`) as Object[]
+  static async listFiles(sessionId: string, path: string): Promise<Object> {
+    return await ApiService.get(
+      `/api/sessions/${encodeURIComponent(sessionId)}/files?path=${encodeURIComponent(path)}`)
   }
 
-  static async createArtifactUpload(sessionId: string, filename: string, sizeBytes: number,
-    contentSha256: string): Promise<Record<string, Object>> {
+  static async createFileUpload(sessionId: string, dirPath: string, filename: string,
+    sizeBytes: number, sha256: string): Promise<Record<string, Object>> {
     const body: Record<string, Object> = {
+      'dirPath': dirPath,
       'filename': filename,
       'sizeBytes': sizeBytes,
-      'contentSha256': contentSha256,
-      'origin': 'console',
-      'sessionId': sessionId
+      'sha256': sha256
     }
     return await ApiService.post(
-      `/api/sessions/${encodeURIComponent(sessionId)}/artifacts`,
+      `/api/sessions/${encodeURIComponent(sessionId)}/files/uploads`,
       body as Object) as Record<string, Object>
   }
 
-  static async completeArtifactUpload(sessionId: string, artifactId: string,
-    contentSha256: string): Promise<void> {
-    const body: Record<string, Object> = {
-      'artifactId': artifactId,
-      'contentSha256': contentSha256
-    }
+  static async completeFileUpload(sessionId: string, requestId: string): Promise<void> {
+    const body: Record<string, Object> = {}
     await ApiService.post(
-      `/api/sessions/${encodeURIComponent(sessionId)}/artifacts/${encodeURIComponent(artifactId)}/complete`,
+      `/api/sessions/${encodeURIComponent(sessionId)}/files/uploads/${encodeURIComponent(requestId)}/complete`,
       body as Object)
   }
 
-  static async deleteArtifact(sessionId: string, artifactId: string): Promise<void> {
-    await ApiService.del(
-      `/api/sessions/${encodeURIComponent(sessionId)}/artifacts/${encodeURIComponent(artifactId)}`)
+  static async startFileDownload(sessionId: string, path: string): Promise<Record<string, Object>> {
+    const body: Record<string, Object> = { 'path': path }
+    return await ApiService.post(
+      `/api/sessions/${encodeURIComponent(sessionId)}/files/downloads`,
+      body as Object) as Record<string, Object>
   }
 
-  static async getArtifactDownloadUrl(sessionId: string, artifactId: string): Promise<string> {
-    const resp = await ApiService.get(
-      `/api/sessions/${encodeURIComponent(sessionId)}/artifacts/${encodeURIComponent(artifactId)}/download`
+  static async pollFileDownload(sessionId: string, requestId: string): Promise<Record<string, Object>> {
+    return await ApiService.get(
+      `/api/sessions/${encodeURIComponent(sessionId)}/files/downloads/${encodeURIComponent(requestId)}`
     ) as Record<string, Object>
-    return (resp['downloadUrl'] as string) ?? ''
   }
 
   static async putBinaryToS3(uploadUrl: string, buffer: ArrayBuffer): Promise<void> {

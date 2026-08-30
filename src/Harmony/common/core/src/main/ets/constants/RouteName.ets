@@ -9,7 +9,7 @@ export class RouteName {
   static readonly CHANGE_PASSWORD: string = 'ChangePassword'
   static readonly ACTIVATE_WORKER: string = 'ActivateWorker'
   static readonly WEB_PAGE: string = 'web/Page'
-  static readonly ARTIFACTS_PAGE: string = 'artifacts/Page'
+  static readonly FILES_PAGE: string = 'files/Page'
   static readonly CONTACT_SUPPORT: string = 'support/Contact'
   static readonly FEEDBACK: string = 'support/Feedback'
   static readonly IMAGE_PREVIEW: string = 'support/ImagePreview'
