@@ -22,6 +22,10 @@ jobs:
         with:
           channel: stable
 
+      - name: Test
+        working-directory: src/Flutter/worker_ui
+        run: flutter test
+
       - name: Download worker binaries (osx-arm64)
         run: |
           latest=$(gh release list --limit 50 --json tagName --jq '[.[].tagName | select(startswith("worker-v"))][0]')
@@ -63,6 +67,10 @@ jobs:
         with:
           channel: stable
 
+      - name: Test
+        working-directory: src/Flutter/worker_ui
+        run: flutter test
+
       - name: Download worker binaries (win-x64)
         shell: bash
         run: |
@@ -72,6 +80,9 @@ jobs:
           gh release download "$latest" --pattern 'corterm-win-x64.zip' --dir /tmp/worker
           cd /tmp/worker && unzip -o corterm-win-x64.zip -d win && cd -
           cp /tmp/worker/win/corterm.exe /tmp/worker/win/cortap.exe /tmp/worker/win/appsettings.json src/Flutter/worker_ui/assets/bin/
+          # assets/bin 声明为目录资产，repo 里提交的 mac 二进制会被一起打进 Windows
+          # 包（白胖 40MB 死重）——拷入 .exe 后清掉 Unix 名的旧文件。
+          rm -f src/Flutter/worker_ui/assets/bin/corterm src/Flutter/worker_ui/assets/bin/cortap
         env:
           GH_TOKEN: ${{ github.token }}
 
@@ -113,6 +124,10 @@ jobs:
           sudo apt-get update
           # libayatana-appindicator3-dev: tray_manager 插件要求（Linux 托盘）
           sudo apt-get install -y clang cmake ninja-build libgtk-3-dev liblzma-dev libayatana-appindicator3-dev
+
+      - name: Test
+        working-directory: src/Flutter/worker_ui
+        run: flutter test
 
       - name: Download worker binaries (linux-x64)
         run: |

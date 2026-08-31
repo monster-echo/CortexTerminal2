@@ -60,9 +60,11 @@ class CortermService {
 
   Future<List<SessionSummary>> sessions() async {
     final r = await _run(cortapPath, ['sessions', '--json']);
-    final decoded = _decode(r.stdout);
+    final decoded = _tryJsonDecode(r.stdout);
     if (decoded is! List) {
-      throw CortermException('cortap sessions --json 返回了非数组：${r.stdout}');
+      throw CortermException(
+        'cortap sessions --json 返回了非数组（exit=${r.exitCode}）\nstdout: ${r.stdout}\nstderr: ${r.stderr}',
+      );
     }
     return decoded
         .whereType<Map>()
@@ -111,7 +113,7 @@ class CortermService {
     try {
       await for (final line in lines) {
         if (line.trim().isEmpty) continue;
-        final decoded = _decode(line);
+        final decoded = _tryJsonDecode(line);
         if (decoded is! Map) continue; // stdout 理论上全为 JSON，防御跳过
         final item = fromJson(Map<String, dynamic>.from(decoded));
         if (isError(item)) sawError = true;
@@ -129,7 +131,7 @@ class CortermService {
   }
 
   Map<String, dynamic> _decodeMap(_RunResult r) {
-    final decoded = _decode(r.stdout);
+    final decoded = _tryJsonDecode(r.stdout);
     if (decoded is! Map) {
       throw CortermException(
         '无法解析 JSON 输出（exit=${r.exitCode}）\nstdout: ${r.stdout}\nstderr: ${r.stderr}',
@@ -138,11 +140,14 @@ class CortermService {
     return Map<String, dynamic>.from(decoded);
   }
 
-  Object? _decode(String raw) {
+  /// 解析失败返回 null，由调用方结合 exit code / stderr 组织错误信息——
+  /// CLI 版本过旧（不认识 `--json`）时真正的线索在 stderr 的
+  /// "Unrecognized command or argument" 里，不能丢。
+  Object? _tryJsonDecode(String raw) {
     try {
       return jsonDecode(raw);
     } on FormatException {
-      throw CortermException('stdout 不是合法 JSON：$raw');
+      return null;
     }
   }
 }
