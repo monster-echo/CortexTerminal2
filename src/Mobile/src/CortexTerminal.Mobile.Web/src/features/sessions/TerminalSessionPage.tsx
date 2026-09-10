@@ -28,6 +28,7 @@ import { useTranslation } from "react-i18next";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
+import { SerializeAddon } from "@xterm/addon-serialize";
 import "@xterm/xterm/css/xterm.css";
 import { useSessionStore, type SessionState } from "../../store/sessionStore";
 import { terminalBridge } from "../../bridge/modules/terminalBridge";
@@ -40,6 +41,11 @@ import PortForwardingModal from "../tunnels/PortForwardingModal";
 const selectRemoveSession = (s: SessionState) => s.removeSession;
 const selectRecentSessions = (s: SessionState) => s.recentSessions;
 const RESIZE_DEBOUNCE_MS = 150;
+// Scrollback snapshot persistence: save 3s after the last output burst, in
+// 256KB chunks (a full 64k-line serialization is ~3.4MB — too big for one
+// bridge invoke payload).
+const SNAPSHOT_IDLE_MS = 3000;
+const SNAPSHOT_CHUNK_BYTES = 262144;
 
 interface RouteParams {
   sessionId: string;
@@ -153,6 +159,12 @@ export default function TerminalSessionPage({
   // avoid the visible top-to-bottom redraw on every session entry.
   const replayBufferRef = useRef<Uint8Array[]>([]);
   const fitAddonRef = useRef<FitAddon | null>(null);
+  const serializeAddonRef = useRef<SerializeAddon | null>(null);
+  // True once this terminal has content (restored snapshot or live output).
+  // Gates the reattach reset and the replay write: with content present, a
+  // re-attach must NOT reset — term.reset() wipes the whole scrollback and the
+  // server replay can only restore a truncated 512KB window (issue #26).
+  const hasTerminalContentRef = useRef(false);
   const resizeTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const resizeSyncTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const connectedRef = useRef(false);
@@ -289,8 +301,11 @@ export default function TerminalSessionPage({
 
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
+    const serializeAddon = new SerializeAddon();
+    term.loadAddon(serializeAddon);
     xtermRef.current = term;
     fitAddonRef.current = fitAddon;
+    serializeAddonRef.current = serializeAddon;
 
     // iOS dictation & 9-grid pinyin numeric candidates both send input(insertText, composed=true)
     // which xterm's _inputEvent gate (composed && _keyDownSeen) refuses. Capture them here and
@@ -433,6 +448,7 @@ export default function TerminalSessionPage({
         clearTimeout(resizeSyncTimeoutRef.current);
       xtermRef.current = null;
       fitAddonRef.current = null;
+      serializeAddonRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -441,6 +457,73 @@ export default function TerminalSessionPage({
   useEffect(() => {
     let cancelled = false;
     const term = xtermRef.current;
+
+    // ── Snapshot persistence (device-side scrollback) ──
+    let snapshotSaveTimer: ReturnType<typeof setTimeout> | undefined;
+    let snapshotSaving = false;
+
+    const saveSnapshot = async () => {
+      const t = xtermRef.current;
+      const serializeAddon = serializeAddonRef.current;
+      if (!t || !serializeAddon || !hasTerminalContentRef.current || snapshotSaving) return;
+      snapshotSaving = true;
+      try {
+        const serialized = serializeAddon.serialize();
+        if (!serialized) return;
+        const bytes = new TextEncoder().encode(serialized);
+        const total = Math.max(1, Math.ceil(bytes.length / SNAPSHOT_CHUNK_BYTES));
+        for (let seq = 0; seq < total; seq++) {
+          const chunk = bytes.subarray(seq * SNAPSHOT_CHUNK_BYTES, (seq + 1) * SNAPSHOT_CHUNK_BYTES);
+          let binary = "";
+          for (let i = 0; i < chunk.length; i++) binary += String.fromCharCode(chunk[i]);
+          await terminalBridge.saveTerminalSnapshotChunk(sessionId, seq, total, btoa(binary));
+        }
+      } finally {
+        snapshotSaving = false;
+      }
+    };
+
+    const scheduleSnapshotSave = () => {
+      if (!hasTerminalContentRef.current) return;
+      if (snapshotSaveTimer) clearTimeout(snapshotSaveTimer);
+      snapshotSaveTimer = setTimeout(() => {
+        snapshotSaveTimer = undefined;
+        saveSnapshot().catch((e) => console.error("terminal snapshot save failed:", e));
+      }, SNAPSHOT_IDLE_MS);
+    };
+
+    // The session is dead (closed/expired/exited) — its snapshot is meaningless.
+    // Also drops the content flag so the unmount save can't resurrect the file.
+    const dropSnapshot = () => {
+      hasTerminalContentRef.current = false;
+      if (snapshotSaveTimer) {
+        clearTimeout(snapshotSaveTimer);
+        snapshotSaveTimer = undefined;
+      }
+      terminalBridge
+        .deleteTerminalSnapshot(sessionId)
+        .catch((e) => console.error("terminal snapshot delete failed:", e));
+    };
+
+    // Restore the persisted snapshot BEFORE connecting. With content restored,
+    // the terminal keeps its full scrollback and the server replay (truncated
+    // to the worker's buffer window) is skipped entirely below. Completing the
+    // restore before connectSession removes any restore/replay ordering race.
+    const restoreSnapshot = async (): Promise<boolean> => {
+      const t = xtermRef.current;
+      if (!t) return false;
+      const info = await terminalBridge.getTerminalSnapshot(sessionId);
+      if (!info.exists || !info.url) return false;
+      const res = await fetch(info.url);
+      if (!res.ok) {
+        throw new Error(`snapshot fetch failed: HTTP ${res.status}`);
+      }
+      const serialized = await res.text();
+      if (!serialized) return false;
+      await new Promise<void>((resolve) => t.write(serialized, resolve));
+      hasTerminalContentRef.current = true;
+      return true;
+    };
 
     const unsubscribe = transport.onMessage((data) => {
       if (!data || typeof data !== "object") return;
@@ -473,9 +556,11 @@ export default function TerminalSessionPage({
             normalizeTerminalOutput(decodeBase64ToBytes(event.base64)),
             () => {},
           );
+          hasTerminalContentRef.current = true;
         } catch {
           /* ignore decode errors */
         }
+        scheduleSnapshotSave();
         setStatusMessage(t("terminal.live"));
         return;
       }
@@ -493,14 +578,23 @@ export default function TerminalSessionPage({
           void terminalBridge.resizeSession(sessionId, term.cols, term.rows);
       }
       if (event.type === "terminal.reattached") {
-        term?.reset();
+        // Only reset a content-less terminal (first attach in this webview).
+        // With content present the local scrollback is newer and fuller than
+        // the worker's capped buffer — resetting here is what destroys history
+        // on transparent reconnects (issue #26).
+        if (!hasTerminalContentRef.current) {
+          term?.reset();
+        }
         setStatusMessage(t("terminal.reattached"));
       }
       if (event.type === "terminal.replayCompleted") {
-        // Flush all buffered replay chunks in a single write.
+        // Flush all buffered replay chunks in a single write — unless the
+        // terminal already has content (restored snapshot or prior live
+        // output), in which case the replay window would duplicate/replace
+        // fresher local history. Discard it and keep the local buffer.
         const buffered = replayBufferRef.current;
         replayBufferRef.current = [];
-        if (term && buffered.length > 0) {
+        if (term && buffered.length > 0 && !hasTerminalContentRef.current) {
           const total = buffered.reduce((sum, b) => sum + b.length, 0);
           const merged = new Uint8Array(total);
           let offset = 0;
@@ -546,6 +640,7 @@ export default function TerminalSessionPage({
           loadingRef.current = false;
           dismissLoading();
         }
+        dropSnapshot();
         removeSession(sessionId);
         presentToast({
           message: t("terminal.sessionClosedToast", { reason }),
@@ -563,6 +658,7 @@ export default function TerminalSessionPage({
         }
         const reason = event.reason ?? t("terminal.expired");
         setStatusMessage(reason);
+        dropSnapshot();
         removeSession(sessionId);
         presentToast({
           message: t("terminal.sessionExpiredToast", { reason }),
@@ -584,6 +680,7 @@ export default function TerminalSessionPage({
           ? t("terminal.exitedWithCodeAndReason", { code: code ?? 0, reason })
           : t("terminal.exitedWithCode", { code: code ?? 0 });
         setStatusMessage(statusMsg);
+        dropSnapshot();
         presentToast({
           message: t("terminal.sessionExitedToast", { code: code ?? 0 }),
           duration: 3000,
@@ -645,6 +742,14 @@ export default function TerminalSessionPage({
 
     const connect = async () => {
       try {
+        try {
+          await restoreSnapshot();
+        } catch (restoreError) {
+          // A broken snapshot must not block the session — fall through to the
+          // server replay path (same as no snapshot). The next idle save will
+          // overwrite the corrupt file.
+          console.error("terminal snapshot restore failed:", restoreError);
+        }
         await terminalBridge.connectSession(sessionId);
         if (!cancelled) {
           setStatusMessage(t("terminal.connected"));
@@ -700,6 +805,14 @@ export default function TerminalSessionPage({
     return () => {
       cancelled = true;
       connectedRef.current = false;
+      if (snapshotSaveTimer) {
+        clearTimeout(snapshotSaveTimer);
+        snapshotSaveTimer = undefined;
+      }
+      // The webview survives navigation — the async save completes. A pending
+      // save from the idle timer would double-write; snapshotSaving guard
+      // serializes them anyway.
+      saveSnapshot().catch((e) => console.error("terminal snapshot save on exit failed:", e));
       if (loadingRef.current) {
         loadingRef.current = false;
         dismissLoading();

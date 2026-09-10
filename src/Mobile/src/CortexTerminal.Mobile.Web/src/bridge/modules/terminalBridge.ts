@@ -1,4 +1,9 @@
-import { HasClipboardTextSchema, ReadClipboardTextSchema, SuccessResponseSchema } from "../../schemas/bridgeSchema";
+import {
+  HasClipboardTextSchema,
+  ReadClipboardTextSchema,
+  SuccessResponseSchema,
+  TerminalSnapshotInfoSchema,
+} from "../../schemas/bridgeSchema";
 import {
   GatewayInfoSchema,
   TerminalSessionSchema,
@@ -51,4 +56,12 @@ export const terminalBridge = {
     invoke("ReadClipboardTextAsync", ReadClipboardTextSchema, [], { timeoutMs: 3000 }),
   writeClipboardText: (text: string) =>
     invoke("WriteClipboardTextAsync", SuccessResponseSchema, [text], { timeoutMs: 3000 }),
+  // Device-side terminal scrollback snapshots (per session, chunked because a
+  // full 64k-line serialization is multi-MB — too big for one invoke payload).
+  saveTerminalSnapshotChunk: (sessionId: string, seq: number, total: number, base64Chunk: string) =>
+    invoke("SaveTerminalSnapshotChunkAsync", SuccessResponseSchema, [sessionId, seq, total, base64Chunk], { timeoutMs: 15000 }),
+  getTerminalSnapshot: (sessionId: string) =>
+    invoke("GetTerminalSnapshotAsync", TerminalSnapshotInfoSchema, [sessionId], { timeoutMs: 15000 }),
+  deleteTerminalSnapshot: (sessionId: string) =>
+    invoke("DeleteTerminalSnapshotAsync", SuccessResponseSchema, [sessionId], { timeoutMs: 15000 }),
 };

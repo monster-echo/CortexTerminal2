@@ -198,6 +198,16 @@ public interface IBridgeContract
     [BridgeMethod]
     Task<string> WriteClipboardTextAsync(string text);
 
+    // Terminal snapshot (device-side scrollback persistence)
+    [BridgeMethod]
+    Task<string> SaveTerminalSnapshotChunkAsync(string sessionId, int seq, int total, string base64Chunk);
+
+    [BridgeMethod]
+    Task<string> GetTerminalSnapshotAsync(string sessionId);
+
+    [BridgeMethod]
+    Task<string> DeleteTerminalSnapshotAsync(string sessionId);
+
     // Demo
     [BridgeMethod]
     Task<string> HelloAsync();
