@@ -208,13 +208,6 @@ export const HasClipboardTextSchema = z.object({
   hasText: z.boolean(),
 });
 
-export const TerminalSnapshotInfoSchema = z.object({
-  exists: z.boolean(),
-  size: z.number(),
-  url: z.string().nullable(),
-});
-export type TerminalSnapshotInfo = z.infer<typeof TerminalSnapshotInfoSchema>;
-
 export const ReadClipboardTextSchema = z.object({
   text: z.string().nullable(),
 });
