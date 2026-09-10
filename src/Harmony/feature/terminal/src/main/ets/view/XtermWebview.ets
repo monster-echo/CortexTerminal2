@@ -12,8 +12,6 @@ import { webview } from '@kit.ArkWeb'
 type OnInputReadyCallback = () => void
 type OnInputCallback = (data: string) => void
 type OnResizeCallback = (cols: number, rows: number) => void
-type OnSnapshotChunkCallback = (seq: number, total: number, data: string) => void
-type OnSnapshotEndCallback = () => void
 
 @Component
 export struct XtermWebview {
@@ -21,8 +19,6 @@ export struct XtermWebview {
   onInputReady: OnInputReadyCallback = () => {}
   onInput: OnInputCallback = (_data: string) => {}
   onResize: OnResizeCallback = (_cols: number, _rows: number) => {}
-  onSnapshotChunk: OnSnapshotChunkCallback = (_seq: number, _total: number, _data: string) => {}
-  onSnapshotEnd: OnSnapshotEndCallback = () => {}
   @StorageLink('gatewayUrl') gatewayUrl: string = ''
   @StorageLink('terminalCols') terminalCols: number = 80
   @StorageLink('terminalRows') terminalRows: number = 24
@@ -77,10 +73,6 @@ export struct XtermWebview {
               if (cols > 0 && rows > 0) {
                 this.onResize(cols, rows)
               }
-            } else if (type === 'snapshotChunk') {
-              this.onSnapshotChunk(msg['seq'] as number, msg['total'] as number, msg['data'] as string)
-            } else if (type === 'snapshotEnd') {
-              this.onSnapshotEnd()
             }
           } catch (e) {
             console.warn('[XtermWebview] onInput handler error: ' + (e as Error).message)

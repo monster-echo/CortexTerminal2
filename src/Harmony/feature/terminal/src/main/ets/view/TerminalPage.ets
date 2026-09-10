@@ -14,7 +14,6 @@ import { pasteboard } from '@kit.BasicServicesKit'
 import { TerminalNavParam, RouteName, I18n, AnalyticsService, lightHaptic, clickHaptic } from '@rwecho/core'
 import { TerminalStateManager } from '../service/TerminalStateManager'
 import { TerminalTransport } from '../service/TerminalTransport'
-import { SnapshotStore } from '../service/SnapshotStore'
 import { TransportFrame } from '../model/TerminalTransportModels'
 import { TerminalState } from '../model/TerminalState'
 import { XtermWebview } from './XtermWebview'
@@ -130,7 +129,6 @@ export struct TerminalPage {
   @Consume('pageStack') pageStack: NavPathStack
   @StorageLink('isKeyboardVisible') isKeyboardVisible: boolean = false
   @StorageLink('keyboardHeight') @Watch('onKeyboardHeightChange') keyboardHeight: number = 0
-  @StorageLink('appBackgroundTick') @Watch('onAppBackground') appBackgroundTick: number = 0
   @State connectionError: string = ''
   @State latencyMs: number = -1
   @State lastPingTime: number = 0
@@ -145,7 +143,6 @@ export struct TerminalPage {
   })
   private stateManager: TerminalStateManager = new TerminalStateManager()
   private transport: TerminalTransport = new TerminalTransport()
-  private snapshotStore: SnapshotStore = new SnapshotStore()
   private webviewController: webview.WebviewController = new webview.WebviewController()
   private lastCols: number = 80
   private lastRows: number = 24
@@ -158,18 +155,6 @@ export struct TerminalPage {
   private connectTimer: number = -1
   private resizeDebounceTimer: number = -1
   private pageVisible: boolean = true
-  // ── Scrollback snapshot state ──
-  // True once this webview's terminal has content (restored snapshot or any
-  // written output). Gates the reattach reset and replay write: term.reset()
-  // wipes the whole local scrollback and the server replay can only restore a
-  // truncated worker-buffer window — resetting with content present is what
-  // destroys history on every reattach (issue #26).
-  private hasTerminalContent: boolean = false
-  // No flush may run while snapshot restore chunks are still being queued.
-  private restorePending: boolean = false
-  private snapshotIdleTimer: number = -1
-  private pendingSnapshotChunks: string[] = []
-  private pendingSnapshotTotal: number = 0
 
   private applyStatusBar(forceWhite: boolean): void {
     const context = getContext(this) as common.UIAbilityContext
@@ -224,7 +209,6 @@ export struct TerminalPage {
     const isDark = AppStorage.get<string>('colorMode') !== 'light'
     this.applyStatusBar(isDark)
     this.pageVisible = false
-    this.captureSnapshot()
     if (this.connectTimer !== -1) {
       clearTimeout(this.connectTimer)
       this.connectTimer = -1
@@ -233,15 +217,7 @@ export struct TerminalPage {
       clearTimeout(this.resizeDebounceTimer)
       this.resizeDebounceTimer = -1
     }
-    if (this.snapshotIdleTimer !== -1) {
-      clearTimeout(this.snapshotIdleTimer)
-      this.snapshotIdleTimer = -1
-    }
     this.transport.sendDetach()
-  }
-
-  onAppBackground() {
-    this.captureSnapshot()
   }
 
   build() {
@@ -379,12 +355,6 @@ export struct TerminalPage {
               this.transport.sendResize(cols, rows)
             }
           }
-        },
-        onSnapshotChunk: (seq: number, total: number, data: string) => {
-          this.handleSnapshotChunk(seq, total, data)
-        },
-        onSnapshotEnd: () => {
-          this.handleSnapshotEnd()
         }
       })
       .layoutWeight(1)
@@ -483,39 +453,30 @@ export struct TerminalPage {
         break
 
       case 'replaying':
-        // SessionReattached arrives before replay chunks. Only a content-less
-        // terminal (fresh webview, first attach) resets here so the replay
-        // replaces the empty screen. With content present — restored snapshot
-        // or a live buffer across a transparent reconnect — resetting would
-        // destroy the full local scrollback and replace it with the truncated
-        // worker replay (issue #26: "cannot scroll up").
+        // SessionReattached arrives before replay chunks. Reset the terminal here —
+        // NOT on replayCompleted — so a re-attach replaces the old screen instead of
+        // stacking the full history on top (MAUI parity: term.reset() on reattached).
+        // term.reset() clears scrollback too; term.clear() truncates to 1 line. Drop
+        // stale buffered output from the previous connection so it can't bleed into
+        // the fresh replay.
         this.isReplaying = true
         this.pendingBatch = []
         this.flushScheduled = false
-        if (!this.hasTerminalContent) {
-          try {
-            this.webviewController.runJavaScript('resetTerminal()').catch((e: Error) => {
-              console.warn('Failed to reset terminal: ' + e.message)
-            })
-          } catch (e) {
-            console.warn('Failed to reset terminal: ' + (e as Error).message)
-          }
+        try {
+          this.webviewController.runJavaScript('resetTerminal()').catch((e: Error) => {
+            console.warn('Failed to reset terminal: ' + e.message)
+          })
+        } catch (e) {
+          console.warn('Failed to reset terminal: ' + (e as Error).message)
         }
         this.stateManager.setState(TerminalState.Replaying)
         break
 
       case 'replayCompleted':
-        // Content-less terminal: flush the buffered replay in one write (the
-        // screen was reset on 'replaying'). Terminal with content: the replay
-        // window is stale relative to the local buffer — discard it and keep
-        // the local history, then continue on the live stream.
+        // Flush all buffered replay in a single write. No clear here — the screen
+        // was already reset on 'replaying', so writing only the fresh history is correct.
         this.isReplaying = false
-        if (this.hasTerminalContent) {
-          this.pendingBatch = []
-          this.flushScheduled = false
-        } else {
-          this.flushPendingOutput()
-        }
+        this.flushPendingOutput()
         break
 
       case 'live':
@@ -542,7 +503,6 @@ export struct TerminalPage {
       case 'expired':
         this.connectionError = frame.reason || I18n.get('terminal.status.expired')
         this.stateManager.setState(TerminalState.Expired)
-        this.snapshotStore.remove(this.sessionId)
         setTimeout(() => {
           this.pageStack.replacePath({ name: RouteName.SESSION_HOME })
         }, 2000)
@@ -551,7 +511,6 @@ export struct TerminalPage {
       case 'exited':
         this.connectionError = frame.reason || I18n.get('terminal.error.process_exited')
         this.stateManager.setState(TerminalState.Exited)
-        this.snapshotStore.remove(this.sessionId)
         setTimeout(() => {
           this.pageStack.replacePath({ name: RouteName.SESSION_HOME })
         }, 2000)
@@ -576,10 +535,6 @@ export struct TerminalPage {
     this.pendingBatch = []
     try {
       this.webviewController.runJavaScript(`writeBatchedOutput("${packed}")`)
-        .then(() => {
-          this.hasTerminalContent = true
-          this.scheduleSnapshotSave()
-        })
         .catch((e: Error) => {
           // Bridge-level failure (JS syntax error, webview gone) — surface it,
           // don't leave an unhandled rejection silently swallowing the batch.
@@ -591,9 +546,6 @@ export struct TerminalPage {
   }
 
   private flushPendingOutput() {
-    if (this.restorePending) {
-      return
-    }
     if (this.isReplaying) {
       return
     }
@@ -614,101 +566,10 @@ export struct TerminalPage {
     }
     this.initialFitDone = true
     this.fitAndResize().then(() => {
-      this.restoreFromSnapshot()
-    }).catch(() => {
-      this.restoreFromSnapshot()
-    })
-  }
-
-  /**
-   * Restore the persisted snapshot before any buffered output (replay or live)
-   * is flushed. runJavaScript is FIFO, so the restore chunks land before any
-   * later write; restorePending keeps flushPendingOutput away until every
-   * chunk is queued. No snapshot (first run / cleared data) falls straight
-   * through to the server replay path.
-   */
-  private restoreFromSnapshot() {
-    const base64 = this.snapshotStore.loadBase64(this.sessionId)
-    if (base64.length === 0) {
       this.flushPendingOutput()
-      return
-    }
-    this.restorePending = true
-    try {
-      const chunkChars = 262144
-      const total = Math.ceil(base64.length / chunkChars)
-      for (let i = 0; i < total; i++) {
-        const chunk = base64.substring(i * chunkChars, (i + 1) * chunkChars)
-        this.webviewController.runJavaScript(`restoreSnapshotChunk("${chunk}")`)
-          .catch((e: Error) => {
-            console.error('Failed to restore snapshot chunk ' + i + ': ' + e.message)
-          })
-      }
-      this.hasTerminalContent = true
-    } catch (e) {
-      console.error('Failed to queue snapshot restore: ' + (e as Error).message)
-    }
-    this.restorePending = false
-    this.flushPendingOutput()
-  }
-
-  /** Serialize the terminal and persist it via the message port (async). */
-  private captureSnapshot() {
-    if (!this.webviewReady || !this.hasTerminalContent || this.isReplaying) {
-      return
-    }
-    try {
-      this.webviewController.runJavaScript('startSnapshotCapture()')
-        .then((result: string) => {
-          if (result !== 'ok') {
-            console.warn('Snapshot capture skipped: ' + result)
-          }
-        })
-        .catch((e: Error) => {
-          console.warn('Snapshot capture failed: ' + e.message)
-        })
-    } catch (e) {
-      console.warn('Snapshot capture failed: ' + (e as Error).message)
-    }
-  }
-
-  private scheduleSnapshotSave() {
-    if (!this.hasTerminalContent) {
-      return
-    }
-    if (this.snapshotIdleTimer !== -1) {
-      clearTimeout(this.snapshotIdleTimer)
-    }
-    this.snapshotIdleTimer = setTimeout(() => {
-      this.snapshotIdleTimer = -1
-      this.captureSnapshot()
-    }, 3000) as number
-  }
-
-  private handleSnapshotChunk(seq: number, total: number, data: string) {
-    if (seq === 0) {
-      this.pendingSnapshotChunks = []
-      this.pendingSnapshotTotal = total
-    }
-    this.pendingSnapshotChunks.push(data)
-  }
-
-  private handleSnapshotEnd() {
-    const expected = this.pendingSnapshotTotal
-    const received = this.pendingSnapshotChunks.length
-    if (received !== expected) {
-      this.pendingSnapshotChunks = []
-      this.pendingSnapshotTotal = 0
-      throw new Error(`Snapshot chunk count mismatch: expected ${expected}, got ${received}`)
-    }
-    const joined = this.pendingSnapshotChunks.join('')
-    this.pendingSnapshotChunks = []
-    this.pendingSnapshotTotal = 0
-    try {
-      this.snapshotStore.save(this.sessionId, joined)
-    } catch (e) {
-      console.error('Failed to persist terminal snapshot: ' + (e as Error).message)
-    }
+    }).catch(() => {
+      this.flushPendingOutput()
+    })
   }
 
   private fitAndResizeIfReady() {
