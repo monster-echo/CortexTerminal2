@@ -209,6 +209,9 @@ export default class EntryAbility extends UIAbility {
 
   onBackground(): void {
     hilog.info(DOMAIN, TAG, 'onBackground')
+    // Signal pages so the terminal can persist its scrollback snapshot before
+    // the app may be suspended (mirrors the keyboardHeight AppStorage pattern).
+    AppStorage.setOrCreate('appBackgroundTick', Date.now())
   }
 
   /**

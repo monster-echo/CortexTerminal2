@@ -33,11 +33,13 @@
   <script src="xterm.js"></script>
   <script src="xterm-addon-fit.js"></script>
   <script src="xterm-addon-webgl.js"></script>
+  <script src="xterm-addon-serialize.js"></script>
 
   <script>
     // === Globals ===
     let term = null;
     let fitAddon = null;
+    let serializeAddon = null;
 
     // === WebMessagePort 通信 ===
     var h5Port;
@@ -102,6 +104,9 @@
 
       fitAddon = new FitAddon.FitAddon();
       term.loadAddon(fitAddon);
+
+      serializeAddon = new SerializeAddon.SerializeAddon();
+      term.loadAddon(serializeAddon);
 
       const container = document.getElementById('terminal-container');
       term.open(container);
@@ -404,6 +409,61 @@
       if (term) {
         term.reset();
       }
+    }
+
+    // === Snapshot capture/restore (device-side scrollback persistence) ===
+    // A full 64k-line serialization is ~3.4MB — too big for one WebMessagePort
+    // message, so capture streams 256KB base64 chunks to ArkTS and restore is
+    // fed back the same way (restoreSnapshotChunk per runJavaScript call).
+    // FIFO ordering of the bridge guarantees chunk order.
+    var SNAPSHOT_CHUNK_BYTES = 262144;
+
+    /**
+     * Serialize the terminal (screen + scrollback) and stream it to ArkTS.
+     * ArkTS reassembles the chunks and writes the snapshot file.
+     * @returns {string} 'ok' or a reason string
+     */
+    function startSnapshotCapture() {
+      if (!term || !serializeAddon) {
+        return 'no-terminal';
+      }
+      var serialized = serializeAddon.serialize();
+      if (!serialized) {
+        return 'empty';
+      }
+      if (!h5Port) {
+        throw new Error('h5Port is NULL, snapshot cannot be persisted');
+      }
+      var bytes = new TextEncoder().encode(serialized);
+      var total = Math.max(1, Math.ceil(bytes.length / SNAPSHOT_CHUNK_BYTES));
+      for (var i = 0; i < total; i++) {
+        var chunk = bytes.subarray(i * SNAPSHOT_CHUNK_BYTES, (i + 1) * SNAPSHOT_CHUNK_BYTES);
+        var binary = '';
+        for (var j = 0; j < chunk.length; j++) {
+          binary += String.fromCharCode(chunk[j]);
+        }
+        h5Port.postMessage(JSON.stringify({ type: 'snapshotChunk', seq: i, total: total, data: btoa(binary) }));
+      }
+      h5Port.postMessage(JSON.stringify({ type: 'snapshotEnd', total: total }));
+      return 'ok';
+    }
+
+    /**
+     * Write one base64 chunk of a serialized snapshot into the terminal.
+     * Must NOT go through decodeAndWrite's \n normalization — the serialized
+     * stream is already valid terminal output.
+     * @param {string} b64 - Base64 chunk
+     */
+    function restoreSnapshotChunk(b64) {
+      if (!term) {
+        return;
+      }
+      var binaryStr = atob(b64);
+      var bytes = new Uint8Array(binaryStr.length);
+      for (var i = 0; i < binaryStr.length; i++) {
+        bytes[i] = binaryStr.charCodeAt(i) & 0xFF;
+      }
+      term.write(bytes);
     }
 
     /**
