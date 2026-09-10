@@ -1,3 +1,2 @@
-New: Contact Support (QQ group / email), Feedback with screenshots.
-Localized app name to Chinese, Worker online upgrade.
-Fixed dictation input and avatar upload flow.
+Terminal history snapshots: full scrollback is restored after leaving a session or reopening the app.
+Fixed terminal history loss and the unable-to-scroll-up issue after reconnects.

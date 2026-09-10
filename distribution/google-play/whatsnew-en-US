@@ -1,1 +1,2 @@
-Port forwarding is here: forward local dev servers from a terminal session to a secure public URL, then share the link and preview React/Vite apps on any device.
+Terminal history snapshots: full scrollback is restored after leaving a session or reopening the app.
+Fixed terminal history loss and the unable-to-scroll-up issue after reconnects.
