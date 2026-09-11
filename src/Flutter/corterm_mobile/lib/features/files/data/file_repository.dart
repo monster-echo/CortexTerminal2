@@ -33,11 +33,13 @@ class FileRepository {
   }
 
   /// 上传：申请预签名 URL → PUT 到 S3 → complete。返回最终 imageUrl 式路径（供日志）。
+  /// [onProgress] 已传字节（0..total）。
   Future<void> upload({
     required String sessionId,
     required String dirPath,
     required String filename,
     required Uint8List bytes,
+    void Function(int sent, int total)? onProgress,
   }) async {
     if (bytes.length > maxTransferBytes) {
       throw ApiException(0, serverMessage: 'file exceeds 50 MB limit');
@@ -67,6 +69,7 @@ class FileRepository {
           headers: {'Content-Length': bytes.length},
           // 显式空 Content-Type 由 S3 预签名的签名决定，不额外添加头。
         ),
+        onSendProgress: onProgress,
       );
       if (res.statusCode != 200) {
         throw ApiException(res.statusCode ?? 0, serverMessage: 'S3 upload failed');
@@ -89,6 +92,7 @@ class FileRepository {
     required String sessionId,
     required String path,
     required String filename,
+    void Function(int received, int? total)? onProgress,
   }) async {
     Map<String, dynamic> created;
     try {
@@ -132,6 +136,7 @@ class FileRepository {
     final res = await _bareDio.get<List<int>>(
       downloadUrl,
       options: Options(responseType: ResponseType.bytes),
+      onReceiveProgress: onProgress,
     );
     final dir = await Directory.systemTemp.createTemp('corterm_dl');
     final file = File('${dir.path}/$filename');

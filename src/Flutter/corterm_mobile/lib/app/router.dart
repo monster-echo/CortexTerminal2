@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../core/analytics/analytics_service.dart';
 import '../core/auth/auth_controller.dart';
 import '../core/storage/app_preferences.dart';
 import '../features/auth/presentation/login_screen.dart';
@@ -28,6 +29,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: '/home',
     refreshListenable: notifier,
+    observers: [ref.watch(analyticsProvider).observer],
     redirect: (context, state) {
       final status = ref.read(authProvider).status;
       final atLogin = state.matchedLocation == '/login';

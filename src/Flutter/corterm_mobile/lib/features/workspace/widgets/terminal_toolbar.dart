@@ -49,7 +49,12 @@ class TerminalToolbar extends StatelessWidget {
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(6),
             child: InkWell(
-              onTap: enabled ? onTap : null,
+              onTap: enabled
+                  ? () {
+                      HapticFeedback.selectionClick();
+                      onTap();
+                    }
+                  : null,
               borderRadius: BorderRadius.circular(6),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),

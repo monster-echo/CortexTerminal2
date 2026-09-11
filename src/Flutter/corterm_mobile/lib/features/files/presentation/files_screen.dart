@@ -30,6 +30,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
   late Future<FileListing> _future = _load(_path);
 
   bool _busy = false;
+  double? _progress; // 0..1，null = 不确定进度
 
   Future<FileListing> _load(String path) {
     return ref.read(fileRepositoryProvider).list(sessionId: widget.sessionId, path: path);
@@ -52,12 +53,21 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
 
   Future<void> _download(FileEntry entry) async {
     final l10n = AppLocalizations.of(context)!;
-    setState(() => _busy = true);
+    setState(() {
+      _busy = true;
+      _progress = null;
+    });
     try {
       final file = await ref.read(fileRepositoryProvider).download(
             sessionId: widget.sessionId,
             path: _join(_path, entry.name),
             filename: entry.name,
+            onProgress: (received, total) {
+              if (!mounted) return;
+              setState(() {
+                _progress = total == null || total == 0 ? null : received / total;
+              });
+            },
           );
       if (!mounted) return;
       await SharePlus.instance.share(
@@ -67,7 +77,12 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
       if (!mounted) return;
       showAppToast(context, '${l10n.downloadFailed}: $e', destructive: true);
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _progress = null;
+        });
+      }
     }
   }
 
@@ -76,13 +91,22 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
     final result = await FilePicker.pickFiles(withData: true);
     final picked = result?.files.firstOrNull;
     if (picked == null || picked.bytes == null) return;
-    setState(() => _busy = true);
+    setState(() {
+      _busy = true;
+      _progress = null;
+    });
     try {
       await ref.read(fileRepositoryProvider).upload(
             sessionId: widget.sessionId,
             dirPath: _path,
             filename: picked.name,
             bytes: picked.bytes ?? Uint8List(0),
+            onProgress: (sent, total) {
+              if (!mounted) return;
+              setState(() {
+                _progress = total == 0 ? null : sent / total;
+              });
+            },
           );
       if (!mounted) return;
       showAppToast(context, l10n.uploadDone);
@@ -91,7 +115,12 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
       if (!mounted) return;
       showAppToast(context, '${l10n.uploadFailed}: $e', destructive: true);
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _progress = null;
+        });
+      }
     }
   }
 
@@ -131,7 +160,12 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
             : const Icon(Icons.upload_file_outlined, size: 18),
         child: Text(l10n.upload),
       ),
-      body: FutureBuilder<FileListing>(
+      body: Column(
+        children: [
+          if (_busy)
+            LinearProgressIndicator(value: _progress, minHeight: 2, backgroundColor: scheme.border),
+          Expanded(
+            child: FutureBuilder<FileListing>(
         future: _future,
         builder: (context, snap) {
           if (snap.connectionState != ConnectionState.done) {
@@ -212,6 +246,9 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
             ),
           );
         },
+            ),
+          ),
+        ],
       ),
     );
   }

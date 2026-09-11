@@ -6,6 +6,8 @@ plugins {
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+    // Firebase（google-services.json 与 MAUI 同源，包名已对齐）
+    id("com.google.gms.google-services")
 }
 
 // release 签名（key.properties 模板见 key.properties.example，真实文件不入库）
