@@ -78,6 +78,10 @@ jobs:
             ${{ steps.meta-aliyun.outputs.tags }}
           labels: ${{ steps.meta-ghcr.outputs.labels }}
           platforms: linux/amd64,linux/arm64
+          # 阿里云 registry 拒绝 buildx 默认附带的 provenance/SBOM attestation
+          # manifest（vnd.oci.empty.v1+json），必须关闭。
+          provenance: false
+          sbom: false
           build-args: |
             VERSION=${{ steps.version.outputs.VERSION }}
           cache-from: type=gha
