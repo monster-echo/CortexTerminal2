@@ -56,14 +56,17 @@ public class TerminalWebSocketMiddleware
             ?? authResult.Principal.Identity?.Name
             ?? "unknown";
 
-        _logger.LogInformation("WebSocket terminal connection: userId={UserId}, sessionId={SessionId}", userId, sessionId);
+        // 可选能力协商（?caps=displaced,...）；旧客户端不带此参数，行为不变。
+        var caps = context.Request.Query["caps"].FirstOrDefault() ?? string.Empty;
+
+        _logger.LogInformation("WebSocket terminal connection: userId={UserId}, sessionId={SessionId}, caps={Caps}", userId, sessionId, caps);
 
         // Accept the WebSocket connection
         var ws = await context.WebSockets.AcceptWebSocketAsync();
 
         try
         {
-            await handler.HandleAsync(ws, userId, sessionId, context.RequestAborted);
+            await handler.HandleAsync(ws, userId, sessionId, caps, context.RequestAborted);
         }
         catch (Exception ex)
         {

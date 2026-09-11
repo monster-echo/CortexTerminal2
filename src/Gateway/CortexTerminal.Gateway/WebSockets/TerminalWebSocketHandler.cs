@@ -4,9 +4,11 @@ using System.Text;
 using System.Text.Json;
 using CortexTerminal.Contracts.Sessions;
 using CortexTerminal.Contracts.Streaming;
+using CortexTerminal.Gateway.Hubs;
 using CortexTerminal.Gateway.Sessions;
 using CortexTerminal.Gateway.Stats;
 using CortexTerminal.Gateway.Workers;
+using Microsoft.AspNetCore.SignalR;
 
 namespace CortexTerminal.Gateway.WebSockets;
 
@@ -21,6 +23,7 @@ public sealed class TerminalWebSocketHandler
     private readonly IWorkerCommandDispatcher _workerCommands;
     private readonly TimeProvider _timeProvider;
     private readonly IGatewayStatsService _stats;
+    private readonly IHubContext<TerminalHub> _hubContext;
     private readonly ILogger<TerminalWebSocketHandler> _logger;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -36,6 +39,7 @@ public sealed class TerminalWebSocketHandler
         ISessionLaunchCoordinator sessionLaunchCoordinator,
         TimeProvider timeProvider,
         IGatewayStatsService stats,
+        IHubContext<TerminalHub> hubContext,
         ILogger<TerminalWebSocketHandler> logger)
     {
         _sessions = sessions;
@@ -44,14 +48,18 @@ public sealed class TerminalWebSocketHandler
         _ = sessionLaunchCoordinator;
         _timeProvider = timeProvider;
         _stats = stats;
+        _hubContext = hubContext;
         _logger = logger;
     }
 
     /// <summary>
     /// Main loop: read frames from the WebSocket and dispatch them.
     /// Also wires up output forwarding so the TerminalHub can push data to this WS connection.
+    /// [capabilities] 是客户端在连接 query（?caps=a,b）里声明的可选能力集，
+    /// 当前仅 displaced：声明者被同 session 新连接挤掉时会收到 displaced 帧再关闭；
+    /// 未声明者维持旧行为（连接被静默关闭），保证旧客户端兼容。
     /// </summary>
-    public async Task HandleAsync(WebSocket ws, string userId, string sessionId, CancellationToken cancellationToken)
+    public async Task HandleAsync(WebSocket ws, string userId, string sessionId, string capabilities, CancellationToken cancellationToken)
     {
         // Validate the session exists and belongs to this user
         if (!_sessions.TryGetSession(sessionId, out var session))
@@ -67,15 +75,26 @@ public sealed class TerminalWebSocketHandler
         }
 
         var connectionId = $"ws-{Guid.NewGuid():N}";
+        var supportsDisplaced = capabilities
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Contains("displaced", StringComparer.Ordinal);
 
         // Register this WS connection for output forwarding
         TerminalWebSocketConnectionRegistry.Register(sessionId, connectionId, ws);
         TerminalWebSocketConnectionRegistry.RegisterUser(userId, connectionId, ws);
+        if (supportsDisplaced)
+        {
+            TerminalWebSocketConnectionRegistry.SetDisplacedCapable(connectionId);
+        }
         _stats.ClientConnected();
 
         try
         {
             _replayCoordinator.BeginReplay(sessionId, connectionId);
+
+            // 挤占通知目标：本次 reattach 前的附着连接（与 TerminalHub.ReattachSessionCore 同语义）。
+            _sessions.TryGetSession(sessionId, out var priorSession);
+            var displacedConnectionId = priorSession?.AttachedClientConnectionId;
 
             // Reattach the session (same logic as TerminalHub.ReattachSession)
             var reattachResult = await _sessions.ReattachSessionAsync(
@@ -90,6 +109,23 @@ public sealed class TerminalWebSocketHandler
                 _replayCoordinator.AbortReplay(sessionId);
                 await SendErrorAsync(ws, sessionId, reattachResult.ErrorCode ?? "reattach-failed", "Failed to reattach session.", cancellationToken);
                 return;
+            }
+
+            if (!string.IsNullOrEmpty(displacedConnectionId)
+                && !string.Equals(displacedConnectionId, connectionId, StringComparison.Ordinal))
+            {
+                if (displacedConnectionId.StartsWith("ws-", StringComparison.Ordinal))
+                {
+                    _ = DisplacedNotifier.NotifyWebSocketAsync(sessionId, displacedConnectionId, _logger);
+                }
+                else
+                {
+                    // 旧附着是 SignalR hub 连接（如 MAUI 客户端）：走 hub 通道通知。
+                    _ = _hubContext.Clients.Client(displacedConnectionId).SendAsync(
+                        "SessionDisplaced",
+                        new SessionDisplacedEvent(sessionId),
+                        CancellationToken.None);
+                }
             }
 
             // Send replay
@@ -173,11 +209,12 @@ public sealed class TerminalWebSocketHandler
             _stats.ClientDisconnected();
             TerminalWebSocketConnectionRegistry.Unregister(sessionId, connectionId);
             TerminalWebSocketConnectionRegistry.UnregisterUser(userId, connectionId);
+            TerminalWebSocketConnectionRegistry.ClearDisplacedCapable(connectionId);
 
-            // Detach the session
+            // Detach the session（带 connectionId：被挤占后本连接不再有权拆附着）
             try
             {
-                await _sessions.DetachSessionAsync(userId, sessionId, _timeProvider.GetUtcNow(), CancellationToken.None);
+                await _sessions.DetachSessionAsync(userId, sessionId, _timeProvider.GetUtcNow(), CancellationToken.None, clientConnectionId: connectionId);
             }
             catch (Exception ex)
             {
@@ -372,6 +409,9 @@ public static class TerminalWebSocketConnectionRegistry
     private static readonly ConcurrentDictionary<(string SessionId, string ConnectionId), WebSocket> _connections = new();
     private static readonly ConcurrentDictionary<(string UserId, string ConnectionId), WebSocket> _userConnections = new();
 
+    /// <summary>声明了 displaced 能力（连接时 ?caps=displaced）的连接 id 集合。</summary>
+    private static readonly ConcurrentDictionary<string, byte> _displacedCapable = new();
+
     public static void Register(string sessionId, string connectionId, WebSocket ws)
     {
         _connections[(sessionId, connectionId)] = ws;
@@ -391,6 +431,15 @@ public static class TerminalWebSocketConnectionRegistry
     {
         _userConnections.TryRemove((userId, connectionId), out _);
     }
+
+    public static void SetDisplacedCapable(string connectionId) => _displacedCapable[connectionId] = 1;
+
+    public static void ClearDisplacedCapable(string connectionId) => _displacedCapable.TryRemove(connectionId, out _);
+
+    public static bool IsDisplacedCapable(string connectionId) => _displacedCapable.ContainsKey(connectionId);
+
+    public static WebSocket? GetConnection(string sessionId, string connectionId) =>
+        _connections.TryGetValue((sessionId, connectionId), out var ws) ? ws : null;
 
     /// <summary>
     /// Try to send a frame to any active WebSocket connection for a given session.

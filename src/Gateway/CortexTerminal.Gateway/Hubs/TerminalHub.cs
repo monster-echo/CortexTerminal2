@@ -48,7 +48,7 @@ public sealed class TerminalHub(
     private async Task DetachSessionCoreAsync(string sessionId, CancellationToken cancellationToken)
     {
         var now = timeProvider.GetUtcNow();
-        await sessions.DetachSessionAsync(Context.UserIdentifier ?? "unknown", sessionId, now, cancellationToken);
+        await sessions.DetachSessionAsync(Context.UserIdentifier ?? "unknown", sessionId, now, cancellationToken, clientConnectionId: Context.ConnectionId);
         await Clients.Caller.SendAsync("SessionDetached", new SessionDetachedEvent(sessionId), cancellationToken);
     }
 
@@ -74,8 +74,16 @@ public sealed class TerminalHub(
 
         if (!string.IsNullOrEmpty(oldConnectionId) && oldConnectionId != Context.ConnectionId)
         {
-            _ = Clients.Client(oldConnectionId).SendAsync("SessionDisplaced",
-                new SessionDisplacedEvent(request.SessionId), CancellationToken.None);
+            if (oldConnectionId.StartsWith("ws-", StringComparison.Ordinal))
+            {
+                // 旧附着是原生 WS 连接（如 Flutter 客户端）：能力协商下发 displaced 帧并关闭。
+                _ = WebSockets.DisplacedNotifier.NotifyWebSocketAsync(request.SessionId, oldConnectionId, logger);
+            }
+            else
+            {
+                _ = Clients.Client(oldConnectionId).SendAsync("SessionDisplaced",
+                    new SessionDisplacedEvent(request.SessionId), CancellationToken.None);
+            }
         }
 
         try
@@ -114,7 +122,7 @@ public sealed class TerminalHub(
         catch
         {
             replayCoordinator.AbortReplay(request.SessionId);
-            await sessions.DetachSessionAsync(Context.UserIdentifier ?? "unknown", request.SessionId, timeProvider.GetUtcNow(), cancellationToken);
+            await sessions.DetachSessionAsync(Context.UserIdentifier ?? "unknown", request.SessionId, timeProvider.GetUtcNow(), cancellationToken, clientConnectionId: Context.ConnectionId);
             throw;
         }
 

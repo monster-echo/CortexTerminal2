@@ -159,6 +159,21 @@ public record WsDetachedFrame
     public required string SessionId { get; init; }
 }
 
+/// <summary>
+/// 同 session 被第二客户端附着挤掉。只发给连接时通过 ?caps=displaced
+/// 声明了该能力的客户端（旧客户端不声明 → 保持纯关闭行为，不发未知帧）。
+/// 发送后服务端随即关闭连接。
+/// </summary>
+public record WsDisplacedFrame
+{
+    [JsonPropertyName("type")]
+    public string Type => "displaced";
+    [JsonPropertyName("sessionId")]
+    public required string SessionId { get; init; }
+    [JsonPropertyName("reason")]
+    public string? Reason { get; init; }
+}
+
 public record WsPongFrame
 {
     [JsonPropertyName("type")]

@@ -173,7 +173,7 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
         return CreateSessionResult.Success(new CreateSessionResponse(sessionId, worker.WorkerId));
     }
 
-    public async Task DetachSessionAsync(string userId, string sessionId, DateTimeOffset detachedAtUtc, CancellationToken cancellationToken)
+    public async Task DetachSessionAsync(string userId, string sessionId, DateTimeOffset detachedAtUtc, CancellationToken cancellationToken, string? clientConnectionId = null)
     {
         SessionRecord? staged = null;
 
@@ -181,6 +181,18 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
         {
             if (!_sessions.TryGetValue(sessionId, out var session) || session.UserId != userId)
             {
+                return;
+            }
+
+            // 挤占保护：附着已被其他连接持有时，本连接无权拆附着。
+            // （被新客户端挤掉的旧连接关闭时，不能把新附着一并送进 GracePeriod。）
+            if (!string.IsNullOrEmpty(session.AttachedClientConnectionId)
+                && !string.IsNullOrEmpty(clientConnectionId)
+                && !string.Equals(session.AttachedClientConnectionId, clientConnectionId, StringComparison.Ordinal))
+            {
+                _logger.LogInformation(
+                    "session.detach skipped {SessionId}: attachment owned by {Owner}, requester={Requester}",
+                    sessionId, session.AttachedClientConnectionId, clientConnectionId);
                 return;
             }
 

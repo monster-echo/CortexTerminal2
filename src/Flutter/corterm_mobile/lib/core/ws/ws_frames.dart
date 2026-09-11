@@ -167,7 +167,9 @@ class WsFrames {
         'clientTime': clientTime,
       });
 
-  /// WS URL：`wss://host/ws/terminal?token=<jwt>&sessionId=<id>`。
+  /// WS URL：`wss://host/ws/terminal?token=<jwt>&sessionId=<id>&caps=displaced`。
+  /// caps 声明本客户端支持的扩展能力；gateway 只向声明者发 displaced 帧
+  /// （旧客户端不声明 → 维持纯关闭行为）。
   static Uri buildUri({required String gatewayBaseUrl, required String token, required String sessionId}) {
     final http = Uri.parse(gatewayBaseUrl);
     final isSecure = http.scheme == 'https';
@@ -176,7 +178,7 @@ class WsFrames {
       host: http.host,
       port: http.port,
       path: '/ws/terminal',
-      queryParameters: {'token': token, 'sessionId': sessionId},
+      queryParameters: {'token': token, 'sessionId': sessionId, 'caps': 'displaced'},
     );
   }
 }

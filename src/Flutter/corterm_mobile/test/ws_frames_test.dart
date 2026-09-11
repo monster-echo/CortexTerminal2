@@ -103,6 +103,8 @@ void main() {
       expect(uri.path, '/ws/terminal');
       expect(uri.queryParameters['token'], 'jwt');
       expect(uri.queryParameters['sessionId'], 's1');
+      // 能力协商：声明 displaced，gateway 才会向本连接发挤占帧。
+      expect(uri.queryParameters['caps'], 'displaced');
     });
 
     test('buildUri keeps explicit port', () {
