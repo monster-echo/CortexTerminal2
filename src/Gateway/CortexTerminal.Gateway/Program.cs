@@ -127,6 +127,33 @@ static string CreateAppleClientSecret(AppleOAuthOptions options)
     return handler.WriteToken(token);
 }
 
+/// 解码 Apple id_token (JWT) 取 sub/email；非法或缺失 sub 返回 null。
+/// web callback 与原生登录共用。
+static (string Sub, string Email)? DecodeAppleIdToken(string idToken)
+{
+    try
+    {
+        var segments = idToken.Split('.');
+        if (segments.Length < 2) return null;
+        var payload = segments[1];
+        payload = payload.Replace('-', '+').Replace('_', '/');
+        switch (payload.Length % 4)
+        {
+            case 2: payload += "=="; break;
+            case 3: payload += "="; break;
+        }
+        var json = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(payload));
+        using var doc = System.Text.Json.JsonDocument.Parse(json);
+        var sub = doc.RootElement.TryGetProperty("sub", out var subProp) ? subProp.GetString() ?? "" : "";
+        var email = doc.RootElement.TryGetProperty("email", out var emailProp) ? emailProp.GetString() ?? "" : "";
+        return string.IsNullOrEmpty(sub) ? null : (sub, email);
+    }
+    catch (Exception)
+    {
+        return null;
+    }
+}
+
 static string GetUserId(ClaimsPrincipal user)
     => user.FindFirstValue(ClaimTypes.NameIdentifier)
         ?? user.FindFirstValue(JwtRegisteredClaimNames.Sub)
@@ -1548,32 +1575,13 @@ app.MapPost("/api/auth/callback/apple", async (HttpContext ctx, OAuthStateServic
     if (string.IsNullOrEmpty(idToken))
         return OAuthRedirect(redirectUrl, error: "apple_id_token_missing");
 
-    // Decode Apple ID token (JWT) to extract sub and email
-    var appleSub = "";
-    var appleEmail = "";
-    try
+    var appleIdentity = DecodeAppleIdToken(idToken);
+    if (appleIdentity is null)
     {
-        var segments = idToken.Split('.');
-        var payload = segments[1];
-        payload = payload.Replace('-', '+').Replace('_', '/');
-        switch (payload.Length % 4)
-        {
-            case 2: payload += "=="; break;
-            case 3: payload += "="; break;
-        }
-        var json = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(payload));
-        using var doc = System.Text.Json.JsonDocument.Parse(json);
-        appleSub = doc.RootElement.TryGetProperty("sub", out var subProp) ? subProp.GetString() ?? "" : "";
-        appleEmail = doc.RootElement.TryGetProperty("email", out var emailProp) ? emailProp.GetString() ?? "" : "";
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"[AppleAuth] ID token decode error: {ex.Message}");
+        Console.WriteLine("[AppleAuth] ID token decode error");
         return OAuthRedirect(redirectUrl, error: "apple_id_token_invalid");
     }
-
-    if (string.IsNullOrEmpty(appleSub))
-        return OAuthRedirect(redirectUrl, error: "apple_user_failed");
+    var (appleSub, appleEmail) = appleIdentity.Value;
 
     var username = !string.IsNullOrEmpty(appleEmail) ? appleEmail.Split('@')[0] : $"apple_{appleSub[..Math.Min(8, appleSub.Length)]}";
     var displayName = !string.IsNullOrEmpty(appleEmail) ? appleEmail : username;
@@ -1616,6 +1624,86 @@ app.MapPost("/api/auth/callback/apple", async (HttpContext ctx, OAuthStateServic
     ));
 
     return OAuthRedirect(redirectUrl, token: jwt);
+}).AllowAnonymous();
+
+// Native Apple Sign-in（iOS ASAuthorization 原生流）：用原生授权码在 Apple 侧换取
+// token 后直接返回 JSON（不走 302 深链）。流程与 web callback 相同，仅错误语义不同。
+app.MapPost("/api/auth/apple/native", async (AppleNativeLoginRequest request, HttpContext ctx, IHttpClientFactory httpClientFactory, IAuditLogStore auditLog, IServiceProvider serviceProvider) =>
+{
+    if (string.IsNullOrEmpty(appleOAuthOptions.ClientId))
+        return Results.BadRequest(new { error = "Apple OAuth is not configured." });
+    if (string.IsNullOrEmpty(request.Code))
+        return Results.BadRequest(new { error = "apple_code_missing" });
+
+    var http = httpClientFactory.CreateClient();
+    var callbackUrl = $"{ctx.Request.Scheme}://{ctx.Request.Host}/api/auth/callback/apple";
+    var clientSecret = CreateAppleClientSecret(appleOAuthOptions);
+
+    var tokenResponse = await http.PostAsync("https://appleid.apple.com/auth/token", new FormUrlEncodedContent(
+        new Dictionary<string, string>
+        {
+            ["client_id"] = appleOAuthOptions.ClientId,
+            ["client_secret"] = clientSecret,
+            ["code"] = request.Code,
+            ["redirect_uri"] = callbackUrl,
+            ["grant_type"] = "authorization_code"
+        }));
+
+    if (!tokenResponse.IsSuccessStatusCode)
+    {
+        var errorBody = await tokenResponse.Content.ReadAsStringAsync();
+        Console.WriteLine($"[AppleAuth] Native token exchange failed: {errorBody}");
+        return Results.Json(new { error = "apple_token_failed" }, statusCode: StatusCodes.Status401Unauthorized);
+    }
+
+    var tokenJson = await tokenResponse.Content.ReadFromJsonAsync<JsonElement>();
+    var idToken = tokenJson.TryGetProperty("id_token", out var idTokenProp) ? idTokenProp.GetString() : null;
+    var appleIdentity = idToken is null ? null : DecodeAppleIdToken(idToken);
+    if (appleIdentity is null)
+        return Results.Json(new { error = "apple_id_token_invalid" }, statusCode: StatusCodes.Status401Unauthorized);
+    var (appleSub, appleEmail) = appleIdentity.Value;
+
+    var username = !string.IsNullOrEmpty(appleEmail) ? appleEmail.Split('@')[0] : $"apple_{appleSub[..Math.Min(8, appleSub.Length)]}";
+    var displayName = !string.IsNullOrEmpty(appleEmail) ? appleEmail : username;
+
+    var dbUser = await EnsureUser(serviceProvider, username, appleEmail, displayName, null, "apple", appleSub);
+    if (dbUser is null || dbUser.Status == "disabled" || dbUser.Status == "deleted")
+        return Results.Json(new { error = "account_disabled" }, statusCode: StatusCodes.Status403Forbidden);
+
+    // Store Apple refresh token for account deletion revocation
+    var appleRefreshToken = tokenJson.TryGetProperty("refresh_token", out var rtProp) ? rtProp.GetString() : null;
+    if (!string.IsNullOrEmpty(appleRefreshToken))
+    {
+        try
+        {
+            var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
+            using var rtScope = scopeFactory.CreateScope();
+            var rtDb = rtScope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var rtUser = await rtDb.Users.FindAsync(dbUser.Id);
+            if (rtUser is not null)
+            {
+                rtUser.AppleRefreshToken = appleRefreshToken;
+                await rtDb.SaveChangesAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[AppleAuth] Failed to store refresh token: {ex.Message}");
+        }
+    }
+
+    var jwt = CreateAccessToken(dbUser.Username, dbUser.Email, dbUser.Role);
+    auditLog.Record(new AuditLogEntry(
+        Id: Guid.NewGuid().ToString("N"),
+        Timestamp: DateTimeOffset.UtcNow,
+        UserId: dbUser.Id,
+        UserName: dbUser.Username,
+        Action: "user.oauth_login",
+        TargetEntity: "user",
+        TargetId: dbUser.Id
+    ));
+
+    return Results.Ok(new { accessToken = jwt, username = dbUser.Username });
 }).AllowAnonymous();
 
 app.MapPost("/api/sessions", async (
@@ -2839,6 +2927,7 @@ record SendCodeRequest(string Phone, string? CaptchaToken);
 record VerifyCodeRequest(string Phone, string Code);
 record CaptchaVerifyRequest(string Id, int X);
 record HuaweiQuickLoginRequest(string AuthCode, string UnionID, string OpenID);
+record AppleNativeLoginRequest(string Code);
 record PasswordLoginRequest(string Username, string Password, string? CaptchaToken);
 record PasswordRegisterRequest(string Username, string Password, string? DisplayName);
 record ChangePasswordRequest(string? CurrentPassword, string NewPassword);

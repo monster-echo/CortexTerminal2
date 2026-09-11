@@ -56,6 +56,13 @@ class AuthRepository {
         () => _client.postMap('/api/auth/phone/verify', {'phone': phone, 'code': code}));
   }
 
+  /// Apple 原生登录：ASAuthorization 的 authorizationCode → gateway 换 JWT。
+  /// gateway 端点：POST /api/auth/apple/native → {accessToken}（见 Program.cs）。
+  Future<LoginResult> appleLogin({required String authorizationCode}) {
+    return _login(
+        () => _client.postMap('/api/auth/apple/native', {'code': authorizationCode}));
+  }
+
   Future<LoginResult> _login(Future<Map<String, dynamic>> Function() call) async {
     try {
       final json = await call();

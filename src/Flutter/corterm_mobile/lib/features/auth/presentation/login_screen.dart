@@ -1,10 +1,12 @@
 import 'dart:convert';
+import 'dart:io' show Platform;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -22,7 +24,8 @@ import '../../../shared/widgets/sheets_and_dialogs.dart';
 
 /// 登录页：密码 + 手机号（由 /api/auth/methods 决定显示）。
 /// 403 CAPTCHA_REQUIRED → 弹滑块验证码后自动重试（Gateway 防爆破约定）。
-/// OAuth（github/google/apple）需要 deep-link 回跳，留给发布阶段（§78 deep link）。
+/// github/google 走系统浏览器 + corterm.mobile://auth 深链回跳；
+/// Apple 走原生 ASAuthorization（authorizationCode → /api/auth/apple/native 换 JWT）。
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
@@ -45,8 +48,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   bool _hasPassword = true;
   bool _hasPhone = false;
+  bool _hasApple = false;
   final List<String> _oauthProviders = [];
 
+  /// 浏览器深链 OAuth 支持的 provider；Apple 是原生流，单独用 [_hasApple]。
   static const _supportedOauth = ['github', 'google'];
 
   @override
@@ -67,6 +72,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         _oauthProviders.addAll(
           methods.methods.where((m) => _supportedOauth.contains(m)),
         );
+        // 平台能力判断（非降级）：Apple 原生流仅 iOS 提供按钮。
+        _hasApple = methods.methods.contains('apple') && Platform.isIOS;
         _methodsLoaded = true;
       });
     } catch (e) {
@@ -221,7 +228,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   /// OAuth：系统浏览器 → 网关 → 302 回 corterm.mobile://auth?token=（main.dart 的 app_links 接住）。
-  /// Apple 回调是 form_post，自定义 scheme 接不到，故不在按钮列表中。
   Future<void> _startOauth(String provider) async {
     if (!await _ensureConsent()) return;
     final gateway = ref.read(appConfigProvider);
@@ -230,6 +236,48 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!ok && mounted) {
       setState(() => _error = AppLocalizations.of(context)!.oauthFailed(provider));
+    }
+  }
+
+  /// Apple 原生登录：ASAuthorization 弹窗 → authorizationCode → gateway 换 JWT。
+  /// 用户取消（AuthorizenException）视为静默返回，不算错误。
+  Future<void> _appleLogin() async {
+    final l10n = AppLocalizations.of(context)!;
+    if (!await _ensureConsent()) return;
+    setState(() {
+      _error = null;
+      _busy = true;
+    });
+    try {
+      final credential = await SignInWithApple.getAppleIDCredential(
+        scopes: const [AppleIDAuthorizationScopes.fullName],
+      );
+      final result = await ref
+          .read(authRepositoryProvider)
+          .appleLogin(authorizationCode: credential.authorizationCode);
+      await ref.read(authProvider.notifier).loggedIn(
+            token: result.accessToken,
+            username: result.username,
+          );
+      if (mounted) context.go('/home');
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _error = e.serverMessage ?? '${l10n.loginFailed} (${e.statusCode})';
+      });
+    } catch (e) {
+      if (!mounted) return;
+      // 用户取消 Apple 授权弹窗：静默返回，不算错误。
+      if (e is SignInWithAppleAuthorizationException &&
+          e.code == AuthorizationErrorCode.canceled) {
+        setState(() => _busy = false);
+        return;
+      }
+      setState(() {
+        _busy = false;
+        _error = e.toString();
+      });
     }
   }
 
@@ -391,7 +439,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     onPressed: _login,
                     child: Text(_busy ? l10n.signingIn : l10n.signIn),
                   ),
-                  if (_oauthProviders.isNotEmpty) ...[
+                  if (_oauthProviders.isNotEmpty || _hasApple) ...[
                     const SizedBox(height: 20),
                     Row(
                       children: [
@@ -426,6 +474,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               enabled: !_busy,
                               onPressed: () => _startOauth(p),
                               child: Text(p == 'github' ? 'GitHub' : 'Google'),
+                            ),
+                          ),
+                        if (_hasApple)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 6),
+                            child: ShadButton.outline(
+                              leading: const Icon(Icons.apple, size: 18),
+                              enabled: !_busy,
+                              onPressed: _appleLogin,
+                              child: const Text('Apple'),
                             ),
                           ),
                       ],
