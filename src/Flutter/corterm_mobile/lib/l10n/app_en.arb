@@ -237,5 +237,38 @@
   "createSession": "Create Session",
   "creating": "Creating…",
   "selectWorker": "Select worker",
-  "create": "Create"
+  "create": "Create",
+  "saved": "Saved",
+  "yes": "Yes",
+  "no": "No",
+  "email": "Email",
+  "tunnelTitle": "Port Forwarding",
+  "tunnelPortLabel": "Port",
+  "tunnelPortPlaceholder": "1-65535",
+  "tunnelEmpty": "No tunnels yet",
+  "tunnelExpires": "Expires {time}",
+  "@tunnelExpires": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "tunnelCopyLink": "Copy link",
+  "tunnelOpen": "Open",
+  "tunnelRevoke": "Revoke",
+  "tunnelInvalidPort": "Port must be 1-65535",
+  "profileTitle": "Profile",
+  "displayNameLabel": "Display name",
+  "hasPassword": "Password set",
+  "avatarUpdated": "Avatar updated",
+  "activateTitle": "Device activation",
+  "activateIntro": "Enter the activation code shown by your device or CLI to authorize it with your account.",
+  "activateCodeLabel": "Activation code",
+  "activateConfirm": "Authorize",
+  "activateDone": "Device authorized",
+  "activateInvalidCode": "Invalid or expired code",
+  "deviceAccess": "Device access",
+  "scrollbackQuota": "Server scrollback",
+  "terminalSize": "Terminal size"
 }

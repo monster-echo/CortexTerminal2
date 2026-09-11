@@ -10,6 +10,8 @@ import '../features/files/presentation/files_screen.dart';
 import '../features/workers/presentation/workers_screen.dart';
 import '../features/legal/legal_screens.dart';
 import '../features/home/home_screen.dart';
+import '../features/activate/activate_screen.dart';
+import '../features/profile/presentation/profile_screen.dart';
 import '../features/sessions/presentation/all_sessions_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/workspace/workspace_screen.dart';
@@ -40,6 +42,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/workspace', builder: (_, _) => const WorkspaceScreen()),
       GoRoute(path: '/sessions', builder: (_, _) => const AllSessionsScreen()),
       GoRoute(path: '/settings', builder: (_, _) => const SettingsScreen()),
+      GoRoute(path: '/settings/profile', builder: (_, _) => const ProfileScreen()),
+      GoRoute(path: '/activate', builder: (_, _) => const ActivateScreen()),
       GoRoute(path: '/workers', builder: (_, _) => const WorkersScreen()),
       GoRoute(path: '/diagnostics', builder: (_, _) => const DiagnosticsScreen()),
       GoRoute(

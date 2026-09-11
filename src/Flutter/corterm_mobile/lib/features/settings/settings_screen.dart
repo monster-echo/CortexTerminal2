@@ -8,6 +8,7 @@ import '../../core/auth/auth_controller.dart';
 import '../../core/auth/auth_repository.dart';
 import '../../core/storage/app_preferences.dart';
 import '../../features/sessions/data/sessions_providers.dart';
+import 'data/preferences_repository.dart';
 import '../../l10n/app_localizations.dart';
 import '../../shared/widgets/app_bar.dart';
 import '../../shared/widgets/list_group.dart';
@@ -56,6 +57,12 @@ class SettingsScreen extends ConsumerWidget {
               icon: Icons.person_outline,
               label: auth.username ?? l10n.unknown,
               value: l10n.account,
+            ),
+            AppRow(
+              icon: Icons.manage_accounts_outlined,
+              label: l10n.profileTitle,
+              chevron: true,
+              onTap: () => context.push('/settings/profile'),
             ),
           ]),
 
@@ -121,6 +128,18 @@ class SettingsScreen extends ConsumerWidget {
                   onChanged: (v) => ref.read(fontSizeProvider.notifier).set(v),
                 ),
               ),
+            ),
+            _ScrollbackRow(),
+          ]),
+
+          // ---- 设备接入 ----
+          AppGroupHeader(l10n.deviceAccess),
+          AppGroupCard(children: [
+            AppRow(
+              icon: Icons.qr_code_scanner_rounded,
+              label: l10n.activateTitle,
+              chevron: true,
+              onTap: () => context.push('/activate'),
             ),
           ]),
 
@@ -234,8 +253,7 @@ class SettingsScreen extends ConsumerWidget {
   }
 
   Future<void> _changePassword(BuildContext context, WidgetRef ref) async {
-    final l10n = AppLocalizations.of(context)!;
-    final current = TextEditingController();
+    final l10n = AppLocalizations.of(context)!;    final current = TextEditingController();
     final next = TextEditingController();
     final ok = await showShadDialog<bool>(
       context: context,
@@ -285,5 +303,63 @@ class SettingsScreen extends ConsumerWidget {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
       }
     }
+  }
+}
+
+/// 服务端 scrollback 配额（Segment 选择，对齐 MAUI 设置页）。
+/// 控制 Worker 重放窗口；客户端 xterm 缓冲恒为 64000 行。
+class _ScrollbackRow extends ConsumerWidget {
+  static const _options = <int, String>{
+    524288: '512K',
+    1048576: '1M',
+    2097152: '2M',
+    5242880: '5M',
+  };
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final pref = ref.watch(scrollbackPreferenceProvider);
+
+    return AppRow(
+      icon: Icons.history_rounded,
+      label: l10n.scrollbackQuota,
+      trailing: pref.when(
+        loading: () => const SizedBox(
+          width: 14,
+          height: 14,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+        error: (e, _) => Text('—', style: TextStyle(color: ShadTheme.of(context).colorScheme.mutedForeground)),
+        data: (p) {
+          // 服务端可能存有非预设值（web 端设置过）：如实展示，不冒充预设档位。
+          final options = Map<int, String>.of(_options);
+          if (!options.containsKey(p.maxBytes)) {
+            options[p.maxBytes] =
+                p.maxBytes % 1048576 == 0 ? '${p.maxBytes ~/ 1048576}M' : '${p.maxBytes ~/ 1024}K';
+          }
+          return ShadSelect<int>(
+            initialValue: p.maxBytes,
+            options: [
+              for (final entry in options.entries)
+                ShadOption(value: entry.key, child: Text(entry.value)),
+            ],
+            selectedOptionBuilder: (context, value) => Text(options[value] ?? '$value'),
+            onChanged: (v) async {
+              if (v == null || v == p.maxBytes) return;
+              try {
+                await ref.read(preferencesRepositoryProvider).updateScrollback(maxBytes: v);
+                ref.invalidate(scrollbackPreferenceProvider);
+                if (context.mounted) showAppToast(context, l10n.saved);
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+                }
+              }
+            },
+          );
+        },
+      ),
+    );
   }
 }

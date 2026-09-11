@@ -94,6 +94,13 @@ class ApiClient {
     return res.data ?? const {};
   }
 
+  /// POST 纯文本 body（如头像 base64，MAUI 同款 text/plain）。
+  Future<Map<String, dynamic>> postText(String path, String body) async {
+    final res = await _dio.post<Map<String, dynamic>>(path, data: body,
+        options: Options(headers: {'Content-Type': 'text/plain'}));
+    return res.data ?? const {};
+  }
+
   Future<Map<String, dynamic>> putMap(String path, Object? body) async {
     final res = await _dio.put<Map<String, dynamic>>(path, data: body);
     return res.data ?? const {};
@@ -114,7 +121,7 @@ class ApiClient {
     final data = e.response?.data;
     String? serverMessage;
     if (data is Map<String, dynamic>) {
-      serverMessage = data['error'] as String?;
+      serverMessage = data['error'] as String? ?? data['detail'] as String?;
       final retryAfter = data['retryAfter'];
       if (code == 429 && retryAfter is num) {
         throw RateLimitedException(retryAfter.toInt());

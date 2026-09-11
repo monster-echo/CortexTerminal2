@@ -63,6 +63,16 @@ class AuthRepository {
         () => _client.postMap('/api/auth/apple/native', {'code': authorizationCode}));
   }
 
+  /// 设备流激活码确认（POST /api/auth/device-flow/verify）。
+  /// 无效码 gateway 返回 400 {error: invalid_code}。
+  Future<void> verifyActivationCode({required String userCode}) async {
+    try {
+      await _client.postMap('/api/auth/device-flow/verify', {'userCode': userCode});
+    } on DioException catch (e) {
+      ApiClient.throwFor(e);
+    }
+  }
+
   Future<LoginResult> _login(Future<Map<String, dynamic>> Function() call) async {
     try {
       final json = await call();

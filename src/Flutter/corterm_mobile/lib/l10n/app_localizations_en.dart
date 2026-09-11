@@ -562,4 +562,85 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get create => 'Create';
+
+  @override
+  String get saved => 'Saved';
+
+  @override
+  String get yes => 'Yes';
+
+  @override
+  String get no => 'No';
+
+  @override
+  String get email => 'Email';
+
+  @override
+  String get tunnelTitle => 'Port Forwarding';
+
+  @override
+  String get tunnelPortLabel => 'Port';
+
+  @override
+  String get tunnelPortPlaceholder => '1-65535';
+
+  @override
+  String get tunnelEmpty => 'No tunnels yet';
+
+  @override
+  String tunnelExpires(String time) {
+    return 'Expires $time';
+  }
+
+  @override
+  String get tunnelCopyLink => 'Copy link';
+
+  @override
+  String get tunnelOpen => 'Open';
+
+  @override
+  String get tunnelRevoke => 'Revoke';
+
+  @override
+  String get tunnelInvalidPort => 'Port must be 1-65535';
+
+  @override
+  String get profileTitle => 'Profile';
+
+  @override
+  String get displayNameLabel => 'Display name';
+
+  @override
+  String get hasPassword => 'Password set';
+
+  @override
+  String get avatarUpdated => 'Avatar updated';
+
+  @override
+  String get activateTitle => 'Device activation';
+
+  @override
+  String get activateIntro =>
+      'Enter the activation code shown by your device or CLI to authorize it with your account.';
+
+  @override
+  String get activateCodeLabel => 'Activation code';
+
+  @override
+  String get activateConfirm => 'Authorize';
+
+  @override
+  String get activateDone => 'Device authorized';
+
+  @override
+  String get activateInvalidCode => 'Invalid or expired code';
+
+  @override
+  String get deviceAccess => 'Device access';
+
+  @override
+  String get scrollbackQuota => 'Server scrollback';
+
+  @override
+  String get terminalSize => 'Terminal size';
 }

@@ -556,4 +556,84 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get create => '创建';
+
+  @override
+  String get saved => '已保存';
+
+  @override
+  String get yes => '是';
+
+  @override
+  String get no => '否';
+
+  @override
+  String get email => '邮箱';
+
+  @override
+  String get tunnelTitle => '端口转发';
+
+  @override
+  String get tunnelPortLabel => '端口';
+
+  @override
+  String get tunnelPortPlaceholder => '1-65535';
+
+  @override
+  String get tunnelEmpty => '暂无转发隧道';
+
+  @override
+  String tunnelExpires(String time) {
+    return '过期时间 $time';
+  }
+
+  @override
+  String get tunnelCopyLink => '复制链接';
+
+  @override
+  String get tunnelOpen => '打开';
+
+  @override
+  String get tunnelRevoke => '吊销';
+
+  @override
+  String get tunnelInvalidPort => '端口需为 1-65535';
+
+  @override
+  String get profileTitle => '个人资料';
+
+  @override
+  String get displayNameLabel => '显示名';
+
+  @override
+  String get hasPassword => '密码已设置';
+
+  @override
+  String get avatarUpdated => '头像已更新';
+
+  @override
+  String get activateTitle => '设备激活';
+
+  @override
+  String get activateIntro => '输入设备或命令行上显示的激活码，将其授权绑定到你的账号。';
+
+  @override
+  String get activateCodeLabel => '激活码';
+
+  @override
+  String get activateConfirm => '确认授权';
+
+  @override
+  String get activateDone => '设备已授权';
+
+  @override
+  String get activateInvalidCode => '激活码无效或已过期';
+
+  @override
+  String get deviceAccess => '设备接入';
+
+  @override
+  String get scrollbackQuota => '服务端 Scrollback';
+
+  @override
+  String get terminalSize => '终端尺寸';
 }

@@ -9,6 +9,7 @@ import '../../../shared/widgets/sheets_and_dialogs.dart';
 import '../../../shared/widgets/states.dart';
 import '../../sessions/data/sessions_providers.dart';
 import '../../sessions/data/session_repository.dart';
+import '../workspace_controller.dart';
 
 /// Session Details（§54/§23）：完整元信息，含 sessionId（可复制）与重命名入口。
 class SessionDetailsSheet extends ConsumerStatefulWidget {
@@ -50,10 +51,15 @@ class _SessionDetailsSheetState extends ConsumerState<SessionDetailsSheet> {
       SessionStatus.expired => l10n.statusExpired,
     };
 
+    // 终端尺寸与延迟取自当前附着（对齐 MAUI 会话详情 ActionSheet）。
+    final wsEntry = ref.watch(workspaceControllerProvider).entryOf(session.sessionId);
     final rows = <(String, String)>[
       (l10n.agentKind, session.agentKind.label),
       (l10n.worker, session.workerName ?? session.workerId),
       (l10n.connection, statusLabel),
+      if (wsEntry != null)
+        (l10n.terminalSize, '${wsEntry.terminal.viewWidth} × ${wsEntry.terminal.viewHeight}'),
+      if (wsEntry?.rttMs != null) (l10n.latency, '${wsEntry!.rttMs} ms'),
       (l10n.createdAt, _fmt(session.createdAt)),
       (l10n.lastActivity, _fmt(session.lastActivityAt)),
     ];

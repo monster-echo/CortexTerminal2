@@ -1147,6 +1147,162 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Create'**
   String get create;
+
+  /// No description provided for @saved.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved'**
+  String get saved;
+
+  /// No description provided for @yes.
+  ///
+  /// In en, this message translates to:
+  /// **'Yes'**
+  String get yes;
+
+  /// No description provided for @no.
+  ///
+  /// In en, this message translates to:
+  /// **'No'**
+  String get no;
+
+  /// No description provided for @email.
+  ///
+  /// In en, this message translates to:
+  /// **'Email'**
+  String get email;
+
+  /// No description provided for @tunnelTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Port Forwarding'**
+  String get tunnelTitle;
+
+  /// No description provided for @tunnelPortLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Port'**
+  String get tunnelPortLabel;
+
+  /// No description provided for @tunnelPortPlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'1-65535'**
+  String get tunnelPortPlaceholder;
+
+  /// No description provided for @tunnelEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No tunnels yet'**
+  String get tunnelEmpty;
+
+  /// No description provided for @tunnelExpires.
+  ///
+  /// In en, this message translates to:
+  /// **'Expires {time}'**
+  String tunnelExpires(String time);
+
+  /// No description provided for @tunnelCopyLink.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy link'**
+  String get tunnelCopyLink;
+
+  /// No description provided for @tunnelOpen.
+  ///
+  /// In en, this message translates to:
+  /// **'Open'**
+  String get tunnelOpen;
+
+  /// No description provided for @tunnelRevoke.
+  ///
+  /// In en, this message translates to:
+  /// **'Revoke'**
+  String get tunnelRevoke;
+
+  /// No description provided for @tunnelInvalidPort.
+  ///
+  /// In en, this message translates to:
+  /// **'Port must be 1-65535'**
+  String get tunnelInvalidPort;
+
+  /// No description provided for @profileTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Profile'**
+  String get profileTitle;
+
+  /// No description provided for @displayNameLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Display name'**
+  String get displayNameLabel;
+
+  /// No description provided for @hasPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Password set'**
+  String get hasPassword;
+
+  /// No description provided for @avatarUpdated.
+  ///
+  /// In en, this message translates to:
+  /// **'Avatar updated'**
+  String get avatarUpdated;
+
+  /// No description provided for @activateTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Device activation'**
+  String get activateTitle;
+
+  /// No description provided for @activateIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter the activation code shown by your device or CLI to authorize it with your account.'**
+  String get activateIntro;
+
+  /// No description provided for @activateCodeLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Activation code'**
+  String get activateCodeLabel;
+
+  /// No description provided for @activateConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Authorize'**
+  String get activateConfirm;
+
+  /// No description provided for @activateDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Device authorized'**
+  String get activateDone;
+
+  /// No description provided for @activateInvalidCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Invalid or expired code'**
+  String get activateInvalidCode;
+
+  /// No description provided for @deviceAccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Device access'**
+  String get deviceAccess;
+
+  /// No description provided for @scrollbackQuota.
+  ///
+  /// In en, this message translates to:
+  /// **'Server scrollback'**
+  String get scrollbackQuota;
+
+  /// No description provided for @terminalSize.
+  ///
+  /// In en, this message translates to:
+  /// **'Terminal size'**
+  String get terminalSize;
 }
 
 class _AppLocalizationsDelegate

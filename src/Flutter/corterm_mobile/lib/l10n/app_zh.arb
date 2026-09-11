@@ -174,5 +174,38 @@
   "createSession": "创建会话",
   "creating": "创建中…",
   "selectWorker": "选择 Worker",
-  "create": "创建"
+  "create": "创建",
+  "saved": "已保存",
+  "yes": "是",
+  "no": "否",
+  "email": "邮箱",
+  "tunnelTitle": "端口转发",
+  "tunnelPortLabel": "端口",
+  "tunnelPortPlaceholder": "1-65535",
+  "tunnelEmpty": "暂无转发隧道",
+  "tunnelExpires": "过期时间 {time}",
+  "@tunnelExpires": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "tunnelCopyLink": "复制链接",
+  "tunnelOpen": "打开",
+  "tunnelRevoke": "吊销",
+  "tunnelInvalidPort": "端口需为 1-65535",
+  "profileTitle": "个人资料",
+  "displayNameLabel": "显示名",
+  "hasPassword": "密码已设置",
+  "avatarUpdated": "头像已更新",
+  "activateTitle": "设备激活",
+  "activateIntro": "输入设备或命令行上显示的激活码，将其授权绑定到你的账号。",
+  "activateCodeLabel": "激活码",
+  "activateConfirm": "确认授权",
+  "activateDone": "设备已授权",
+  "activateInvalidCode": "激活码无效或已过期",
+  "deviceAccess": "设备接入",
+  "scrollbackQuota": "服务端 Scrollback",
+  "terminalSize": "终端尺寸"
 }

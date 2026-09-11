@@ -10,6 +10,7 @@ import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/sheets_and_dialogs.dart';
 import '../../sessions/data/sessions_providers.dart';
 import '../../sessions/data/session_repository.dart';
+import '../../tunnels/presentation/port_forwarding_sheet.dart';
 import '../workspace_controller.dart';
 import 'session_details_sheet.dart';
 
@@ -54,6 +55,14 @@ class MoreActionsSheet extends ConsumerWidget {
               onTap: () {
                 Navigator.of(context).pop();
                 context.push('/files/$sessionId');
+              },
+            ),
+            AppRow(
+              icon: Icons.swap_horiz_rounded,
+              label: l10n.tunnelTitle,
+              onTap: () {
+                Navigator.of(context).pop();
+                PortForwardingSheet.show(context, sessionId: sessionId);
               },
             ),
             AppRow(
