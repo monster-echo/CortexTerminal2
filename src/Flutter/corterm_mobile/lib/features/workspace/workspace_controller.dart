@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:xterm/xterm.dart';
@@ -56,12 +57,17 @@ class WorkspaceController extends StateNotifier<WorkspaceState> {
   static const maxAttached = 4;
   static const _backoff = [Duration(seconds: 1), Duration(seconds: 2), Duration(seconds: 5), Duration(seconds: 10), Duration(seconds: 30)];
 
+  /// 半开连接判定窗口：探测周期 10s，连续 3 个周期未收到任何服务端帧即判死。
+  static const _probeInterval = Duration(seconds: 10);
+  static const _serverSilenceTimeout = Duration(seconds: 30);
+
   final SessionRepository _repo;
   final TerminalSocketFactory _socketFactory;
 
   final _sockets = <String, TerminalSocket>{};
   final _timers = <String, Timer>{};
   final _probes = <String, Timer>{};
+  final _lastServerActivityAt = <String, DateTime>{};
 
   /// 打开 / 切换到某个 session（§16）。
   Future<void> open(String sessionId) async {
@@ -138,6 +144,7 @@ class WorkspaceController extends StateNotifier<WorkspaceState> {
       return;
     }
     _sockets[sessionId] = socket;
+    _lastServerActivityAt[sessionId] = clock.now();
 
     socket.frames.listen(
       (frame) => _handleFrame(sessionId, frame),
@@ -151,6 +158,7 @@ class WorkspaceController extends StateNotifier<WorkspaceState> {
   void _handleFrame(String sessionId, ServerFrame frame) {
     final entry = state.entries[sessionId];
     if (entry == null) return;
+    _lastServerActivityAt[sessionId] = clock.now();
     switch (frame) {
       case ReplayingFrame():
         // reattach 意味着重放快照 → 丢弃旧 buffer，全新 Terminal（epoch++ 触发 UI 重建）。
@@ -203,10 +211,17 @@ class WorkspaceController extends StateNotifier<WorkspaceState> {
             // invalid-frame 等协议错误：保留连接，仅记录。
             debugPrint('ws($sessionId) error frame: ${frame.code} ${frame.message}');
         }
+      case DisplacedFrame():
+        // 同 session 被第二客户端挤掉：终态，不自动重连（重连会与另一端互踢）。
+        _timers.remove(sessionId)?.cancel();
+        _stopProbe(sessionId);
+        entry.connState = TerminalConnState.error;
+        entry.errorMessage = 'displaced';
+        state = state.copyWith(entries: Map.of(state.entries));
       case PongFrame():
         break;
       case LatencyAckFrame():
-        final rtt = DateTime.now().millisecondsSinceEpoch - frame.clientTime;
+        final rtt = clock.now().millisecondsSinceEpoch - frame.clientTime;
         entry.rttMs = rtt < 0 ? 0 : rtt;
         state = state.copyWith(entries: Map.of(state.entries));
     }
@@ -240,20 +255,28 @@ class WorkspaceController extends StateNotifier<WorkspaceState> {
 
   void _onSocketDone(String sessionId) {
     final socket = _sockets.remove(sessionId);
+    _lastServerActivityAt.remove(sessionId);
+    _stopProbe(sessionId);
+    // 我方主动断（detach / forceClose：退后台、心跳判死、LRU、dispose）——
+    // 状态由发起方管理，此处不动 state（dispose 后访问会抛）。
+    if (socket == null || socket.closedByUs) return;
     final entry = state.entries[sessionId];
     if (entry == null) return;
-    if (socket?.detachedByUs ?? false) {
-      entry.connState = TerminalConnState.idle;
-      state = state.copyWith(entries: Map.of(state.entries));
-      return;
-    }
-    if (socket?.sessionNotFound ?? false) {
+    if (socket.sessionNotFound) {
       entry.connState = TerminalConnState.exited;
       entry.exitReason = 'session-not-found';
       state = state.copyWith(entries: Map.of(state.entries));
       return;
     }
-    // 网络断开 / 被其他端挤掉 → 自动重连（last-writer-wins，MAUI 同语义）。
+    switch (entry.connState) {
+      case TerminalConnState.exited:
+      case TerminalConnState.error:
+        // exited / expired / displaced 等终态帧之后服务端关闭连接属正常收尾。
+        return;
+      default:
+        break;
+    }
+    // 网络断开 → 自动重连（last-writer-wins，MAUI 同语义）。
     entry.connState = TerminalConnState.reconnecting;
     state = state.copyWith(entries: Map.of(state.entries));
     _scheduleReconnect(sessionId, 0);
@@ -354,26 +377,74 @@ class WorkspaceController extends StateNotifier<WorkspaceState> {
 
   void _startProbe(String sessionId) {
     _stopProbe(sessionId);
-    _probes[sessionId] = Timer.periodic(const Duration(seconds: 10), (t) {
+    _probes[sessionId] = Timer.periodic(_probeInterval, (t) {
       final socket = _sockets[sessionId];
       if (socket == null) {
         t.cancel();
         return;
       }
-      socket.latencyProbe('p$t.tick', DateTime.now().millisecondsSinceEpoch);
+      final last = _lastServerActivityAt[sessionId];
+      final silentFor = last == null ? null : clock.now().difference(last);
+      if (silentFor != null && silentFor > _serverSilenceTimeout) {
+        // 半开连接：TCP 未感知断开但服务端帧全无。主动断开并立即重连
+        // （forceClose 标记 closedByUs，onDone 只做清理不重复调度）。
+        socket.forceClose();
+        final entry = state.entries[sessionId];
+        if (entry != null) {
+          entry.connState = TerminalConnState.reconnecting;
+          state = state.copyWith(entries: Map.of(state.entries));
+        }
+        _scheduleReconnect(sessionId, 0);
+        return;
+      }
+      socket.latencyProbe('p$t.tick', clock.now().millisecondsSinceEpoch);
     });
     // 立即探测一次
-    _sockets[sessionId]?.latencyProbe('p0', DateTime.now().millisecondsSinceEpoch);
+    _sockets[sessionId]?.latencyProbe('p0', clock.now().millisecondsSinceEpoch);
   }
 
   void _stopProbe(String sessionId) => _probes.remove(sessionId)?.cancel();
 
   // ---- 生命周期 ----
 
+  /// 退后台：立即断开所有活动连接（不发 detach——后台等 3s 服务端确认无意义）。
+  /// 状态置 reconnecting，回前台 / 网络恢复由 [reattachAll] 统一接管。
+  void enterBackground() {
+    for (final id in state.openedSessionIds) {
+      final entry = state.entries[id];
+      if (entry == null) continue;
+      switch (entry.connState) {
+        case TerminalConnState.live:
+        case TerminalConnState.connecting:
+        case TerminalConnState.replaying:
+          _sockets.remove(id)?.forceClose();
+          _lastServerActivityAt.remove(id);
+          _stopProbe(id);
+          entry.connState = TerminalConnState.reconnecting;
+        default:
+          break;
+      }
+    }
+    state = state.copyWith(entries: Map.of(state.entries));
+  }
+
+  /// 回前台 / 网络恢复：所有退避等待中的 session 立即重连（取消剩余退避）。
+  /// MAUI 的 AppResumed → ReattachSession 同语义；终态（exited/error）留给用户手动重连。
+  void reattachAll() {
+    for (final id in state.openedSessionIds) {
+      final entry = state.entries[id];
+      if (entry == null) continue;
+      if (entry.connState == TerminalConnState.reconnecting) {
+        _scheduleReconnect(id, 0);
+      }
+    }
+  }
+
   /// 明确关闭某个 session 的终端（terminate / 删除后调用）。
   Future<void> closeTerminal(String sessionId) async {
     _timers.remove(sessionId)?.cancel();
     _stopProbe(sessionId);
+    _lastServerActivityAt.remove(sessionId);
     final socket = _sockets.remove(sessionId);
     if (socket != null) {
       await socket.detach();

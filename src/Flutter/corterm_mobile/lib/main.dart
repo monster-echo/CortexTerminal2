@@ -31,10 +31,10 @@ Future<void> main() async {
 
 /// OAuth 回调：`corterm.mobile://auth?token=<jwt>`（或 `?error=<code>`）。
 /// 登录页发起系统浏览器授权，网关 302 回此 scheme。
+/// 订阅必须常驻：取消后第二次 OAuth 回调将永远收不到。
 void _listenOauthLinks(ProviderContainer container) {
   final links = AppLinks();
-  StreamSubscription<Uri>? sub;
-  sub = links.uriLinkStream.listen((uri) {
+  links.uriLinkStream.listen((uri) {
     if (uri.scheme != 'corterm.mobile' || uri.host != 'auth') return;
     final token = uri.queryParameters['token'];
     final error = uri.queryParameters['error'];
@@ -45,6 +45,5 @@ void _listenOauthLinks(ProviderContainer container) {
       // 无 UI 上下文：失败时保持未登录态，登录页仍在前台，用户可直接重试。
       container.read(oauthLastErrorProvider.notifier).state = error;
     }
-    unawaited(sub?.cancel());
   });
 }

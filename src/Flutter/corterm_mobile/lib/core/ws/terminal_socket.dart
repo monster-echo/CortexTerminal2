@@ -26,8 +26,11 @@ class TerminalSocket {
     }, onError: (Object e) {
       _frameController.addError(e);
     }, onDone: () {
+      // 服务端关闭（网络断开 / displaced / exited 收尾）：关闭帧流，
+      // 让消费方的 onDone 触发重连判定。
       _closed = true;
       _doneCompleter.complete();
+      if (!_frameController.isClosed) _frameController.close();
     });
   }
 
@@ -65,9 +68,13 @@ class TerminalSocket {
   final _doneCompleter = Completer<void>();
 
   var _sentDetach = false;
+  var _closedByUs = false;
 
   /// 是否是我方主动 detach（服务端回 detached 后关闭，不算异常断线）。
   bool get detachedByUs => _sentDetach;
+
+  /// 是否由我方主动断开（detach/close/forceClose）。消费方据此跳过自动重连。
+  bool get closedByUs => _closedByUs;
 
   /// 服务端对该 session 返回了 session-not-found（已过期/被删）。
   bool get sessionNotFound => _notFound;
@@ -86,6 +93,7 @@ class TerminalSocket {
   Future<void> detach() async {
     if (_closed) return;
     _sentDetach = true;
+    _closedByUs = true;
     _send(WsFrames.detachFrame);
     await done.timeout(const Duration(seconds: 3), onTimeout: () {});
     _close();
@@ -93,6 +101,7 @@ class TerminalSocket {
 
   /// 终止远程会话（PTY 会被 kill）。
   void close() {
+    _closedByUs = true;
     _send(WsFrames.closeFrame);
     _close();
   }
@@ -114,10 +123,14 @@ class TerminalSocket {
     _closed = true;
     _ws.close();
     if (!_doneCompleter.isCompleted) _doneCompleter.complete();
+    if (!_frameController.isClosed) _frameController.close();
   }
 
   /// 立即关闭底层连接（切换/重连场景），不发 detach。
-  void forceClose() => _close();
+  void forceClose() {
+    _closedByUs = true;
+    _close();
+  }
 }
 
 final terminalSocketFactoryProvider = Provider<TerminalSocketFactory>((ref) {

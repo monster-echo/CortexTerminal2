@@ -61,6 +61,13 @@ class ErrorFrame extends ServerFrame {
   final String? message;
 }
 
+/// 同 session 被第二客户端附着挤掉（协议预留：Gateway 将在 WS 面新增此帧，
+/// 对照 SignalR 的 SessionDisplaced；服务端发完即关闭连接）。
+class DisplacedFrame extends ServerFrame {
+  const DisplacedFrame({this.reason});
+  final String? reason;
+}
+
 class PongFrame extends ServerFrame {
   const PongFrame({required this.timestamp});
   final int timestamp;
@@ -116,6 +123,8 @@ class WsFrames {
           code: (decoded['code'] as String?) ?? 'unknown',
           message: decoded['message'] as String?,
         );
+      case 'displaced':
+        return DisplacedFrame(reason: decoded['reason'] as String?);
       case 'pong':
         return PongFrame(timestamp: (decoded['timestamp'] as num?)?.toInt() ?? 0);
       case 'latencyAck':

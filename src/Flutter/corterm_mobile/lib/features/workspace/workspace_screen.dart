@@ -271,7 +271,9 @@ class _TerminalArea extends ConsumerWidget {
             child: _Banner(
               text: entry.connState == TerminalConnState.exited
                   ? l10n.sessionEndedBanner(entry.exitReason ?? '')
-                  : l10n.sessionErrorBanner,
+                  : entry.errorMessage == 'displaced'
+                      ? l10n.displacedBanner
+                      : l10n.sessionErrorBanner,
               busy: false,
               onTapReconnect: () => controller.open(sessionId),
               reconnectLabel: l10n.tapToReconnect,

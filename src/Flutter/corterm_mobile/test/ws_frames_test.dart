@@ -50,6 +50,14 @@ void main() {
       expect(frame.clientTime, 1000);
     });
 
+    test('parses displaced frame (协议预留：第二客户端挤掉)', () {
+      final frame = WsFrames.parseServerFrame('{"type":"displaced"}') as DisplacedFrame;
+      expect(frame.reason, isNull);
+      final withReason =
+          WsFrames.parseServerFrame('{"type":"displaced","reason":"superseded"}') as DisplacedFrame;
+      expect(withReason.reason, 'superseded');
+    });
+
     test('throws on unknown type (no silent swallow)', () {
       expect(
         () => WsFrames.parseServerFrame('{"type":"wat"}'),
