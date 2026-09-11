@@ -18,6 +18,7 @@ class WorkspaceState {
     this.openedSessionIds = const [],
     this.entries = const {},
     this.ctrlArmed = false,
+    this.altArmed = false,
   });
 
   final String? currentSessionId;
@@ -29,6 +30,9 @@ class WorkspaceState {
   /// 粘性 CTRL（MAUI 同款）：armed 后下一个软键盘字母变成控制字符。
   final bool ctrlArmed;
 
+  /// 粘性 ALT（MAUI 同款）：armed 后下一个键带 ESC 前缀（meta 键序列）。
+  final bool altArmed;
+
   SessionTerminalState? entryOf(String? sessionId) =>
       sessionId == null ? null : entries[sessionId];
 
@@ -37,12 +41,14 @@ class WorkspaceState {
     List<String>? openedSessionIds,
     Map<String, SessionTerminalState>? entries,
     bool? ctrlArmed,
+    bool? altArmed,
   }) =>
       WorkspaceState(
         currentSessionId: currentSessionId ?? this.currentSessionId,
         openedSessionIds: openedSessionIds ?? this.openedSessionIds,
         entries: entries ?? this.entries,
         ctrlArmed: ctrlArmed ?? this.ctrlArmed,
+        altArmed: altArmed ?? this.altArmed,
       );
 }
 
@@ -305,6 +311,10 @@ class WorkspaceController extends StateNotifier<WorkspaceState> {
       state = state.copyWith(ctrlArmed: false);
       if (payload.isEmpty) return;
     }
+    if (state.altArmed) {
+      payload = '\x1b$payload';
+      state = state.copyWith(altArmed: false);
+    }
     final socket = _sockets[sessionId];
     if (socket == null || !entry.canInput) {
       throw StateError('session $sessionId is not attached for input');
@@ -330,7 +340,9 @@ class WorkspaceController extends StateNotifier<WorkspaceState> {
 
   void setCtrlArmed(bool armed) => state = state.copyWith(ctrlArmed: armed);
 
-  /// 工具栏直接按键（ESC/TAB/方向键）。
+  void setAltArmed(bool armed) => state = state.copyWith(altArmed: armed);
+
+  /// 工具栏直接按键（ESC/TAB/方向键/HOME/END）。
   void sendKey(String seq) {
     final id = state.currentSessionId;
     if (id == null) return;
@@ -341,6 +353,10 @@ class WorkspaceController extends StateNotifier<WorkspaceState> {
       payload = _applyCtrl(seq);
       state = state.copyWith(ctrlArmed: false);
       if (payload.isEmpty) return;
+    }
+    if (state.altArmed) {
+      payload = '\x1b$payload';
+      state = state.copyWith(altArmed: false);
     }
     _sockets[id]?.input(payload);
   }

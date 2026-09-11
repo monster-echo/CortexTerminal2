@@ -1,0 +1,280 @@
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import '../../../l10n/app_localizations.dart';
+import '../../../shared/widgets/app_bar.dart';
+import '../../../shared/widgets/list_group.dart';
+import '../../../shared/widgets/sheets_and_dialogs.dart';
+import '../../../shared/widgets/states.dart';
+import '../data/support_repository.dart';
+
+/// 联系客服（对齐 MAUI ContactSupportPage）：QQ 群 / Telegram 群卡片 + 邮箱。
+/// 二维码预览大图，保存走系统分享（对齐 MAUI，不申请相册权限）。
+class SupportScreen extends ConsumerWidget {
+  const SupportScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final scheme = ShadTheme.of(context).colorScheme;
+    final info = ref.watch(supportInfoProvider);
+
+    return Scaffold(
+      backgroundColor: scheme.background,
+      appBar: CortermAppBar(
+        title: l10n.supportTitle,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: scheme.foreground),
+          onPressed: () => context.pop(),
+        ),
+      ),
+      body: info.when(
+        loading: () => const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+        error: (e, _) => ErrorState(message: '$e'),
+        data: (data) => ListView(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          children: [
+            if (data.qqGroup != null)
+              _GroupCard(
+                icon: Icons.forum_outlined,
+                title: data.qqGroup!.name,
+                subtitle: data.qqGroup!.number ?? '',
+                qrCodeUrl: data.qqGroup!.qrCodeUrl,
+                onCopy: data.qqGroup!.number == null || data.qqGroup!.number!.isEmpty
+                    ? null
+                    : () {
+                        Clipboard.setData(ClipboardData(text: data.qqGroup!.number!));
+                        showAppToast(context, l10n.copied);
+                      },
+                onOpen: null,
+              ),
+            if (data.telegramGroup != null)
+              _GroupCard(
+                icon: Icons.send_outlined,
+                title: data.telegramGroup!.name,
+                subtitle: data.telegramGroup!.url ?? '',
+                qrCodeUrl: data.telegramGroup!.qrCodeUrl,
+                onCopy: data.telegramGroup!.url == null || data.telegramGroup!.url!.isEmpty
+                    ? null
+                    : () {
+                        Clipboard.setData(ClipboardData(text: data.telegramGroup!.url!));
+                        showAppToast(context, l10n.copied);
+                      },
+                onOpen: data.telegramGroup!.url == null ||
+                        data.telegramGroup!.url!.isEmpty
+                    ? null
+                    : () => launchUrl(
+                        Uri.parse(data.telegramGroup!.url!),
+                        mode: LaunchMode.externalApplication),
+              ),
+            if (data.email.isNotEmpty)
+              _GroupCard(
+                icon: Icons.mail_outline,
+                title: l10n.supportEmail,
+                subtitle: data.email,
+                qrCodeUrl: '',
+                onCopy: () {
+                  Clipboard.setData(ClipboardData(text: data.email));
+                  showAppToast(context, l10n.copied);
+                },
+                onOpen: () =>
+                    launchUrl(Uri.parse('mailto:${data.email}'), mode: LaunchMode.externalApplication),
+              ),
+            const SizedBox(height: 24),
+            AppRow(
+              icon: Icons.feedback_outlined,
+              label: l10n.feedbackTitle,
+              chevron: true,
+              onTap: () => context.push('/settings/feedback'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _GroupCard extends StatelessWidget {
+  const _GroupCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.qrCodeUrl,
+    required this.onCopy,
+    required this.onOpen,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final String qrCodeUrl;
+  final VoidCallback? onCopy;
+  final VoidCallback? onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final scheme = ShadTheme.of(context).colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: scheme.card,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: scheme.border),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, size: 20, color: scheme.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.w600, color: scheme.foreground),
+                  ),
+                ),
+                if (subtitle.isNotEmpty)
+                  Text(
+                    subtitle,
+                    style: TextStyle(fontSize: 13, color: scheme.mutedForeground),
+                  ),
+              ],
+            ),
+            if (qrCodeUrl.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Center(
+                child: GestureDetector(
+                  onTap: () => _previewQr(context),
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Image.network(
+                      qrCodeUrl,
+                      width: 132,
+                      height: 132,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => SizedBox(
+                        width: 132,
+                        height: 132,
+                        child: Icon(Icons.qr_code_2_rounded, size: 32, color: scheme.mutedForeground),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                if (onCopy != null)
+                  ShadButton.outline(
+                    size: ShadButtonSize.sm,
+                    onPressed: onCopy,
+                    child: Text(l10n.copy),
+                  ),
+                if (onOpen != null) ...[
+                  const SizedBox(width: 8),
+                  ShadButton.secondary(
+                    size: ShadButtonSize.sm,
+                    onPressed: onOpen,
+                    child: Text(l10n.tunnelOpen),
+                  ),
+                ],
+                if (qrCodeUrl.isNotEmpty) ...[
+                  const SizedBox(width: 8),
+                  ShadButton.secondary(
+                    size: ShadButtonSize.sm,
+                    onPressed: () => _shareQr(context),
+                    child: Text(l10n.supportSaveQr),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _previewQr(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    showCortermSheet(
+      context: context,
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Image.network(
+                  qrCodeUrl,
+                  width: 280,
+                  height: 280,
+                  fit: BoxFit.cover,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(title,
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+              Text(subtitle,
+                  style:
+                      TextStyle(fontSize: 13, color: ShadTheme.of(context).colorScheme.mutedForeground)),
+              const SizedBox(height: 12),
+              ShadButton.outline(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text(l10n.cancel),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _shareQr(BuildContext context) async {
+    // 下载二维码 → 临时文件 → 系统分享面板（含"存储图像"，MAUI 同款）。
+    final http = HttpClient();
+    try {
+      final request = await http.getUrl(Uri.parse(qrCodeUrl));
+      final response = await request.close();
+      if (response.statusCode != 200) {
+        throw StateError('QR download failed: HTTP ${response.statusCode}');
+      }
+      final bytes = await response.fold<BytesBuilder>(
+          BytesBuilder(), (b, chunk) => b..add(chunk));
+      final data = bytes.takeBytes();
+      final dir = await Directory.systemTemp.createTemp('corterm_qr');
+      final file = File('${dir.path}/qr.png');
+      await file.writeAsBytes(data, flush: true);
+      await SharePlus.instance.share(
+        ShareParams(files: [XFile(file.path, name: title, mimeType: 'image/png')]),
+      );
+    } finally {
+      http.close();
+    }
+  }
+}

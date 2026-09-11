@@ -643,4 +643,66 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get terminalSize => 'Terminal size';
+
+  @override
+  String get supportTitle => 'Contact Support';
+
+  @override
+  String get supportEmail => 'Email';
+
+  @override
+  String get supportSaveQr => 'Save QR';
+
+  @override
+  String get feedbackTitle => 'Feedback';
+
+  @override
+  String get feedbackBug => 'Bug report';
+
+  @override
+  String get feedbackSuggestion => 'Suggestion';
+
+  @override
+  String get feedbackContent => 'Describe the issue';
+
+  @override
+  String get feedbackContentPlaceholder =>
+      'What happened? What did you expect?';
+
+  @override
+  String get feedbackContact => 'Contact (optional)';
+
+  @override
+  String get feedbackContactPlaceholder => 'Email / Telegram / QQ';
+
+  @override
+  String feedbackAttachments(int cur, int max) {
+    return 'Attachments ($cur/$max)';
+  }
+
+  @override
+  String get feedbackAddImage => 'Add image';
+
+  @override
+  String get feedbackSubmitting => 'Submitting…';
+
+  @override
+  String get feedbackSubmit => 'Submit';
+
+  @override
+  String get feedbackDone => 'Feedback submitted. Thank you!';
+
+  @override
+  String get installWorkerTitle => 'Install a worker';
+
+  @override
+  String get installWorkerIntro =>
+      'Run the installer on your machine to connect it as a worker, then activate it with the command shown there.';
+
+  @override
+  String get installActivateHint =>
+      'After install, run \'corterm activate\' and confirm the code under Settings → Device access.';
+
+  @override
+  String get installCopyCommand => 'Copy command';
 }

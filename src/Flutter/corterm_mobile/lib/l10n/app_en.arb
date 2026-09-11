@@ -270,5 +270,34 @@
   "activateInvalidCode": "Invalid or expired code",
   "deviceAccess": "Device access",
   "scrollbackQuota": "Server scrollback",
-  "terminalSize": "Terminal size"
+  "terminalSize": "Terminal size",
+  "supportTitle": "Contact Support",
+  "supportEmail": "Email",
+  "supportSaveQr": "Save QR",
+  "feedbackTitle": "Feedback",
+  "feedbackBug": "Bug report",
+  "feedbackSuggestion": "Suggestion",
+  "feedbackContent": "Describe the issue",
+  "feedbackContentPlaceholder": "What happened? What did you expect?",
+  "feedbackContact": "Contact (optional)",
+  "feedbackContactPlaceholder": "Email / Telegram / QQ",
+  "feedbackAttachments": "Attachments ({cur}/{max})",
+  "@feedbackAttachments": {
+    "placeholders": {
+      "cur": {
+        "type": "int"
+      },
+      "max": {
+        "type": "int"
+      }
+    }
+  },
+  "feedbackAddImage": "Add image",
+  "feedbackSubmitting": "Submitting…",
+  "feedbackSubmit": "Submit",
+  "feedbackDone": "Feedback submitted. Thank you!",
+  "installWorkerTitle": "Install a worker",
+  "installWorkerIntro": "Run the installer on your machine to connect it as a worker, then activate it with the command shown there.",
+  "installActivateHint": "After install, run 'corterm activate' and confirm the code under Settings → Device access.",
+  "installCopyCommand": "Copy command"
 }

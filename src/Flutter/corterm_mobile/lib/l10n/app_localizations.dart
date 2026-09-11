@@ -1303,6 +1303,120 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Terminal size'**
   String get terminalSize;
+
+  /// No description provided for @supportTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Contact Support'**
+  String get supportTitle;
+
+  /// No description provided for @supportEmail.
+  ///
+  /// In en, this message translates to:
+  /// **'Email'**
+  String get supportEmail;
+
+  /// No description provided for @supportSaveQr.
+  ///
+  /// In en, this message translates to:
+  /// **'Save QR'**
+  String get supportSaveQr;
+
+  /// No description provided for @feedbackTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Feedback'**
+  String get feedbackTitle;
+
+  /// No description provided for @feedbackBug.
+  ///
+  /// In en, this message translates to:
+  /// **'Bug report'**
+  String get feedbackBug;
+
+  /// No description provided for @feedbackSuggestion.
+  ///
+  /// In en, this message translates to:
+  /// **'Suggestion'**
+  String get feedbackSuggestion;
+
+  /// No description provided for @feedbackContent.
+  ///
+  /// In en, this message translates to:
+  /// **'Describe the issue'**
+  String get feedbackContent;
+
+  /// No description provided for @feedbackContentPlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'What happened? What did you expect?'**
+  String get feedbackContentPlaceholder;
+
+  /// No description provided for @feedbackContact.
+  ///
+  /// In en, this message translates to:
+  /// **'Contact (optional)'**
+  String get feedbackContact;
+
+  /// No description provided for @feedbackContactPlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'Email / Telegram / QQ'**
+  String get feedbackContactPlaceholder;
+
+  /// No description provided for @feedbackAttachments.
+  ///
+  /// In en, this message translates to:
+  /// **'Attachments ({cur}/{max})'**
+  String feedbackAttachments(int cur, int max);
+
+  /// No description provided for @feedbackAddImage.
+  ///
+  /// In en, this message translates to:
+  /// **'Add image'**
+  String get feedbackAddImage;
+
+  /// No description provided for @feedbackSubmitting.
+  ///
+  /// In en, this message translates to:
+  /// **'Submitting…'**
+  String get feedbackSubmitting;
+
+  /// No description provided for @feedbackSubmit.
+  ///
+  /// In en, this message translates to:
+  /// **'Submit'**
+  String get feedbackSubmit;
+
+  /// No description provided for @feedbackDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Feedback submitted. Thank you!'**
+  String get feedbackDone;
+
+  /// No description provided for @installWorkerTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Install a worker'**
+  String get installWorkerTitle;
+
+  /// No description provided for @installWorkerIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Run the installer on your machine to connect it as a worker, then activate it with the command shown there.'**
+  String get installWorkerIntro;
+
+  /// No description provided for @installActivateHint.
+  ///
+  /// In en, this message translates to:
+  /// **'After install, run \'corterm activate\' and confirm the code under Settings → Device access.'**
+  String get installActivateHint;
+
+  /// No description provided for @installCopyCommand.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy command'**
+  String get installCopyCommand;
 }
 
 class _AppLocalizationsDelegate

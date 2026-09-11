@@ -5,22 +5,27 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import '../../../l10n/app_localizations.dart';
 
 /// 键盘工具栏（§31/§32）：高度 42，横排可滚动。
-/// ESC / TAB / CTRL(粘性) / ↑ / ↓ / 粘贴 / 收键盘。未来可加 ALT、←→、HOME/END。
+/// ESC / TAB / STAB / CTRL(粘性) / ALT(粘性) / 四方向 / HOME / END / 粘贴 / 收键盘。
+/// 对齐 MAUI TerminalSessionPage 的按键集合。
 class TerminalToolbar extends StatelessWidget {
   const TerminalToolbar({
     super.key,
     required this.enabled,
     required this.ctrlArmed,
+    required this.altArmed,
     required this.onKey,
     required this.onCtrlToggle,
+    required this.onAltToggle,
     required this.onPaste,
   });
 
   /// 仅 live 时可用，防止输入落入未附着的会话。
   final bool enabled;
   final bool ctrlArmed;
+  final bool altArmed;
   final void Function(String seq) onKey;
   final void Function(bool armed) onCtrlToggle;
+  final void Function(bool armed) onAltToggle;
   final void Function(String text) onPaste;
 
   static const height = 42.0;
@@ -72,9 +77,15 @@ class TerminalToolbar extends StatelessWidget {
                 children: [
                   key('ESC', () => onKey('\x1b')),
                   key('TAB', () => onKey('\t')),
+                  key('S-TAB', () => onKey('\x1b[Z')),
                   key('CTRL', () => onCtrlToggle(!ctrlArmed), active: ctrlArmed),
+                  key('ALT', () => onAltToggle(!altArmed), active: altArmed),
                   key('↑', () => onKey('\x1b[A')),
                   key('↓', () => onKey('\x1b[B')),
+                  key('←', () => onKey('\x1b[D')),
+                  key('→', () => onKey('\x1b[C')),
+                  key('HOME', () => onKey('\x1b[H')),
+                  key('END', () => onKey('\x1b[F')),
                   key(l10n.paste, () async {
                     final text = await Clipboard.getData('text/plain');
                     if (text?.text != null && text!.text!.isNotEmpty) {

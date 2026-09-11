@@ -207,5 +207,34 @@
   "activateInvalidCode": "激活码无效或已过期",
   "deviceAccess": "设备接入",
   "scrollbackQuota": "服务端 Scrollback",
-  "terminalSize": "终端尺寸"
+  "terminalSize": "终端尺寸",
+  "supportTitle": "联系客服",
+  "supportEmail": "邮箱",
+  "supportSaveQr": "保存二维码",
+  "feedbackTitle": "意见反馈",
+  "feedbackBug": "问题反馈",
+  "feedbackSuggestion": "功能建议",
+  "feedbackContent": "问题描述",
+  "feedbackContentPlaceholder": "发生了什么？期望是什么？",
+  "feedbackContact": "联系方式（选填）",
+  "feedbackContactPlaceholder": "邮箱 / Telegram / QQ",
+  "feedbackAttachments": "配图（{cur}/{max}）",
+  "@feedbackAttachments": {
+    "placeholders": {
+      "cur": {
+        "type": "int"
+      },
+      "max": {
+        "type": "int"
+      }
+    }
+  },
+  "feedbackAddImage": "添加配图",
+  "feedbackSubmitting": "提交中…",
+  "feedbackSubmit": "提交反馈",
+  "feedbackDone": "反馈已提交，感谢！",
+  "installWorkerTitle": "安装 Worker",
+  "installWorkerIntro": "在你的机器上运行安装脚本，将其接入为 Worker，然后按提示激活。",
+  "installActivateHint": "安装后运行 'corterm activate'，再到 设置 → 设备接入 确认激活码。",
+  "installCopyCommand": "复制命令"
 }

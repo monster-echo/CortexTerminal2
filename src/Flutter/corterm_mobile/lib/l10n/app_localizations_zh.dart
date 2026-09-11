@@ -636,4 +636,64 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get terminalSize => '终端尺寸';
+
+  @override
+  String get supportTitle => '联系客服';
+
+  @override
+  String get supportEmail => '邮箱';
+
+  @override
+  String get supportSaveQr => '保存二维码';
+
+  @override
+  String get feedbackTitle => '意见反馈';
+
+  @override
+  String get feedbackBug => '问题反馈';
+
+  @override
+  String get feedbackSuggestion => '功能建议';
+
+  @override
+  String get feedbackContent => '问题描述';
+
+  @override
+  String get feedbackContentPlaceholder => '发生了什么？期望是什么？';
+
+  @override
+  String get feedbackContact => '联系方式（选填）';
+
+  @override
+  String get feedbackContactPlaceholder => '邮箱 / Telegram / QQ';
+
+  @override
+  String feedbackAttachments(int cur, int max) {
+    return '配图（$cur/$max）';
+  }
+
+  @override
+  String get feedbackAddImage => '添加配图';
+
+  @override
+  String get feedbackSubmitting => '提交中…';
+
+  @override
+  String get feedbackSubmit => '提交反馈';
+
+  @override
+  String get feedbackDone => '反馈已提交，感谢！';
+
+  @override
+  String get installWorkerTitle => '安装 Worker';
+
+  @override
+  String get installWorkerIntro => '在你的机器上运行安装脚本，将其接入为 Worker，然后按提示激活。';
+
+  @override
+  String get installActivateHint =>
+      '安装后运行 \'corterm activate\'，再到 设置 → 设备接入 确认激活码。';
+
+  @override
+  String get installCopyCommand => '复制命令';
 }

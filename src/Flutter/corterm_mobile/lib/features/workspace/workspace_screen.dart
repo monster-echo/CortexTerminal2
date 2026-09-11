@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -80,8 +81,10 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> {
           : TerminalToolbar(
               enabled: entry.canInput,
               ctrlArmed: ws.ctrlArmed,
+              altArmed: ws.altArmed,
               onKey: controller.sendKey,
               onCtrlToggle: controller.setCtrlArmed,
+              onAltToggle: controller.setAltArmed,
               onPaste: controller.sendInputRaw,
             ),
     );
@@ -223,17 +226,67 @@ class _EmptyWorkspace extends ConsumerWidget {
 }
 
 /// 终端区域：TerminalView + 轻量状态 banner（§56：不弹重复 Dialog）。
-class _TerminalArea extends ConsumerWidget {
+/// 长按选择（vendored xterm 内置）→ 浮出复制按钮（MAUI 同款交互）。
+class _TerminalArea extends ConsumerStatefulWidget {
   const _TerminalArea({required this.sessionId, required this.entry});
 
   final String sessionId;
   final SessionTerminalState entry;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_TerminalArea> createState() => _TerminalAreaState();
+}
+
+class _TerminalAreaState extends ConsumerState<_TerminalArea> {
+  final _terminalController = TerminalController();
+
+  @override
+  void initState() {
+    super.initState();
+    _terminalController.addListener(_onSelectionChanged);
+  }
+
+  void _onSelectionChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void didUpdateWidget(covariant _TerminalArea oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.entry.epoch != oldWidget.entry.epoch) {
+      // reattach 后 Terminal buffer 已重建，旧 selection 锚点失效。
+      _terminalController.clearSelection();
+    }
+  }
+
+  @override
+  void dispose() {
+    _terminalController.removeListener(_onSelectionChanged);
+    _terminalController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _copySelection() async {
+    final l10n = AppLocalizations.of(context)!;
+    final range = _terminalController.selection;
+    if (range == null) return;
+    final text = widget.entry.terminal.buffer.getText(range);
+    if (text.isEmpty) return;
+    await Clipboard.setData(ClipboardData(text: text));
+    _terminalController.clearSelection();
+    if (mounted) {
+      showAppToast(context, l10n.copied);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final fontSize = ref.watch(fontSizeProvider);
     final controller = ref.read(workspaceControllerProvider.notifier);
+    final entry = widget.entry;
+    final sessionId = widget.sessionId;
+    final hasSelection = _terminalController.selection != null;
 
     final bannerText = switch (entry.connState) {
       TerminalConnState.connecting => l10n.connectBanner,
@@ -249,12 +302,19 @@ class _TerminalArea extends ConsumerWidget {
             // epoch 变化（reattach 重放）→ 重建 view，buffer 全新。
             key: ValueKey('term-$sessionId-${entry.epoch}'),
             entry.terminal,
+            controller: _terminalController,
             theme: cortermTerminalTheme,
             textStyle: TerminalStyle(fontSize: fontSize),
             readOnly: !entry.canInput,
             autofocus: true,
           ),
         ),
+        if (hasSelection)
+          Positioned(
+            top: 8,
+            right: 16,
+            child: _CopyButton(onCopy: _copySelection),
+          ),
         if (bannerText != null)
           Positioned(
             top: 8,
@@ -280,6 +340,43 @@ class _TerminalArea extends ConsumerWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+class _CopyButton extends StatelessWidget {
+  const _CopyButton({required this.onCopy});
+
+  final Future<void> Function() onCopy;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = ShadTheme.of(context).colorScheme;
+    return Material(
+      color: scheme.primary,
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: onCopy,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.copy_rounded, size: 14, color: scheme.background),
+              const SizedBox(width: 4),
+              Text(
+                AppLocalizations.of(context)!.copy,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: scheme.background,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

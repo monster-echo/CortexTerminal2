@@ -64,6 +64,18 @@ class SettingsScreen extends ConsumerWidget {
               chevron: true,
               onTap: () => context.push('/settings/profile'),
             ),
+            AppRow(
+              icon: Icons.headset_mic_outlined,
+              label: l10n.supportTitle,
+              chevron: true,
+              onTap: () => context.push('/settings/support'),
+            ),
+            AppRow(
+              icon: Icons.feedback_outlined,
+              label: l10n.feedbackTitle,
+              chevron: true,
+              onTap: () => context.push('/settings/feedback'),
+            ),
           ]),
 
           // ---- 应用偏好 ----

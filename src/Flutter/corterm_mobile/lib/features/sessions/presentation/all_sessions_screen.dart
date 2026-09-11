@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../../shared/widgets/app_bar.dart';
+import '../../../shared/widgets/install_prompt.dart';
 import '../../../shared/widgets/list_group.dart';
 
 import '../../../l10n/app_localizations.dart';
@@ -49,16 +50,34 @@ class AllSessionsScreen extends ConsumerWidget {
         ],
       ),
       body: groups.running.isEmpty && groups.recent.isEmpty
-          ? EmptyState(
-              title: l10n.noSessions,
-              actionLabel: l10n.newSession,
-              onAction: () => showNewSessionSheet(
-                context,
-                onCreated: (sessionId) {
-                  ref.read(workspaceControllerProvider.notifier).open(sessionId);
-                  context.go('/workspace');
-                },
-              ),
+          ? ListView(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+              children: [
+                EmptyState(
+                  title: l10n.noSessions,
+                  actionLabel: l10n.newSession,
+                  onAction: () => showNewSessionSheet(
+                    context,
+                    onCreated: (sessionId) {
+                      ref.read(workspaceControllerProvider.notifier).open(sessionId);
+                      context.go('/workspace');
+                    },
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: scheme.card,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: scheme.border),
+                  ),
+                  child: InstallPromptCard(
+                    title: l10n.installWorkerTitle,
+                    intro: l10n.installWorkerIntro,
+                  ),
+                ),
+              ],
             )
           : RefreshIndicator(
               onRefresh: () async {
