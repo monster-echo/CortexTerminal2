@@ -1,0 +1,173 @@
+/// `/ws/terminal` 协议帧编解码（纯函数，可单测）。
+///
+/// 协议见 Gateway `WebSockets/TerminalWebSocketHandler.cs`：
+/// 全部为 UTF-8 JSON text frame，二进制 payload 走 base64。
+/// 服务端序列：replaying → replay×N → replayCompleted → live。
+library;
+
+import 'dart:convert';
+
+/// 服务端 → 客户端帧。
+sealed class ServerFrame {
+  const ServerFrame();
+}
+
+class ReplayingFrame extends ServerFrame {
+  const ReplayingFrame();
+}
+
+class ReplayFrame extends ServerFrame {
+  const ReplayFrame({required this.bytes, required this.stream});
+
+  final List<int> bytes;
+  final String stream;
+}
+
+class ReplayCompletedFrame extends ServerFrame {
+  const ReplayCompletedFrame();
+}
+
+class OutputFrame extends ServerFrame {
+  const OutputFrame({required this.bytes, required this.stream});
+
+  final List<int> bytes;
+  final String stream;
+}
+
+class LiveFrame extends ServerFrame {
+  const LiveFrame();
+}
+
+class DetachedFrame extends ServerFrame {
+  const DetachedFrame();
+}
+
+class ExitedFrame extends ServerFrame {
+  const ExitedFrame({this.exitCode, this.reason});
+
+  final int? exitCode;
+  final String? reason;
+}
+
+class ExpiredFrame extends ServerFrame {
+  const ExpiredFrame({this.reason});
+  final String? reason;
+}
+
+class ErrorFrame extends ServerFrame {
+  const ErrorFrame({required this.code, this.message});
+
+  final String code;
+  final String? message;
+}
+
+class PongFrame extends ServerFrame {
+  const PongFrame({required this.timestamp});
+  final int timestamp;
+}
+
+class LatencyAckFrame extends ServerFrame {
+  const LatencyAckFrame({required this.probeId, required this.clientTime});
+
+  final String probeId;
+  final int clientTime;
+}
+
+class WsFrames {
+  /// 解析服务端 JSON 帧。未知 type 原样抛 [FormatException]（不静默吞）。
+  static ServerFrame parseServerFrame(String raw) {
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(raw);
+    } on FormatException catch (e) {
+      throw FormatException('ws/terminal: malformed JSON frame: ${e.message}');
+    }
+    if (decoded is! Map<String, dynamic>) {
+      throw const FormatException('ws/terminal: frame is not a JSON object');
+    }
+    switch (decoded['type'] as String?) {
+      case 'replaying':
+        return const ReplayingFrame();
+      case 'replay':
+        return ReplayFrame(
+          bytes: _decodePayload(decoded['payload']),
+          stream: (decoded['stream'] as String?) ?? 'stdout',
+        );
+      case 'replayCompleted':
+        return const ReplayCompletedFrame();
+      case 'output':
+        return OutputFrame(
+          bytes: _decodePayload(decoded['payload']),
+          stream: (decoded['stream'] as String?) ?? 'stdout',
+        );
+      case 'live':
+        return const LiveFrame();
+      case 'detached':
+        return const DetachedFrame();
+      case 'exited':
+        return ExitedFrame(
+          exitCode: (decoded['exitCode'] as num?)?.toInt(),
+          reason: decoded['reason'] as String?,
+        );
+      case 'expired':
+        return ExpiredFrame(reason: decoded['reason'] as String?);
+      case 'error':
+        return ErrorFrame(
+          code: (decoded['code'] as String?) ?? 'unknown',
+          message: decoded['message'] as String?,
+        );
+      case 'pong':
+        return PongFrame(timestamp: (decoded['timestamp'] as num?)?.toInt() ?? 0);
+      case 'latencyAck':
+        return LatencyAckFrame(
+          probeId: (decoded['probeId'] as String?) ?? '',
+          clientTime: (decoded['clientTime'] as num?)?.toInt() ?? 0,
+        );
+      default:
+        throw FormatException('ws/terminal: unknown frame type: ${decoded['type']}');
+    }
+  }
+
+  static List<int> _decodePayload(Object? payload) {
+    if (payload is! String || payload.isEmpty) return const [];
+    return base64Decode(payload);
+  }
+
+  // ---- 客户端 → 服务端 ----
+
+  static String input(String data) => jsonEncode({
+        'type': 'input',
+        'payload': base64Encode(utf8.encode(data)),
+      });
+
+  static String resize({required int columns, required int rows}) => jsonEncode({
+        'type': 'resize',
+        'columns': columns,
+        'rows': rows,
+      });
+
+  static const detachFrame = '{"type":"detach"}';
+
+  static const closeFrame = '{"type":"close"}';
+
+  static String ping(int timestamp) => jsonEncode({'type': 'ping', 'timestamp': timestamp});
+
+  static String latencyProbe(String probeId, int clientTime) => jsonEncode({
+        'type': 'latencyProbe',
+        'probeId': probeId,
+        'clientTime': clientTime,
+      });
+
+  /// WS URL：`wss://host/ws/terminal?token=<jwt>&sessionId=<id>`。
+  static Uri buildUri({required String gatewayBaseUrl, required String token, required String sessionId}) {
+    final http = Uri.parse(gatewayBaseUrl);
+    final isSecure = http.scheme == 'https';
+    return Uri(
+      scheme: isSecure ? 'wss' : 'ws',
+      host: http.host,
+      port: http.port,
+      path: '/ws/terminal',
+      queryParameters: {'token': token, 'sessionId': sessionId},
+    );
+  }
+}

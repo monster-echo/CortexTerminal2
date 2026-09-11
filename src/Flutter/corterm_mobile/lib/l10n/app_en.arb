@@ -1,0 +1,241 @@
+{
+  "@@locale": "en",
+  "appName": "Corterm",
+  "cancel": "Cancel",
+  "ok": "OK",
+  "retry": "Retry",
+  "delete": "Delete",
+  "rename": "Rename",
+  "copy": "Copy",
+  "copied": "Copied",
+  "paste": "Paste",
+  "save": "Save",
+  "unknown": "Unknown",
+  "loading": "Loading…",
+  "gatewayUrl": "Gateway URL",
+  "username": "Username",
+  "password": "Password",
+  "phoneNumber": "Phone number",
+  "verificationCode": "Verification code",
+  "sendCode": "Send code",
+  "codeSentTo": "Code sent to {phone}",
+  "@codeSentTo": {
+    "placeholders": {
+      "phone": {
+        "type": "String"
+      }
+    }
+  },
+  "passwordLogin": "Password",
+  "phoneLogin": "Phone",
+  "signIn": "Sign in",
+  "signingIn": "Signing in…",
+  "sendingCode": "Sending…",
+  "slideToVerify": "Slide to verify",
+  "verifying": "Verifying…",
+  "phoneCodeResendIn": "Resend in {seconds}s",
+  "@phoneCodeResendIn": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "invalidGatewayUrl": "Enter a valid gateway URL",
+  "invalidUsername": "Enter your username",
+  "invalidPassword": "Enter your password",
+  "invalidPhone": "Enter a valid phone number",
+  "invalidCode": "Enter the verification code",
+  "loginFailed": "Sign in failed",
+  "homeTitle": "Home",
+  "runningSessions": "Running Sessions",
+  "recentSessions": "Recent Sessions",
+  "workers": "Workers",
+  "newSession": "New Session",
+  "noActiveSessions": "No active sessions",
+  "noActiveSessionsHint": "Start a remote terminal to begin.",
+  "noWorkers": "No workers connected",
+  "workerOffline": "Offline",
+  "workerOnline": "Online",
+  "allSessions": "All Sessions",
+  "noSessions": "No sessions yet",
+  "sessionRenameTitle": "Rename session",
+  "sessionNameLabel": "Session name",
+  "terminateSession": "Terminate Session",
+  "deleteSession": "Delete Session",
+  "deleteSessionConfirmTitle": "Delete {name}?",
+  "deleteSessionConfirmBody": "This removes the session record. The remote process is already stopped.",
+  "terminateConfirmTitle": "Terminate {name}?",
+  "terminateConfirmBody": "This will stop the remote session and the running process.",
+  "terminate": "Terminate",
+  "statusAttached": "Running",
+  "statusDetachedGracePeriod": "Running",
+  "statusRecovering": "Recovering",
+  "statusExited": "Ended",
+  "statusExpired": "Ended",
+  "groupActive": "ACTIVE",
+  "groupEnded": "ENDED",
+  "sessionDetails": "Session Details",
+  "sessionId": "Session ID",
+  "agentKind": "Agent",
+  "worker": "Worker",
+  "createdAt": "Created",
+  "lastActivity": "Last activity",
+  "exitCode": "Exit code",
+  "exitReason": "Exit reason",
+  "sessions": "Sessions",
+  "current": "Current",
+  "selectSession": "Select session",
+  "createSessionFailed": "Failed to create session",
+  "chooseWorker": "Choose worker",
+  "runtimeTerminal": "Terminal",
+  "runtimeShell": "Shell",
+  "runtimeShellHint": "Run any CLI — Claude Code, Codex, and other agents are detected automatically.",
+  "connection": "Connection",
+  "connectionState": "Status",
+  "gateway": "Gateway",
+  "latency": "Latency",
+  "network": "Network",
+  "networkWifi": "Wi-Fi",
+  "networkMobile": "Mobile data",
+  "networkEthernet": "Ethernet",
+  "networkNone": "No network",
+  "connLive": "Connected",
+  "connConnecting": "Connecting…",
+  "connReplaying": "Restoring…",
+  "connReconnecting": "Reconnecting…",
+  "connClosed": "Disconnected",
+  "connExited": "Ended",
+  "connError": "Error",
+  "connIdle": "Idle",
+  "gatewayConnected": "Connected",
+  "gatewayDisconnected": "Disconnected",
+  "ms": "{n} ms",
+  "@ms": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "more": "More",
+  "files": "Files",
+  "settings": "Settings",
+  "reconnectBanner": "Reconnecting…",
+  "connectBanner": "Connecting…",
+  "restoringBanner": "Restoring session…",
+  "sessionEndedBanner": "Session ended ({reason})",
+  "@sessionEndedBanner": {
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
+  "sessionErrorBanner": "Connection error",
+  "displacedBanner": "Opened elsewhere — tap to reconnect",
+  "tapToReconnect": "Tap to reconnect",
+  "account": "Account",
+  "appearance": "Appearance",
+  "terminal": "Terminal",
+  "keyboardToolbar": "Keyboard Toolbar",
+  "language": "Language",
+  "security": "Security",
+  "about": "About",
+  "appearanceSystem": "System",
+  "appearanceLight": "Light",
+  "appearanceDark": "Dark",
+  "terminalFontSize": "Font size",
+  "languageSystem": "System",
+  "languageEnglish": "English",
+  "languageChinese": "简体中文",
+  "changePassword": "Change password",
+  "currentPassword": "Current password",
+  "newPassword": "New password",
+  "passwordChanged": "Password changed",
+  "logout": "Sign out",
+  "logoutConfirm": "Sign out of Corterm?",
+  "appVersion": "Version",
+  "gatewayVersion": "Gateway version",
+  "fontSizeFmt": "{pt} pt",
+  "@fontSizeFmt": {
+    "placeholders": {
+      "pt": {
+        "type": "double"
+      }
+    }
+  },
+  "legal": "Legal & Policies",
+  "legalVersionCaption": "Effective: {date}",
+  "@legalVersionCaption": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "legalIndexIntro": "The following documents govern your use of Corterm. The Chinese version is authoritative.",
+  "privacyPolicy": "Privacy Policy",
+  "privacyPolicyDesc": "What we collect, how it is used and stored.",
+  "termsOfService": "Terms of Service",
+  "termsOfServiceDesc": "Scope of the service, acceptable use, liability.",
+  "consentPrefix": "I have read and agree to the ",
+  "consentAnd": " and ",
+  "consentAlertTitle": "Terms & Privacy",
+  "consentAlertBody": "To protect your lawful rights and interests, please read and agree to the Terms of Service and Privacy Policy.",
+  "agree": "Agree",
+  "disagree": "Decline",
+  "deleteAccount": "Delete Account",
+  "deleteAccountConfirmTitle": "Delete this account?",
+  "deleteAccountConfirmBody": "The account, its sessions and preferences will be permanently deleted on the server. This cannot be undone.",
+  "aboutTagline": "Mobile AI Agent Workspace",
+  "filesTitle": "Files",
+  "upload": "Upload",
+  "uploadDone": "Upload complete",
+  "uploadFailed": "Upload failed",
+  "downloadFailed": "Download failed",
+  "emptyFolder": "Empty folder",
+  "listTruncated": "Listing truncated (server limit reached).",
+  "workersTitle": "Workers",
+  "sessionCount": "{n} sessions",
+  "@sessionCount": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "workerHostname": "Hostname",
+  "workerOs": "OS",
+  "workerVersion": "Worker version",
+  "upgrade": "Upgrade",
+  "upgradeConfirm": "Upgrade this worker now?",
+  "openSessions": "Open Sessions",
+  "diagnostics": "Diagnostics",
+  "gatewayReachable": "Gateway reachability",
+  "diagnosticTesting": "Testing…",
+  "diagnosticFail": "Unreachable",
+  "platform": "Device",
+  "keepScreenAwake": "Keep screen awake",
+  "otherLoginMethods": "Other sign-in methods",
+  "oauthPending": "Waiting for {provider}…",
+  "@oauthPending": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      }
+    }
+  },
+  "oauthFailed": "{provider} sign-in failed",
+  "@oauthFailed": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      }
+    }
+  },
+  "createSession": "Create Session",
+  "creating": "Creating…",
+  "selectWorker": "Select worker",
+  "create": "Create"
+}

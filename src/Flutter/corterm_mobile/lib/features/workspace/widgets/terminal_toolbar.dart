@@ -1,0 +1,93 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
+
+import '../../../l10n/app_localizations.dart';
+
+/// 键盘工具栏（§31/§32）：高度 42，横排可滚动。
+/// ESC / TAB / CTRL(粘性) / ↑ / ↓ / 粘贴 / 收键盘。未来可加 ALT、←→、HOME/END。
+class TerminalToolbar extends StatelessWidget {
+  const TerminalToolbar({
+    super.key,
+    required this.enabled,
+    required this.ctrlArmed,
+    required this.onKey,
+    required this.onCtrlToggle,
+    required this.onPaste,
+  });
+
+  /// 仅 live 时可用，防止输入落入未附着的会话。
+  final bool enabled;
+  final bool ctrlArmed;
+  final void Function(String seq) onKey;
+  final void Function(bool armed) onCtrlToggle;
+  final void Function(String text) onPaste;
+
+  static const height = 42.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final scheme = ShadTheme.of(context).colorScheme;
+    final border = scheme.border;
+    final keyStyle = TextStyle(
+      fontSize: 13,
+      fontWeight: FontWeight.w600,
+      color: enabled ? scheme.foreground : scheme.mutedForeground.withValues(alpha: 0.5),
+    );
+
+    Widget key(String label, VoidCallback onTap, {bool active = false}) => Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 3),
+          child: Material(
+            color: active
+                ? scheme.primary.withValues(alpha: 0.18)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(6),
+            child: InkWell(
+              onTap: enabled ? onTap : null,
+              borderRadius: BorderRadius.circular(6),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                child: Text(
+                  label,
+                  style: keyStyle.copyWith(
+                    color: active ? scheme.primary : keyStyle.color,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+
+    return Container(
+      height: height,
+      decoration: BoxDecoration(border: Border(top: BorderSide(color: border))),
+      child: Row(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              child: Row(
+                children: [
+                  key('ESC', () => onKey('\x1b')),
+                  key('TAB', () => onKey('\t')),
+                  key('CTRL', () => onCtrlToggle(!ctrlArmed), active: ctrlArmed),
+                  key('↑', () => onKey('\x1b[A')),
+                  key('↓', () => onKey('\x1b[B')),
+                  key(l10n.paste, () async {
+                    final text = await Clipboard.getData('text/plain');
+                    if (text?.text != null && text!.text!.isNotEmpty) {
+                      onPaste(text.text!);
+                    }
+                  }),
+                ],
+              ),
+            ),
+          ),
+          key('⌨', () => FocusManager.instance.primaryFocus?.unfocus()),
+        ],
+      ),
+    );
+  }
+}
