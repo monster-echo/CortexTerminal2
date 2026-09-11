@@ -2,6 +2,13 @@ name: xterm
 description: xterm.dart is a fast and fully-featured terminal emulator for Flutter applications, with support for mobile and desktop platforms.
 version: 4.0.0
 homepage: https://github.com/TerminalStudio/xterm.dart
+# VENDORED FORK — 勿通过 pub upgrade 覆盖。
+# 来源：TerminalStudio/xterm.dart，版本号标 4.0.0 但目录布局为 3.x 时代
+# （lib/src/terminal.dart、lib/src/terminal_view.dart；pub.dev 4.0.0 是 lib/src/core/terminal.dart）。
+# 相对 pub.dev 4.0.0 的 API 差异：onTitleChange（pub 4.0.0 为 onTitle）；
+# 增强能力：core/snapshot.dart（TerminalSnapshot.trimScrollback）、lib/zmodem.dart、
+# 触屏长按选择（ui/gesture/gesture_handler.dart → render.dart setSelection）。
+# 消费方：corterm_mobile（path 依赖）、terminal_module。
 
 environment:
   sdk: ">=3.0.0 <4.0.0"
@@ -16,14 +23,13 @@ dependencies:
     sdk: flutter
   zmodem: ^0.0.6
 
+# dev_dependencies 只保留可解析的最小集；原仓库的 test/mockito/build_runner/
+# dart_code_metrics（已停维护）在 path 依赖解析下会连带拉取，故删除。
+# vendored 自身的 test/ 由此不再可跑，属预期。
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  test: ^1.6.5
   lints: ^3.0.0
-  dart_code_metrics: ^5.0.0
-  mockito: ^5.3.1
-  build_runner: ^2.1.1
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

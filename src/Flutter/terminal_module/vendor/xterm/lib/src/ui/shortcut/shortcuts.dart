@@ -3,19 +3,13 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 Map<ShortcutActivator, Intent> get defaultTerminalShortcuts {
-  switch (defaultTargetPlatform) {
-    case TargetPlatform.android:
-    case TargetPlatform.fuchsia:
-    case TargetPlatform.linux:
-    case TargetPlatform.windows:
-    // OHOS fork of Flutter adds TargetPlatform.ohos to the enum; without this
-    // case the switch is non-exhaustive and fails to compile on the ohos engine.
-    case TargetPlatform.ohos:
-      return _defaultShortcuts;
-    case TargetPlatform.iOS:
-    case TargetPlatform.macOS:
-      return _defaultAppleShortcuts;
+  // 用 if-else 而非 switch：OHOS fork 的 Flutter 给 TargetPlatform 追加了 ohos
+  // 枚举值，switch 需穷尽枚举导致两端 SDK 无法同时编译；if-else 无此约束。
+  if (defaultTargetPlatform == TargetPlatform.iOS ||
+      defaultTargetPlatform == TargetPlatform.macOS) {
+    return _defaultAppleShortcuts;
   }
+  return _defaultShortcuts;
 }
 
 final _defaultShortcuts = {

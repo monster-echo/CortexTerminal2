@@ -1117,10 +1117,9 @@ packages:
   xterm:
     dependency: "direct main"
     description:
-      name: xterm
-      sha256: "168dfedca77cba33fdb6f52e2cd001e9fde216e398e89335c19b524bb22da3a2"
-      url: "https://pub.flutter-io.cn"
-    source: hosted
+      path: "../terminal_module/vendor/xterm"
+      relative: true
+    source: path
     version: "4.0.0"
   yaml:
     dependency: transitive

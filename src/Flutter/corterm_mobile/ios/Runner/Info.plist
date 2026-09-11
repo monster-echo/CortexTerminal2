@@ -14,6 +14,18 @@
 		<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 		<key>CFBundleInfoDictionaryVersion</key>
 		<string>6.0</string>
+		<!-- OAuth 回调深链（与 MAUI / Android 一致）：corterm.mobile://auth -->
+		<key>CFBundleURLTypes</key>
+		<array>
+			<dict>
+				<key>CFBundleURLName</key>
+				<string>top.rwecho.cortexterminal</string>
+				<key>CFBundleURLSchemes</key>
+				<array>
+					<string>corterm.mobile</string>
+				</array>
+			</dict>
+		</array>
 		<key>CFBundleName</key>
 		<string>Corterm</string>
 		<key>CFBundlePackageType</key>
@@ -26,6 +38,15 @@
 		<string>$(FLUTTER_BUILD_NUMBER)</string>
 		<key>LSRequiresIPhoneOS</key>
 		<true/>
+		<!-- 头像/反馈配图：相册选图与拍照（image_picker） -->
+		<key>NSPhotoLibraryUsageDescription</key>
+		<string>用于选择照片作为头像或附在意见反馈中</string>
+		<key>NSPhotoLibraryAddUsageDescription</key>
+		<string>用于保存二维码图片</string>
+		<key>NSCameraUsageDescription</key>
+		<string>用于拍摄照片作为头像或附在意见反馈中</string>
+		<key>ITSAppUsesNonExemptEncryption</key>
+		<false/>
 		<key>UIApplicationSceneManifest</key>
 		<dict>
 			<key>UIApplicationSupportsMultipleScenes</key>

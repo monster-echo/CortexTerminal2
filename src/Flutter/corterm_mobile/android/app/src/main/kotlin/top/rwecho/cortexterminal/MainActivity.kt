@@ -1,4 +1,4 @@
-package dev.corterm.corterm_mobile
+package top.rwecho.cortexterminal
 
 import io.flutter.embedding.android.FlutterActivity
 

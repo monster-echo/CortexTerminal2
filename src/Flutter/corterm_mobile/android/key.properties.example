@@ -1,0 +1,7 @@
+# 复制为 android/key.properties（已被 .gitignore 忽略），并生成正式 keystore：
+#   keytool -genkey -v -keystore ~/corterm-release.keystore -alias corterm \
+#     -keyalg RSA -keysize 2048 -validity 10000
+storePassword=********
+keyPassword=********
+keyAlias=corterm
+storeFile=/absolute/path/to/corterm-release.keystore

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Apple Sign-in（阶段2，App Store 合规：有第三方登录必须有 Apple） -->
+	<key>com.apple.developer.applesignin</key>
+	<array>
+		<string>Default</string>
+	</array>
+	<!-- APNs 推送（阶段5 FCM） -->
+	<key>aps-environment</key>
+	<string>development</string>
+</dict>
+</plist>

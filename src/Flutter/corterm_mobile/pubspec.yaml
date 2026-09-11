@@ -46,8 +46,9 @@ dependencies:
   flutter_secure_storage: ^9.2.2
   # 本地偏好（主题/最近会话/工具栏配置）
   shared_preferences: ^2.3.2
-  # 终端渲染（§30）
-  xterm: ^4.0.0
+  # 终端渲染（§30）— vendored fork（terminal_module/vendor/xterm，3.x 布局 + snapshot/zmodem/长按选择增强）
+  xterm:
+    path: ../terminal_module/vendor/xterm
   # l10n 工具链
   intl: any
   package_info_plus: ^9.0.1
