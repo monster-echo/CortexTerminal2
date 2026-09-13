@@ -8,6 +8,7 @@ import '../../shared/widgets/app_bar.dart';
 import '../../l10n/app_localizations.dart';
 import '../../shared/widgets/connection_status_dot.dart';
 import '../../shared/widgets/states.dart';
+import '../../shared/widgets/list_group.dart';
 import '../sessions/data/sessions_providers.dart';
 import '../workspace/widgets/new_session_sheet.dart';
 import '../workspace/widgets/session_list_item.dart';
@@ -31,13 +32,14 @@ class HomeScreen extends ConsumerWidget {
       appBar: CortermAppBar(
         title: l10n.homeTitle,
         actions: [
-          IconButton(
-            icon: Icon(Icons.tune_rounded, size: 22, color: scheme.foreground),
+          ShadIconButton.ghost(
+            foregroundColor: scheme.foreground,
+            icon: const Icon(LucideIcons.slidersHorizontal, size: 22),
             onPressed: () => context.go('/sessions'),
-            tooltip: l10n.allSessions,
           ),
-          IconButton(
-            icon: Icon(Icons.settings_outlined, size: 22, color: scheme.foreground),
+          ShadIconButton.ghost(
+            foregroundColor: scheme.foreground,
+            icon: Icon(LucideIcons.settings, size: 22),
             onPressed: () => context.go('/settings'),
           ),
         ],
@@ -56,7 +58,7 @@ class HomeScreen extends ConsumerWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           children: [
             ShadButton(
-              leading: const Icon(Icons.add, size: 18),
+              leading: const Icon(LucideIcons.plus, size: 18),
               onPressed: () => showNewSessionSheet(
                 context,
                 onCreated: (sessionId) {
@@ -124,13 +126,11 @@ class HomeScreen extends ConsumerWidget {
                   : Column(
                       children: [
                         for (final w in list)
-                          ListTile(
+                          AppRow(
                             contentPadding: EdgeInsets.zero,
-                            leading: ConnectionStatusDot(color: workerDotColor(w)),
-                            title: Text(w.displayName, maxLines: 1, overflow: TextOverflow.ellipsis),
-                            subtitle: Text(
-                              w.isOnline ? l10n.workerOnline : l10n.workerOffline,
-                            ),
+                            leadingWidget: ConnectionStatusDot(color: workerDotColor(w)),
+                            label: w.displayName,
+                            value: w.isOnline ? l10n.workerOnline : l10n.workerOffline,
                             trailing: Text(
                               '${w.sessionCount}',
                               style: TextStyle(fontSize: 12, color: scheme.mutedForeground),

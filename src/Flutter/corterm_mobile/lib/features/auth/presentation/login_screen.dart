@@ -21,6 +21,7 @@ import '../../legal/legal_screens.dart';
 import '../../../core/models/auth_models.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/sheets_and_dialogs.dart';
+import '../../../shared/widgets/states.dart';
 
 /// 登录页：密码 + 手机号（由 /api/auth/methods 决定显示）。
 /// 403 CAPTCHA_REQUIRED → 弹滑块验证码后自动重试（Gateway 防爆破约定）。
@@ -98,11 +99,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Future<bool> _ensureConsent() async {
     if (_consented) return true;
     final l10n = AppLocalizations.of(context)!;
-    final agreed = await showDialog<bool>(
+    final agreed = await showShadDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => ShadDialog.alert(
         title: Text(l10n.consentAlertTitle),
-        content: Text(l10n.consentAlertBody),
+        description: Text(l10n.consentAlertBody),
         actions: [
           ShadButton.outline(
             onPressed: () => Navigator.of(context).pop(false),
@@ -215,8 +216,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (!mounted) return;
       setState(() => _resendIn = 60);
       _startResendTimer();
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(l10n.codeSentTo(_phone.text.trim()))));
+      showAppToast(context, l10n.codeSentTo(_phone.text.trim()));
     } on RateLimitedException catch (e) {
       if (!mounted) return;
       setState(() => _resendIn = e.retryAfterSeconds);
@@ -467,8 +467,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             child: ShadButton.outline(
                               leading: Icon(
                                 p == 'github'
-                                    ? Icons.code_rounded
-                                    : Icons.language_rounded,
+                                    ? LucideIcons.code
+                                    : LucideIcons.globe,
                                 size: 18,
                               ),
                               enabled: !_busy,
@@ -480,7 +480,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 6),
                             child: ShadButton.outline(
-                              leading: const Icon(Icons.apple, size: 18),
+                              leading: const Icon(LucideIcons.apple, size: 18),
                               enabled: !_busy,
                               onPressed: _appleLogin,
                               child: const Text('Apple'),
@@ -594,7 +594,7 @@ class _CaptchaSheetState extends State<_CaptchaSheet> {
                       child: SizedBox(
                         width: 20,
                         height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+                        child: ShadProgress(value: null),
                       ),
                     ),
                   );

@@ -62,7 +62,7 @@ class SessionListItem extends StatelessWidget {
               ),
             ),
             if (isCurrent)
-              const Icon(Icons.check_rounded, size: 20, color: AppColors.accent),
+              const Icon(LucideIcons.check, size: 20, color: AppColors.accent),
           ],
         ),
       ),

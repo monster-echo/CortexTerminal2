@@ -33,13 +33,14 @@ class ProfileScreen extends ConsumerWidget {
       backgroundColor: scheme.background,
       appBar: CortermAppBar(
         title: l10n.profileTitle,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: scheme.foreground),
+        leading: ShadIconButton.ghost(
+          foregroundColor: scheme.foreground,
+          icon: const Icon(LucideIcons.arrowLeft, size: 20),
           onPressed: () => context.pop(),
         ),
       ),
       body: profile.when(
-        loading: () => const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+        loading: () => const Center(child: ShadProgress(value: null)),
         error: (e, _) => ErrorState(message: '$e'),
         data: (user) => ListView(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
@@ -57,7 +58,7 @@ class ProfileScreen extends ConsumerWidget {
                       child: CircleAvatar(
                         radius: 15,
                         backgroundColor: scheme.primary,
-                        child: Icon(Icons.photo_camera_outlined,
+                        child: Icon(LucideIcons.camera,
                             size: 16, color: scheme.background),
                       ),
                     ),
@@ -67,18 +68,18 @@ class ProfileScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 32),
             AppRow(
-              icon: Icons.person_outline,
+              icon: LucideIcons.user,
               label: l10n.username,
               value: user.username,
             ),
             if (user.email != null && user.email!.isNotEmpty)
               AppRow(
-                icon: Icons.alternate_email,
+                icon: LucideIcons.atSign,
                 label: l10n.email,
                 value: user.email!,
               ),
             AppRow(
-              icon: Icons.badge_outlined,
+              icon: LucideIcons.badge,
               label: l10n.displayNameLabel,
               value: (user.displayName?.isNotEmpty ?? false) ? user.displayName! : l10n.unknown,
               chevron: true,
@@ -86,7 +87,7 @@ class ProfileScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 16),
             AppRow(
-              icon: Icons.password_outlined,
+              icon: LucideIcons.keyRound,
               label: l10n.hasPassword,
               value: user.hasPassword ? l10n.yes : l10n.no,
             ),
@@ -115,7 +116,7 @@ class ProfileScreen extends ConsumerWidget {
       if (context.mounted) showAppToast(context, l10n.avatarUpdated);
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+        showAppToast(context, '$e', destructive: true);
       }
     }
   }
@@ -151,7 +152,7 @@ class ProfileScreen extends ConsumerWidget {
       ref.invalidate(profileProvider);
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+        showAppToast(context, '$e', destructive: true);
       }
     }
   }
@@ -172,7 +173,7 @@ class _Avatar extends StatelessWidget {
               width: size,
               height: size,
               color: scheme.muted,
-              child: Icon(Icons.person_outline, size: size * 0.5, color: scheme.mutedForeground),
+              child: Icon(LucideIcons.user, size: size * 0.5, color: scheme.mutedForeground),
             )
           : Image.network(
               url,
@@ -184,7 +185,7 @@ class _Avatar extends StatelessWidget {
                 height: size,
                 color: scheme.muted,
                 child:
-                    Icon(Icons.person_outline, size: size * 0.5, color: scheme.mutedForeground),
+                    Icon(LucideIcons.user, size: size * 0.5, color: scheme.mutedForeground),
               ),
             ),
     );
@@ -294,7 +295,7 @@ class _AvatarCropSheetState extends State<AvatarCropSheet> {
                             child: SizedBox(
                               width: 20,
                               height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
+                              child: ShadProgress(value: null),
                             ),
                           );
                         }

@@ -29,8 +29,9 @@ class WorkersScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: scheme.background,
       appBar: CortermAppBar(
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: scheme.foreground),
+        leading: ShadIconButton.ghost(
+          foregroundColor: scheme.foreground,
+          icon: const Icon(LucideIcons.arrowLeft, size: 20),
           onPressed: () => context.pop(),
         ),
         title: l10n.workersTitle,
@@ -68,25 +69,15 @@ class WorkersScreen extends ConsumerWidget {
               for (final w in list)
                 AppGroupCard(
                   children: [
-                    ListTile(
-                      minVerticalPadding: 14,
-                      iconColor: scheme.mutedForeground,
-                      textColor: scheme.foreground,
-                      leading: ConnectionStatusDot(color: workerDotColor(w), size: 10),
-                      title: Text(w.displayName,
-                          style: const TextStyle(
-                              fontSize: 15, fontWeight: FontWeight.w600)),
-                      subtitle: Text(
-                        w.isOnline
-                            ? [w.operatingSystem, w.architecture, w.version]
-                                .whereType<String>()
-                                .where((s) => s.isNotEmpty)
-                                .join(' · ')
-                            : l10n.workerOffline,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(fontSize: 13, color: scheme.mutedForeground),
-                      ),
+                    AppRow(
+                      leadingWidget: ConnectionStatusDot(color: workerDotColor(w), size: 10),
+                      label: w.displayName,
+                      value: w.isOnline
+                          ? [w.operatingSystem, w.architecture, w.version]
+                              .whereType<String>()
+                              .where((s) => s.isNotEmpty)
+                              .join(' · ')
+                          : l10n.workerOffline,
                       trailing: Text(
                         l10n.sessionCount(w.sessionCount),
                         style: TextStyle(fontSize: 11, color: scheme.mutedForeground),
@@ -110,7 +101,7 @@ class WorkersScreen extends ConsumerWidget {
       detail = await repo.workerDetail(workerId);
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      showAppToast(context, '$e', destructive: true);
       return;
     }
     if (!context.mounted) return;
@@ -201,13 +192,10 @@ class _WorkerDetailSheet extends ConsumerWidget {
               const Divider(height: 20),
               SheetSectionHeader(label: l10n.sessions),
               for (final s in detail.sessions)
-                ListTile(
+                AppRow(
                   contentPadding: EdgeInsets.zero,
-                  dense: true,
-                  iconColor: scheme.mutedForeground,
-                  textColor: scheme.foreground,
-                  leading: ConnectionStatusDot(color: sessionDotColor(s.status)),
-                  title: Text(s.displayName, maxLines: 1, overflow: TextOverflow.ellipsis),
+                  leadingWidget: ConnectionStatusDot(color: sessionDotColor(s.status)),
+                  label: s.displayName,
                   onTap: () {
                     Navigator.of(context).pop();
                     ref.read(workspaceControllerProvider.notifier).open(s.sessionId);
@@ -226,12 +214,10 @@ class _WorkerDetailSheet extends ConsumerWidget {
     try {
       final result = await repo.upgradeWorker(detail.worker.workerId);
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${result.message}${result.targetVersion == null ? '' : ' → ${result.targetVersion}'}')),
-      );
+      showAppToast(context, '${result.message}${result.targetVersion == null ? '' : ' → ${result.targetVersion}'}');
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      showAppToast(context, '$e', destructive: true);
     }
   }
 

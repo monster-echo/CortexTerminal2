@@ -42,7 +42,7 @@ class MoreActionsSheet extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             AppRow(
-              icon: Icons.info_outline,
+              icon: LucideIcons.info,
               label: l10n.sessionDetails,
               onTap: () {
                 Navigator.of(context).pop();
@@ -50,7 +50,7 @@ class MoreActionsSheet extends ConsumerWidget {
               },
             ),
             AppRow(
-              icon: Icons.folder_outlined,
+              icon: LucideIcons.folder,
               label: l10n.filesTitle,
               onTap: () {
                 Navigator.of(context).pop();
@@ -58,7 +58,7 @@ class MoreActionsSheet extends ConsumerWidget {
               },
             ),
             AppRow(
-              icon: Icons.swap_horiz_rounded,
+              icon: LucideIcons.arrowLeftRight,
               label: l10n.tunnelTitle,
               onTap: () {
                 Navigator.of(context).pop();
@@ -66,7 +66,7 @@ class MoreActionsSheet extends ConsumerWidget {
               },
             ),
             AppRow(
-              icon: Icons.apps_rounded,
+              icon: LucideIcons.layoutGrid,
               label: l10n.allSessions,
               onTap: () {
                 Navigator.of(context).pop();
@@ -74,7 +74,7 @@ class MoreActionsSheet extends ConsumerWidget {
               },
             ),
             AppRow(
-              icon: Icons.settings_outlined,
+              icon: LucideIcons.settings,
               label: l10n.settings,
               onTap: () {
                 Navigator.of(context).pop();
@@ -83,7 +83,7 @@ class MoreActionsSheet extends ConsumerWidget {
             ),
             Divider(color: scheme.border, indent: 16, endIndent: 16),
             AppRow(
-              icon: Icons.delete_outline,
+              icon: LucideIcons.trash2,
               label: l10n.terminateSession,
               destructive: canTerminate,
               onTap: canTerminate

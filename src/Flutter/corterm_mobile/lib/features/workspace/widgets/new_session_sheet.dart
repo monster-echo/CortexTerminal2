@@ -200,7 +200,7 @@ class _WorkerRadioRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 10),
         child: Row(
           children: [
-            const Icon(Icons.desktop_windows_outlined,
+            const Icon(LucideIcons.monitor,
                 size: 18, color: Color(0xFF22C55E)),
             const SizedBox(width: 12),
             Expanded(

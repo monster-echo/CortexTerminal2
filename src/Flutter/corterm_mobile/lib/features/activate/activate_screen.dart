@@ -81,8 +81,9 @@ class _ActivateScreenState extends ConsumerState<ActivateScreen> {
       backgroundColor: scheme.background,
       appBar: CortermAppBar(
         title: l10n.activateTitle,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: scheme.foreground),
+        leading: ShadIconButton.ghost(
+          foregroundColor: scheme.foreground,
+          icon: const Icon(LucideIcons.arrowLeft, size: 20),
           onPressed: () => context.pop(),
         ),
       ),
@@ -101,7 +102,7 @@ class _ActivateScreenState extends ConsumerState<ActivateScreen> {
                 ),
                 const SizedBox(height: 24),
                 if (_confirmed) ...[
-                  Icon(Icons.check_circle_outline, size: 56, color: scheme.primary),
+                  Icon(LucideIcons.circleCheck, size: 56, color: scheme.primary),
                   const SizedBox(height: 16),
                   Text(
                     l10n.activateDone,

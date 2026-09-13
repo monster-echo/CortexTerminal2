@@ -70,8 +70,9 @@ class _DiagnosticsScreenState extends ConsumerState<DiagnosticsScreen> {
     return Scaffold(
       backgroundColor: scheme.background,
       appBar: CortermAppBar(
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: scheme.foreground),
+        leading: ShadIconButton.ghost(
+          foregroundColor: scheme.foreground,
+          icon: const Icon(LucideIcons.arrowLeft, size: 20),
           onPressed: () => context.pop(),
         ),
         title: l10n.diagnostics,
@@ -86,7 +87,7 @@ class _DiagnosticsScreenState extends ConsumerState<DiagnosticsScreen> {
               builder: (context, snap) {
                 final r = snap.data;
                 return AppRow(
-                  icon: Icons.speed_outlined,
+                  icon: LucideIcons.gauge,
                   label: l10n.gatewayReachable,
                   value: r == null
                       ? l10n.diagnosticTesting
@@ -96,57 +97,49 @@ class _DiagnosticsScreenState extends ConsumerState<DiagnosticsScreen> {
               },
             ),
             AppRow(
-              icon: Icons.cloud_outlined,
+              icon: LucideIcons.cloud,
               label: l10n.gatewayVersion,
               value: gatewayInfo.valueOrNull?.version ?? '—',
             ),
             AppRow(
-              icon: Icons.phone_android,
+              icon: LucideIcons.smartphone,
               label: l10n.platform,
               value: '${Platform.operatingSystem} ${Platform.operatingSystemVersion}',
             ),
           ]),
           ShadButton.ghost(
             onPressed: () => setState(() => _probe = _runProbe()),
-            leading: const Icon(Icons.refresh_rounded, size: 18),
+            leading: const Icon(LucideIcons.refreshCw, size: 18),
             child: Text(l10n.retry),
           ),
 
           AppGroupHeader(l10n.openSessions),
           if (opened.isEmpty)
             AppGroupCard(children: [
-              AppRow(icon: Icons.terminal, label: l10n.noActiveSessions),
+              AppRow(icon: LucideIcons.terminal, label: l10n.noActiveSessions),
             ])
           else
             AppGroupCard(children: [
               for (final (id, entry) in opened)
-                ListTile(
-                  minVerticalPadding: 12,
-                  leading: ConnectionStatusDot(
+                AppRow(
+                  leadingWidget: ConnectionStatusDot(
                     color: connDotStyle(entry!.connState).$1,
                     pulse: connDotStyle(entry.connState).$2,
                   ),
-                  title: Text(
-                    sessions.value?.where((s) => s.sessionId == id).firstOrNull?.displayName ??
-                        id.substring(0, 8),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  subtitle: Text(
-                    switch (entry.connState) {
-                      TerminalConnState.live =>
-                        '${l10n.connLive}${entry.rttMs != null ? ' · ${l10n.ms(entry.rttMs!)}' : ''}',
-                      TerminalConnState.connecting => l10n.connConnecting,
-                      TerminalConnState.replaying => l10n.connReplaying,
-                      TerminalConnState.reconnecting => l10n.connReconnecting,
-                      TerminalConnState.idle => l10n.connIdle,
-                      TerminalConnState.exited => l10n.connExited,
-                      TerminalConnState.error =>
-                        l10n.connError + (entry.errorMessage == null ? '' : ' · ${entry.errorMessage}'),
-                    },
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                  label:
+                      sessions.value?.where((s) => s.sessionId == id).firstOrNull?.displayName ??
+                          id.substring(0, 8),
+                  value: switch (entry.connState) {
+                    TerminalConnState.live =>
+                      '${l10n.connLive}${entry.rttMs != null ? ' · ${l10n.ms(entry.rttMs!)}' : ''}',
+                    TerminalConnState.connecting => l10n.connConnecting,
+                    TerminalConnState.replaying => l10n.connReplaying,
+                    TerminalConnState.reconnecting => l10n.connReconnecting,
+                    TerminalConnState.idle => l10n.connIdle,
+                    TerminalConnState.exited => l10n.connExited,
+                    TerminalConnState.error =>
+                      l10n.connError + (entry.errorMessage == null ? '' : ' · ${entry.errorMessage}'),
+                  },
                 ),
             ]),
           const SizedBox(height: 24),

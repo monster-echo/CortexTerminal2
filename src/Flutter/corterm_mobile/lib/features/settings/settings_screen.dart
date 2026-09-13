@@ -42,8 +42,9 @@ class SettingsScreen extends ConsumerWidget {
       backgroundColor: scheme.background,
       appBar: CortermAppBar(
         title: l10n.settings,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: scheme.foreground),
+        leading: ShadIconButton.ghost(
+          foregroundColor: scheme.foreground,
+          icon: const Icon(LucideIcons.arrowLeft, size: 20),
           onPressed: () => context.go('/home'),
         ),
       ),
@@ -54,24 +55,24 @@ class SettingsScreen extends ConsumerWidget {
           AppGroupHeader(l10n.account),
           AppGroupCard(children: [
             AppRow(
-              icon: Icons.person_outline,
+              icon: LucideIcons.user,
               label: auth.username ?? l10n.unknown,
               value: l10n.account,
             ),
             AppRow(
-              icon: Icons.manage_accounts_outlined,
+              icon: LucideIcons.userCog,
               label: l10n.profileTitle,
               chevron: true,
               onTap: () => context.push('/settings/profile'),
             ),
             AppRow(
-              icon: Icons.headset_mic_outlined,
+              icon: LucideIcons.headphones,
               label: l10n.supportTitle,
               chevron: true,
               onTap: () => context.push('/settings/support'),
             ),
             AppRow(
-              icon: Icons.feedback_outlined,
+              icon: LucideIcons.messageSquare,
               label: l10n.feedbackTitle,
               chevron: true,
               onTap: () => context.push('/settings/feedback'),
@@ -82,7 +83,7 @@ class SettingsScreen extends ConsumerWidget {
           AppGroupHeader(l10n.appearance),
           AppGroupCard(children: [
             AppRow(
-              icon: Icons.contrast,
+              icon: LucideIcons.contrast,
               label: l10n.appearance,
               trailing: ShadSelect<ThemeMode>(
                 initialValue: themeMode,
@@ -101,7 +102,7 @@ class SettingsScreen extends ConsumerWidget {
               ),
             ),
             AppRow(
-              icon: Icons.language,
+              icon: LucideIcons.globe,
               label: l10n.language,
               trailing: ShadSelect<String>(
                 initialValue: localeTag ?? '',
@@ -119,7 +120,7 @@ class SettingsScreen extends ConsumerWidget {
               ),
             ),
             AppRow(
-              icon: Icons.screen_lock_portrait,
+              icon: LucideIcons.monitorSmartphone,
               label: l10n.keepScreenAwake,
               trailing: ShadSwitch(
                 value: ref.watch(keepAwakeProvider),
@@ -127,7 +128,7 @@ class SettingsScreen extends ConsumerWidget {
               ),
             ),
             AppRow(
-              icon: Icons.text_fields,
+              icon: LucideIcons.type,
               label: l10n.terminalFontSize,
               value: l10n.fontSizeFmt(fontSize),
               trailing: SizedBox(
@@ -148,7 +149,7 @@ class SettingsScreen extends ConsumerWidget {
           AppGroupHeader(l10n.deviceAccess),
           AppGroupCard(children: [
             AppRow(
-              icon: Icons.qr_code_scanner_rounded,
+              icon: LucideIcons.scanLine,
               label: l10n.activateTitle,
               chevron: true,
               onTap: () => context.push('/activate'),
@@ -159,13 +160,13 @@ class SettingsScreen extends ConsumerWidget {
           AppGroupHeader(l10n.legal),
           AppGroupCard(children: [
             AppRow(
-              icon: Icons.lock_outline,
+              icon: LucideIcons.lock,
               label: l10n.privacyPolicy,
               chevron: true,
               onTap: () => context.push('/legal/${LegalRoute.privacy.name}'),
             ),
             AppRow(
-              icon: Icons.menu_book_outlined,
+              icon: LucideIcons.bookOpen,
               label: l10n.termsOfService,
               chevron: true,
               onTap: () => context.push('/legal/${LegalRoute.terms.name}'),
@@ -176,7 +177,7 @@ class SettingsScreen extends ConsumerWidget {
           AppGroupHeader(l10n.security),
           AppGroupCard(children: [
             AppRow(
-              icon: Icons.password_outlined,
+              icon: LucideIcons.keyRound,
               label: l10n.changePassword,
               chevron: true,
               onTap: () => _changePassword(context, ref),
@@ -187,23 +188,23 @@ class SettingsScreen extends ConsumerWidget {
           AppGroupHeader(l10n.about),
           AppGroupCard(children: [
             AppRow(
-              icon: Icons.info_outline,
+              icon: LucideIcons.info,
               label: l10n.appVersion,
               value: ref.watch(appVersionProvider).valueOrNull ?? '…',
             ),
             AppRow(
-              icon: Icons.cloud_outlined,
+              icon: LucideIcons.cloud,
               label: l10n.gatewayVersion,
               value: gatewayInfo.valueOrNull?.version ?? '—',
             ),
             AppRow(
-              icon: Icons.bug_report_outlined,
+              icon: LucideIcons.bug,
               label: l10n.diagnostics,
               chevron: true,
               onTap: () => context.push('/diagnostics'),
             ),
             AppRow(
-              icon: Icons.description_outlined,
+              icon: LucideIcons.fileText,
               label: l10n.aboutTagline,
             ),
           ]),
@@ -212,12 +213,12 @@ class SettingsScreen extends ConsumerWidget {
           // ---- 危险区：退出登录 / 注销账号 ----
           AppGroupCard(children: [
             AppRow(
-              icon: Icons.logout,
+              icon: LucideIcons.logOut,
               label: l10n.logout,
               onTap: () => _logout(context, ref),
             ),
             AppRow(
-              icon: Icons.delete_outline,
+              icon: LucideIcons.trash2,
               label: l10n.deleteAccount,
               destructive: true,
               onTap: () => _deleteAccount(context, ref),
@@ -312,7 +313,7 @@ class SettingsScreen extends ConsumerWidget {
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+        showAppToast(context, '$e', destructive: true);
       }
     }
   }
@@ -334,13 +335,13 @@ class _ScrollbackRow extends ConsumerWidget {
     final pref = ref.watch(scrollbackPreferenceProvider);
 
     return AppRow(
-      icon: Icons.history_rounded,
+      icon: LucideIcons.history,
       label: l10n.scrollbackQuota,
       trailing: pref.when(
         loading: () => const SizedBox(
           width: 14,
           height: 14,
-          child: CircularProgressIndicator(strokeWidth: 2),
+          child: ShadProgress(value: null),
         ),
         error: (e, _) => Text('—', style: TextStyle(color: ShadTheme.of(context).colorScheme.mutedForeground)),
         data: (p) {
@@ -365,7 +366,7 @@ class _ScrollbackRow extends ConsumerWidget {
                 if (context.mounted) showAppToast(context, l10n.saved);
               } catch (e) {
                 if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+                  showAppToast(context, '$e', destructive: true);
                 }
               }
             },

@@ -32,13 +32,15 @@ class AllSessionsScreen extends ConsumerWidget {
       backgroundColor: scheme.background,
       appBar: CortermAppBar(
         title: l10n.allSessions,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: scheme.foreground),
+        leading: ShadIconButton.ghost(
+          foregroundColor: scheme.foreground,
+          icon: const Icon(LucideIcons.arrowLeft, size: 20),
           onPressed: () => context.go('/home'),
         ),
         actions: [
-          IconButton(
-            icon: Icon(Icons.add, color: scheme.foreground),
+          ShadIconButton.ghost(
+            foregroundColor: scheme.foreground,
+            icon: const Icon(LucideIcons.plus),
             onPressed: () => showNewSessionSheet(
               context,
               onCreated: (sessionId) {
@@ -130,7 +132,7 @@ class AllSessionsScreen extends ConsumerWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               AppRow(
-                icon: Icons.info_outline,
+                icon: LucideIcons.info,
                 label: l10n.sessionDetails,
                 onTap: () {
                   Navigator.of(context).pop();
@@ -138,7 +140,7 @@ class AllSessionsScreen extends ConsumerWidget {
                 },
               ),
               AppRow(
-                icon: Icons.edit_outlined,
+                icon: LucideIcons.squarePen,
                 label: l10n.rename,
                 onTap: () {
                   Navigator.of(context).pop();
@@ -146,7 +148,7 @@ class AllSessionsScreen extends ConsumerWidget {
                 },
               ),
               AppRow(
-                icon: Icons.delete_outline,
+                icon: LucideIcons.trash2,
                 label: canTerminate ? l10n.terminateSession : l10n.deleteSession,
                 destructive: true,
                 onTap: () {
@@ -253,11 +255,12 @@ class _GroupHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
       child: Text(
         label,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.8,
-            ),
+        style: TextStyle(
+          fontSize: 11,
+          color: ShadTheme.of(context).colorScheme.mutedForeground,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.8,
+        ),
       ),
     );
   }

@@ -32,8 +32,9 @@ class LegalDocumentScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: scheme.background,
       appBar: CortermAppBar(
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: scheme.foreground),
+        leading: ShadIconButton.ghost(
+          foregroundColor: scheme.foreground,
+          icon: const Icon(LucideIcons.arrowLeft, size: 20),
           onPressed: () => context.pop(),
         ),
         title: document.title,
@@ -96,9 +97,9 @@ class LegalIndexScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: ShadTheme.of(context).colorScheme.background,
       appBar: CortermAppBar(
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded, size: 20,
-              color: ShadTheme.of(context).colorScheme.foreground),
+        leading: ShadIconButton.ghost(
+          foregroundColor: ShadTheme.of(context).colorScheme.foreground,
+          icon: const Icon(LucideIcons.arrowLeft, size: 20),
           onPressed: () => context.pop(),
         ),
         title: l10n.legal,
@@ -116,7 +117,7 @@ class LegalIndexScreen extends ConsumerWidget {
           const SizedBox(height: 12),
           AppGroupCard(children: [
             AppRow(
-              icon: Icons.lock_outline,
+              icon: LucideIcons.lock,
               label: l10n.privacyPolicy,
               value: l10n.privacyPolicyDesc,
               chevron: true,
@@ -127,7 +128,7 @@ class LegalIndexScreen extends ConsumerWidget {
               ),
             ),
             AppRow(
-              icon: Icons.menu_book_outlined,
+              icon: LucideIcons.bookOpen,
               label: l10n.termsOfService,
               value: l10n.termsOfServiceDesc,
               chevron: true,

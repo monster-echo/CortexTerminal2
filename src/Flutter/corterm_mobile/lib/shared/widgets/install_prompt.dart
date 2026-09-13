@@ -59,7 +59,7 @@ class InstallPromptCard extends StatelessWidget {
         const SizedBox(height: 12),
         Row(
           children: [
-            Icon(Icons.vpn_key_outlined, size: 15, color: scheme.mutedForeground),
+            Icon(LucideIcons.keySquare, size: 15, color: scheme.mutedForeground),
             const SizedBox(width: 6),
             Expanded(
               child: Text(l10n.installActivateHint,
@@ -117,7 +117,7 @@ class _CommandBlock extends StatelessWidget {
                     Clipboard.setData(ClipboardData(text: command));
                     showAppToast(context, AppLocalizations.of(context)!.copied);
                   },
-                  child: const Icon(Icons.copy_rounded, size: 14, color: Color(0xFF8B949E)),
+                  child: const Icon(LucideIcons.copy, size: 14, color: Color(0xFF8B949E)),
                 ),
               ],
             ),

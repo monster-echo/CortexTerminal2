@@ -31,20 +31,21 @@ class SupportScreen extends ConsumerWidget {
       backgroundColor: scheme.background,
       appBar: CortermAppBar(
         title: l10n.supportTitle,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: scheme.foreground),
+        leading: ShadIconButton.ghost(
+          foregroundColor: scheme.foreground,
+          icon: const Icon(LucideIcons.arrowLeft, size: 20),
           onPressed: () => context.pop(),
         ),
       ),
       body: info.when(
-        loading: () => const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+        loading: () => const Center(child: ShadProgress(value: null)),
         error: (e, _) => ErrorState(message: '$e'),
         data: (data) => ListView(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           children: [
             if (data.qqGroup != null)
               _GroupCard(
-                icon: Icons.forum_outlined,
+                icon: LucideIcons.messagesSquare,
                 title: data.qqGroup!.name,
                 subtitle: data.qqGroup!.number ?? '',
                 qrCodeUrl: data.qqGroup!.qrCodeUrl,
@@ -58,7 +59,7 @@ class SupportScreen extends ConsumerWidget {
               ),
             if (data.telegramGroup != null)
               _GroupCard(
-                icon: Icons.send_outlined,
+                icon: LucideIcons.send,
                 title: data.telegramGroup!.name,
                 subtitle: data.telegramGroup!.url ?? '',
                 qrCodeUrl: data.telegramGroup!.qrCodeUrl,
@@ -77,7 +78,7 @@ class SupportScreen extends ConsumerWidget {
               ),
             if (data.email.isNotEmpty)
               _GroupCard(
-                icon: Icons.mail_outline,
+                icon: LucideIcons.mail,
                 title: l10n.supportEmail,
                 subtitle: data.email,
                 qrCodeUrl: '',
@@ -90,7 +91,7 @@ class SupportScreen extends ConsumerWidget {
               ),
             const SizedBox(height: 24),
             AppRow(
-              icon: Icons.feedback_outlined,
+              icon: LucideIcons.messageSquare,
               label: l10n.feedbackTitle,
               chevron: true,
               onTap: () => context.push('/settings/feedback'),
@@ -173,7 +174,7 @@ class _GroupCard extends StatelessWidget {
                       errorBuilder: (_, _, _) => SizedBox(
                         width: 132,
                         height: 132,
-                        child: Icon(Icons.qr_code_2_rounded, size: 32, color: scheme.mutedForeground),
+                        child: Icon(LucideIcons.qrCode, size: 32, color: scheme.mutedForeground),
                       ),
                     ),
                   ),

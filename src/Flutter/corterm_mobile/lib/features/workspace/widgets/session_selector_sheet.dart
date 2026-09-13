@@ -48,7 +48,7 @@ class SessionSelectorSheet extends ConsumerWidget {
                   ),
                 ),
                 ShadIconButton(
-                  icon: const Icon(Icons.add),
+                  icon: const Icon(LucideIcons.plus),
                   onPressed: () {
                     Navigator.of(context).pop();
                     showNewSessionSheet(context, onCreated: controller.open);
@@ -109,7 +109,7 @@ class SessionSelectorSheet extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
             child: ShadButton.outline(
-              leading: const Icon(Icons.add, size: 18),
+              leading: const Icon(LucideIcons.plus, size: 18),
               onPressed: () {
                 Navigator.of(context).pop();
                 showNewSessionSheet(context, onCreated: controller.open);

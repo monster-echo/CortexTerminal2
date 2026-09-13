@@ -86,7 +86,7 @@ class _SessionDetailsSheetState extends ConsumerState<SessionDetailsSheet> {
                   ),
                 ),
                 ShadIconButton(
-                  icon: const Icon(Icons.edit_outlined, size: 20),
+                  icon: const Icon(LucideIcons.squarePen, size: 20),
                   onPressed: _renaming ? null : _rename,
                 ),
               ],
@@ -116,7 +116,7 @@ class _SessionDetailsSheetState extends ConsumerState<SessionDetailsSheet> {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Icon(Icons.copy_rounded, size: 15, color: scheme.mutedForeground),
+                    Icon(LucideIcons.copy, size: 15, color: scheme.mutedForeground),
                   ],
                 ),
               ),

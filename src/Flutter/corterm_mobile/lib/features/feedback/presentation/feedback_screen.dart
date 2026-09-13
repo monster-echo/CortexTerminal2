@@ -64,7 +64,6 @@ class _FeedbackScreenState extends ConsumerState<FeedbackScreen> {
       _error = null;
       _submitting = true;
     });
-    final messenger = ScaffoldMessenger.of(context);
     try {
       final repo = ref.read(feedbackRepositoryProvider);
       final attachments = <String>[];
@@ -93,7 +92,6 @@ class _FeedbackScreenState extends ConsumerState<FeedbackScreen> {
         _submitting = false;
       });
     } catch (e) {
-      messenger.hideCurrentSnackBar();
       if (!mounted) return;
       setState(() {
         _error = '$e';
@@ -111,8 +109,9 @@ class _FeedbackScreenState extends ConsumerState<FeedbackScreen> {
       backgroundColor: scheme.background,
       appBar: CortermAppBar(
         title: l10n.feedbackTitle,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: scheme.foreground),
+        leading: ShadIconButton.ghost(
+          foregroundColor: scheme.foreground,
+          icon: const Icon(LucideIcons.arrowLeft, size: 20),
           onPressed: () => context.pop(),
         ),
       ),
@@ -177,17 +176,17 @@ class _FeedbackScreenState extends ConsumerState<FeedbackScreen> {
                                 borderRadius: BorderRadius.circular(8),
                                 border: Border.all(color: scheme.border),
                               ),
-                              child: const Icon(Icons.image_outlined),
+                              child: const Icon(LucideIcons.image),
                             ),
                             Positioned(
                               right: -6,
                               top: -6,
-                              child: IconButton(
-                                icon: Icon(Icons.cancel_rounded,
-                                    size: 20, color: scheme.destructive),
-                                onPressed: _submitting
-                                    ? null
-                                    : () => setState(() => _images.removeAt(i)),
+                              child: ShadIconButton.ghost(
+                                foregroundColor: scheme.destructive,
+                                icon: const Icon(LucideIcons.x, size: 20),
+                                // shadcn 只认 enabled:，onPressed: null 不会置灰
+                                enabled: !_submitting,
+                                onPressed: () => setState(() => _images.removeAt(i)),
                               ),
                             ),
                           ],
@@ -233,7 +232,7 @@ class _DoneView extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.check_circle_outline, size: 56, color: scheme.primary),
+            Icon(LucideIcons.circleCheck, size: 56, color: scheme.primary),
             const SizedBox(height: 16),
             Text(l10n.feedbackDone,
                 style: TextStyle(

@@ -8,6 +8,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../../shared/widgets/app_bar.dart';
+import '../../../shared/widgets/list_group.dart';
 
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/states.dart';
@@ -132,8 +133,9 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
     return Scaffold(
       backgroundColor: scheme.background,
       appBar: CortermAppBar(
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: scheme.foreground),
+        leading: ShadIconButton.ghost(
+          foregroundColor: scheme.foreground,
+          icon: const Icon(LucideIcons.arrowLeft, size: 20),
           onPressed: () => context.pop(),
         ),
         title: l10n.filesTitle,
@@ -157,7 +159,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
         onPressed: _busy ? null : _upload,
         leading: _busy
             ? const SizedBox(width: 14, height: 14, child: ShadProgress())
-            : const Icon(Icons.upload_file_outlined, size: 18),
+            : const Icon(LucideIcons.fileUp, size: 18),
         child: Text(l10n.upload),
       ),
       body: Column(
@@ -188,40 +190,27 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
               physics: const AlwaysScrollableScrollPhysics(),
               children: [
                 if (parent != null)
-                  ListTile(
-                    iconColor: scheme.mutedForeground,
-                    textColor: scheme.foreground,
-                    leading: const Icon(Icons.arrow_upward_rounded, size: 20),
-                    title: const Text('..'),
+                  AppRow(
+                    icon: LucideIcons.arrowUp,
+                    label: '..',
                     onTap: () => _open(parent),
                   ),
                 for (final e in entries)
-                  ListTile(
-                    iconColor: scheme.mutedForeground,
-                    textColor: scheme.foreground,
-                    leading: Icon(
-                      e.isDirectory
-                          ? Icons.folder_outlined
-                          : Icons.insert_drive_file_outlined,
-                      size: 20,
-                    ),
-                    title: Text(e.name,
-                        maxLines: 1, overflow: TextOverflow.ellipsis),
-                    subtitle: e.isDirectory
-                        ? null
-                        : Text(_fmtSize(e.sizeBytes),
-                            style: TextStyle(
-                                fontSize: 11, color: scheme.mutedForeground)),
+                  AppRow(
+                    icon: e.isDirectory
+                        ? LucideIcons.folder
+                        : LucideIcons.file,
+                    label: e.name,
+                    value: e.isDirectory ? null : _fmtSize(e.sizeBytes),
                     trailing: e.isDirectory
-                        ? Icon(Icons.chevron_right_rounded,
-                            size: 20, color: scheme.mutedForeground)
+                        ? null
                         : (_busy
                             ? null
-                            : IconButton(
-                                icon: Icon(Icons.download_outlined,
-                                    size: 20, color: scheme.foreground),
+                            : ShadIconButton.ghost(
+                                icon: Icon(LucideIcons.download, size: 20),
                                 onPressed: () => _download(e),
                               )),
+                    chevron: e.isDirectory,
                     onTap: e.isDirectory ? () => _open(_join(_path, e.name)) : null,
                   ),
                 if (entries.isEmpty && parent != null)

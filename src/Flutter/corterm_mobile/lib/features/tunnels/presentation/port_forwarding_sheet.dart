@@ -170,7 +170,7 @@ class _PortForwardingSheetState extends ConsumerState<PortForwardingSheet> {
                   child: SizedBox(
                     width: 20,
                     height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
+                    child: ShadProgress(value: null),
                   ),
                 ),
               )

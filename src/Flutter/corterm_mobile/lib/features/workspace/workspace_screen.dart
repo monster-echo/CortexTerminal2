@@ -133,26 +133,28 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> {
                       ),
                     ),
                     const SizedBox(width: 2),
-                    Icon(Icons.keyboard_arrow_down_rounded,
+                    Icon(LucideIcons.chevronDown,
                         size: 18, color: scheme.mutedForeground),
                   ],
                 ),
               ),
             ),
-      leading: IconButton(
-        icon: Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: scheme.foreground),
+      leading: ShadIconButton.ghost(
+        foregroundColor: scheme.foreground,
+        icon: const Icon(LucideIcons.arrowLeft, size: 20),
         onPressed: () => context.go('/home'),
       ),
       centerTitle: true,
       actions: [
         if (currentId != null) ...[
-          IconButton(
-            // 状态圆点（§13）：点击看连接详情（§20）。
+          // 状态圆点（§13）：点击看连接详情（§20）。
+          ShadIconButton.ghost(
             onPressed: () => ConnectionDetailsSheet.show(context, sessionId: currentId),
             icon: _StatusDot(color: dotColor, pulse: pulse),
           ),
-          IconButton(
-            icon: Icon(Icons.more_horiz_rounded, size: 22, color: scheme.foreground),
+          ShadIconButton.ghost(
+            foregroundColor: scheme.foreground,
+            icon: Icon(LucideIcons.ellipsis, size: 22),
             onPressed: () => MoreActionsSheet.show(context, sessionId: currentId),
           ),
           const SizedBox(width: 4),
@@ -363,7 +365,7 @@ class _CopyButton extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.copy_rounded, size: 14, color: scheme.background),
+              Icon(LucideIcons.copy, size: 14, color: scheme.background),
               const SizedBox(width: 4),
               Text(
                 AppLocalizations.of(context)!.copy,

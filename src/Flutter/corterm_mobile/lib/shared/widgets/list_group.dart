@@ -50,7 +50,7 @@ class AppGroupCard extends StatelessWidget {
 class AppRow extends StatelessWidget {
   const AppRow({
     super.key,
-    required this.icon,
+    this.icon,
     required this.label,
     this.value,
     this.onTap,
@@ -58,9 +58,11 @@ class AppRow extends StatelessWidget {
     this.chevron = false,
     this.trailing,
     this.valueColor,
+    this.leadingWidget,
+    this.contentPadding,
   });
 
-  final IconData icon;
+  final IconData? icon;
   final String label;
   final String? value;
   final VoidCallback? onTap;
@@ -68,6 +70,12 @@ class AppRow extends StatelessWidget {
   final bool chevron;
   final Widget? trailing;
   final Color? valueColor;
+
+  /// 需要非图标 leading（如状态点）时替代 [icon]。
+  final Widget? leadingWidget;
+
+  /// 覆盖 ListTile 默认 16 水平内边距（sheet 内已带 padding 的容器传 [EdgeInsets.zero]）。
+  final EdgeInsetsGeometry? contentPadding;
 
   @override
   Widget build(BuildContext context) {
@@ -81,18 +89,24 @@ class AppRow extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: TextStyle(fontSize: 13, color: valueColor ?? scheme.mutedForeground),
           );
-    return ListTile(
-      minVerticalPadding: 14,
-      iconColor: color ?? scheme.mutedForeground,
-      textColor: color,
-      leading: Icon(icon, size: 20),
-      title: Text(label, style: TextStyle(fontSize: 15, color: color ?? scheme.foreground)),
-      subtitle: valueText,
-      trailing: trailing ??
-          (chevron
-              ? Icon(Icons.chevron_right_rounded, size: 20, color: scheme.mutedForeground)
-              : null),
-      onTap: onTap,
+    // ListTile 的底色/水波纹画在最近的 Material 祖先上；AppGroupCard 的
+    // DecoratedBox 会遮住它们，所以自带一层透明 Material。
+    return Material(
+      type: MaterialType.transparency,
+      child: ListTile(
+        minVerticalPadding: 14,
+        contentPadding: contentPadding,
+        iconColor: color ?? scheme.mutedForeground,
+        textColor: color,
+        leading: leadingWidget ?? Icon(icon, size: 20),
+        title: Text(label, style: TextStyle(fontSize: 15, color: color ?? scheme.foreground)),
+        subtitle: valueText,
+        trailing: trailing ??
+            (chevron
+                ? Icon(LucideIcons.chevronRight, size: 20, color: scheme.mutedForeground)
+                : null),
+        onTap: onTap,
+      ),
     );
   }
 }
