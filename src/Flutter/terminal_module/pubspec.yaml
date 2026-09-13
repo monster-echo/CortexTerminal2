@@ -25,10 +25,11 @@ dependencies:
     path: vendor/xterm
   flutter:
     sdk: flutter
-
-  # The following adds the Cupertino Icons font to your application.
-  # Use with the CupertinoIcons class for iOS style icons.
-  cupertino_icons: ^1.0.8
+  # 选择工具条等 UI 用 shadcn/ui（dark-only，经 ShadTheme 子树注入，无 ShadApp）。
+  # vendor 副本：ohos fork 的 TargetPlatform 枚举多了 ohos，pub 版 4 处非穷尽
+  # switch 编译报错，补丁见 vendor/shadcn_ui/pubspec.yaml 头注释。
+  shadcn_ui:
+    path: vendor/shadcn_ui
 
 dev_dependencies:
   flutter_test:
