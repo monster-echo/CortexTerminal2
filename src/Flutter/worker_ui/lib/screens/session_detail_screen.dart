@@ -1,11 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../core/corterm_service.dart';
 import '../core/models.dart';
 import '../l10n/app_strings.dart';
+import '../widgets/app_bar.dart';
 import '../widgets/error_banner.dart';
+import '../widgets/states.dart';
 
 /// 会话日志查看器：每 2s 轮询 `cortap events --json --last N`，Dart 侧按 EventFormatter
 /// 逻辑渲染，自动滚底，可暂停/恢复实时。
@@ -76,18 +79,24 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final t = AppStrings.t;
-    final scheme = Theme.of(context).colorScheme;
+    final scheme = ShadTheme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
+      appBar: WorkerAppBar(
+        titleWidget: Text(
           widget.session.sessionId,
           style: const TextStyle(fontSize: 16, fontFamily: 'monospace'),
         ),
         actions: [
-          TextButton.icon(
-            onPressed: () => setState(() => _live = !_live),
-            icon: Icon(_live ? Icons.pause_circle_outline : Icons.play_circle_outline, size: 18),
-            label: Text(_live ? t(context, 'sessionDetail.liveOn') : t(context, 'sessionDetail.liveOff')),
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: ShadButton.ghost(
+              onPressed: () => setState(() => _live = !_live),
+              trailing: Icon(
+                _live ? LucideIcons.circlePause : LucideIcons.circlePlay,
+                size: 16,
+              ),
+              child: Text(_live ? t(context, 'sessionDetail.liveOn') : t(context, 'sessionDetail.liveOff')),
+            ),
           ),
         ],
       ),
@@ -98,15 +107,13 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
           children: [
             ErrorBanner(message: _error),
             if (_loading)
-              const Expanded(
-                child: Center(child: CircularProgressIndicator()),
-              )
+              const Expanded(child: SmallSpinner())
             else if (_events.isEmpty)
               Expanded(
                 child: Center(
                   child: Text(
                     t(context, 'sessionDetail.empty'),
-                    style: TextStyle(color: scheme.onSurfaceVariant),
+                    style: TextStyle(color: scheme.mutedForeground),
                   ),
                 ),
               )
@@ -114,7 +121,7 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
               Expanded(
                 child: Container(
                   decoration: BoxDecoration(
-                    color: scheme.surfaceContainer,
+                    color: scheme.card,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   padding: const EdgeInsets.all(12),

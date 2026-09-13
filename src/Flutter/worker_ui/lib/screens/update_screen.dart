@@ -1,11 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../core/corterm_service.dart';
 import '../core/models.dart';
 import '../l10n/app_strings.dart';
+import '../theme/app_theme.dart';
 import '../widgets/error_banner.dart';
+import '../widgets/list_group.dart';
 import '../widgets/primary_button.dart';
 import '../widgets/section_header.dart';
 import '../widgets/status_card.dart';
@@ -101,7 +104,7 @@ class _UpdateScreenState extends State<UpdateScreen> {
   @override
   Widget build(BuildContext context) {
     final t = AppStrings.t;
-    final scheme = Theme.of(context).colorScheme;
+    final scheme = ShadTheme.of(context).colorScheme;
     return SafeArea(
       child: ListView(
         padding: const EdgeInsets.all(16),
@@ -111,7 +114,7 @@ class _UpdateScreenState extends State<UpdateScreen> {
             trailing: PrimaryButton(
               label: t(context, 'update.check'),
               onPressed: _checking ? null : _checkForUpdates,
-              icon: Icons.search,
+              icon: LucideIcons.search,
             ),
           ),
           const SizedBox(height: 16),
@@ -135,31 +138,38 @@ class _UpdateScreenState extends State<UpdateScreen> {
               const SizedBox(height: 16),
               Text(
                 t(context, 'update.restartWarn'),
-                style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13),
+                style: TextStyle(color: scheme.mutedForeground, fontSize: 13),
               ),
               const SizedBox(height: 12),
               PrimaryButton(
                 label: t(context, 'update.trigger'),
                 onPressed: _update,
-                icon: Icons.system_update_alt,
+                icon: LucideIcons.download,
                 expanded: true,
               ),
             ],
           ],
           if (_updating) ...[
             const SizedBox(height: 16),
-            const LinearProgressIndicator(),
+            ShadProgress(value: null, minHeight: 4),
             const SizedBox(height: 16),
-            ..._stages.map(
-              (s) => ListTile(
-                dense: true,
-                leading: Icon(
-                  s.isError ? Icons.cancel_outlined : Icons.check_circle_outline,
-                  color: s.isError ? scheme.error : scheme.tertiary,
-                ),
-                title: Text(_stageLabel(context, s.stage)),
-                trailing: s.bytes != null && s.bytes! > 0 ? Text('${s.bytes} B') : null,
-              ),
+            AppGroupCard(
+              children: [
+                for (var i = 0; i < _stages.length; i++) ...[
+                  if (i > 0) const Divider(height: 1),
+                  Builder(
+                    builder: (context) {
+                      final s = _stages[i];
+                      return AppRow(
+                        icon: s.isError ? LucideIcons.circleX : LucideIcons.circleCheck,
+                        iconColor: s.isError ? scheme.destructive : scheme.tertiary,
+                        label: _stageLabel(context, s.stage),
+                        trailing: s.bytes != null && s.bytes! > 0 ? Text('${s.bytes} B') : null,
+                      );
+                    },
+                  ),
+                ],
+              ],
             ),
           ],
           if (_doneMessage != null) ...[

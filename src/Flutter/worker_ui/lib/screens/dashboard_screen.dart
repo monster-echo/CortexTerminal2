@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../core/corterm_service.dart';
 import '../core/models.dart';
 import '../l10n/app_strings.dart';
+import '../theme/app_theme.dart';
 import '../widgets/error_banner.dart';
+import '../widgets/list_group.dart';
 import '../widgets/section_header.dart';
+import '../widgets/states.dart';
 import '../widgets/status_card.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -38,14 +42,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
         children: [
           SectionHeader(
             title: t(context, 'nav.dashboard'),
-            trailing: IconButton(onPressed: _reload, icon: const Icon(Icons.refresh)),
+            trailing: ShadIconButton.ghost(
+              onPressed: _reload,
+              icon: Icon(LucideIcons.refreshCw, size: 18),
+            ),
           ),
           FutureBuilder<Status>(
             future: _future,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(
-                  child: Padding(padding: EdgeInsets.all(40), child: CircularProgressIndicator()),
+                  child: Padding(padding: EdgeInsets.all(40), child: SmallSpinner()),
                 );
               }
               if (snapshot.hasError) {
@@ -105,8 +112,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _authBanner(BuildContext context, Status s) {
     final t = AppStrings.t;
-    final scheme = Theme.of(context).colorScheme;
-    final color = s.authenticated ? scheme.tertiary : scheme.error;
+    final scheme = ShadTheme.of(context).colorScheme;
+    final color = s.authenticated ? scheme.tertiary : scheme.destructive;
     final label = s.authenticated ? t(context, 'dashboard.authenticated') : t(context, 'dashboard.notAuthenticated');
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -117,7 +124,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Row(
         children: [
           Icon(
-            s.authenticated ? Icons.check_circle_outline : Icons.error_outline,
+            s.authenticated ? LucideIcons.circleCheck : LucideIcons.circleAlert,
             color: color,
             size: 20,
           ),
@@ -130,7 +137,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _workersSection(BuildContext context, Status s) {
     final t = AppStrings.t;
-    final scheme = Theme.of(context).colorScheme;
+    final scheme = ShadTheme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -138,29 +145,39 @@ class _DashboardScreenState extends State<DashboardScreen> {
         if (s.workers.isEmpty)
           Text(
             t(context, 'dashboard.workersEmpty'),
-            style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 14),
+            style: TextStyle(color: scheme.mutedForeground, fontSize: 14),
           )
         else
-          ...s.workers.map(
-            (w) => Card(
-              margin: const EdgeInsets.only(bottom: 8),
-              child: ListTile(
-                leading: CircleAvatar(
-                  radius: 5,
-                  backgroundColor: w.isOnline ? scheme.tertiary : scheme.outlineVariant,
+          AppGroupCard(
+            children: [
+              for (var i = 0; i < s.workers.length; i++) ...[
+                if (i > 0) const Divider(height: 1),
+                Builder(
+                  builder: (context) {
+                    final w = s.workers[i];
+                    return AppRow(
+                      icon: LucideIcons.cpu,
+                      label: w.displayName,
+                      value:
+                          '${w.operatingSystem ?? ''}  v${w.version ?? '—'}'
+                          '${w.isOnline ? '' : '  (${t(context, 'dashboard.offline')})'}',
+                      trailing: w.isOnline
+                          ? Text(t(context, 'dashboard.online'),
+                              style: TextStyle(color: scheme.tertiary, fontSize: 13))
+                          : null,
+                      leadingWidget: Container(
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: w.isOnline ? scheme.tertiary : scheme.border,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    );
+                  },
                 ),
-                title: Text(w.displayName, style: const TextStyle(fontSize: 15)),
-                subtitle: Text(
-                  '${w.operatingSystem ?? ''}  v${w.version ?? '—'}'
-                  '${w.isOnline ? '' : '  (${t(context, 'dashboard.offline')})'}',
-                  style: const TextStyle(fontSize: 13),
-                ),
-                trailing: w.isOnline
-                    ? Text(t(context, 'dashboard.online'),
-                        style: TextStyle(color: scheme.tertiary, fontSize: 13))
-                    : null,
-              ),
-            ),
+              ],
+            ],
           ),
       ],
     );

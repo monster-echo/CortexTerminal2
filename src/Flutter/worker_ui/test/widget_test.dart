@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:worker_ui/core/corterm_service.dart';
 import 'package:worker_ui/core/models.dart';
 import 'package:worker_ui/screens/dashboard_screen.dart';
 import 'package:worker_ui/screens/settings_screen.dart';
+import 'package:worker_ui/theme/app_theme.dart';
 
 /// Fake service：不跑真实进程，只喂内存数据。
 class _FakeService extends CortermService {
@@ -36,9 +38,11 @@ class _FakeService extends CortermService {
 }
 
 void main() {
+  Widget wrap(Widget child) => ShadApp(theme: shadLightTheme(), home: Scaffold(body: child));
+
   testWidgets('dashboard renders status fields', (tester) async {
     await tester.pumpWidget(
-      MaterialApp(home: DashboardScreen(service: _FakeService())),
+      wrap(DashboardScreen(service: _FakeService())),
     );
     await tester.pumpAndSettle();
 
@@ -51,7 +55,7 @@ void main() {
 
   testWidgets('dashboard shows error banner when service throws', (tester) async {
     final failing = _FailingService();
-    await tester.pumpWidget(MaterialApp(home: DashboardScreen(service: failing)));
+    await tester.pumpWidget(wrap(DashboardScreen(service: failing)));
     await tester.pumpAndSettle();
 
     expect(find.textContaining('boom'), findsOneWidget);
@@ -59,7 +63,7 @@ void main() {
 
   testWidgets('settings shows management section (auth/agentTools/update/doctor/sessions)', (tester) async {
     await tester.pumpWidget(
-      MaterialApp(home: Scaffold(body: SettingsScreen(service: _FakeService()))),
+      wrap(SettingsScreen(service: _FakeService())),
     );
     await tester.pumpAndSettle();
 

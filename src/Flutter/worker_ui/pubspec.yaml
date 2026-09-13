@@ -24,7 +24,9 @@ dependencies:
   window_manager: ^0.4.3
   # 开机启动
   launch_at_startup: ^0.5.0
-  cupertino_icons: ^1.0.8
+  # UI 框架：shadcn/ui（ShadApp + ShadTheme，Material 仅保留 Scaffold 结构件；
+  # LucideIcons 由 shadcn_ui 再导出，无需单独依赖）
+  shadcn_ui: ^0.56.3
 
 dev_dependencies:
   flutter_test:
@@ -76,3 +78,8 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+# jni 从 path_provider_android 2.3.x 混入 Linux/Windows 原生构建（FFI 插件表），
+# 桌面端用不到 Android JNI，override 到 2.2.x 避免给 Windows CI 加 JVM 构建依赖。
+dependency_overrides:
+  path_provider_android: 2.2.23

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../core/binary_locator.dart';
 import '../core/corterm_service.dart';
 import '../core/settings.dart';
 import '../l10n/app_strings.dart';
+import '../widgets/app_nav_rail.dart';
 import '../widgets/error_banner.dart';
 import 'dashboard_screen.dart';
 import 'settings_screen.dart';
@@ -52,27 +54,19 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final t = AppStrings.t;
+    final scheme = ShadTheme.of(context).colorScheme;
     return Scaffold(
       body: Row(
         children: [
-          NavigationRail(
-            selectedIndex: _index,
-            onDestinationSelected: (i) => setState(() => _index = i),
-            labelType: NavigationRailLabelType.all,
-            destinations: [
-              NavigationRailDestination(
-                icon: const Icon(Icons.dashboard_outlined),
-                selectedIcon: const Icon(Icons.dashboard),
-                label: Text(t(context, 'nav.dashboard')),
-              ),
-              NavigationRailDestination(
-                icon: const Icon(Icons.settings_outlined),
-                selectedIcon: const Icon(Icons.settings),
-                label: Text(t(context, 'nav.settings')),
-              ),
+          AppNavRail(
+            items: [
+              AppNavItem(LucideIcons.layoutDashboard, t(context, 'nav.dashboard')),
+              AppNavItem(LucideIcons.settings, t(context, 'nav.settings')),
             ],
+            index: _index,
+            onSelect: (i) => setState(() => _index = i),
           ),
-          const VerticalDivider(width: 1),
+          VerticalDivider(width: 1, color: scheme.border),
           Expanded(child: _buildBody()),
         ],
       ),

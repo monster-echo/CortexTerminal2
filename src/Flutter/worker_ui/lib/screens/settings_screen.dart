@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:launch_at_startup/launch_at_startup.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../core/corterm_service.dart';
 import '../core/settings.dart';
 import '../l10n/app_strings.dart';
+import '../theme/app_theme.dart';
+import '../widgets/app_bar.dart';
+import '../widgets/list_group.dart';
 import '../widgets/section_header.dart';
 import 'agent_tools_screen.dart';
 import 'auth_screen.dart';
@@ -60,7 +64,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => Scaffold(
-          appBar: AppBar(title: Text(title)),
+          appBar: WorkerAppBar(title: title),
           body: screen,
         ),
       ),
@@ -70,8 +74,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final t = AppStrings.t;
-    final scheme = Theme.of(context).colorScheme;
     final s = Settings.instance;
+    final scheme = ShadTheme.of(context).colorScheme;
     return SafeArea(
       child: ListView(
         padding: const EdgeInsets.all(16),
@@ -79,108 +83,112 @@ class _SettingsScreenState extends State<SettingsScreen> {
           SectionHeader(title: t(context, 'settings.title')),
           const SizedBox(height: 16),
           // 管理：认证 / 服务 / 更新 / 诊断 / 会话（从设置里进，简化主导航）
-          Card(
-            child: Column(
-              children: [
-                ListTile(
-                  leading: Icon(Icons.login, color: scheme.secondary),
-                  title: Text(t(context, 'nav.auth')),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => _open(
-                    context,
-                    AuthScreen(service: widget.service),
-                    t(context, 'nav.auth'),
-                  ),
+          AppGroupCard(
+            children: [
+              AppRow(
+                icon: LucideIcons.logIn,
+                iconColor: scheme.link,
+                label: t(context, 'nav.auth'),
+                chevron: true,
+                onTap: () => _open(context, AuthScreen(service: widget.service), t(context, 'nav.auth')),
+              ),
+              const Divider(height: 1),
+              AppRow(
+                icon: LucideIcons.cpu,
+                iconColor: scheme.link,
+                label: t(context, 'nav.agentTools'),
+                chevron: true,
+                onTap: () =>
+                    _open(context, const AgentToolsScreen(), t(context, 'nav.agentTools')),
+              ),
+              const Divider(height: 1),
+              AppRow(
+                icon: LucideIcons.download,
+                iconColor: scheme.link,
+                label: t(context, 'nav.update'),
+                chevron: true,
+                onTap: () =>
+                    _open(context, UpdateScreen(service: widget.service), t(context, 'nav.update')),
+              ),
+              const Divider(height: 1),
+              AppRow(
+                icon: LucideIcons.shieldCheck,
+                iconColor: scheme.link,
+                label: t(context, 'nav.doctor'),
+                chevron: true,
+                onTap: () =>
+                    _open(context, DoctorScreen(service: widget.service), t(context, 'nav.doctor')),
+              ),
+              const Divider(height: 1),
+              AppRow(
+                icon: LucideIcons.activity,
+                iconColor: scheme.link,
+                label: t(context, 'nav.sessions'),
+                chevron: true,
+                onTap: () => _open(
+                  context,
+                  SessionsScreen(service: widget.service),
+                  t(context, 'nav.sessions'),
                 ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: Icon(Icons.memory, color: scheme.secondary),
-                  title: Text(t(context, 'nav.agentTools')),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => _open(
-                    context,
-                    const AgentToolsScreen(),
-                    t(context, 'nav.agentTools'),
-                  ),
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: Icon(Icons.system_update_alt, color: scheme.secondary),
-                  title: Text(t(context, 'nav.update')),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => _open(
-                    context,
-                    UpdateScreen(service: widget.service),
-                    t(context, 'nav.update'),
-                  ),
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: Icon(Icons.health_and_safety_outlined, color: scheme.secondary),
-                  title: Text(t(context, 'nav.doctor')),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => _open(
-                    context,
-                    DoctorScreen(service: widget.service),
-                    t(context, 'nav.doctor'),
-                  ),
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: Icon(Icons.timeline_outlined, color: scheme.secondary),
-                  title: Text(t(context, 'nav.sessions')),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => _open(
-                    context,
-                    SessionsScreen(service: widget.service),
-                    t(context, 'nav.sessions'),
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
           const SizedBox(height: 24),
           Text(t(context, 'settings.theme'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
-          SegmentedButton<ThemeMode>(
-            segments: [
-              ButtonSegment(value: ThemeMode.system, label: Text(t(context, 'settings.theme.system'))),
-              ButtonSegment(value: ThemeMode.light, label: Text(t(context, 'settings.theme.light'))),
-              ButtonSegment(value: ThemeMode.dark, label: Text(t(context, 'settings.theme.dark'))),
+          ShadTabs<ThemeMode>(
+            value: s.themeMode,
+            maintainState: false,
+            onChanged: s.setThemeMode,
+            tabs: [
+              for (final m in ThemeMode.values)
+                ShadTab<ThemeMode>(
+                  value: m,
+                  content: null,
+                  child: Text(
+                    switch (m) {
+                      ThemeMode.system => t(context, 'settings.theme.system'),
+                      ThemeMode.light => t(context, 'settings.theme.light'),
+                      ThemeMode.dark => t(context, 'settings.theme.dark'),
+                    },
+                  ),
+                ),
             ],
-            selected: {s.themeMode},
-            onSelectionChanged: (sel) => s.setThemeMode(sel.first),
           ),
           const SizedBox(height: 24),
           Text(t(context, 'settings.language'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
-          DropdownButton<String>(
-            value: s.locale,
-            items: const [
-              DropdownMenuItem(value: 'zh', child: Text('中文')),
-              DropdownMenuItem(value: 'en', child: Text('English')),
+          ShadSelect<String>(
+            initialValue: s.locale,
+            minWidth: 160,
+            selectedOptionBuilder: (context, v) => Text(v == 'zh' ? '中文' : 'English'),
+            options: const [
+              ShadOption(value: 'zh', child: Text('中文')),
+              ShadOption(value: 'en', child: Text('English')),
             ],
             onChanged: (v) {
               if (v != null) s.setLocale(v);
             },
           ),
           const SizedBox(height: 16),
-          Card(
-            child: SwitchListTile(
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              title: Text(t(context, 'settings.launchAtStartup'), style: const TextStyle(fontSize: 15)),
-              subtitle: Text(
-                t(context, 'settings.launchAtStartupHint'),
-                style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13),
+          AppGroupCard(
+            children: [
+              AppRow(
+                label: t(context, 'settings.launchAtStartup'),
+                value: t(context, 'settings.launchAtStartupHint'),
+                trailing: ShadSwitch(
+                  value: _launchAtStartup ?? false,
+                  // 与按钮同理：仅 onChanged: null 不会置灰
+                  enabled: _launchAtStartup != null,
+                  onChanged: _toggleLaunchAtStartup,
+                ),
               ),
-              value: _launchAtStartup ?? false,
-              onChanged: _launchAtStartup == null ? null : _toggleLaunchAtStartup,
-            ),
+            ],
           ),
           if (_startupError != null)
             Padding(
               padding: const EdgeInsets.only(top: 8),
-              child: Text(_startupError!, style: TextStyle(color: scheme.error, fontSize: 13)),
+              child: Text(_startupError!, style: TextStyle(color: scheme.destructive, fontSize: 13)),
             ),
         ],
       ),

@@ -10,6 +10,7 @@ import 'core/settings.dart';
 import 'core/tray_controller.dart';
 import 'l10n/app_strings.dart';
 import 'screens/auth_screen.dart';
+import 'widgets/app_bar.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -94,7 +95,7 @@ void _openAuthScreen() {
   appNavigatorKey.currentState?.push(
     MaterialPageRoute(
       builder: (_) => Scaffold(
-        appBar: AppBar(title: Text(AppStrings.of(Settings.instance.locale, 'nav.auth'))),
+        appBar: WorkerAppBar(title: AppStrings.of(Settings.instance.locale, 'nav.auth')),
         body: AuthScreen(service: service),
       ),
     ),

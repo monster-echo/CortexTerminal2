@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 
 /// 键值对卡片：标题 + 若干 (label, value) 行。用于 Dashboard 的统计区。
 class StatusCard extends StatelessWidget {
@@ -9,40 +10,32 @@ class StatusCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, fontSize: 18),
-            ),
-            const SizedBox(height: 12),
-            for (final (label, value) in items)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(
-                      width: 120,
-                      child: Text(
-                        label,
-                        style: textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant, fontSize: 14),
-                      ),
+    final scheme = ShadTheme.of(context).colorScheme;
+    return ShadCard(
+      title: Text(title),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 4),
+          for (final (label, value) in items)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 120,
+                    child: Text(
+                      label,
+                      style: TextStyle(color: scheme.mutedForeground, fontSize: 14),
                     ),
-                    Expanded(
-                      child: Text(value, style: textTheme.bodyMedium?.copyWith(fontSize: 14)),
-                    ),
-                  ],
-                ),
+                  ),
+                  Expanded(child: Text(value, style: TextStyle(fontSize: 14, color: scheme.foreground))),
+                ],
               ),
-          ],
-        ),
+            ),
+        ],
       ),
     );
   }

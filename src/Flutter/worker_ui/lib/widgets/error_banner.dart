@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../l10n/app_strings.dart';
 
@@ -12,7 +13,8 @@ class ErrorBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (message == null || message!.isEmpty) return const SizedBox.shrink();
-    final color = Theme.of(context).colorScheme.error;
+    final scheme = ShadTheme.of(context).colorScheme;
+    final color = scheme.destructive;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -23,7 +25,7 @@ class ErrorBanner extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.error_outline, color: color, size: 20),
+          Icon(LucideIcons.circleAlert, color: color, size: 20),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -32,7 +34,7 @@ class ErrorBanner extends StatelessWidget {
             ),
           ),
           if (onRetry != null)
-            TextButton(
+            ShadButton.link(
               onPressed: onRetry,
               child: Text(AppStrings.t(context, 'common.retry')),
             ),

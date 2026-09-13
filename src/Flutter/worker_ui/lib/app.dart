@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'core/settings.dart';
 import 'core/tray_controller.dart';
@@ -16,19 +17,21 @@ class WorkerUiApp extends StatelessWidget {
       listenable: Settings.instance,
       builder: (context, _) {
         final s = Settings.instance;
-        return MaterialApp(
+        return ShadApp(
           navigatorKey: appNavigatorKey,
           title: AppStrings.of(s.locale, 'appTitle'),
-          theme: buildAppTheme(Brightness.light),
-          darkTheme: buildAppTheme(Brightness.dark),
+          theme: shadLightTheme(),
+          darkTheme: shadDarkTheme(),
           themeMode: s.themeMode,
           locale: Locale(s.locale),
           supportedLocales: const [Locale('zh'), Locale('en')],
+          // 保留 Material delegates：Scaffold/AppBar 等结构件仍来自 Material
           localizationsDelegates: const [
             GlobalMaterialLocalizations.delegate,
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
+          builder: (context, child) => ShadToaster(child: child ?? const SizedBox.shrink()),
           home: const HomeScreen(),
         );
       },

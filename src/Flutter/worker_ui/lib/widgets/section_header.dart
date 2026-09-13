@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 
-/// 区域标题（18sp Bold）+ 可选 trailing 操作。
+/// 区域标题（18 Bold）+ 可选 trailing 操作。
 class SectionHeader extends StatelessWidget {
   const SectionHeader({super.key, required this.title, this.trailing});
 
@@ -9,6 +10,7 @@ class SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = ShadTheme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
@@ -16,10 +18,7 @@ class SectionHeader extends StatelessWidget {
           Expanded(
             child: Text(
               title,
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(fontWeight: FontWeight.bold, fontSize: 18),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: scheme.foreground),
             ),
           ),
           ?trailing,

@@ -3,13 +3,16 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../core/corterm_service.dart';
 import '../core/models.dart';
 import '../l10n/app_strings.dart';
+import '../theme/app_theme.dart';
 import '../widgets/error_banner.dart';
 import '../widgets/primary_button.dart';
 import '../widgets/section_header.dart';
+import '../widgets/states.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key, required this.service});
@@ -91,14 +94,20 @@ class _AuthScreenState extends State<AuthScreen> {
 
   Future<void> _logout() async {
     final t = AppStrings.t;
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showShadDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => ShadDialog.alert(
         title: Text(t(context, 'auth.logout')),
-        content: Text(t(context, 'auth.wouldYouLikeToLogout')),
+        description: Text(t(context, 'auth.wouldYouLikeToLogout')),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(t(context, 'common.cancel'))),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(t(context, 'auth.logout'))),
+          ShadButton.outline(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(t(context, 'common.cancel')),
+          ),
+          ShadButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(t(context, 'auth.logout')),
+          ),
         ],
       ),
     );
@@ -127,7 +136,7 @@ class _AuthScreenState extends State<AuthScreen> {
   @override
   Widget build(BuildContext context) {
     final t = AppStrings.t;
-    final scheme = Theme.of(context).colorScheme;
+    final scheme = ShadTheme.of(context).colorScheme;
     return SafeArea(
       child: ListView(
         padding: const EdgeInsets.all(16),
@@ -142,7 +151,7 @@ class _AuthScreenState extends State<AuthScreen> {
             ),
           const SizedBox(height: 8),
           if (_loading)
-            const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator()))
+            const Center(child: Padding(padding: EdgeInsets.all(24), child: SmallSpinner()))
           else if (_authenticated == true)
             _buildAuthenticated(context)
           else
@@ -154,7 +163,7 @@ class _AuthScreenState extends State<AuthScreen> {
 
   Widget _buildAuthenticated(BuildContext context) {
     final t = AppStrings.t;
-    final scheme = Theme.of(context).colorScheme;
+    final scheme = ShadTheme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -166,7 +175,7 @@ class _AuthScreenState extends State<AuthScreen> {
           ),
           child: Row(
             children: [
-              Icon(Icons.check_circle_outline, color: scheme.tertiary),
+              Icon(LucideIcons.circleCheck, color: scheme.tertiary),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -180,13 +189,13 @@ class _AuthScreenState extends State<AuthScreen> {
         const SizedBox(height: 12),
         Text(
           '${t(context, 'dashboard.authExpiry')}: ${_authExpiry ?? '—'}',
-          style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 14),
+          style: TextStyle(color: scheme.mutedForeground, fontSize: 14),
         ),
         const SizedBox(height: 16),
         PrimaryButton(
           label: t(context, 'auth.logout'),
           onPressed: _logout,
-          icon: Icons.logout,
+          icon: LucideIcons.logOut,
           expanded: true,
         ),
       ],
@@ -195,25 +204,29 @@ class _AuthScreenState extends State<AuthScreen> {
 
   Widget _buildLogin(BuildContext context) {
     final t = AppStrings.t;
-    final scheme = Theme.of(context).colorScheme;
+    final scheme = ShadTheme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         PrimaryButton(
           label: t(context, 'auth.login'),
           onPressed: _loggingIn ? null : _login,
-          icon: Icons.login,
+          icon: LucideIcons.logIn,
           expanded: true,
         ),
         if (_code != null) ...[
           const SizedBox(height: 24),
           Text(t(context, 'auth.visit'), style: const TextStyle(fontSize: 14)),
           const SizedBox(height: 8),
-          InkWell(
-            onTap: _copyUri,
+          ShadButton.link(
+            onPressed: _copyUri,
             child: Text(
               _code!.verificationUri ?? '',
-              style: TextStyle(color: scheme.secondary, decoration: TextDecoration.underline, fontSize: 14),
+              style: TextStyle(
+                color: scheme.link,
+                decoration: TextDecoration.underline,
+                fontSize: 14,
+              ),
             ),
           ),
           const SizedBox(height: 16),
@@ -223,7 +236,7 @@ class _AuthScreenState extends State<AuthScreen> {
                 if (_code!.verificationUri != null)
                   QrImageView(data: _code!.verificationUri!, size: 180),
                 const SizedBox(height: 16),
-                Text(t(context, 'auth.enterCode'), style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13)),
+                Text(t(context, 'auth.enterCode'), style: TextStyle(color: scheme.mutedForeground, fontSize: 13)),
                 const SizedBox(height: 4),
                 Text(
                   _code!.userCode ?? '',
@@ -231,11 +244,11 @@ class _AuthScreenState extends State<AuthScreen> {
                 ),
                 const SizedBox(height: 16),
                 if (!_loggingIn && _loginMessage == null)
-                  Text(t(context, 'auth.waiting'), style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 14))
+                  Text(t(context, 'auth.waiting'), style: TextStyle(color: scheme.mutedForeground, fontSize: 14))
                 else if (_loginMessage == 'success')
                   Text(t(context, 'auth.success'), style: TextStyle(color: scheme.tertiary, fontWeight: FontWeight.w600))
                 else if (_loginMessage != null && _loginMessage != 'success')
-                  Text('${t(context, 'auth.failed')}: $_loginMessage', style: TextStyle(color: scheme.error)),
+                  Text('${t(context, 'auth.failed')}: $_loginMessage', style: TextStyle(color: scheme.destructive)),
               ],
             ),
           ),

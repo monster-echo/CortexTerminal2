@@ -1,89 +1,79 @@
 import 'package:flutter/material.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'app_colors.dart';
 
-/// 由 CLAUDE.md 设计 token 构造 Material 3 ThemeData（dark + light）。
-/// 组件规范：主按钮 48dp 胶囊 / 输入框 48dp 8dp 圆角 / 卡片 12dp / 间距 4·8·16·24。
-ThemeData buildAppTheme(Brightness brightness) {
-  final dark = brightness == Brightness.dark;
+/// 由 CLAUDE.md 设计 token 构造 shadcn 主题（dark + light）。
+/// 与 corterm_mobile 同规则：hex 只允许出现在 [AppColors]，组件一律
+/// 从 `ShadTheme.of(context).colorScheme` 取色。
+///
+/// tertiary（成功/在线绿）与 link（次要文字/链接）shadcn 色板没有对应槽位，
+/// 放 `custom` map，经下方 extension 取用。
+ShadColorScheme _lightScheme() => const ShadColorScheme(
+      background: AppColors.lightSurface,
+      foreground: AppColors.lightPrimary,
+      card: AppColors.lightContainer,
+      cardForeground: AppColors.lightPrimary,
+      popover: AppColors.lightContainerHighest,
+      popoverForeground: AppColors.lightPrimary,
+      primary: AppColors.lightPrimaryButton,
+      primaryForeground: AppColors.lightOnPrimaryButton,
+      secondary: AppColors.lightContainerHigh,
+      secondaryForeground: AppColors.lightPrimary,
+      muted: AppColors.lightContainerHigh,
+      mutedForeground: AppColors.lightOnSurfaceVariant,
+      accent: AppColors.lightContainerHighest,
+      accentForeground: AppColors.lightPrimary,
+      destructive: AppColors.lightError,
+      destructiveForeground: AppColors.lightOnPrimaryButton,
+      border: AppColors.lightOutlineVariant,
+      input: AppColors.lightOutlineVariant,
+      ring: AppColors.lightSecondary,
+      selection: Color(0x401a8cd8),
+      custom: {'link': AppColors.lightSecondary, 'tertiary': AppColors.lightTertiary},
+    );
 
-  final scheme = ColorScheme(
-    brightness: brightness,
-    primary: dark ? AppColors.darkPrimaryButton : AppColors.lightPrimaryButton,
-    onPrimary: dark ? AppColors.darkOnPrimaryButton : AppColors.lightOnPrimaryButton,
-    secondary: dark ? AppColors.darkSecondary : AppColors.lightSecondary,
-    onSecondary: dark ? AppColors.darkSurface : AppColors.lightSurface,
-    tertiary: dark ? AppColors.darkTertiary : AppColors.lightTertiary,
-    onTertiary: dark ? AppColors.darkPrimary : AppColors.lightPrimary,
-    error: dark ? AppColors.darkError : AppColors.lightError,
-    onError: Colors.white,
-    surface: dark ? AppColors.darkSurface : AppColors.lightSurface,
-    onSurface: dark ? AppColors.darkPrimary : AppColors.lightPrimary,
-    onSurfaceVariant: dark ? AppColors.darkOnSurfaceVariant : AppColors.lightOnSurfaceVariant,
-    outline: dark ? AppColors.darkOutline : AppColors.lightOutline,
-    outlineVariant: dark ? AppColors.darkOutlineVariant : AppColors.lightOutlineVariant,
-    surfaceContainerLowest: dark ? const Color(0xFF0c1015) : const Color(0xFFfafafa),
-    surfaceContainerLow: dark ? const Color(0xFF161b26) : const Color(0xFFf7f7f7),
-    surfaceContainer: dark ? AppColors.darkContainer : AppColors.lightContainer,
-    surfaceContainerHigh: dark ? AppColors.darkContainerHigh : AppColors.lightContainerHigh,
-    surfaceContainerHighest: dark ? AppColors.darkContainerHighest : AppColors.lightContainerHighest,
-  );
+ShadColorScheme _darkScheme() => const ShadColorScheme(
+      background: AppColors.darkSurface,
+      foreground: AppColors.darkPrimary,
+      card: AppColors.darkContainer,
+      cardForeground: AppColors.darkPrimary,
+      popover: AppColors.darkContainerHighest,
+      popoverForeground: AppColors.darkPrimary,
+      primary: AppColors.darkPrimaryButton,
+      primaryForeground: AppColors.darkOnPrimaryButton,
+      secondary: AppColors.darkContainer,
+      secondaryForeground: AppColors.darkPrimary,
+      muted: AppColors.darkContainer,
+      mutedForeground: AppColors.darkOnSurfaceVariant,
+      accent: AppColors.darkContainerHigh,
+      accentForeground: AppColors.darkPrimary,
+      destructive: AppColors.darkError,
+      destructiveForeground: AppColors.darkOnPrimaryButton,
+      border: AppColors.darkOutlineVariant,
+      input: AppColors.darkOutlineVariant,
+      ring: AppColors.darkSecondary,
+      selection: Color(0x407cacf8),
+      custom: {'link': AppColors.darkSecondary, 'tertiary': AppColors.darkTertiary},
+    );
 
-  final base = ThemeData(
-    brightness: brightness,
-    colorScheme: scheme,
-    scaffoldBackgroundColor: scheme.surface,
-    useMaterial3: true,
-  );
-
-  return base.copyWith(
-    // 主操作按钮：48dp 胶囊，禁用 opacity 0.5
-    filledButtonTheme: FilledButtonThemeData(
-      style: FilledButton.styleFrom(
-        minimumSize: const Size(120, 48),
-        shape: const StadiumBorder(),
-        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-        disabledForegroundColor: scheme.onPrimary.withValues(alpha: 0.5),
-        disabledBackgroundColor: scheme.primary.withValues(alpha: 0.5),
-      ),
-    ),
-    // 次要按钮：透明 + 1dp outline_variant 边框，8dp 圆角
-    outlinedButtonTheme: OutlinedButtonThemeData(
-      style: OutlinedButton.styleFrom(
-        minimumSize: const Size(96, 48),
-        side: BorderSide(color: scheme.outlineVariant, width: 1),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-      ),
-    ),
-    // 输入框：48dp，surface_container_high 底，8dp 圆角
-    inputDecorationTheme: InputDecorationTheme(
-      filled: true,
-      fillColor: scheme.surfaceContainerHigh,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: BorderSide.none,
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: BorderSide(color: scheme.outlineVariant),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: BorderSide(color: scheme.primary, width: 1.5),
-      ),
-    ),
-    // 卡片：12dp
-    cardTheme: CardThemeData(
-      color: scheme.surfaceContainer,
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      margin: EdgeInsets.zero,
-    ),
-    dividerTheme: DividerThemeData(color: scheme.outlineVariant, space: 1),
-    listTileTheme: ListTileThemeData(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-    ),
-  );
+/// [ShadColorScheme.custom] 的类型安全取用：链接/次要文字色与成功/在线色。
+extension WorkerSchemeX on ShadColorScheme {
+  Color get link => custom['link']!;
+  Color get tertiary => custom['tertiary']!;
 }
+
+/// Light/Dark shadcn 主题（ShadApp 直接消费）。
+/// 组件规范：全局圆角 8dp（输入框/小按钮），卡片 12dp，主/次按钮 48dp 高。
+ShadThemeData shadLightTheme() => _theme(Brightness.light, _lightScheme());
+
+ShadThemeData shadDarkTheme() => _theme(Brightness.dark, _darkScheme());
+
+ShadThemeData _theme(Brightness brightness, ShadColorScheme scheme) => ShadThemeData(
+      brightness: brightness,
+      colorScheme: scheme,
+      radius: BorderRadius.circular(8),
+      cardTheme: ShadCardTheme(radius: BorderRadius.circular(12)),
+      primaryButtonTheme: const ShadButtonTheme(height: 48),
+      outlineButtonTheme: const ShadButtonTheme(height: 48),
+    );

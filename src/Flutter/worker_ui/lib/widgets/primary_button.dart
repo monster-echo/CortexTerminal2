@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 
-/// 主操作按钮：胶囊 48dp。`expanded` 时铺满但受 maxWidth 400 约束。
+/// 主操作按钮：48dp 高。`expanded` 时铺满但受 maxWidth 400 约束。
 class PrimaryButton extends StatelessWidget {
   const PrimaryButton({super.key, required this.label, this.onPressed, this.icon, this.expanded = false});
 
@@ -11,16 +12,13 @@ class PrimaryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Widget child;
-    if (icon != null) {
-      child = Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [Icon(icon!, size: 18), const SizedBox(width: 8), Text(label)],
-      );
-    } else {
-      child = Text(label);
-    }
-    final button = FilledButton(onPressed: onPressed, child: child);
+    // shadcn 按钮只认 enabled:，onPressed: null 不会置灰
+    final button = ShadButton(
+      onPressed: onPressed,
+      enabled: onPressed != null,
+      leading: icon == null ? null : Icon(icon, size: 18),
+      child: Text(label),
+    );
     if (!expanded) return button;
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 400),

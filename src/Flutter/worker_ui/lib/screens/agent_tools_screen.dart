@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../core/agent_tools.dart';
 import '../l10n/app_strings.dart';
+import '../theme/app_theme.dart';
 import '../widgets/error_banner.dart';
+import '../widgets/list_group.dart';
 import '../widgets/section_header.dart';
+import '../widgets/states.dart';
 
 /// 常见 AI agent CLI 安装检测（Claude Code / Codex / Gemini CLI / OpenCode / Aider）。
 class AgentToolsScreen extends StatefulWidget {
@@ -48,58 +52,55 @@ class _AgentToolsScreenState extends State<AgentToolsScreen> {
   @override
   Widget build(BuildContext context) {
     final t = AppStrings.t;
-    final scheme = Theme.of(context).colorScheme;
+    final scheme = ShadTheme.of(context).colorScheme;
     return SafeArea(
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           SectionHeader(
             title: t(context, 'agentTools.title'),
-            trailing: IconButton(onPressed: _detect, icon: const Icon(Icons.refresh)),
+            trailing: ShadIconButton.ghost(
+              onPressed: _detect,
+              icon: Icon(LucideIcons.refreshCw, size: 18),
+            ),
           ),
           const SizedBox(height: 8),
           ErrorBanner(message: _error),
           if (_loading)
-            const Center(child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator()))
+            const Center(child: Padding(padding: EdgeInsets.all(32), child: SmallSpinner()))
           else if (_result != null)
-            ..._result!.map(
-              (s) => Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: ListTile(
-                  leading: Icon(
-                    s.installed ? Icons.check_circle_outline : Icons.remove_circle_outline,
-                    color: s.installed ? scheme.tertiary : scheme.outline,
+            AppGroupCard(
+              children: [
+                for (var i = 0; i < _result!.length; i++) ...[
+                  if (i > 0) const Divider(height: 1),
+                  Builder(
+                    builder: (context) {
+                      final s = _result![i];
+                      return AppRow(
+                        icon: s.installed ? LucideIcons.circleCheck : LucideIcons.circleMinus,
+                        iconColor: s.installed ? scheme.tertiary : scheme.mutedForeground,
+                        label: s.tool.display,
+                        value: s.installed
+                            ? '${t(context, 'agentTools.installed')}'
+                                '${s.version != null && s.version!.isNotEmpty ? '  ·  v${s.version}' : ''}'
+                            : '${t(context, 'agentTools.notInstalled')}'
+                                '  ·  ${t(context, 'agentTools.installHint')} ${s.tool.installHint}',
+                        valueColor: s.installed ? scheme.tertiary : scheme.mutedForeground,
+                      );
+                    },
                   ),
-                  title: Text(s.tool.display, style: const TextStyle(fontSize: 15)),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (s.installed)
-                        Text(
-                          '${t(context, 'agentTools.installed')}'
-                          '${s.version != null && s.version!.isNotEmpty ? '  ·  v${s.version}' : ''}',
-                          style: TextStyle(color: scheme.tertiary, fontSize: 13),
-                        )
-                      else
-                        Text(
-                          '${t(context, 'agentTools.notInstalled')}'
-                          '  ·  ${t(context, 'agentTools.installHint')} ${s.tool.installHint}',
-                          style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13),
-                        ),
-                      if (s.path != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 2),
-                          child: Text(
-                            s.path!,
-                            style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 11),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
+                  if (_result![i].path != null)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(56, 0, 16, 8),
+                      child: Text(
+                        _result![i].path!,
+                        style: TextStyle(color: scheme.mutedForeground, fontSize: 11),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                ],
+              ],
             ),
         ],
       ),
