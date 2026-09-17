@@ -13,6 +13,7 @@ import { webview } from '@kit.ArkWeb'
 import { pasteboard } from '@kit.BasicServicesKit'
 import { ApiService, TerminalNavParam, RouteName, I18n, AnalyticsService, lightHaptic, clickHaptic, showToast } from '@rwecho/core'
 import { TerminalCache, TerminalCacheEntry } from '../service/TerminalCache'
+import { SnapshotStore } from '../service/SnapshotStore'
 import { TerminalStateManager } from '../service/TerminalStateManager'
 import { TerminalTransport } from '../service/TerminalTransport'
 import { TransportFrame } from '../model/TerminalTransportModels'
@@ -22,6 +23,11 @@ import { VirtualKeyBar } from './VirtualKeyBar'
 import { TunnelPanel } from './TunnelPanel'
 
 class TerminalSize { cols: number = 0; rows: number = 0 }
+
+/** One JSON-encoded fragment handed to restoreSnapshotChunk() on the JS side. */
+class SnapshotChunk {
+  data: string = ''
+}
 
 @CustomDialog
 struct SessionDetailDialog {
@@ -130,6 +136,7 @@ export struct TerminalPage {
   @Consume('pageStack') pageStack: NavPathStack
   @StorageLink('isKeyboardVisible') isKeyboardVisible: boolean = false
   @StorageLink('keyboardHeight') @Watch('onKeyboardHeightChange') keyboardHeight: number = 0
+  @StorageLink('appBackgroundTick') @Watch('onAppBackground') appBackgroundTick: number = 0
   @State connectionError: string = ''
   @State latencyMs: number = -1
   @State lastPingTime: number = 0
@@ -164,6 +171,15 @@ export struct TerminalPage {
   private connectTimer: number = -1
   private resizeDebounceTimer: number = -1
   private pageVisible: boolean = true
+  // Scrollback snapshot (serialize → device file, keyed by WORKER so a new
+  // session on the same machine restores the old history and appends below
+  // it — Windows-Terminal-style concat). hasRestoredSnapshot marks a page
+  // whose painted content came from the snapshot: the server's authoritative
+  // full replay must not swap it away (for a new session that replay is
+  // empty; for a re-opened dead session the snapshot already contains it).
+  private snapshotKey: string = ''
+  private hasRestoredSnapshot: boolean = false
+  private snapshotIdleTimer: number = -1
 
   private applyStatusBar(forceWhite: boolean): void {
     const context = getContext(this) as common.UIAbilityContext
@@ -200,6 +216,11 @@ export struct TerminalPage {
       const lastParam = param[param.length - 1]
       this.sessionId = lastParam.sessionId
       this.sessionName = lastParam.sessionName || 'Terminal'
+      // Snapshot key: the WORKER when known — every session on the same
+      // machine shares one rolling history. Worker-less navigation falls
+      // back to the session id (per-session snapshot, no cross concat).
+      this.snapshotKey = lastParam.workerId.length > 0 ? lastParam.workerId : this.sessionId
+      console.info(`[snapshot] key=${this.snapshotKey} session=${this.sessionId}`)
     }
     TerminalCache.getInstance().init(getContext(this).filesDir)
     this.replaySinceSeq = TerminalCache.getInstance().loadLastSeq(this.sessionId)
@@ -228,7 +249,18 @@ export struct TerminalPage {
       clearTimeout(this.resizeDebounceTimer)
       this.resizeDebounceTimer = -1
     }
+    if (this.snapshotIdleTimer !== -1) {
+      clearTimeout(this.snapshotIdleTimer)
+      this.snapshotIdleTimer = -1
+    }
+    // Best-effort capture on the way out — if the webview tears down before
+    // the async serialize lands, the 3s idle saves already covered us.
+    this.captureSnapshot()
     this.transport.sendDetach()
+  }
+
+  onAppBackground() {
+    this.captureSnapshot()
   }
 
   build() {
@@ -350,7 +382,7 @@ export struct TerminalPage {
           webviewController: this.webviewController,
           onInputReady: () => {
             this.webviewReady = true
-            this.paintCachedOutput()
+            this.paintOnReady()
             this.doInitialFit()
           },
           onInput: (data: string) => {
@@ -373,6 +405,12 @@ export struct TerminalPage {
           },
           onContextMenu: (x: number, y: number) => {
             this.onTerminalContextMenu(x, y)
+          },
+          onSnapshotCaptured: (content: string) => {
+            this.onSnapshotCaptured(content)
+          },
+          onSnapshotFailed: (message: string) => {
+            this.onSnapshotFailed(message)
           }
         })
 
@@ -576,6 +614,9 @@ export struct TerminalPage {
       case 'expired':
         this.connectionError = frame.reason || I18n.get('terminal.status.expired')
         TerminalCache.getInstance().clear(this.sessionId)
+        // Grab the final buffer now — the page auto-navigates in 2s and the
+        // webview may not survive long enough for the aboutToDisappear save.
+        this.captureSnapshot()
         this.stateManager.setState(TerminalState.Expired)
         setTimeout(() => {
           this.pageStack.replacePath({ name: RouteName.SESSION_HOME })
@@ -585,6 +626,7 @@ export struct TerminalPage {
       case 'exited':
         this.connectionError = frame.reason || I18n.get('terminal.error.process_exited')
         TerminalCache.getInstance().clear(this.sessionId)
+        this.captureSnapshot()
         this.stateManager.setState(TerminalState.Exited)
         setTimeout(() => {
           this.pageStack.replacePath({ name: RouteName.SESSION_HOME })
@@ -612,6 +654,7 @@ export struct TerminalPage {
     const packed = this.pendingBatch.join('|')
     this.pendingBatch = []
     this.writePackedToWebview(packed)
+    this.scheduleSnapshotSave()
   }
 
   private writePackedToWebview(packed: string) {
@@ -638,29 +681,123 @@ export struct TerminalPage {
   }
 
   /**
-   * Paint the session's last-known screen from the local cache the moment the
-   * webview is up. The server replay replaces it wholesale later; until then
-   * this is what the user looks at instead of a blank grid.
+   * Paint the moment the webview is up, choosing the richest local source:
+   *   1. the session's server-confirmed cache (same-session re-entry — the
+   *      delta replay continues seamlessly from its cursor), or
+   *   2. the worker snapshot (no cache → first entry or a NEW session on the
+   *      same worker — full 64k-line history; live output appends below it).
+   * The server replay reconciles afterwards; swapReplayedScreen() keeps the
+   * snapshot-painted screen when the two would only duplicate each other.
    */
-  private paintCachedOutput() {
+  private paintOnReady() {
     let entry = new TerminalCacheEntry()
+    let cacheBroken = false
     try {
       entry = TerminalCache.getInstance().load(this.sessionId)
     } catch (e) {
       console.error('Failed to load terminal cache: ' + (e as Error).message)
+      cacheBroken = true
+    }
+    if (!cacheBroken && entry.packed.length > 0) {
+      try {
+        this.webviewController.runJavaScript(`writeBatchedOutput("${entry.packed}")`)
+          .catch((e: Error) => {
+            console.error('Failed to paint cached terminal: ' + e.message)
+          })
+      } catch (e) {
+        console.error('Failed to paint cached terminal: ' + (e as Error).message)
+      }
       return
     }
-    if (entry.packed.length === 0) {
+    this.restoreWorkerSnapshot()
+  }
+
+  /**
+   * Replay the worker's snapshot into the buffer, chunked to keep each
+   * runJavaScript payload in the size class the write path already proves
+   * out on ArkWeb. runJavaScript is FIFO, so the chunks land in capture
+   * order and everything flushed later appends BELOW them.
+   */
+  private restoreWorkerSnapshot() {
+    if (!SnapshotStore.exists(this.snapshotKey)) {
+      console.info(`[snapshot] none on device for key=${this.snapshotKey}`)
+      return
+    }
+    let content = ''
+    try {
+      content = SnapshotStore.load(this.snapshotKey)
+    } catch (e) {
+      console.error('Failed to load terminal snapshot: ' + (e as Error).message)
+      showToast(I18n.get('terminal.snapshot.load_failed'))
+      return
+    }
+    if (content.length === 0) {
+      return
+    }
+    console.info(`[snapshot] restoring ${content.length}B for key=${this.snapshotKey}`)
+    const CHUNK = 262144
+    try {
+      for (let i = 0; i < content.length; i += CHUNK) {
+        const piece = content.substring(i, Math.min(i + CHUNK, content.length))
+        const chunk = new SnapshotChunk()
+        chunk.data = piece
+        const json = JSON.stringify(chunk)
+        const escaped = json.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+        this.webviewController.runJavaScript(`restoreSnapshotChunk("${escaped}")`)
+          .catch((e: Error) => console.warn('Failed to restore snapshot chunk: ' + e.message))
+      }
+      this.hasRestoredSnapshot = true
+    } catch (e) {
+      console.error('Failed to restore terminal snapshot: ' + (e as Error).message)
+      showToast(I18n.get('terminal.snapshot.load_failed'))
+    }
+  }
+
+  /** Serialize the live buffer to the device (async — result lands via onSnapshotCaptured). */
+  private captureSnapshot() {
+    if (!this.webviewReady) {
       return
     }
     try {
-      this.webviewController.runJavaScript(`writeBatchedOutput("${entry.packed}")`)
+      this.webviewController.runJavaScript('startSnapshotCapture()')
         .catch((e: Error) => {
-          console.error('Failed to paint cached terminal: ' + e.message)
+          this.onSnapshotFailed(e.message)
         })
     } catch (e) {
-      console.error('Failed to paint cached terminal: ' + (e as Error).message)
+      this.onSnapshotFailed((e as Error).message)
     }
+  }
+
+  /** Output writes reset this — snapshots are taken 3s after the stream quiets. */
+  private scheduleSnapshotSave() {
+    if (this.snapshotIdleTimer !== -1) {
+      clearTimeout(this.snapshotIdleTimer)
+    }
+    this.snapshotIdleTimer = setTimeout(() => {
+      this.snapshotIdleTimer = -1
+      this.captureSnapshot()
+    }, 3000) as number
+  }
+
+  private onSnapshotCaptured(content: string) {
+    // An empty buffer must never overwrite the previous snapshot: it would
+    // erase the very history the next session on this worker is meant to
+    // inherit. (An empty capture can only happen before anything rendered.)
+    if (content.length === 0) {
+      return
+    }
+    try {
+      SnapshotStore.save(this.snapshotKey, content)
+      console.info(`[snapshot] saved ${content.length}B key=${this.snapshotKey}`)
+    } catch (e) {
+      console.error('Failed to save terminal snapshot: ' + (e as Error).message)
+      showToast(I18n.get('terminal.snapshot.save_failed'))
+    }
+  }
+
+  private onSnapshotFailed(message: string) {
+    console.error('Terminal snapshot capture failed: ' + message)
+    showToast(I18n.get('terminal.snapshot.save_failed'))
   }
 
   private flushPendingOutput() {
@@ -687,6 +824,18 @@ export struct TerminalPage {
    */
   private swapReplayedScreen() {
     this.pendingSwap = false
+    if (this.hasRestoredSnapshot) {
+      // The snapshot already paints everything this replay could contain —
+      // for a NEW session the authoritative replay is empty, and for a
+      // re-opened session it duplicates the snapshot's tail. Resetting here
+      // would destroy the concatenated history for nothing. pendingBatch may
+      // still hold LIVE output that arrived during the replay window (e.g.
+      // the fresh shell banner) — flush it BELOW the restored history.
+      console.info('[snapshot] skip reset+replay swap (snapshot restored)')
+      this.pendingSwap = false
+      this.flushBatch()
+      return
+    }
     this.runResetTerminal()
     if (this.pendingBatch.length === 0) {
       // Empty authoritative replay — the cached screen must not outlive it.

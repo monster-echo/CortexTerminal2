@@ -12,6 +12,8 @@ import { webview } from '@kit.ArkWeb'
 type OnInputReadyCallback = () => void
 type OnInputCallback = (data: string) => void
 type OnResizeCallback = (cols: number, rows: number) => void
+type OnSnapshotCapturedCallback = (content: string) => void
+type OnSnapshotFailedCallback = (message: string) => void
 
 @Component
 export struct XtermWebview {
@@ -20,6 +22,9 @@ export struct XtermWebview {
   onInput: OnInputCallback = (_data: string) => {}
   onResize: OnResizeCallback = (_cols: number, _rows: number) => {}
   onContextMenu: (x: number, y: number) => void = (_x: number, _y: number) => {}
+  /** Full serialized buffer, delivered on snapshotEnd after chunk reassembly. */
+  onSnapshotCaptured: OnSnapshotCapturedCallback = (_content: string) => {}
+  onSnapshotFailed: OnSnapshotFailedCallback = (_message: string) => {}
   @StorageLink('gatewayUrl') gatewayUrl: string = ''
   @StorageLink('terminalCols') terminalCols: number = 80
   @StorageLink('terminalRows') terminalRows: number = 24
@@ -27,6 +32,8 @@ export struct XtermWebview {
 
   private msgPorts: webview.WebMessagePort[] = []
   private readyNotified: boolean = false
+  private snapshotChunks: string[] = []
+  private snapshotExpectedTotal: number = -1
 
   build() {
     Column() {
@@ -80,6 +87,26 @@ export struct XtermWebview {
               this.onContextMenu(x, y)
             } else if (type === 'contextmenuhide') {
               this.onContextMenu(-1, -1)
+            } else if (type === 'snapshotStart') {
+              this.snapshotChunks = []
+              this.snapshotExpectedTotal = msg['total'] as number
+            } else if (type === 'snapshotChunk') {
+              this.snapshotChunks.push(msg['data'] as string)
+            } else if (type === 'snapshotEnd') {
+              const received = this.snapshotChunks.length
+              const content = this.snapshotChunks.join('')
+              const expected = this.snapshotExpectedTotal
+              this.snapshotChunks = []
+              this.snapshotExpectedTotal = -1
+              if (expected >= 0 && received === expected) {
+                this.onSnapshotCaptured(content)
+              } else {
+                this.onSnapshotFailed(`snapshot chunk count mismatch: received ${received}, expected ${expected}`)
+              }
+            } else if (type === 'snapshotFailed') {
+              this.snapshotChunks = []
+              this.snapshotExpectedTotal = -1
+              this.onSnapshotFailed((msg['message'] as string) ?? 'serialize failed')
             }
           } catch (e) {
             console.warn('[XtermWebview] onInput handler error: ' + (e as Error).message)

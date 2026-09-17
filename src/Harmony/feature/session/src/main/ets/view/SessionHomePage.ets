@@ -259,11 +259,12 @@ export struct SessionHomePage {
   @Builder
   CreateSheetContent() {
     CreateSessionSheet({
-      onSessionCreated: (sessionId: string, sessionName: string) => {
+      onSessionCreated: (sessionId: string, sessionName: string, workerId: string) => {
         this.showCreateSheet = false
         const param = new TerminalNavParam()
         param.sessionId = sessionId
         param.sessionName = sessionName
+        param.workerId = workerId
         this.pageStack.pushPath({ name: RouteName.TERMINAL_SESSION, param: param })
       }
     })
@@ -274,6 +275,7 @@ export struct SessionHomePage {
     const param = new TerminalNavParam()
     param.sessionId = session.id
     param.sessionName = session.name || 'Terminal'
+    param.workerId = session.workerId
     this.pageStack.pushPath({ name: RouteName.TERMINAL_SESSION, param: param })
   }
 

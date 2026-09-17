@@ -33,11 +33,13 @@
   <script src="xterm.js"></script>
   <script src="xterm-addon-fit.js"></script>
   <script src="xterm-addon-webgl.js"></script>
+  <script src="xterm-addon-serialize.js"></script>
 
   <script>
     // === Globals ===
     let term = null;
     let fitAddon = null;
+    let serializeAddon = null;
     let terminalContainer = null;
 
     // === WebMessagePort 通信 ===
@@ -108,6 +110,9 @@
 
       fitAddon = new FitAddon.FitAddon();
       term.loadAddon(fitAddon);
+
+      serializeAddon = new SerializeAddon.SerializeAddon();
+      term.loadAddon(serializeAddon);
 
       const container = document.getElementById('terminal-container');
       terminalContainer = container;
@@ -556,6 +561,49 @@
      */
     function hasSelection() {
       return (term && term.hasSelection()) ? '1' : '0';
+    }
+
+    // === Scrollback snapshot (serialize → host file → restore) ===
+    // The host persists the serialized ANSI stream per worker so reopening a
+    // session restores full scrollback — server replay is capped (512KB) and
+    // lost entirely on worker restart. Restore replays via term.write, so new
+    // live output continues BELOW the restored history (Windows-Terminal-style
+    // concat instead of reset-and-replace).
+    var SNAPSHOT_CHUNK = 262144; // 256KB per port message
+
+    /**
+     * Serialize the full buffer (screen + scrollback) and stream it to the
+     * host in snapshotStart, snapshotChunk and snapshotEnd port messages.
+     * Called by the host on idle / page exit / app background — never on the
+     * write hot path (serializing 64k lines is a synchronous job, 100ms+).
+     */
+    function startSnapshotCapture() {
+      if (!term || !serializeAddon) return;
+      var data;
+      try {
+        data = serializeAddon.serialize();
+      } catch (e) {
+        console.error('[snapshot] serialize failed: ' + e.message);
+        sendToHost({ type: 'snapshotFailed', message: e.message });
+        return;
+      }
+      var total = Math.max(Math.ceil(data.length / SNAPSHOT_CHUNK), 1);
+      sendToHost({ type: 'snapshotStart', total: total });
+      for (var i = 0; i < total; i++) {
+        sendToHost({ type: 'snapshotChunk', seq: i, data: data.substr(i * SNAPSHOT_CHUNK, SNAPSHOT_CHUNK) });
+      }
+      sendToHost({ type: 'snapshotEnd', total: total, bytes: data.length });
+    }
+
+    /**
+     * Append one JSON-encoded fragment of a previously captured snapshot to
+     * the buffer. Fragments must be invoked in capture order — runJavaScript
+     * guarantees FIFO, so the host needs no extra sequencing here.
+     */
+    function restoreSnapshotChunk(json) {
+      if (!term) return;
+      var chunk = JSON.parse(json);
+      term.write(chunk.data);
     }
 
     // === Window resize handling ===

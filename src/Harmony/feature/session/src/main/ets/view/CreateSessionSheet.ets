@@ -7,7 +7,7 @@ export struct CreateSessionSheet {
   @State isModalLoading: boolean = false
   @State errorMessage: string = ''
   @State isCreating: boolean = false
-  onSessionCreated?: (sessionId: string, sessionName: string) => void
+  onSessionCreated?: (sessionId: string, sessionName: string, workerId: string) => void
 
   aboutToAppear() {
     this.loadWorkers()
@@ -123,7 +123,7 @@ export struct CreateSessionSheet {
       const session = await SessionService.createSessionOnWorker(workerId)
       AnalyticsService.onEvent(AnalyticsEvent.SESSION_CREATE)
       if (this.onSessionCreated) {
-        this.onSessionCreated(session.id, session.name)
+        this.onSessionCreated(session.id, session.name, session.workerId)
       }
     } catch (e) {
       this.errorMessage = (e as Error).message

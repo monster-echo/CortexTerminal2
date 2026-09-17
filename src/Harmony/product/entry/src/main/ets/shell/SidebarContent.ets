@@ -204,6 +204,7 @@ export struct SidebarContent {
       const param = new TerminalNavParam()
       param.sessionId = session.id
       param.sessionName = session.name || 'Terminal'
+      param.workerId = session.workerId
       this.navigate(RouteName.TERMINAL_SESSION, param)
     })
   }

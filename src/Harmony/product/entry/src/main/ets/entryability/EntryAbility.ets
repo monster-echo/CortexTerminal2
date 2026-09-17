@@ -209,6 +209,9 @@ export default class EntryAbility extends UIAbility {
 
   onBackground(): void {
     hilog.info(DOMAIN, TAG, 'onBackground')
+    // Tick pages observing this (TerminalPage) so they can persist state
+    // (terminal scrollback snapshot) before the process may be suspended.
+    AppStorage.setOrCreate('appBackgroundTick', Date.now())
   }
 
   /**

@@ -13,6 +13,7 @@
 export class TerminalNavParam {
   sessionId: string = ''
   sessionName: string = ''
+  workerId: string = ''
 }
 
 /**

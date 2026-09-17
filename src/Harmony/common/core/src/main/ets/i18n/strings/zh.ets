@@ -127,6 +127,8 @@ export const zhStrings: Record<string, string> = {
   'terminal.error.process_exited': '终端进程已退出',
   'terminal.error.session_not_found': '会话不存在或无权访问',
   'terminal.error.session_expired_create': '会话已过期，请创建新会话',
+  'terminal.snapshot.save_failed': '终端历史本地保存失败',
+  'terminal.snapshot.load_failed': '恢复终端历史失败',
   'terminal.error.session_state_error': '会话状态异常，请重试',
 
   // ── Worker ────────────────────────────────────────────────────────
