@@ -141,7 +141,9 @@ public sealed record WorkerInfoFrame(
     [property: Key(5)] string? Version,
     [property: Key(6)] double? CpuUsagePercent = null,
     [property: Key(7)] double? MemoryUsagePercent = null,
-    [property: Key(8)] string? HomePath = null);
+    [property: Key(8)] string? HomePath = null,
+    [property: Key(9)] string[]? LanEndpoints = null,
+    [property: Key(10)] string? PublicTransferBaseUrl = null);
 
 [MessagePackObject]
 public sealed record UpgradeWorkerCommand(

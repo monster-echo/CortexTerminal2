@@ -88,7 +88,7 @@ internal sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
     public override DateTimeOffset GetUtcNow() => utcNow;
 }
 
-internal sealed class NoOpWorkerCommandDispatcher : IWorkerCommandDispatcher
+internal class NoOpWorkerCommandDispatcher : IWorkerCommandDispatcher
 {
     public Task StartSessionAsync(string workerConnectionId, StartSessionCommand command, CancellationToken cancellationToken) => Task.CompletedTask;
     public Task WriteInputAsync(string workerConnectionId, WriteInputFrame frame, CancellationToken cancellationToken) => Task.CompletedTask;
@@ -102,7 +102,7 @@ internal sealed class NoOpWorkerCommandDispatcher : IWorkerCommandDispatcher
         => Task.FromResult(new ScrollbackDelta(Gap: true, LastSeq: 0, Items: []));
     public Task<FileListingResult> ListFilesAsync(string workerConnectionId, string rootDir, string relativePath, CancellationToken cancellationToken)
         => Task.FromResult(new FileListingResult(null, new FileOperationError(FileTransferErrorCode.TransferFailed, "no-op dispatcher")));
-    public Task<FileOperationAck> PrepareFileReceiveAsync(string workerConnectionId, PrepareFileReceiveCommand command, CancellationToken cancellationToken)
+    public virtual Task<FileOperationAck> PrepareFileReceiveAsync(string workerConnectionId, PrepareFileReceiveCommand command, CancellationToken cancellationToken)
         => Task.FromResult(new FileOperationAck(false, new FileOperationError(FileTransferErrorCode.TransferFailed, "no-op dispatcher")));
     public Task<PrepareFileSendAck> PrepareFileSendAsync(string workerConnectionId, PrepareFileSendCommand command, CancellationToken cancellationToken)
         => Task.FromResult(new PrepareFileSendAck(false, new FileOperationError(FileTransferErrorCode.TransferFailed, "no-op dispatcher"), 0, ""));
@@ -171,4 +171,11 @@ internal sealed class ThrowingWorkerCommandDispatcher(string message) : IWorkerC
         => Task.FromResult(new FileOperationAck(true, null));
     public Task<ProbePortResponse> ProbeTunnelPortAsync(string workerConnectionId, int port, CancellationToken cancellationToken)
         => Task.FromException<ProbePortResponse>(new InvalidOperationException(message));
+}
+
+/// <summary>PrepareFileReceive 永远成功（其余成员与 NoOp 一致），用于端点协商测试。</summary>
+internal sealed class PrepareAcceptingWorkerCommandDispatcher : NoOpWorkerCommandDispatcher
+{
+    public override Task<FileOperationAck> PrepareFileReceiveAsync(string workerConnectionId, PrepareFileReceiveCommand command, CancellationToken cancellationToken)
+        => Task.FromResult(new FileOperationAck(true, null));
 }

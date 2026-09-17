@@ -24,6 +24,7 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
     private readonly WorkspaceFileService _workspaceFiles;
     private readonly RelayTransferService _relayTransfers;
     private readonly RelayLink _relayLink;
+    private readonly LocalTransferListener _listener;
     private readonly IAgentIntegration? _agentIntegration;
     private readonly ILogger<WorkerRuntimeHost> _logger;
     private readonly ILoggerFactory _loggerFactory;
@@ -50,10 +51,11 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         IHostApplicationLifetime lifetime,
         RelayLink relayLink,
         RelayTransferService relayTransfers,
+        LocalTransferListener listener,
         ISystemMetricsCollector? metricsCollector = null,
         TimeSpan? metricsInterval = null,
         IAgentIntegration? agentIntegration = null)
-        : this(workerId, gatewayClient, ptyHost, DefaultMaxTransferSizeBytes, loggerFactory, lifetime, DefaultReconnectInterval, relayLink, relayTransfers, metricsCollector, metricsInterval, agentIntegration) { }
+        : this(workerId, gatewayClient, ptyHost, DefaultMaxTransferSizeBytes, loggerFactory, lifetime, DefaultReconnectInterval, relayLink, relayTransfers, listener, metricsCollector, metricsInterval, agentIntegration) { }
 
     internal WorkerRuntimeHost(
         string workerId,
@@ -65,6 +67,7 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         TimeSpan reconnectInterval,
         RelayLink relayLink,
         RelayTransferService relayTransfers,
+        LocalTransferListener listener,
         ISystemMetricsCollector? metricsCollector = null,
         TimeSpan? metricsInterval = null,
         IAgentIntegration? agentIntegration = null)
@@ -77,6 +80,7 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
             loggerFactory.CreateLogger<WorkspaceFileService>());
         _relayTransfers = relayTransfers;
         _relayLink = relayLink;
+        _listener = listener;
         _loggerFactory = loggerFactory;
         _lifetime = lifetime;
         _logger = loggerFactory.CreateLogger<WorkerRuntimeHost>();
@@ -132,6 +136,7 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         try
         {
             _ = _relayLink.RunAsync(cancellationToken);
+            // LAN 端点随指标循环的信息帧持续刷新上报（监听器稍后绑好端口，下一帧自动带上），不阻塞启动。
             await _gatewayClient.StartAsync(cancellationToken);
             await RegisterWorkerAsync(cancellationToken);
             StartMetricsLoop();
@@ -202,7 +207,9 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
             Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3),
             snapshot?.CpuUsagePercent,
             snapshot?.MemoryUsagePercent,
-            HomePath: Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+            HomePath: Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            LanEndpoints: _listener.LanBaseUrls.ToArray(),
+            PublicTransferBaseUrl: _listener.PublicBaseUrl);
     }
 
     private async Task ReconnectLoopAsync()

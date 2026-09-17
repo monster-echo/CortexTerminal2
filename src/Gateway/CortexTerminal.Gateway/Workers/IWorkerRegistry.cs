@@ -19,13 +19,17 @@ public interface IWorkerRegistry
     IReadOnlyList<RegisteredWorker> GetAllOnline();
     void UpdateMetrics(string workerId, WorkerMetrics? metrics);
     WorkerMetrics? GetMetrics(string workerId);
+    /// <summary>记录 Worker 上报的传输端点（LAN 直连 + 可选公网直连），用于端点协商下发。</summary>
+    void UpdateTransferEndpoints(string workerId, IReadOnlyList<string> lanEndpoints, string? publicBaseUrl);
 }
 
 public sealed record RegisteredWorker(
     string WorkerId,
     string ConnectionId,
     string? OwnerUserId = null,
-    DateTimeOffset? LastSeenAtUtc = null);
+    DateTimeOffset? LastSeenAtUtc = null,
+    IReadOnlyList<string>? LanEndpoints = null,
+    string? PublicTransferBaseUrl = null);
 
 public sealed record WorkerMetadata(
     string? Hostname = null,

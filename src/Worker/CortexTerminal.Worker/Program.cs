@@ -606,12 +606,19 @@ rootCommand.SetAction(async (ParseResult parseResult, CancellationToken cancella
         return new TokenRefreshService(httpClient, tokenStore, () => currentToken, t => currentToken = t, configuration, lifetime, logger);
     });
 
-    // Relay 数据面：隧道持久 WS 反代 + 文件传输执行器。
+    // Relay 数据面：隧道持久 WS 反代 + 文件传输执行器 + LAN 直连监听器（端点协商）。
     builder.Services.AddSingleton<RelayLink>(sp => new RelayLink(
         workerId, sp.GetRequiredService<ILogger<RelayLink>>()));
     builder.Services.AddSingleton(sp => new RelayTransferService(
         50L * 1024 * 1024,
         sp.GetRequiredService<ILogger<RelayTransferService>>()));
+    builder.Services.AddSingleton(sp => new LocalTransferListener(
+        sp.GetRequiredService<RelayTransferService>(),
+        sp.GetRequiredService<IConfiguration>().GetValue("Transfer:ListenPort", 47631),
+        sp.GetRequiredService<IConfiguration>()["Transfer:PublicBaseUrl"],
+        sp.GetRequiredService<ILogger<LocalTransferListener>>()));
+    // 注册顺序即启动顺序：监听器先于运行时宿主绑定端口，LAN 端点才能随首个信息帧上报。
+    builder.Services.AddHostedService(sp => sp.GetRequiredService<LocalTransferListener>());
 
     builder.Services.AddHostedService(services => new WorkerRuntimeHost(
         workerId,
@@ -621,6 +628,7 @@ rootCommand.SetAction(async (ParseResult parseResult, CancellationToken cancella
         services.GetRequiredService<IHostApplicationLifetime>(),
         services.GetRequiredService<RelayLink>(),
         services.GetRequiredService<RelayTransferService>(),
+        services.GetRequiredService<LocalTransferListener>(),
         ResolveMetricsCollectorOrNull(services),
         agentIntegration: services.GetService<IAgentIntegration>()));
 

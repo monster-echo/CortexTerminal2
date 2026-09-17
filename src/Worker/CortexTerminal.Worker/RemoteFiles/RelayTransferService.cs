@@ -1,9 +1,11 @@
+using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using CortexTerminal.Contracts.Sessions;
 using CortexTerminal.Contracts.Streaming;
 using CortexTerminal.Worker.Registration;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 
 namespace CortexTerminal.Worker.RemoteFiles;
@@ -73,14 +75,48 @@ public sealed class WorkspaceFileService(int maxListEntries, ILogger<WorkspaceFi
     }
 }
 
+/// <summary>本地（LAN/公网直连）传输端点的处理结果，由监听器映射为 HTTP 状态。</summary>
+public sealed record LocalTransferOutcome(bool Success, int Status, string? Code, string? Message)
+{
+    public static LocalTransferOutcome Ok() => new(true, StatusCodes.Status200OK, null, null);
+    public static LocalTransferOutcome Fail(int status, string code, string message) => new(false, status, code, message);
+}
+
+/// <summary>本地下载已就绪的信息：待流式回传的文件。</summary>
+public sealed record LocalDownloadHandle(string FilePath, long SizeBytes, string Filename);
+
 /// <summary>
-/// Relay 传输执行器：Gateway RPC 先同步校验并立即应答，随后后台连入 Relay transfer WS，
-/// 等待 start 帧后与客户端 HTTP 流做端到端对拷（上传落临时文件 + sha 校验 + 原子替换）。
-/// 传输终态经 done 帧由 Relay 回传给客户端，Worker 不经由 Gateway 回报传输结果。
+/// 传输执行器：Gateway RPC 同步校验后立即应答，随后两条通道并行竞争同一传输 ——
+/// - Relay 路径：后台连入 Relay transfer WS 等待配对（兜底，覆盖跨网络场景）；
+/// - 本地路径：LAN/公网直连监听器接收客户端 HTTP（同网段或公网可达时先到先得）。
+/// 任一通道认领传输后取消另一条；上传统一落临时文件 + sha 校验 + 原子替换。
+/// 传输终态由实际承接的通道回传给客户端（Relay done 帧 / 本地 HTTP 响应）。
 /// </summary>
 public sealed class RelayTransferService(long maxTransferBytes, ILogger<RelayTransferService> logger)
 {
     private readonly SemaphoreSlim _slots = new(4, 4);
+    private readonly ConcurrentDictionary<string, PendingLocalTransfer> _local = new(StringComparer.Ordinal);
+
+    private sealed class PendingLocalTransfer
+    {
+        public required bool IsReceive { get; init; }
+        public required string ExpectedToken { get; init; }
+        // receive
+        public string TargetPath { get; init; } = "";
+        public long SizeBytes { get; init; }
+        public string Sha256 { get; init; } = "";
+        // send
+        public string FilePath { get; init; } = "";
+        public string Filename { get; init; } = "";
+
+        public CancellationTokenSource RelayCts { get; } = new();
+        public int Claimed;
+
+        /// <summary>pending 本地传输的过期时间（两条通道都未完成时到期作废）。</summary>
+        public required DateTimeOffset ExpiresAtUtc { get; init; }
+
+        public bool IsExpired(DateTimeOffset now) => now >= ExpiresAtUtc;
+    }
 
     public Task<FileOperationAck> PrepareFileReceiveAsync(PrepareFileReceiveCommand command, CancellationToken ct)
     {
@@ -102,7 +138,19 @@ public sealed class RelayTransferService(long maxTransferBytes, ILogger<RelayTra
                 $"transfer must be between 1 byte and {maxTransferBytes / (1024 * 1024)} MB"));
         }
 
-        _ = Task.Run(() => ReceivePipelineAsync(command, Path.Combine(dirPath, command.Filename)), CancellationToken.None);
+        var targetPath = Path.Combine(dirPath, command.Filename);
+        var pending = new PendingLocalTransfer
+        {
+            IsReceive = true,
+            ExpectedToken = command.Token,
+            TargetPath = targetPath,
+            SizeBytes = command.SizeBytes,
+            Sha256 = command.Sha256,
+            ExpiresAtUtc = DateTimeOffset.UtcNow.AddSeconds(PendingTtlSeconds),
+        };
+        SweepExpired();
+        _local[command.TransferId] = pending;
+        _ = Task.Run(() => ReceivePipelineAsync(command, targetPath, pending, pending.RelayCts.Token), CancellationToken.None);
         return Task.FromResult(new FileOperationAck(true, null));
     }
 
@@ -132,12 +180,161 @@ public sealed class RelayTransferService(long maxTransferBytes, ILogger<RelayTra
         }
 
         var filename = Path.GetFileName(filePath);
-        _ = Task.Run(() => SendPipelineAsync(command, filePath, size), CancellationToken.None);
+        var pending = new PendingLocalTransfer
+        {
+            IsReceive = false,
+            ExpectedToken = command.Token,
+            FilePath = filePath,
+            SizeBytes = size,
+            Filename = filename,
+            ExpiresAtUtc = DateTimeOffset.UtcNow.AddSeconds(PendingTtlSeconds),
+        };
+        SweepExpired();
+        _local[command.TransferId] = pending;
+        _ = Task.Run(() => SendPipelineAsync(command, filePath, size, pending, pending.RelayCts.Token), CancellationToken.None);
         return Task.FromResult(new PrepareFileSendAck(true, null, size, filename));
     }
 
+    /// <summary>pending 本地传输的最长寿命（本地与 Relay 通道都未完成时到期作废）。</summary>
+    private const int PendingTtlSeconds = 600;
+
+    /// <summary>惰性清扫：每次 Prepare 时顺手清掉两条通道都没接手且已过期的 pending。</summary>
+    private void SweepExpired()
+    {
+        var now = DateTimeOffset.UtcNow;
+        foreach (var (id, expired) in _local)
+        {
+            if (expired.IsExpired(now))
+            {
+                _local.TryRemove(id, out _);
+            }
+        }
+    }
+
+    // ── 本地直连通道（由 LocalTransferListener 调用）──────────────────
+
+    /// <summary>本地上传：token 校验 → 认领传输（取消 Relay 路径）→ 流式落盘 → sha 校验 → 原子替换。</summary>
+    public async Task<LocalTransferOutcome> HandleLocalUploadAsync(
+        string transferId, string token, Stream body, CancellationToken ct)
+    {
+        if (!_local.TryGetValue(transferId, out var pending) || !pending.IsReceive)
+        {
+            return LocalTransferOutcome.Fail(StatusCodes.Status404NotFound,
+                FileTransferErrorCode.TransferNotFound, "no such pending transfer");
+        }
+        if (!TokenMatches(pending.ExpectedToken, token))
+        {
+            return LocalTransferOutcome.Fail(StatusCodes.Status401Unauthorized, "invalid_token", "transfer token mismatch");
+        }
+        if (Interlocked.CompareExchange(ref pending.Claimed, 1, 0) != 0)
+        {
+            return LocalTransferOutcome.Fail(StatusCodes.Status409Conflict,
+                FileTransferErrorCode.TransferFailed, "transfer already claimed");
+        }
+        await pending.RelayCts.CancelAsync();
+
+        var tmpPath = pending.TargetPath + ".localdownloading";
+        try
+        {
+            byte[] sha;
+            using (var shaInstance = SHA256.Create())
+            await using (var file = File.Create(tmpPath))
+            {
+                var buffer = new byte[64 * 1024];
+                long total = 0;
+                int read;
+                while ((read = await body.ReadAsync(buffer, ct)) > 0)
+                {
+                    total += read;
+                    if (total > pending.SizeBytes)
+                    {
+                        throw new InvalidOperationException(
+                            $"received more than the declared {pending.SizeBytes} bytes");
+                    }
+                    await file.WriteAsync(buffer.AsMemory(0, read), ct);
+                    shaInstance.TransformBlock(buffer, 0, read, null, 0);
+                }
+                shaInstance.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
+                sha = shaInstance.Hash!;
+                if (total != pending.SizeBytes)
+                {
+                    throw new InvalidOperationException($"received {total} bytes, expected {pending.SizeBytes}");
+                }
+            }
+
+            var actual = Convert.ToHexString(sha).ToLowerInvariant();
+            if (!string.Equals(actual, pending.Sha256, StringComparison.OrdinalIgnoreCase))
+            {
+                File.Delete(tmpPath);
+                logger.LogError("Local transfer {TransferId} sha256 mismatch.", transferId);
+                return LocalTransferOutcome.Fail(StatusCodes.Status502BadGateway,
+                    FileTransferErrorCode.ShaMismatch, "uploaded content does not match its sha256");
+            }
+
+            File.Move(tmpPath, pending.TargetPath, overwrite: true);
+            logger.LogInformation("Local transfer {TransferId} wrote {Path} ({Size} bytes).",
+                transferId, pending.TargetPath, pending.SizeBytes);
+            return LocalTransferOutcome.Ok();
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            try { if (File.Exists(tmpPath)) File.Delete(tmpPath); } catch (IOException) { }
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Local transfer {TransferId} receive failed.", transferId);
+            try { if (File.Exists(tmpPath)) File.Delete(tmpPath); } catch (IOException) { }
+            return LocalTransferOutcome.Fail(StatusCodes.Status502BadGateway,
+                FileTransferErrorCode.TransferFailed, ex.Message);
+        }
+        finally
+        {
+            _local.TryRemove(transferId, out _);
+        }
+    }
+
+    /// <summary>本地下载：token 校验 → 认领传输（取消 Relay 路径）→ 交出文件句柄信息由监听器流式发送。</summary>
+    public Task<(LocalTransferOutcome Outcome, LocalDownloadHandle? Handle)> HandleLocalDownloadAsync(
+        string transferId, string token, CancellationToken ct)
+    {
+        (LocalTransferOutcome, LocalDownloadHandle?) Fail(int status, string code, string message)
+            => (LocalTransferOutcome.Fail(status, code, message), null);
+
+        if (!_local.TryGetValue(transferId, out var pending) || pending.IsReceive)
+        {
+            return Task.FromResult(Fail(StatusCodes.Status404NotFound,
+                FileTransferErrorCode.TransferNotFound, "no such pending transfer"));
+        }
+        if (!TokenMatches(pending.ExpectedToken, token))
+        {
+            return Task.FromResult(Fail(StatusCodes.Status401Unauthorized,
+                "invalid_token", "transfer token mismatch"));
+        }
+        if (Interlocked.CompareExchange(ref pending.Claimed, 1, 0) != 0)
+        {
+            return Task.FromResult(Fail(StatusCodes.Status409Conflict,
+                FileTransferErrorCode.TransferFailed, "transfer already claimed"));
+        }
+        _local.TryRemove(transferId, out _);
+        pending.RelayCts.Cancel();
+        return Task.FromResult<(LocalTransferOutcome, LocalDownloadHandle?)>((LocalTransferOutcome.Ok(),
+            new LocalDownloadHandle(pending.FilePath, pending.SizeBytes, pending.Filename)));
+    }
+
+    private static bool TokenMatches(string expected, string presented)
+        => !string.IsNullOrEmpty(presented)
+           && CryptographicOperations.FixedTimeEquals(
+               Encoding.UTF8.GetBytes(expected),
+               Encoding.UTF8.GetBytes(presented));
+
+    private static FileOperationAck Fail(string code, string message)
+        => new(false, new FileOperationError(code, message));
+
+    // ── Relay 路径 ───────────────────────────────────────────────
+
     /// <summary>上传：连 Relay → 等 start → 收文件 → sha 校验 → 原子落盘 → done。</summary>
-    private async Task ReceivePipelineAsync(PrepareFileReceiveCommand command, string targetPath)
+    private async Task ReceivePipelineAsync(PrepareFileReceiveCommand command, string targetPath, PendingLocalTransfer pending, CancellationToken ct)
     {
         await _slots.WaitAsync();
         var tmpPath = targetPath + ".downloading";
@@ -145,24 +342,25 @@ public sealed class RelayTransferService(long maxTransferBytes, ILogger<RelayTra
         {
             using var socket = new System.Net.WebSockets.ClientWebSocket();
             var uri = new Uri($"{command.RelayUrl.TrimEnd('/')}/transfer/{command.TransferId}/worker?token={Uri.EscapeDataString(command.Token)}");
-            using var connectCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            connectCts.CancelAfter(TimeSpan.FromSeconds(30));
             await socket.ConnectAsync(uri, connectCts.Token);
 
-            await RelayProtocolIo.WaitStartAsync(socket, CancellationToken.None);
+            await RelayProtocolIo.WaitStartAsync(socket, ct);
 
             byte[] sha;
             using (var shaInstance = SHA256.Create())
             await using (var file = File.Create(tmpPath))
             {
                 long total = 0;
-                await foreach (var chunk in RelayProtocolIo.ReadBinaryFramesAsync(socket, CancellationToken.None))
+                await foreach (var chunk in RelayProtocolIo.ReadBinaryFramesAsync(socket, ct))
                 {
                     total += chunk.Length;
                     if (total > command.SizeBytes)
                     {
                         throw new InvalidOperationException("received more bytes than declared sizeBytes");
                     }
-                    await file.WriteAsync(chunk, CancellationToken.None);
+                    await file.WriteAsync(chunk, ct);
                     shaInstance.TransformBlock(chunk, 0, chunk.Length, null, 0);
                 }
                 shaInstance.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
@@ -180,13 +378,18 @@ public sealed class RelayTransferService(long maxTransferBytes, ILogger<RelayTra
                 logger.LogError("Transfer {TransferId} sha256 mismatch: expected {Expected}, got {Actual}.",
                     command.TransferId, command.Sha256, actual);
                 await RelayProtocolIo.SendDoneAsync(socket, success: false,
-                    FileTransferErrorCode.ShaMismatch, "uploaded content does not match its sha256", CancellationToken.None);
+                    FileTransferErrorCode.ShaMismatch, "uploaded content does not match its sha256", ct);
                 return;
             }
 
             File.Move(tmpPath, targetPath, overwrite: true);
             logger.LogInformation("Transfer {TransferId} wrote {Path} ({Size} bytes).", command.TransferId, targetPath, command.SizeBytes);
-            await RelayProtocolIo.SendDoneAsync(socket, success: true, null, null, CancellationToken.None);
+            _local.TryRemove(command.TransferId, out _);
+            await RelayProtocolIo.SendDoneAsync(socket, success: true, null, null, ct);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // 本地直连通道已认领该传输，Relay 路径按设计退出
         }
         catch (Exception ex)
         {
@@ -200,31 +403,37 @@ public sealed class RelayTransferService(long maxTransferBytes, ILogger<RelayTra
     }
 
     /// <summary>下载：连 Relay → 等 start → filehead → 流式发文件 → done。</summary>
-    private async Task SendPipelineAsync(PrepareFileSendCommand command, string filePath, long size)
+    private async Task SendPipelineAsync(PrepareFileSendCommand command, string filePath, long size, PendingLocalTransfer pending, CancellationToken ct)
     {
         await _slots.WaitAsync();
         try
         {
             using var socket = new System.Net.WebSockets.ClientWebSocket();
             var uri = new Uri($"{command.RelayUrl.TrimEnd('/')}/transfer/{command.TransferId}/worker?token={Uri.EscapeDataString(command.Token)}");
-            using var connectCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            connectCts.CancelAfter(TimeSpan.FromSeconds(30));
             await socket.ConnectAsync(uri, connectCts.Token);
 
-            await RelayProtocolIo.WaitStartAsync(socket, CancellationToken.None);
+            await RelayProtocolIo.WaitStartAsync(socket, ct);
             await RelayProtocolIo.SendControlAsync(socket,
-                new FileHeadFrame { Size = size, Filename = Path.GetFileName(filePath) }, CancellationToken.None);
+                new FileHeadFrame { Size = size, Filename = Path.GetFileName(filePath) }, ct);
 
             await using var file = File.OpenRead(filePath);
             var buffer = new byte[64 * 1024];
             int read;
-            while ((read = await file.ReadAsync(buffer, CancellationToken.None)) > 0)
+            while ((read = await file.ReadAsync(buffer, ct)) > 0)
             {
                 await socket.SendAsync(buffer.AsMemory(0, read),
-                    System.Net.WebSockets.WebSocketMessageType.Binary, endOfMessage: true, CancellationToken.None);
+                    System.Net.WebSockets.WebSocketMessageType.Binary, endOfMessage: true, ct);
             }
 
             logger.LogInformation("Transfer {TransferId} streamed {Path} ({Size} bytes).", command.TransferId, filePath, size);
-            await RelayProtocolIo.SendDoneAsync(socket, success: true, null, null, CancellationToken.None);
+            _local.TryRemove(command.TransferId, out _);
+            await RelayProtocolIo.SendDoneAsync(socket, success: true, null, null, ct);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // 本地直连通道已认领该传输，Relay 路径按设计退出
         }
         catch (Exception ex)
         {
@@ -235,9 +444,6 @@ public sealed class RelayTransferService(long maxTransferBytes, ILogger<RelayTra
             _slots.Release();
         }
     }
-
-    private static FileOperationAck Fail(string code, string message)
-        => new(false, new FileOperationError(code, message));
 }
 
 /// <summary>Worker ↔ Relay transfer WS 的帧收发小件（控制 JSON 文本帧 + 64KB 二进制帧）。</summary>

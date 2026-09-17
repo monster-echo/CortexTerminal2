@@ -7,6 +7,7 @@
  * then stream bytes directly against the Relay (or a direct endpoint when present).
  */
 import { ApiService } from '@rwecho/core'
+import { FileDownloader } from './FileDownloader'
 import { FileListingModel, WorkspaceModel, UploadInitModel, DownloadInitModel, TransferEndpointModel } from '../model/FileModels'
 
 export class FilesService {
@@ -59,5 +60,39 @@ export class FilesService {
         into.push(TransferEndpointModel.fromRecord(rawEndpoints[i]))
       }
     }
+  }
+
+  /**
+   * 端点协商上传：按优先序（LAN 直连 → 公网直连 → Relay 兜底）逐个尝试 PUT，
+   * 任一端点成功即返回；全部失败抛出最后一次错误。
+   */
+  static async uploadViaEndpoints(endpoints: TransferEndpointModel[], buffer: ArrayBuffer): Promise<void> {
+    let lastError = new Error('no transfer endpoints')
+    for (let i = 0; i < endpoints.length; i++) {
+      try {
+        await ApiService.putBinary(endpoints[i].url, buffer)
+        return
+      } catch (e) {
+        lastError = e as Error
+      }
+    }
+    throw lastError
+  }
+
+  /**
+   * 端点协商下载：按优先序逐个尝试 GET 下载到本地沙箱，任一端点成功即返回。
+   */
+  static async downloadViaEndpoints(context: Context, targetPath: string,
+    endpoints: TransferEndpointModel[]): Promise<void> {
+    let lastError = new Error('no transfer endpoints')
+    for (let i = 0; i < endpoints.length; i++) {
+      try {
+        await FileDownloader.download(context, targetPath, endpoints[i].url)
+        return
+      } catch (e) {
+        lastError = e as Error
+      }
+    }
+    throw lastError
   }
 }

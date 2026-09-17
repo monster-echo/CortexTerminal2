@@ -478,7 +478,7 @@ export struct FileBrowserPage {
       }
 
       const init = await FilesService.beginUpload(this.workspaceId, dirPath, picked.filename, sizeBytes, sha256)
-      await ApiService.putBinary(init.firstUrl(), buffer)
+      await FilesService.uploadViaEndpoints(init.endpoints, buffer)
     } finally {
       fs.unlinkSync(sandboxPath)
     }
@@ -511,7 +511,7 @@ export struct FileBrowserPage {
       }
       const targetPath = `${downloadDir}/${item.name}`
       const context = getContext(this) as common.UIAbilityContext
-      await FileDownloader.download(context, targetPath, init.firstUrl())
+      await FilesService.downloadViaEndpoints(context, targetPath, init.endpoints)
 
       this.transferState = 'done'
       this.transferMessage = I18n.get('files.download_done')

@@ -77,11 +77,6 @@ export class WorkspaceModel {
 export class UploadInitModel {
   transferId: string = ''
   endpoints: TransferEndpointModel[] = []
-
-  /** 首个可达端点（当前默认取列表头部）。 */
-  firstUrl(): string {
-    return this.endpoints[0].url
-  }
 }
 
 export class DownloadInitModel {
@@ -89,9 +84,4 @@ export class DownloadInitModel {
   sizeBytes: number = 0
   filename: string = ''
   endpoints: TransferEndpointModel[] = []
-
-  /** 首个可达端点（当前默认取列表头部）。 */
-  firstUrl(): string {
-    return this.endpoints[0].url
-  }
 }

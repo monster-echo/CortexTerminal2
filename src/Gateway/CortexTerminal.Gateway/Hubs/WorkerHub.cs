@@ -96,6 +96,12 @@ public sealed class WorkerHub(
             info.CpuUsagePercent,
             info.MemoryUsagePercent));
 
+        // 端点协商：记录 Worker 的 LAN 直连与公网直连传输端点（文件传输优先直连、Relay 兜底）
+        workers.UpdateTransferEndpoints(
+            worker.WorkerId,
+            info.LanEndpoints ?? Array.Empty<string>(),
+            info.PublicTransferBaseUrl);
+
         // Worker 首次上报 home 时幂等创建默认工作区（后续上报同 worker 已有工作区则跳过）
         if (!string.IsNullOrEmpty(info.HomePath) && !string.IsNullOrEmpty(worker.OwnerUserId))
         {

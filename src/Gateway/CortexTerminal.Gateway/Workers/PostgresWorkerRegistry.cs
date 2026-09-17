@@ -71,6 +71,19 @@ public sealed class PostgresWorkerRegistry : IWorkerRegistry
         _metrics[workerId] = metrics;
     }
 
+    public void UpdateTransferEndpoints(string workerId, IReadOnlyList<string> lanEndpoints, string? publicBaseUrl)
+    {
+        if (!_workers.TryGetValue(workerId, out var current))
+        {
+            return;
+        }
+        _workers[workerId] = current with
+        {
+            LanEndpoints = lanEndpoints,
+            PublicTransferBaseUrl = string.IsNullOrWhiteSpace(publicBaseUrl) ? null : publicBaseUrl,
+        };
+    }
+
     public WorkerMetrics? GetMetrics(string workerId)
         => _metrics.TryGetValue(workerId, out var m) ? m : null;
 

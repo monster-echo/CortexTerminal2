@@ -145,6 +145,8 @@ public sealed class SessionCoordinatorTests
             => Task.FromResult<IReadOnlyList<WorkerRecord>>(Array.Empty<WorkerRecord>());
         public void UpdateMetrics(string workerId, WorkerMetrics? metrics) { }
         public WorkerMetrics? GetMetrics(string workerId) => null;
+        public void UpdateTransferEndpoints(string workerId, IReadOnlyList<string> lanEndpoints, string? publicBaseUrl)
+            => throw new NotSupportedException();
     }
 
     private sealed class CoordinatedWorkerRegistry : IWorkerRegistry
@@ -198,6 +200,8 @@ public sealed class SessionCoordinatorTests
             => _inner.GetAllWorkersForUserAsync(userId);
         public void UpdateMetrics(string workerId, WorkerMetrics? metrics)
             => _inner.UpdateMetrics(workerId, metrics);
+        public void UpdateTransferEndpoints(string workerId, IReadOnlyList<string> lanEndpoints, string? publicBaseUrl)
+            => _inner.UpdateTransferEndpoints(workerId, lanEndpoints, publicBaseUrl);
         public WorkerMetrics? GetMetrics(string workerId)
             => _inner.GetMetrics(workerId);
     }

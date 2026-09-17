@@ -85,7 +85,7 @@ public sealed class RelayFileTransferService(
             throw new WorkspaceFileServiceException(error.Code, error.Message);
         }
 
-        return new UploadInitResult(transferId, EndpointsFor(transferId, token));
+        return new UploadInitResult(transferId, EndpointsFor(worker, transferId, token));
     }
 
     /// <summary>
@@ -121,17 +121,30 @@ public sealed class RelayFileTransferService(
             throw new WorkspaceFileServiceException(error.Code, error.Message);
         }
 
-        return new DownloadInitResult(transferId, ack.SizeBytes, ack.Filename, EndpointsFor(transferId, token));
+        return new DownloadInitResult(transferId, ack.SizeBytes, ack.Filename, EndpointsFor(worker, transferId, token));
     }
 
-    private List<TransferEndpoint> EndpointsFor(string transferId, string token)
+    /// <summary>
+    /// 端点协商（P2P 优先，按可达概率排序）：同网段 LAN 直连 → 公网直连 → Relay 兜底。
+    /// 客户端按顺序尝试，全部失败视为传输失败。
+    /// </summary>
+    private List<TransferEndpoint> EndpointsFor(RegisteredWorker worker, string transferId, string token)
     {
-        // 端点协商（P2P 优先）：LAN/公网直连端点在 Worker 上报后加入列表头部，
-        // Relay 端点始终兜底。当前阶段仅 Relay。
-        var endpoints = new List<TransferEndpoint>
+        var endpoints = new List<TransferEndpoint>();
+        var lan = worker.LanEndpoints ?? Array.Empty<string>();
+        foreach (var baseUrl in lan)
         {
-            new($"{_options.PublicUrl.TrimEnd('/')}/transfer/{transferId}?token={Uri.EscapeDataString(token)}", TransferEndpoint.KindRelay),
-        };
+            if (string.IsNullOrWhiteSpace(baseUrl)) continue;
+            endpoints.Add(new TransferEndpoint(
+                $"{baseUrl.TrimEnd('/')}/transfer/{transferId}?token={Uri.EscapeDataString(token)}", TransferEndpoint.KindLan));
+        }
+        if (!string.IsNullOrWhiteSpace(worker.PublicTransferBaseUrl))
+        {
+            endpoints.Add(new TransferEndpoint(
+                $"{worker.PublicTransferBaseUrl.TrimEnd('/')}/transfer/{transferId}?token={Uri.EscapeDataString(token)}", TransferEndpoint.KindPublic));
+        }
+        endpoints.Add(new TransferEndpoint(
+            $"{_options.PublicUrl.TrimEnd('/')}/transfer/{transferId}?token={Uri.EscapeDataString(token)}", TransferEndpoint.KindRelay));
         return endpoints;
     }
 

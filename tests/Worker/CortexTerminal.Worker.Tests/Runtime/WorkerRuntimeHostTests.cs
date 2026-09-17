@@ -23,7 +23,7 @@ public sealed class WorkerRuntimeHostTests
     {
         var process = new ControlledPtyProcess();
         var gateway = new FakeWorkerGatewayClient();
-        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(process), NullLoggerFactory.Instance, NewLifetime(), TestRelay.NewRelayLink(), TestRelay.NewRelayTransfers());
+        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(process), NullLoggerFactory.Instance, NewLifetime(), TestRelay.NewRelayLink(), TestRelay.NewRelayTransfers(), TestRelay.NewListener());
 
         await host.StartAsync(CancellationToken.None);
         await gateway.RaiseStartSessionAsync(new StartSessionCommand("sess-1", 120, 40, 5 * 1024 * 1024));
@@ -49,7 +49,7 @@ public sealed class WorkerRuntimeHostTests
         // active sessions the snapshot is empty — but the call must happen, so the gateway can
         // treat any pre-existing gateway-side sessions for this worker as gone.
         var gateway = new FakeWorkerGatewayClient();
-        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()), NullLoggerFactory.Instance, NewLifetime(), TestRelay.NewRelayLink(), TestRelay.NewRelayTransfers());
+        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()), NullLoggerFactory.Instance, NewLifetime(), TestRelay.NewRelayLink(), TestRelay.NewRelayTransfers(), TestRelay.NewListener());
 
         await host.StartAsync(CancellationToken.None);
 
@@ -61,7 +61,7 @@ public sealed class WorkerRuntimeHostTests
     public async Task Reconnected_ReRegistersWithoutDuplicatingTrackedSessions()
     {
         var gateway = new FakeWorkerGatewayClient();
-        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()), NullLoggerFactory.Instance, NewLifetime(), TestRelay.NewRelayLink(), TestRelay.NewRelayTransfers());
+        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()), NullLoggerFactory.Instance, NewLifetime(), TestRelay.NewRelayLink(), TestRelay.NewRelayTransfers(), TestRelay.NewListener());
 
         await host.StartAsync(CancellationToken.None);
         await gateway.RaiseStartSessionAsync(new StartSessionCommand("sess-1", 120, 40, 5 * 1024 * 1024));
@@ -75,7 +75,7 @@ public sealed class WorkerRuntimeHostTests
     public async Task DuplicateStart_ForwardsStartFailureWithoutReplacingActiveSession()
     {
         var gateway = new FakeWorkerGatewayClient();
-        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()), NullLoggerFactory.Instance, NewLifetime(), TestRelay.NewRelayLink(), TestRelay.NewRelayTransfers());
+        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()), NullLoggerFactory.Instance, NewLifetime(), TestRelay.NewRelayLink(), TestRelay.NewRelayTransfers(), TestRelay.NewListener());
 
         await host.StartAsync(CancellationToken.None);
         await gateway.RaiseStartSessionAsync(new StartSessionCommand("sess-1", 120, 40, 5 * 1024 * 1024));
@@ -96,7 +96,7 @@ public sealed class WorkerRuntimeHostTests
             new ThrowingPtyHost(new PtySupportException("pty-start-failed", "spawn exploded")),
             NullLoggerFactory.Instance,
             NewLifetime(),
-            TestRelay.NewRelayLink(), TestRelay.NewRelayTransfers());
+            TestRelay.NewRelayLink(), TestRelay.NewRelayTransfers(), TestRelay.NewListener());
 
         await host.StartAsync(CancellationToken.None);
         await gateway.RaiseStartSessionAsync(new StartSessionCommand("sess-1", 120, 40, 5 * 1024 * 1024));
@@ -117,7 +117,7 @@ public sealed class WorkerRuntimeHostTests
     {
         var process = new ControlledPtyProcess();
         var gateway = new FakeWorkerGatewayClient();
-        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(process), NullLoggerFactory.Instance, NewLifetime(), TestRelay.NewRelayLink(), TestRelay.NewRelayTransfers());
+        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(process), NullLoggerFactory.Instance, NewLifetime(), TestRelay.NewRelayLink(), TestRelay.NewRelayTransfers(), TestRelay.NewListener());
 
         await host.StartAsync(CancellationToken.None);
         await gateway.RaiseStartSessionAsync(new StartSessionCommand("sess-1", 120, 40, 5 * 1024 * 1024));
@@ -137,7 +137,7 @@ public sealed class WorkerRuntimeHostTests
             "worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()),
             50 * 1024 * 1024,
             NullLoggerFactory.Instance, NewLifetime(), TimeSpan.FromMilliseconds(50),
-            TestRelay.NewRelayLink(), TestRelay.NewRelayTransfers());
+            TestRelay.NewRelayLink(), TestRelay.NewRelayTransfers(), TestRelay.NewListener());
 
         await host.StartAsync(CancellationToken.None);
         gateway.RegisteredWorkerIds.Should().ContainSingle(); // initial register
@@ -164,7 +164,7 @@ public sealed class WorkerRuntimeHostTests
             "worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()),
             50 * 1024 * 1024,
             NullLoggerFactory.Instance, NewLifetime(), TimeSpan.FromMilliseconds(50),
-            TestRelay.NewRelayLink(), TestRelay.NewRelayTransfers());
+            TestRelay.NewRelayLink(), TestRelay.NewRelayTransfers(), TestRelay.NewListener());
 
         await host.StartAsync(CancellationToken.None);
         var startCountBefore = gateway.StartCallCount;
@@ -191,7 +191,7 @@ public sealed class WorkerRuntimeHostTests
             "worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()),
             50 * 1024 * 1024,
             NullLoggerFactory.Instance, NewLifetime(), TimeSpan.FromMilliseconds(50),
-            TestRelay.NewRelayLink(), TestRelay.NewRelayTransfers());
+            TestRelay.NewRelayLink(), TestRelay.NewRelayTransfers(), TestRelay.NewListener());
 
         await host.StartAsync(CancellationToken.None);
         gateway.RegisteredWorkerIds.Clear();
@@ -221,7 +221,7 @@ public sealed class WorkerRuntimeHostTests
             "worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()),
             50 * 1024 * 1024,
             NullLoggerFactory.Instance, lifetime, TimeSpan.FromMilliseconds(50),
-            TestRelay.NewRelayLink(), TestRelay.NewRelayTransfers());
+            TestRelay.NewRelayLink(), TestRelay.NewRelayTransfers(), TestRelay.NewListener());
 
         await host.StartAsync(CancellationToken.None);
 
@@ -250,7 +250,7 @@ public sealed class WorkerRuntimeHostTests
         await using var host = new WorkerRuntimeHost(
             "worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()),
             NullLoggerFactory.Instance, lifetime,
-            TestRelay.NewRelayLink(), TestRelay.NewRelayTransfers());
+            TestRelay.NewRelayLink(), TestRelay.NewRelayTransfers(), TestRelay.NewListener());
 
         await host.StartAsync(CancellationToken.None);
 
@@ -261,7 +261,7 @@ public sealed class WorkerRuntimeHostTests
     public async Task Upgrade_RejectedWhenPlatformMismatches()
     {
         var gateway = new FakeWorkerGatewayClient();
-        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()), NullLoggerFactory.Instance, NewLifetime(), TestRelay.NewRelayLink(), TestRelay.NewRelayTransfers());
+        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()), NullLoggerFactory.Instance, NewLifetime(), TestRelay.NewRelayLink(), TestRelay.NewRelayTransfers(), TestRelay.NewListener());
 
         await host.StartAsync(CancellationToken.None);
 
@@ -285,7 +285,7 @@ public sealed class WorkerRuntimeHostTests
     public async Task Upgrade_AcceptedWhenPlatformMatches()
     {
         var gateway = new FakeWorkerGatewayClient();
-        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()), NullLoggerFactory.Instance, NewLifetime(), TestRelay.NewRelayLink(), TestRelay.NewRelayTransfers());
+        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()), NullLoggerFactory.Instance, NewLifetime(), TestRelay.NewRelayLink(), TestRelay.NewRelayTransfers(), TestRelay.NewListener());
 
         await host.StartAsync(CancellationToken.None);
 
@@ -593,6 +593,8 @@ internal static class TestRelay
 {
     public static RelayLink NewRelayLink() => new("worker-1", NullLogger<RelayLink>.Instance);
     public static RelayTransferService NewRelayTransfers() => new(50 * 1024 * 1024, NullLogger<RelayTransferService>.Instance);
+    public static LocalTransferListener NewListener() => new(
+        NewRelayTransfers(), listenPort: 0, publicBaseUrl: null, NullLogger<LocalTransferListener>.Instance);
 }
 
 internal sealed class ThrowingPtyHost(Exception exception) : IPtyHost
