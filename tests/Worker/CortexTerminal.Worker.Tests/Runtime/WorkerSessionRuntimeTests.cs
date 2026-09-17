@@ -18,7 +18,7 @@ public sealed class WorkerSessionRuntimeTests
         var gateway = new FakeWorkerGatewayClient();
         var runtime = new WorkerSessionRuntime("sess-1", new ControlledPtyHost(process), gateway, NullLogger<WorkerSessionRuntime>.Instance, 5 * 1024 * 1024);
 
-        await runtime.StartAsync(120, 40, CancellationToken.None);
+        await runtime.StartAsync(120, 40, cwd: null, CancellationToken.None);
         await process.EmitStdoutAsync([0x6F, 0x6B]);
         await process.EmitStderrAsync([0x62, 0x61, 0x64]);
         await process.CompleteAsync(7);
@@ -41,7 +41,7 @@ public sealed class WorkerSessionRuntimeTests
         var gateway = new FakeWorkerGatewayClient();
         var runtime = new WorkerSessionRuntime("sess-1", new ControlledPtyHost(process), gateway, NullLogger<WorkerSessionRuntime>.Instance, 5 * 1024 * 1024);
 
-        await runtime.StartAsync(120, 40, CancellationToken.None);
+        await runtime.StartAsync(120, 40, cwd: null, CancellationToken.None);
         await runtime.WriteInputAsync([0x03], CancellationToken.None);
         await runtime.ResizeAsync(140, 50, CancellationToken.None);
         await runtime.CloseAsync(CancellationToken.None);
@@ -61,7 +61,7 @@ public sealed class WorkerSessionRuntimeTests
 
         runtime.Terminated += _ => throw new InvalidOperationException("boom");
 
-        await runtime.StartAsync(120, 40, CancellationToken.None);
+        await runtime.StartAsync(120, 40, cwd: null, CancellationToken.None);
 
         await runtime.CloseAsync(CancellationToken.None);
 
@@ -79,7 +79,7 @@ internal sealed class ControlledPtyHost(ControlledPtyProcess process) : IPtyHost
         return Task.FromResult<IPtyProcess>(process);
     }
 
-    public Task<IPtyProcess> StartAsync(int columns, int rows, IReadOnlyDictionary<string, string> environmentVariables, CancellationToken cancellationToken)
+    public Task<IPtyProcess> StartAsync(int columns, int rows, string? cwd, IReadOnlyDictionary<string, string> environmentVariables, CancellationToken cancellationToken)
         => StartAsync(columns, rows, cancellationToken);
 }
 
@@ -97,7 +97,7 @@ internal sealed class QueuePtyHost(params ControlledPtyProcess[] processes) : IP
         return Task.FromResult<IPtyProcess>(_processes.Dequeue());
     }
 
-    public Task<IPtyProcess> StartAsync(int columns, int rows, IReadOnlyDictionary<string, string> environmentVariables, CancellationToken cancellationToken)
+    public Task<IPtyProcess> StartAsync(int columns, int rows, string? cwd, IReadOnlyDictionary<string, string> environmentVariables, CancellationToken cancellationToken)
         => StartAsync(columns, rows, cancellationToken);
 }
 

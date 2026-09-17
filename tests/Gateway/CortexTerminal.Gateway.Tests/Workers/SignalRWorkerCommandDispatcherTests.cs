@@ -116,28 +116,6 @@ public sealed class SignalRWorkerCommandDispatcherTests
         workerClient.Invocations[0].Arguments.Should().Equal(new object[] { 3000 });
         otherClient.Invocations.Should().BeEmpty();
     }
-
-    [Fact]
-    public async Task SendTunnelHttpRequestAsync_TargetsOnlySelectedWorkerConnection()
-    {
-        var workerClient = new RecordingClientProxy();
-        var otherClient = new RecordingClientProxy();
-        var hubContext = new TestHubContext<WorkerHub>(new Dictionary<string, IClientProxy>
-        {
-            ["worker-1"] = workerClient,
-            ["worker-2"] = otherClient
-        });
-        var dispatcher = new SignalRWorkerCommandDispatcher(hubContext);
-        var req = new TunnelHttpRequest("tun-1", 8080, "GET", "/", "", new Dictionary<string, string[]>(), Array.Empty<byte>());
-
-        await dispatcher.SendTunnelHttpRequestAsync("worker-1", "tun-1", req, CancellationToken.None);
-
-        workerClient.Invocations.Should().ContainSingle()
-            .Which.Method.Should().Be("TunnelHttpRequest");
-        workerClient.Invocations[0].Arguments.Should().HaveCount(1);
-        workerClient.Invocations[0].Arguments[0].Should().BeSameAs(req);
-        otherClient.Invocations.Should().BeEmpty();
-    }
 }
 
 internal sealed class TestHubContext<THub>(IReadOnlyDictionary<string, IClientProxy> clients) : IHubContext<THub> where THub : Hub

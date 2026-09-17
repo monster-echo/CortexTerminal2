@@ -1,11 +1,11 @@
 using CortexTerminal.Contracts.Sessions;
 using CortexTerminal.Contracts.Streaming;
 using CortexTerminal.Gateway.Audit;
-using CortexTerminal.Gateway.RemoteFiles;
 using CortexTerminal.Gateway.Sessions;
 using CortexTerminal.Gateway.Stats;
 using CortexTerminal.Gateway.WebSockets;
 using CortexTerminal.Gateway.Workers;
+using CortexTerminal.Gateway.Workspaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
@@ -22,10 +22,13 @@ public sealed class WorkerHub(
     IHubContext<TerminalHub> terminalHubContext,
     IGatewayStatsService stats,
     ISessionStatsService sessionStats,
-    RemoteFileService remoteFiles,
+    WorkspaceRegistry workspaceRegistry,
+    RelayOptions relayOptions,
     AgentActivityService agentActivity,
     ILogger<WorkerHub> logger) : Hub
 {
+    private readonly RelayOptions _relayOptions = relayOptions;
+
     private string GetUserId()
         => Context.User?.FindFirstValue(ClaimTypes.NameIdentifier)
             ?? Context.User?.FindFirstValue(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)
@@ -37,6 +40,26 @@ public sealed class WorkerHub(
         var userId = GetUserId();
         workers.Register(workerId, Context.ConnectionId, ownerUserId: userId);
         var reboundSessionCount = await sessions.RebindActiveSessions(userId, workerId, Context.ConnectionId);
+
+        // 签发 Relay worker 令牌（24h），经可信通道推给 Worker，供其连入 Relay 持久数据面 WS。
+        if (!string.IsNullOrEmpty(_relayOptions.SharedSecret))
+        {
+            var relayToken = RelayToken.Mint(
+                _relayOptions.SharedSecret,
+                RelayToken.AudienceWorkerRelay,
+                workerId,
+                DateTimeOffset.UtcNow.AddHours(24));
+            try
+            {
+                await Clients.Caller.InvokeAsync<FileOperationAck>(
+                    "IssueRelayToken", _relayOptions.PublicUrl, relayToken, Context.ConnectionAborted);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to push relay token to worker {WorkerId}.", workerId);
+            }
+        }
+
         logger.LogInformation(
             "Worker {WorkerId} registered with connection {ConnectionId} by user {UserId}; rebound {SessionCount} active sessions.",
             workerId,
@@ -54,7 +77,7 @@ public sealed class WorkerHub(
         ));
     }
 
-    public void UpdateWorkerInfo(WorkerInfoFrame info)
+    public async Task UpdateWorkerInfo(WorkerInfoFrame info)
     {
         var worker = workers.FindByConnectionId(Context.ConnectionId);
         if (worker is null)
@@ -72,6 +95,20 @@ public sealed class WorkerHub(
         workers.UpdateMetrics(worker.WorkerId, new WorkerMetrics(
             info.CpuUsagePercent,
             info.MemoryUsagePercent));
+
+        // Worker 首次上报 home 时幂等创建默认工作区（后续上报同 worker 已有工作区则跳过）
+        if (!string.IsNullOrEmpty(info.HomePath) && !string.IsNullOrEmpty(worker.OwnerUserId))
+        {
+            try
+            {
+                await workspaceRegistry.EnsureDefaultAsync(worker.OwnerUserId!, worker.WorkerId, info.HomePath!);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to ensure default workspace for worker {WorkerId}.", worker.WorkerId);
+            }
+        }
+
         logger.LogInformation("Worker {WorkerId} updated info: hostname={Hostname}, os={OS}, arch={Arch}, version={Version}, cpu={Cpu}%, mem={Mem}%.",
             worker.WorkerId, info.Hostname, info.OperatingSystem, info.Architecture, info.Version,
             info.CpuUsagePercent, info.MemoryUsagePercent);
@@ -336,32 +373,6 @@ public sealed class WorkerHub(
     {
         logger.LogInformation("ForwardAgentTitleUpdated: session={SessionId}, title={Title}.", frame.SessionId, frame.Title);
         await agentActivity.HandleTitleUpdatedAsync(frame.SessionId, Context.ConnectionId, frame, Context.ConnectionAborted);
-    }
-
-    /// <summary>
-    /// Worker-side RPC: apply for a presigned PUT URL so the worker can push a session file
-    /// to S3 (phone-download flow) without ever holding S3 credentials. The transfer is
-    /// validated against the in-memory registry — only the connection that owns the transfer
-    /// gets the URL. The worker follows up with <see cref="CompleteFileTransfer"/>.
-    /// </summary>
-    public Task<TransferUploadUrlResponse> RequestFileUploadUrl(FileUploadUrlRequest request)
-    {
-        var worker = workers.FindByConnectionId(Context.ConnectionId)
-            ?? throw new HubException("Worker not registered");
-        if (string.IsNullOrEmpty(worker.OwnerUserId)) throw new HubException("Worker has no owner");
-        return remoteFiles.CreateWorkerUploadUrlAsync(Context.ConnectionId, worker.OwnerUserId!, request, Context.ConnectionAborted);
-    }
-
-    /// <summary>
-    /// Worker-side RPC: report that a session file has been fully PUT to S3 (or that the
-    /// upload failed). Flips the transfer state so the phone's poll terminates.
-    /// </summary>
-    public Task CompleteFileTransfer(CompleteFileTransferRequest request)
-    {
-        var worker = workers.FindByConnectionId(Context.ConnectionId)
-            ?? throw new HubException("Worker not registered");
-        if (string.IsNullOrEmpty(worker.OwnerUserId)) throw new HubException("Worker has no owner");
-        return remoteFiles.CompleteWorkerTransferAsync(Context.ConnectionId, worker.OwnerUserId!, request, Context.ConnectionAborted);
     }
 
     /// <summary>

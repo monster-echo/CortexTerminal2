@@ -5,9 +5,9 @@ namespace CortexTerminal.Worker.Pty;
 public sealed class UnixPtyHost : IPtyHost
 {
     public Task<IPtyProcess> StartAsync(int columns, int rows, CancellationToken cancellationToken)
-        => StartAsync(columns, rows, new Dictionary<string, string>(), cancellationToken);
+        => StartAsync(columns, rows, cwd: null, new Dictionary<string, string>(), cancellationToken);
 
-    public async Task<IPtyProcess> StartAsync(int columns, int rows, IReadOnlyDictionary<string, string> environmentVariables, CancellationToken cancellationToken)
+    public async Task<IPtyProcess> StartAsync(int columns, int rows, string? cwd, IReadOnlyDictionary<string, string> environmentVariables, CancellationToken cancellationToken)
     {
         var (app, commandLine) = ResolveShellLaunch(environmentVariables);
         var environment = new Dictionary<string, string>
@@ -27,7 +27,9 @@ public sealed class UnixPtyHost : IPtyHost
             Name = "CortexTerminal.Worker",
             Cols = columns,
             Rows = rows,
-            Cwd = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            Cwd = string.IsNullOrEmpty(cwd)
+                ? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
+                : cwd,
             App = app,
             CommandLine = commandLine,
             Environment = environment,

@@ -196,7 +196,7 @@ internal sealed class FakePtyHost(byte[] stdout, byte[] stderr) : IPtyHost
     public Task<IPtyProcess> StartAsync(int columns, int rows, CancellationToken cancellationToken)
         => Task.FromResult<IPtyProcess>(new FakePtyProcess(stdout, stderr));
 
-    public Task<IPtyProcess> StartAsync(int columns, int rows, IReadOnlyDictionary<string, string> environmentVariables, CancellationToken cancellationToken)
+    public Task<IPtyProcess> StartAsync(int columns, int rows, string? cwd, IReadOnlyDictionary<string, string> environmentVariables, CancellationToken cancellationToken)
         => StartAsync(columns, rows, cancellationToken);
 }
 
@@ -247,7 +247,7 @@ internal sealed class SequencedFakePtyHost(byte[][] stdoutChunks, byte[][] stder
     public Task<IPtyProcess> StartAsync(int columns, int rows, CancellationToken cancellationToken)
         => Task.FromResult<IPtyProcess>(new SequencedFakePtyProcess(stdoutChunks, stderrChunks));
 
-    public Task<IPtyProcess> StartAsync(int columns, int rows, IReadOnlyDictionary<string, string> environmentVariables, CancellationToken cancellationToken)
+    public Task<IPtyProcess> StartAsync(int columns, int rows, string? cwd, IReadOnlyDictionary<string, string> environmentVariables, CancellationToken cancellationToken)
         => StartAsync(columns, rows, cancellationToken);
 }
 

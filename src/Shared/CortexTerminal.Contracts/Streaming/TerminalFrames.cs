@@ -17,7 +17,8 @@ public sealed record StartSessionCommand(
     [property: Key(0)] string SessionId,
     [property: Key(1)] int Columns,
     [property: Key(2)] int Rows,
-    [property: Key(3)] int MaxBytes);
+    [property: Key(3)] int MaxBytes,
+    [property: Key(4)] string? Cwd = null);
 
 [MessagePackObject]
 public sealed record TerminalChunk(
@@ -139,7 +140,8 @@ public sealed record WorkerInfoFrame(
     [property: Key(4)] string? MachineName,
     [property: Key(5)] string? Version,
     [property: Key(6)] double? CpuUsagePercent = null,
-    [property: Key(7)] double? MemoryUsagePercent = null);
+    [property: Key(7)] double? MemoryUsagePercent = null,
+    [property: Key(8)] string? HomePath = null);
 
 [MessagePackObject]
 public sealed record UpgradeWorkerCommand(

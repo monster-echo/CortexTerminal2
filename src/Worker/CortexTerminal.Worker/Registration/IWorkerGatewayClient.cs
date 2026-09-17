@@ -18,11 +18,12 @@ public interface IWorkerGatewayClient : IAsyncDisposable
     IDisposable OnRequestScrollbackSince(Func<string, long, ScrollbackDelta> handler);
     IDisposable OnReconnected(Func<string?, Task> handler);
     IDisposable OnClosed(Func<Exception?, Task> handler);
-    IDisposable OnListFiles(Func<string?, Task<FileListingResult>> handler);
-    IDisposable OnMirrorUploadedFile(Func<FileMirrorRequest, Task<FileOperationAck>> handler);
-    IDisposable OnBeginFileUpload(Func<BeginFileUploadRequest, Task<FileOperationAck>> handler);
+    IDisposable OnListFiles(Func<string, string?, Task<FileListingResult>> handler);
+    IDisposable OnPrepareFileReceive(Func<PrepareFileReceiveCommand, Task<FileOperationAck>> handler);
+    IDisposable OnPrepareFileSend(Func<PrepareFileSendCommand, Task<PrepareFileSendAck>> handler);
+    IDisposable OnCreateWorkspaceDirectory(Func<CreateWorkspaceDirectoryCommand, Task<WorkspaceDirectoryAck>> handler);
+    IDisposable OnIssueRelayToken(Func<string, string, Task<FileOperationAck>> handler);
     IDisposable OnProbeTunnelPort(Func<int, ProbePortResponse> handler);
-    IDisposable OnTunnelHttpRequest(Func<TunnelHttpRequest, TunnelHttpResponse> handler);
     Task ForwardStdoutAsync(TerminalChunk chunk, CancellationToken cancellationToken);
     Task ForwardStderrAsync(TerminalChunk chunk, CancellationToken cancellationToken);
     Task ForwardLatencyProbeAsync(LatencyProbeFrame frame, CancellationToken cancellationToken);
@@ -38,6 +39,4 @@ public interface IWorkerGatewayClient : IAsyncDisposable
     Task ForwardAgentCompactingAsync(AgentCompactingFrame frame, CancellationToken ct);
     Task ForwardAgentTitleUpdatedAsync(AgentTitleUpdatedFrame frame, CancellationToken ct);
     Task SendWorkerInfoAsync(WorkerInfoFrame info, CancellationToken ct);
-    Task<TransferUploadUrlResponse> RequestFileUploadUrlAsync(FileUploadUrlRequest request, CancellationToken ct);
-    Task CompleteFileTransferAsync(CompleteFileTransferRequest request, CancellationToken ct);
 }

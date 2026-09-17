@@ -7,11 +7,11 @@ public sealed class PtySession(IPtyHost host, ScrollbackBuffer scrollbackBuffer)
     private IPtyProcess? _process;
 
     public async Task<IPtyProcess> StartAsync(string sessionId, int columns, int rows, CancellationToken cancellationToken)
-        => await StartAsync(sessionId, columns, rows, new Dictionary<string, string>(), cancellationToken);
+        => await StartAsync(sessionId, columns, rows, cwd: null, new Dictionary<string, string>(), cancellationToken);
 
-    public async Task<IPtyProcess> StartAsync(string sessionId, int columns, int rows, IReadOnlyDictionary<string, string> environmentVariables, CancellationToken cancellationToken)
+    public async Task<IPtyProcess> StartAsync(string sessionId, int columns, int rows, string? cwd, IReadOnlyDictionary<string, string> environmentVariables, CancellationToken cancellationToken)
     {
-        _process = await host.StartAsync(columns, rows, environmentVariables, cancellationToken);
+        _process = await host.StartAsync(columns, rows, cwd, environmentVariables, cancellationToken);
         return _process;
     }
 

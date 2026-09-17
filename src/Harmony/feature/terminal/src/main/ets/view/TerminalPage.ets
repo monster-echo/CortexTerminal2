@@ -155,6 +155,10 @@ export struct TerminalPage {
   private deltaMode: boolean = false
   private deltaPacked: string[] = []
   private replaySinceSeq: number = 0
+  @State private terminalMenuVisible: boolean = false
+  @State private menuX: number = 0
+  @State private menuY: number = 0
+  @State private menuHasSelection: boolean = false
   private pendingBatch: string[] = []
   private flushScheduled: boolean = false
   private connectTimer: number = -1
@@ -338,40 +342,79 @@ export struct TerminalPage {
         .backgroundColor('#1AFF4444')
       }
 
-      // Xterm webview (main terminal area)
-      XtermWebview({
-        webviewController: this.webviewController,
-        onInputReady: () => {
-          this.webviewReady = true
-          this.paintCachedOutput()
-          this.doInitialFit()
-        },
-        onInput: (data: string) => {
-          if (this.ctrlActive) {
-            this.sendInput(this.applyCtrl(data))
-          } else if (this.altActive) {
-            this.sendInput('\x1b' + data)
-          } else {
-            this.sendInput(data)
-          }
-        },
-        onResize: (cols: number, rows: number) => {
-          if (cols > 0 && rows > 0 && (cols !== this.lastCols || rows !== this.lastRows)) {
-            this.lastCols = cols
-            this.lastRows = rows
-            if (this.terminalLive) {
-              this.transport.sendResize(cols, rows)
+      // Xterm webview (main terminal area) + context menu overlay.
+      // The Stack shares the webview's coordinate space, so the menu anchored
+      // at JS-reported client coords lands at the pressed cell.
+      Stack() {
+        XtermWebview({
+          webviewController: this.webviewController,
+          onInputReady: () => {
+            this.webviewReady = true
+            this.paintCachedOutput()
+            this.doInitialFit()
+          },
+          onInput: (data: string) => {
+            if (this.ctrlActive) {
+              this.sendInput(this.applyCtrl(data))
+            } else if (this.altActive) {
+              this.sendInput('\x1b' + data)
+            } else {
+              this.sendInput(data)
             }
+          },
+          onResize: (cols: number, rows: number) => {
+            if (cols > 0 && rows > 0 && (cols !== this.lastCols || rows !== this.lastRows)) {
+              this.lastCols = cols
+              this.lastRows = rows
+              if (this.terminalLive) {
+                this.transport.sendResize(cols, rows)
+              }
+            }
+          },
+          onContextMenu: (x: number, y: number) => {
+            this.onTerminalContextMenu(x, y)
           }
+        })
+
+        if (this.terminalMenuVisible) {
+          Row() {
+            this.TerminalMenuButton(I18n.get('terminal.menu.copy'), this.menuHasSelection, () => {
+              this.copyTerminalSelection()
+            })
+            this.TerminalMenuButton(I18n.get('terminal.menu.selectall'), true, () => {
+              lightHaptic()
+              this.webviewController.runJavaScript('selectAllTerminal()')
+                .then(() => {
+                  this.menuHasSelection = true
+                })
+                .catch((_e: Error) => {})
+            })
+            this.TerminalMenuButton(I18n.get('terminal.menu.paste'), true, () => {
+              this.pasteFromClipboardToTerminal()
+            })
+            this.TerminalMenuButton(I18n.get('terminal.menu.cancel'), true, () => {
+              this.webviewController.runJavaScript('clearSelection()')
+              this.terminalMenuVisible = false
+            })
+          }
+          .padding({ left: 6, right: 6, top: 4, bottom: 4 })
+          .borderRadius(8)
+          .backgroundColor($r('app.color.terminal_surface_container_highest'))
+          .shadow({ radius: 12, color: 'rgba(0,0,0,0.4)', offsetY: 2 })
+          .position({ x: this.menuX, y: this.menuY })
         }
-      })
+      }
       .layoutWeight(1)
+      .alignContent(Alignment.TopStart)
 
       // Virtual key bar (visible when keyboard is shown)
       if (this.isKeyboardVisible) {
         VirtualKeyBar({
           onKeyPress: (key: string) => {
             this.handleVirtualKey(key)
+          },
+          onPasteText: (text: string) => {
+            this.pasteTextToTerminal(text)
           },
           onDismiss: () => {
             this.dismissKeyboard()
@@ -710,6 +753,95 @@ export struct TerminalPage {
         resolve()
       }
     })
+  }
+
+  private onTerminalContextMenu(x: number, y: number) {
+    if (x < 0) {
+      this.terminalMenuVisible = false
+      return
+    }
+    this.menuX = Math.max(8, Math.min(x - 16, 280))
+    this.menuY = y > 160 ? y - 64 : y + 24
+    this.webviewController.runJavaScript('hasSelection()')
+      .then((r: string) => {
+        this.menuHasSelection = r.indexOf('1') >= 0
+      })
+      .catch(() => {
+        this.menuHasSelection = false
+      })
+    this.terminalMenuVisible = true
+  }
+
+  private copyTerminalSelection() {
+    this.webviewController.runJavaScript('getSelection()')
+      .then((result: string) => {
+        let text = result
+        try {
+          text = JSON.parse(result) as string
+        } catch (_e) {}
+        if (!text) {
+          return
+        }
+        lightHaptic()
+        const pasteData = pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, text)
+        pasteboard.getSystemPasteboard().setData(pasteData)
+          .then(() => {
+            this.webviewController.runJavaScript('clearSelection()')
+            this.terminalMenuVisible = false
+          })
+          .catch((e: Object) => {
+            console.error('Failed to copy terminal selection: ' + (e as Error).message)
+          })
+      })
+      .catch((e: Error) => {
+        console.error('Failed to read terminal selection: ' + e.message)
+      })
+  }
+
+  private pasteFromClipboardToTerminal() {
+    pasteboard.getSystemPasteboard().getData()
+      .then((data: pasteboard.PasteData) => {
+        this.pasteTextToTerminal(data.getPrimaryText() ?? '')
+      })
+      .catch((e: Object) => {
+        console.warn('Failed to read pasteboard: ' + (e as Error).message)
+      })
+  }
+
+  private pasteTextToTerminal(text: string) {
+    if (!text) {
+      return
+    }
+    lightHaptic()
+    const escaped = text.replace(/\\/g, '\\\\')
+      .replace(/"/g, '\\"')
+      .replace(/\n/g, '\\n')
+      .replace(/\r/g, '\\r')
+    try {
+      this.webviewController.runJavaScript(`pasteText("${escaped}")`)
+        .catch((e: Error) => console.warn('Failed to paste: ' + e.message))
+    } catch (e) {
+      console.warn('Failed to paste: ' + (e as Error).message)
+    }
+    this.terminalMenuVisible = false
+  }
+
+  @Builder
+  TerminalMenuButton(label: string, enabled: boolean, action: () => void) {
+    Button(label)
+      .height(36)
+      .constraintSize({ minWidth: 64 })
+      .borderRadius(8)
+      .backgroundColor(Color.Transparent)
+      .fontColor(enabled ? $r('app.color.terminal_primary') : $r('app.color.terminal_outline'))
+      .opacity(enabled ? 1 : 0.5)
+      .fontSize(14)
+      .margin({ left: 2, right: 2 })
+      .onClick(() => {
+        if (enabled) {
+          action()
+        }
+      })
   }
 
   private handleVirtualKey(key: string) {

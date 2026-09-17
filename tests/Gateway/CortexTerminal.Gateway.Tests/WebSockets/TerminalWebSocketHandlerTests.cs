@@ -4,7 +4,10 @@ using System.Text.Json;
 using CortexTerminal.Contracts.Sessions;
 using CortexTerminal.Gateway.Sessions;
 using CortexTerminal.Gateway.Stats;
+using CortexTerminal.Gateway.Hubs;
 using CortexTerminal.Gateway.Tests.Hubs;
+using CortexTerminal.Gateway.Tests.Workers;
+using Microsoft.AspNetCore.SignalR;
 using CortexTerminal.Gateway.WebSockets;
 using CortexTerminal.Gateway.Workers;
 using FluentAssertions;
@@ -24,7 +27,7 @@ public sealed class TerminalWebSocketHandlerTests
                 .Replace("SESSION", sessionId),
             closeAfterMessages: true);
 
-        await handler.HandleAsync(ws, "test-user", sessionId, CancellationToken.None);
+        await handler.HandleAsync(ws, "test-user", sessionId, capabilities: "", CancellationToken.None);
 
         ws.SentFrames.Select(ReadType).Should().ContainInOrder(
             "replaying",
@@ -44,7 +47,7 @@ public sealed class TerminalWebSocketHandlerTests
             """{"type":"detach","sessionId":"SESSION"}""".Replace("SESSION", sessionId),
             closeAfterMessages: false);
 
-        await handler.HandleAsync(ws, "test-user", sessionId, CancellationToken.None);
+        await handler.HandleAsync(ws, "test-user", sessionId, capabilities: "", CancellationToken.None);
 
         ws.SentFrames.Select(ReadType).Should().Contain("detached");
         ws.CloseStatus.Should().Be(WebSocketCloseStatus.NormalClosure);
@@ -60,7 +63,7 @@ public sealed class TerminalWebSocketHandlerTests
                 .Replace("SESSION", sessionId),
             closeAfterMessages: true);
 
-        await handler.HandleAsync(ws, "test-user", sessionId, CancellationToken.None);
+        await handler.HandleAsync(ws, "test-user", sessionId, capabilities: "", CancellationToken.None);
 
         var errorFrame = ReadFrame(ws.SentFrames.Last(ReadTypeIs("error")));
         errorFrame.GetProperty("code").GetString().Should().Be("invalid-frame");
@@ -73,7 +76,7 @@ public sealed class TerminalWebSocketHandlerTests
 
         var sessions = TestSessionFactory.CreateCoordinator(workers, timeProvider: new FixedTimeProvider(DateTimeOffset.UnixEpoch));
         var dispatcher = new NoOpWorkerCommandDispatcher();
-        var launcher = new SessionLaunchCoordinator(sessions, dispatcher, new ScrollbackSettings(), TestSessionFactory.CreatePreferenceService());
+        var launcher = new SessionLaunchCoordinator(sessions, dispatcher, new ScrollbackSettings(), TestSessionFactory.CreatePreferenceService(), TestSessionFactory.CreateWorkspaceRegistry());
         var created = await launcher.CreateSessionAsync(
             "test-user",
             new CreateSessionRequest("shell", 120, 40),
@@ -89,6 +92,7 @@ public sealed class TerminalWebSocketHandlerTests
             launcher,
             new FixedTimeProvider(DateTimeOffset.UnixEpoch.AddSeconds(1)),
             new NoOpStatsService(),
+            new TestHubContext<TerminalHub>(new Dictionary<string, IClientProxy>()),
             NullLogger<TerminalWebSocketHandler>.Instance);
 
         return (handler, created.Response!.SessionId);

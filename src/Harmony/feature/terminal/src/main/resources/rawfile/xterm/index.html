@@ -38,9 +38,15 @@
     // === Globals ===
     let term = null;
     let fitAddon = null;
+    let terminalContainer = null;
 
     // === WebMessagePort 通信 ===
     var h5Port;
+    function sendToHost(msg) {
+      if (h5Port) {
+        h5Port.postMessage(JSON.stringify(msg));
+      }
+    }
     window.addEventListener('message', function(event) {
       if (event.data === '__init_port__') {
         if (event.ports[0]) {
@@ -104,6 +110,7 @@
       term.loadAddon(fitAddon);
 
       const container = document.getElementById('terminal-container');
+      terminalContainer = container;
       term.open(container);
 
       // Register resize handler BEFORE fit() so the initial resize event is captured.
@@ -194,6 +201,8 @@
 
         container.addEventListener('touchstart', function(e) {
           if (e.touches.length !== 1) return;
+          // Any new touch dismisses the host context menu.
+          sendToHost({ type: 'contextmenuhide' });
           if (st && st.rafId) cancelAnimationFrame(st.rafId);
 
           var s = {
@@ -203,6 +212,10 @@
             rafId: 0,
             velocity: 0,
             startY: e.touches[0].clientY,
+            startX: e.touches[0].clientX,
+            startMs: Date.now(),
+            totalDelta: 0,
+            anchor: null,
             longPressTimer: null,
             selecting: false
           };
@@ -212,27 +225,17 @@
           // the real target under the finger so xterm's selection picks it up.
           s.longPressTimer = setTimeout(function() {
             s.selecting = true;
+            s.anchor = cellAt(s.startX, s.startY);
             var textarea = container.querySelector('.xterm-helper-textarea');
             if (textarea) textarea.focus();
-            var touch = e.touches[0];
-            var target = document.elementFromPoint(touch.clientX, touch.clientY);
-            if (target) {
-              var syntheticTouch = new Touch({
-                identifier: touch.identifier,
-                target: target,
-                clientX: touch.clientX,
-                clientY: touch.clientY,
-                pageX: touch.pageX,
-                pageY: touch.pageY,
-                screenX: touch.screenX,
-                screenY: touch.screenY
-              });
-              target.dispatchEvent(new TouchEvent('touchstart', {
-                touches: [syntheticTouch],
-                targetTouches: [syntheticTouch],
-                bubbles: true,
-                cancelable: true
-              }));
+            // Long-press selects the word under the finger directly through
+            // xterm's select() API — the synthetic-touch approach never fired
+            // reliably on ArkWeb.
+            if (s.anchor) {
+              var wr = wordRangeAt(s.anchor.col, s.anchor.row);
+              if (wr) {
+                term.select(wr.col, wr.row, wr.length);
+              }
             }
           }, LONG_PRESS_MS);
 
@@ -244,15 +247,38 @@
           var s = st;
 
           var currentY = e.touches[0].clientY;
-          var totalDelta = Math.abs(currentY - s.startY);
+          var totalDelta = Math.max(
+            Math.abs(currentY - s.startY),
+            Math.abs(e.touches[0].clientX - s.startX));
+          s.totalDelta = totalDelta;
 
           // Movement beyond threshold before long-press fires → cancel selection intent
           if (!s.selecting && totalDelta > MOVE_THRESHOLD) {
             clearLongPress(s);
           }
 
-          // In selection mode, let xterm handle the touch
-          if (s.selecting) return;
+          // Selection mode: extend the selection ourselves (xterm's touch
+          // selection is unreliable on ArkWeb — drive term.select directly).
+          if (s.selecting) {
+            e.preventDefault();
+            var cur = cellAt(e.touches[0].clientX, e.touches[0].clientY);
+            if (cur && s.anchor) {
+              var cols = term.cols;
+              var a = s.anchor.row * cols + s.anchor.col;
+              var b = cur.row * cols + cur.col;
+              if (a !== b) {
+                if (Math.floor(Math.min(a, b) / cols) === Math.floor(Math.max(a, b) / cols)) {
+                  // Same row: exact cell range
+                  var start = Math.min(a, b);
+                  term.select(start % cols, Math.floor(start / cols), Math.abs(b - a) + 1);
+                } else {
+                  // Multi-row: whole-line selection between the rows
+                  term.selectLines(Math.min(s.anchor.row, cur.row), Math.max(s.anchor.row, cur.row));
+                }
+              }
+            }
+            return;
+          }
 
           e.preventDefault();
 
@@ -272,13 +298,17 @@
           }
         }, { passive: false });
 
-        container.addEventListener('touchend', function() {
+        container.addEventListener('touchend', function(e) {
           if (!st) return;
           var s = st;
           clearLongPress(s);
 
           if (s.selecting) {
             st = null;
+            // Selection finalized — ask the host for the context menu
+            // (复制/全选/粘贴/取消) at the lift point.
+            var lift = e.changedTouches[0];
+            sendToHost({ type: 'contextmenu', x: lift ? lift.clientX : s.startX, y: lift ? lift.clientY : s.startY });
             return;
           }
 
@@ -303,6 +333,16 @@
             s.rafId = requestAnimationFrame(inertiaScroll);
           } else {
             st = null;
+            // Short tap: refocus the terminal and nudge the shell cursor toward
+            // the tapped column (same viewport row only — cross-row arrow
+            // sequences are ambiguous in raw-mode shells).
+            var tap = e.changedTouches[0];
+            var heldMs = Date.now() - s.startMs;
+            if (tap && s.totalDelta <= MOVE_THRESHOLD && heldMs < LONG_PRESS_MS) {
+              var textarea = container.querySelector('.xterm-helper-textarea');
+              if (textarea) textarea.focus();
+              handleTapToMove(tap.clientX, tap.clientY);
+            }
           }
         }, { passive: true });
 
@@ -435,6 +475,87 @@
         return JSON.stringify({ cols: term.cols, rows: term.rows });
       }
       return JSON.stringify({ cols: 80, rows: 24 });
+    }
+
+    /** Map a viewport coordinate to a terminal cell, null when outside. */
+    function cellAt(clientX, clientY) {
+      if (!term || !terminalContainer) return null;
+      var rowsEl = terminalContainer.querySelector('.xterm-rows');
+      if (!rowsEl) return null;
+      var rect = rowsEl.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return null;
+      var col = Math.floor((clientX - rect.left) / (rect.width / term.cols));
+      var row = Math.floor((clientY - rect.top) / (rect.height / term.rows));
+      if (col < 0 || col >= term.cols || row < 0 || row >= term.rows) return null;
+      return { col: col, row: row };
+    }
+
+    /** Word range around a cell on its line; a single cell for whitespace. */
+    function wordRangeAt(col, row) {
+      var line = term.buffer.active.getLine(row);
+      if (!line) return null;
+      var text = line.translateToString(true);
+      if (!text) return null;
+      if (col >= text.length) col = text.length - 1;
+      var isWord = function(ch) { return /\S/.test(ch); };
+      if (!isWord(text.charAt(col))) {
+        return { col: col, length: 1 };
+      }
+      var start = col;
+      var end = col;
+      while (start > 0 && isWord(text.charAt(start - 1))) start--;
+      while (end < text.length - 1 && isWord(text.charAt(end + 1))) end++;
+      return { col: start, length: end - start + 1 };
+    }
+
+    /**
+     * Tap-to-move: nudge the shell cursor toward the tapped column with arrow
+     * keys — same viewport row only, and only when the viewport sits at the
+     * bottom (taps in scrolled-back history don't map to the live cursor).
+     * Skipped in the alternate screen, where apps own the cursor.
+     */
+    function handleTapToMove(clientX, clientY) {
+      if (!term) return;
+      var buf = term.buffer.active;
+      if (buf.type === 'alternate') return;
+      if (buf.viewportY < buf.length - term.rows) return;
+      var cell = cellAt(clientX, clientY);
+      if (!cell) return;
+      var dCol = cell.col - buf.cursorX;
+      var dRow = cell.row - buf.cursorY;
+      if (dRow !== 0 || dCol === 0 || Math.abs(dCol) > 60) return;
+      var out = '';
+      for (var i = 0; i < Math.abs(dCol); i++) {
+        out += (dCol > 0) ? '\x1b[C' : '\x1b[D';
+      }
+      if (term.onData) {
+        term.onData(out);
+      }
+    }
+
+    /**
+     * Select the whole active buffer (context menu 全选).
+     */
+    function selectAllTerminal() {
+      if (term) {
+        term.selectAll();
+      }
+    }
+
+    /**
+     * Paste text through xterm so bracketed-paste mode is honored.
+     */
+    function pasteText(text) {
+      if (term && text) {
+        term.paste(text);
+      }
+    }
+
+    /**
+     * '1' when the terminal holds a selection, '0' otherwise.
+     */
+    function hasSelection() {
+      return (term && term.hasSelection()) ? '1' : '0';
     }
 
     // === Window resize handling ===

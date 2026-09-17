@@ -12,6 +12,7 @@ public class AppDbContext : DbContext
     public DbSet<UserPreference> UserPreferences => Set<UserPreference>();
     public DbSet<TunnelEntity> Tunnels => Set<TunnelEntity>();
     public DbSet<SessionAgentEventEntity> SessionAgentEvents => Set<SessionAgentEventEntity>();
+    public DbSet<WorkspaceEntity> Workspaces => Set<WorkspaceEntity>();
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
@@ -70,6 +71,13 @@ public class AppDbContext : DbContext
         {
             entity.HasIndex(e => new { e.SessionId, e.CreatedAtUtc });
             entity.HasIndex(e => e.SessionId);
+        });
+
+        modelBuilder.Entity<WorkspaceEntity>(entity =>
+        {
+            entity.HasIndex(e => e.OwnerUserId);
+            entity.HasIndex(e => e.WorkerId);
+            entity.HasIndex(e => new { e.WorkerId, e.Name }).IsUnique();
         });
     }
 }

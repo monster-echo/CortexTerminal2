@@ -4,6 +4,7 @@ using CortexTerminal.Contracts.Sessions;
 using CortexTerminal.Contracts.Streaming;
 using CortexTerminal.Worker.Pty;
 using CortexTerminal.Worker.Registration;
+using CortexTerminal.Worker.RemoteFiles;
 using CortexTerminal.Worker.Runtime;
 using CortexTerminal.Worker.Tunnels;
 using FluentAssertions;
@@ -22,7 +23,7 @@ public sealed class WorkerRuntimeHostTests
     {
         var process = new ControlledPtyProcess();
         var gateway = new FakeWorkerGatewayClient();
-        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(process), NullLoggerFactory.Instance, NewLifetime(), new TunnelHost(new HttpClient(), NullLogger<TunnelHost>.Instance));
+        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(process), NullLoggerFactory.Instance, NewLifetime(), TestRelay.NewRelayLink(), TestRelay.NewRelayTransfers());
 
         await host.StartAsync(CancellationToken.None);
         await gateway.RaiseStartSessionAsync(new StartSessionCommand("sess-1", 120, 40, 5 * 1024 * 1024));
@@ -48,7 +49,7 @@ public sealed class WorkerRuntimeHostTests
         // active sessions the snapshot is empty — but the call must happen, so the gateway can
         // treat any pre-existing gateway-side sessions for this worker as gone.
         var gateway = new FakeWorkerGatewayClient();
-        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()), NullLoggerFactory.Instance, NewLifetime(), new TunnelHost(new HttpClient(), NullLogger<TunnelHost>.Instance));
+        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()), NullLoggerFactory.Instance, NewLifetime(), TestRelay.NewRelayLink(), TestRelay.NewRelayTransfers());
 
         await host.StartAsync(CancellationToken.None);
 
@@ -60,7 +61,7 @@ public sealed class WorkerRuntimeHostTests
     public async Task Reconnected_ReRegistersWithoutDuplicatingTrackedSessions()
     {
         var gateway = new FakeWorkerGatewayClient();
-        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()), NullLoggerFactory.Instance, NewLifetime(), new TunnelHost(new HttpClient(), NullLogger<TunnelHost>.Instance));
+        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()), NullLoggerFactory.Instance, NewLifetime(), TestRelay.NewRelayLink(), TestRelay.NewRelayTransfers());
 
         await host.StartAsync(CancellationToken.None);
         await gateway.RaiseStartSessionAsync(new StartSessionCommand("sess-1", 120, 40, 5 * 1024 * 1024));
@@ -74,7 +75,7 @@ public sealed class WorkerRuntimeHostTests
     public async Task DuplicateStart_ForwardsStartFailureWithoutReplacingActiveSession()
     {
         var gateway = new FakeWorkerGatewayClient();
-        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()), NullLoggerFactory.Instance, NewLifetime(), new TunnelHost(new HttpClient(), NullLogger<TunnelHost>.Instance));
+        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()), NullLoggerFactory.Instance, NewLifetime(), TestRelay.NewRelayLink(), TestRelay.NewRelayTransfers());
 
         await host.StartAsync(CancellationToken.None);
         await gateway.RaiseStartSessionAsync(new StartSessionCommand("sess-1", 120, 40, 5 * 1024 * 1024));
@@ -95,7 +96,7 @@ public sealed class WorkerRuntimeHostTests
             new ThrowingPtyHost(new PtySupportException("pty-start-failed", "spawn exploded")),
             NullLoggerFactory.Instance,
             NewLifetime(),
-            new TunnelHost(new HttpClient(), NullLogger<TunnelHost>.Instance));
+            TestRelay.NewRelayLink(), TestRelay.NewRelayTransfers());
 
         await host.StartAsync(CancellationToken.None);
         await gateway.RaiseStartSessionAsync(new StartSessionCommand("sess-1", 120, 40, 5 * 1024 * 1024));
@@ -116,7 +117,7 @@ public sealed class WorkerRuntimeHostTests
     {
         var process = new ControlledPtyProcess();
         var gateway = new FakeWorkerGatewayClient();
-        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(process), NullLoggerFactory.Instance, NewLifetime(), new TunnelHost(new HttpClient(), NullLogger<TunnelHost>.Instance));
+        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(process), NullLoggerFactory.Instance, NewLifetime(), TestRelay.NewRelayLink(), TestRelay.NewRelayTransfers());
 
         await host.StartAsync(CancellationToken.None);
         await gateway.RaiseStartSessionAsync(new StartSessionCommand("sess-1", 120, 40, 5 * 1024 * 1024));
@@ -134,10 +135,9 @@ public sealed class WorkerRuntimeHostTests
 
         await using var host = new WorkerRuntimeHost(
             "worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()),
-            new HttpClient(),
             50 * 1024 * 1024,
             NullLoggerFactory.Instance, NewLifetime(), TimeSpan.FromMilliseconds(50),
-            new TunnelHost(new HttpClient(), NullLogger<TunnelHost>.Instance));
+            TestRelay.NewRelayLink(), TestRelay.NewRelayTransfers());
 
         await host.StartAsync(CancellationToken.None);
         gateway.RegisteredWorkerIds.Should().ContainSingle(); // initial register
@@ -162,10 +162,9 @@ public sealed class WorkerRuntimeHostTests
 
         await using var host = new WorkerRuntimeHost(
             "worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()),
-            new HttpClient(),
             50 * 1024 * 1024,
             NullLoggerFactory.Instance, NewLifetime(), TimeSpan.FromMilliseconds(50),
-            new TunnelHost(new HttpClient(), NullLogger<TunnelHost>.Instance));
+            TestRelay.NewRelayLink(), TestRelay.NewRelayTransfers());
 
         await host.StartAsync(CancellationToken.None);
         var startCountBefore = gateway.StartCallCount;
@@ -190,10 +189,9 @@ public sealed class WorkerRuntimeHostTests
 
         await using var host = new WorkerRuntimeHost(
             "worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()),
-            new HttpClient(),
             50 * 1024 * 1024,
             NullLoggerFactory.Instance, NewLifetime(), TimeSpan.FromMilliseconds(50),
-            new TunnelHost(new HttpClient(), NullLogger<TunnelHost>.Instance));
+            TestRelay.NewRelayLink(), TestRelay.NewRelayTransfers());
 
         await host.StartAsync(CancellationToken.None);
         gateway.RegisteredWorkerIds.Clear();
@@ -221,10 +219,9 @@ public sealed class WorkerRuntimeHostTests
 
         await using var host = new WorkerRuntimeHost(
             "worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()),
-            new HttpClient(),
             50 * 1024 * 1024,
             NullLoggerFactory.Instance, lifetime, TimeSpan.FromMilliseconds(50),
-            new TunnelHost(new HttpClient(), NullLogger<TunnelHost>.Instance));
+            TestRelay.NewRelayLink(), TestRelay.NewRelayTransfers());
 
         await host.StartAsync(CancellationToken.None);
 
@@ -253,7 +250,7 @@ public sealed class WorkerRuntimeHostTests
         await using var host = new WorkerRuntimeHost(
             "worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()),
             NullLoggerFactory.Instance, lifetime,
-            new TunnelHost(new HttpClient(), NullLogger<TunnelHost>.Instance));
+            TestRelay.NewRelayLink(), TestRelay.NewRelayTransfers());
 
         await host.StartAsync(CancellationToken.None);
 
@@ -264,7 +261,7 @@ public sealed class WorkerRuntimeHostTests
     public async Task Upgrade_RejectedWhenPlatformMismatches()
     {
         var gateway = new FakeWorkerGatewayClient();
-        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()), NullLoggerFactory.Instance, NewLifetime(), new TunnelHost(new HttpClient(), NullLogger<TunnelHost>.Instance));
+        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()), NullLoggerFactory.Instance, NewLifetime(), TestRelay.NewRelayLink(), TestRelay.NewRelayTransfers());
 
         await host.StartAsync(CancellationToken.None);
 
@@ -288,7 +285,7 @@ public sealed class WorkerRuntimeHostTests
     public async Task Upgrade_AcceptedWhenPlatformMatches()
     {
         var gateway = new FakeWorkerGatewayClient();
-        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()), NullLoggerFactory.Instance, NewLifetime(), new TunnelHost(new HttpClient(), NullLogger<TunnelHost>.Instance));
+        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()), NullLoggerFactory.Instance, NewLifetime(), TestRelay.NewRelayLink(), TestRelay.NewRelayTransfers());
 
         await host.StartAsync(CancellationToken.None);
 
@@ -414,11 +411,17 @@ internal sealed class FakeWorkerGatewayClient : IWorkerGatewayClient
     public IDisposable OnRequestScrollback(Func<string, IReadOnlyList<TerminalChunk>> handler)
         => Register(_scrollbackHandlers, handler);
 
+    public IDisposable OnRequestScrollbackSince(Func<string, long, ScrollbackDelta> handler)
+        => new DelegateDisposable(() => { });
+
     public IDisposable OnProbeTunnelPort(Func<int, ProbePortResponse> handler)
         => new DelegateDisposable(() => { });
 
-    public IDisposable OnTunnelHttpRequest(Func<TunnelHttpRequest, TunnelHttpResponse> handler)
-        => new DelegateDisposable(() => { });
+    public IDisposable OnListFiles(Func<string, string?, Task<FileListingResult>> handler) => new DelegateDisposable(() => { });
+    public IDisposable OnPrepareFileReceive(Func<PrepareFileReceiveCommand, Task<FileOperationAck>> handler) => new DelegateDisposable(() => { });
+    public IDisposable OnPrepareFileSend(Func<PrepareFileSendCommand, Task<PrepareFileSendAck>> handler) => new DelegateDisposable(() => { });
+    public IDisposable OnCreateWorkspaceDirectory(Func<CreateWorkspaceDirectoryCommand, Task<WorkspaceDirectoryAck>> handler) => new DelegateDisposable(() => { });
+    public IDisposable OnIssueRelayToken(Func<string, string, Task<FileOperationAck>> handler) => new DelegateDisposable(() => { });
 
     public IDisposable OnReconnected(Func<string?, Task> handler)
         => Register(_reconnectHandlers, handler);
@@ -461,42 +464,6 @@ internal sealed class FakeWorkerGatewayClient : IWorkerGatewayClient
 
     public Task SendWorkerInfoAsync(WorkerInfoFrame info, CancellationToken ct)
         => Task.CompletedTask;
-
-    public IDisposable OnListFiles(Func<string?, Task<FileListingResult>> handler)
-        => new DelegateDisposable(() => { });
-
-    public IDisposable OnMirrorUploadedFile(Func<FileMirrorRequest, Task<FileOperationAck>> handler)
-        => new DelegateDisposable(() => { });
-
-    public IDisposable OnBeginFileUpload(Func<BeginFileUploadRequest, Task<FileOperationAck>> handler)
-        => new DelegateDisposable(() => { });
-
-    /// <summary>Optional responder for <see cref="RequestFileUploadUrlAsync"/>; default returns a synthetic URL.</summary>
-    public Func<FileUploadUrlRequest, TransferUploadUrlResponse>? FileUploadUrlResponder { get; set; }
-
-    public List<FileUploadUrlRequest> FileUploadUrlRequests { get; } = [];
-    public List<CompleteFileTransferRequest> CompletedTransfers { get; } = [];
-
-    public Task<TransferUploadUrlResponse> RequestFileUploadUrlAsync(FileUploadUrlRequest request, CancellationToken ct)
-    {
-        FileUploadUrlRequests.Add(request);
-        return Task.FromResult(FileUploadUrlResponder?.Invoke(request)
-            ?? new TransferUploadUrlResponse($"https://s3.test/put/{request.RequestId}", DateTimeOffset.UtcNow.AddMinutes(15)));
-    }
-
-    public Task CompleteFileTransferAsync(CompleteFileTransferRequest request, CancellationToken ct)
-    {
-        CompletedTransfers.Add(request);
-        _transferCompletionSignal.TrySetResult(request);
-        return Task.CompletedTask;
-    }
-
-    private readonly TaskCompletionSource<CompleteFileTransferRequest> _transferCompletionSignal =
-        new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-    /// <summary>Waits until the worker reports any transfer completion (success or failure).</summary>
-    public Task<CompleteFileTransferRequest> WaitForTransferCompletionAsync(TimeSpan? timeout = null)
-        => _transferCompletionSignal.Task.WaitAsync(timeout ?? TimeSpan.FromSeconds(10));
 
     public Task ReportWorkerSessionsAsync(WorkerSessionsSnapshot snapshot, CancellationToken ct)
     {
@@ -622,12 +589,18 @@ internal sealed class DelegateDisposable(Action dispose) : IDisposable
     public void Dispose() => dispose();
 }
 
+internal static class TestRelay
+{
+    public static RelayLink NewRelayLink() => new("worker-1", NullLogger<RelayLink>.Instance);
+    public static RelayTransferService NewRelayTransfers() => new(50 * 1024 * 1024, NullLogger<RelayTransferService>.Instance);
+}
+
 internal sealed class ThrowingPtyHost(Exception exception) : IPtyHost
 {
     public Task<IPtyProcess> StartAsync(int columns, int rows, CancellationToken cancellationToken)
         => Task.FromException<IPtyProcess>(exception);
 
-    public Task<IPtyProcess> StartAsync(int columns, int rows, IReadOnlyDictionary<string, string> environmentVariables, CancellationToken cancellationToken)
+    public Task<IPtyProcess> StartAsync(int columns, int rows, string? cwd, IReadOnlyDictionary<string, string> environmentVariables, CancellationToken cancellationToken)
         => Task.FromException<IPtyProcess>(exception);
 }
 

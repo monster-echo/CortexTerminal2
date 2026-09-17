@@ -17,7 +17,7 @@ public sealed class SessionLaunchCoordinatorTests
         var sessions = TestSessionFactory.CreateCoordinator(workers);
         var dispatcher = new RecordingWorkerCommandDispatcher();
         var scrollback = new ScrollbackSettings { MaxBytesOverride = 1024 * 1024 };
-        var coordinator = new SessionLaunchCoordinator(sessions, dispatcher, scrollback, TestSessionFactory.CreatePreferenceService());
+        var coordinator = new SessionLaunchCoordinator(sessions, dispatcher, scrollback, TestSessionFactory.CreatePreferenceService(), TestSessionFactory.CreateWorkspaceRegistry());
 
         var result = await coordinator.CreateSessionAsync(
             "test-user",
@@ -38,7 +38,7 @@ public sealed class SessionLaunchCoordinatorTests
         var sessions = TestSessionFactory.CreateCoordinator(workers);
         var dispatcher = new RecordingWorkerCommandDispatcher();
         var scrollback = new ScrollbackSettings { MaxMegabytes = 3 };
-        var coordinator = new SessionLaunchCoordinator(sessions, dispatcher, scrollback, TestSessionFactory.CreatePreferenceService());
+        var coordinator = new SessionLaunchCoordinator(sessions, dispatcher, scrollback, TestSessionFactory.CreatePreferenceService(), TestSessionFactory.CreateWorkspaceRegistry());
 
         await coordinator.CreateSessionAsync(
             "test-user",
@@ -59,7 +59,7 @@ public sealed class SessionLaunchCoordinatorTests
         var dispatcher = new RecordingWorkerCommandDispatcher();
         var prefService = TestSessionFactory.CreatePreferenceService();
         await prefService.SetScrollbackMaxBytesAsync("test-user", 1024 * 1024, CancellationToken.None);
-        var coordinator = new SessionLaunchCoordinator(sessions, dispatcher, new ScrollbackSettings(), prefService);
+        var coordinator = new SessionLaunchCoordinator(sessions, dispatcher, new ScrollbackSettings(), prefService, TestSessionFactory.CreateWorkspaceRegistry());
 
         await coordinator.CreateSessionAsync(
             "test-user",
@@ -80,7 +80,7 @@ public sealed class SessionLaunchCoordinatorTests
         var dispatcher = new RecordingWorkerCommandDispatcher();
         var prefService = TestSessionFactory.CreatePreferenceService();
         await prefService.SetScrollbackMaxBytesAsync("test-user", 10 * 1024 * 1024, CancellationToken.None);
-        var coordinator = new SessionLaunchCoordinator(sessions, dispatcher, new ScrollbackSettings(), prefService);
+        var coordinator = new SessionLaunchCoordinator(sessions, dispatcher, new ScrollbackSettings(), prefService, TestSessionFactory.CreateWorkspaceRegistry());
 
         await coordinator.CreateSessionAsync(
             "test-user",
@@ -101,7 +101,7 @@ public sealed class SessionLaunchCoordinatorTests
         var dispatcher = new RecordingWorkerCommandDispatcher();
         var prefService = TestSessionFactory.CreatePreferenceService();
         await prefService.SetScrollbackMaxBytesAsync("test-user", 1024, CancellationToken.None);
-        var coordinator = new SessionLaunchCoordinator(sessions, dispatcher, new ScrollbackSettings(), prefService);
+        var coordinator = new SessionLaunchCoordinator(sessions, dispatcher, new ScrollbackSettings(), prefService, TestSessionFactory.CreateWorkspaceRegistry());
 
         await coordinator.CreateSessionAsync(
             "test-user",
@@ -141,19 +141,25 @@ public sealed class SessionLaunchCoordinatorTests
         public Task<IReadOnlyList<TerminalChunk>> RequestScrollbackAsync(string workerConnectionId, string sessionId, CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<TerminalChunk>>(Array.Empty<TerminalChunk>());
 
-        public Task<FileListingResult> ListFilesAsync(string workerConnectionId, string relativePath, CancellationToken cancellationToken)
+        public Task<FileListingResult> ListFilesAsync(string workerConnectionId, string rootDir, string relativePath, CancellationToken cancellationToken)
             => Task.FromResult(new FileListingResult(null, new FileOperationError(FileTransferErrorCode.TransferFailed, "not supported")));
 
-        public Task<FileOperationAck> MirrorUploadedFileAsync(string workerConnectionId, FileMirrorRequest request, CancellationToken cancellationToken)
+                public Task<ScrollbackDelta> RequestScrollbackSinceAsync(string workerConnectionId, string sessionId, long sinceSeq, CancellationToken cancellationToken)
+            => Task.FromResult(new ScrollbackDelta(Gap: true, LastSeq: 0, Items: []));
+
+        public Task<FileOperationAck> PrepareFileReceiveAsync(string workerConnectionId, PrepareFileReceiveCommand command, CancellationToken cancellationToken)
             => Task.FromResult(new FileOperationAck(false, new FileOperationError(FileTransferErrorCode.TransferFailed, "not supported")));
 
-        public Task<FileOperationAck> BeginFileUploadAsync(string workerConnectionId, BeginFileUploadRequest request, CancellationToken cancellationToken)
-            => Task.FromResult(new FileOperationAck(false, new FileOperationError(FileTransferErrorCode.TransferFailed, "not supported")));
+        public Task<PrepareFileSendAck> PrepareFileSendAsync(string workerConnectionId, PrepareFileSendCommand command, CancellationToken cancellationToken)
+            => Task.FromResult(new PrepareFileSendAck(false, new FileOperationError(FileTransferErrorCode.TransferFailed, "not supported"), 0, ""));
+
+        public Task<WorkspaceDirectoryAck> CreateWorkspaceDirectoryAsync(string workerConnectionId, CreateWorkspaceDirectoryCommand command, CancellationToken cancellationToken)
+            => Task.FromResult(new WorkspaceDirectoryAck(false, new FileOperationError(FileTransferErrorCode.TransferFailed, "not supported"), ""));
+
+        public Task<FileOperationAck> IssueRelayTokenAsync(string workerConnectionId, string relayUrl, string token, CancellationToken cancellationToken)
+            => Task.FromResult(new FileOperationAck(true, null));
 
         public Task<ProbePortResponse> ProbeTunnelPortAsync(string workerConnectionId, int port, CancellationToken cancellationToken)
             => Task.FromResult(new ProbePortResponse(true, null));
-
-        public Task<TunnelHttpResponse> SendTunnelHttpRequestAsync(string workerConnectionId, string tunnelId, TunnelHttpRequest request, CancellationToken cancellationToken)
-            => Task.FromResult(new TunnelHttpResponse(200, new Dictionary<string, string[]>(), Array.Empty<byte>(), null));
     }
 }

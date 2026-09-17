@@ -1,4 +1,4 @@
-using CortexTerminal.Gateway.Tunnels;
+using CortexTerminal.Contracts.Streaming;
 using FluentAssertions;
 using Xunit;
 

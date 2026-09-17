@@ -21,8 +21,9 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
     private readonly string _workerId;
     private readonly IWorkerGatewayClient _gatewayClient;
     private readonly IPtyHost _ptyHost;
-    private readonly RemoteFileTransferService _remoteFiles;
-    private readonly TunnelHost _tunnelHost;
+    private readonly WorkspaceFileService _workspaceFiles;
+    private readonly RelayTransferService _relayTransfers;
+    private readonly RelayLink _relayLink;
     private readonly IAgentIntegration? _agentIntegration;
     private readonly ILogger<WorkerRuntimeHost> _logger;
     private readonly ILoggerFactory _loggerFactory;
@@ -40,7 +41,6 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
     private const long DefaultMaxTransferSizeBytes = 50 * 1024 * 1024;
     private const int DefaultMaxListEntries = 2000;
     private static readonly TimeSpan ProbeTimeout = TimeSpan.FromSeconds(2);
-    private static readonly TimeSpan ForwardTimeout = TimeSpan.FromSeconds(30);
 
     public WorkerRuntimeHost(
         string workerId,
@@ -48,22 +48,23 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         IPtyHost ptyHost,
         ILoggerFactory loggerFactory,
         IHostApplicationLifetime lifetime,
-        TunnelHost tunnelHost,
+        RelayLink relayLink,
+        RelayTransferService relayTransfers,
         ISystemMetricsCollector? metricsCollector = null,
         TimeSpan? metricsInterval = null,
         IAgentIntegration? agentIntegration = null)
-        : this(workerId, gatewayClient, ptyHost, new HttpClient(), DefaultMaxTransferSizeBytes, loggerFactory, lifetime, DefaultReconnectInterval, tunnelHost, metricsCollector, metricsInterval, agentIntegration) { }
+        : this(workerId, gatewayClient, ptyHost, DefaultMaxTransferSizeBytes, loggerFactory, lifetime, DefaultReconnectInterval, relayLink, relayTransfers, metricsCollector, metricsInterval, agentIntegration) { }
 
     internal WorkerRuntimeHost(
         string workerId,
         IWorkerGatewayClient gatewayClient,
         IPtyHost ptyHost,
-        HttpClient httpClient,
         long maxTransferSizeBytes,
         ILoggerFactory loggerFactory,
         IHostApplicationLifetime lifetime,
         TimeSpan reconnectInterval,
-        TunnelHost tunnelHost,
+        RelayLink relayLink,
+        RelayTransferService relayTransfers,
         ISystemMetricsCollector? metricsCollector = null,
         TimeSpan? metricsInterval = null,
         IAgentIntegration? agentIntegration = null)
@@ -71,17 +72,15 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         _workerId = workerId;
         _gatewayClient = gatewayClient;
         _ptyHost = ptyHost;
-        _remoteFiles = new RemoteFileTransferService(
-            httpClient,
-            gatewayClient,
-            maxTransferSizeBytes,
+        _workspaceFiles = new WorkspaceFileService(
             DefaultMaxListEntries,
-            loggerFactory.CreateLogger<RemoteFileTransferService>());
+            loggerFactory.CreateLogger<WorkspaceFileService>());
+        _relayTransfers = relayTransfers;
+        _relayLink = relayLink;
         _loggerFactory = loggerFactory;
         _lifetime = lifetime;
         _logger = loggerFactory.CreateLogger<WorkerRuntimeHost>();
         _reconnectInterval = reconnectInterval;
-        _tunnelHost = tunnelHost;
         _metricsCollector = metricsCollector;
         _metricsInterval = metricsInterval ?? DefaultMetricsInterval;
         _agentIntegration = agentIntegration;
@@ -107,11 +106,16 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         _subscriptions.Add(_gatewayClient.OnUpgradeWorker(HandleUpgradeWorkerAsync));
         _subscriptions.Add(_gatewayClient.OnRequestScrollback(HandleRequestScrollbackAsync));
         _subscriptions.Add(_gatewayClient.OnRequestScrollbackSince(HandleRequestScrollbackSince));
-        _subscriptions.Add(_gatewayClient.OnListFiles(path => _remoteFiles.HandleListFilesAsync(path, CancellationToken.None)));
-        _subscriptions.Add(_gatewayClient.OnMirrorUploadedFile(req => _remoteFiles.HandleMirrorUploadedFileAsync(req, CancellationToken.None)));
-        _subscriptions.Add(_gatewayClient.OnBeginFileUpload(req => _remoteFiles.HandleBeginFileUploadAsync(req, CancellationToken.None)));
-        _subscriptions.Add(_gatewayClient.OnProbeTunnelPort(port => _tunnelHost.ProbePort(port, ProbeTimeout)));
-        _subscriptions.Add(_gatewayClient.OnTunnelHttpRequest(req => _tunnelHost.HandleRequestAsync(req, ForwardTimeout, CancellationToken.None).GetAwaiter().GetResult()));
+        _subscriptions.Add(_gatewayClient.OnListFiles((rootDir, path) => Task.FromResult(_workspaceFiles.ListFiles(rootDir, path))));
+        _subscriptions.Add(_gatewayClient.OnPrepareFileReceive(req => _relayTransfers.PrepareFileReceiveAsync(req, CancellationToken.None)));
+        _subscriptions.Add(_gatewayClient.OnPrepareFileSend(req => _relayTransfers.PrepareFileSendAsync(req, CancellationToken.None)));
+        _subscriptions.Add(_gatewayClient.OnCreateWorkspaceDirectory(cmd => Task.FromResult(_workspaceFiles.CreateWorkspaceDirectory(cmd))));
+        _subscriptions.Add(_gatewayClient.OnIssueRelayToken((relayUrl, token) =>
+        {
+            _relayLink.Configure(relayUrl, token);
+            return Task.FromResult(new FileOperationAck(true, null));
+        }));
+        _subscriptions.Add(_gatewayClient.OnProbeTunnelPort(port => _relayLink.ProbePort(port, ProbeTimeout)));
         _subscriptions.Add(_gatewayClient.OnReconnected(connectionId =>
         {
             _logger.LogInformation("Worker {WorkerId} reconnected to gateway, connection={ConnectionId}.", _workerId, connectionId);
@@ -127,6 +131,7 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         _logger.LogInformation("Worker {WorkerId} is starting.", _workerId);
         try
         {
+            _ = _relayLink.RunAsync(cancellationToken);
             await _gatewayClient.StartAsync(cancellationToken);
             await RegisterWorkerAsync(cancellationToken);
             StartMetricsLoop();
@@ -196,7 +201,8 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
             Environment.MachineName,
             Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3),
             snapshot?.CpuUsagePercent,
-            snapshot?.MemoryUsagePercent);
+            snapshot?.MemoryUsagePercent,
+            HomePath: Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
     }
 
     private async Task ReconnectLoopAsync()
@@ -359,7 +365,7 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         try
         {
             _logger.LogInformation("Starting session {SessionId}.", command.SessionId);
-            await runtime.StartAsync(command.Columns, command.Rows, CancellationToken.None);
+            await runtime.StartAsync(command.Columns, command.Rows, command.Cwd, CancellationToken.None);
         }
         catch (Exception exception)
         {

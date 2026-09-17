@@ -17,4 +17,5 @@ public sealed record SessionRecord(
     string? Name = null,
     string? AgentKind = null,
     string? AgentSessionId = null,
-    string? InferredTitle = null);
+    string? InferredTitle = null,
+    string? WorkspaceId = null);

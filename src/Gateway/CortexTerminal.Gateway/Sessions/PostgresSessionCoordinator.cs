@@ -143,7 +143,8 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
             request.Rows,
             now,
             now,
-            AttachedClientConnectionId: clientConnectionId);
+            AttachedClientConnectionId: clientConnectionId,
+            WorkspaceId: request.WorkspaceId);
 
         await using (var db = await _contextFactory.CreateDbContextAsync(cancellationToken))
         {
@@ -158,7 +159,8 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
                 CreatedAtUtc = now,
                 LastActivityAtUtc = now,
                 AttachmentState = "Attached",
-                AttachedClientConnectionId = clientConnectionId
+                AttachedClientConnectionId = clientConnectionId,
+                WorkspaceId = request.WorkspaceId
             });
             await db.SaveChangesAsync(cancellationToken);
         }

@@ -37,6 +37,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CortexTerminal.AgentRunner"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CortexTerminal.AgentRunner.Tests", "tests\Worker\CortexTerminal.AgentRunner.Tests\CortexTerminal.AgentRunner.Tests.csproj", "{0E3D6ABA-12CC-4B1E-BD17-3E707568347B}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CortexTerminal.Relay", "src\Relay\CortexTerminal.Relay\CortexTerminal.Relay.csproj", "{6612459C-8444-43E7-9AA5-9A7951E4F672}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -143,6 +145,18 @@ Global
 		{0E3D6ABA-12CC-4B1E-BD17-3E707568347B}.Release|x64.Build.0 = Release|Any CPU
 		{0E3D6ABA-12CC-4B1E-BD17-3E707568347B}.Release|x86.ActiveCfg = Release|Any CPU
 		{0E3D6ABA-12CC-4B1E-BD17-3E707568347B}.Release|x86.Build.0 = Release|Any CPU
+		{6612459C-8444-43E7-9AA5-9A7951E4F672}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6612459C-8444-43E7-9AA5-9A7951E4F672}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6612459C-8444-43E7-9AA5-9A7951E4F672}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{6612459C-8444-43E7-9AA5-9A7951E4F672}.Debug|x64.Build.0 = Debug|Any CPU
+		{6612459C-8444-43E7-9AA5-9A7951E4F672}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{6612459C-8444-43E7-9AA5-9A7951E4F672}.Debug|x86.Build.0 = Debug|Any CPU
+		{6612459C-8444-43E7-9AA5-9A7951E4F672}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6612459C-8444-43E7-9AA5-9A7951E4F672}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6612459C-8444-43E7-9AA5-9A7951E4F672}.Release|x64.ActiveCfg = Release|Any CPU
+		{6612459C-8444-43E7-9AA5-9A7951E4F672}.Release|x64.Build.0 = Release|Any CPU
+		{6612459C-8444-43E7-9AA5-9A7951E4F672}.Release|x86.ActiveCfg = Release|Any CPU
+		{6612459C-8444-43E7-9AA5-9A7951E4F672}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -163,5 +177,6 @@ Global
 		{40CCE2CD-2438-4D78-A7DD-2423EAB03F17} = {C80541E1-63CD-FD82-91BC-00915FDF40CF}
 		{95468992-986C-4222-9866-2972B09E33D2} = {89BA21D6-604E-9DA1-5F6C-9062FD58212E}
 		{0E3D6ABA-12CC-4B1E-BD17-3E707568347B} = {D2C4E413-F9FA-4944-7844-14999BC8C1D0}
+		{6612459C-8444-43E7-9AA5-9A7951E4F672} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 	EndGlobalSection
 EndGlobal

@@ -70,4 +70,9 @@ public class SessionRecordEntity
     [Required]
     [Column("bytes_ingested")]
     public long BytesIngested { get; set; }
+
+    /// <summary>会话所在工作区。null = Worker 默认工作区（其 home）。</summary>
+    [Column("workspace_id")]
+    [StringLength(64)]
+    public string? WorkspaceId { get; set; }
 }

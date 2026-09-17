@@ -51,20 +51,23 @@ public sealed class WorkerGatewayClient : IWorkerGatewayClient
     public IDisposable OnRequestScrollbackSince(Func<string, long, ScrollbackDelta> handler)
         => _connection.On<string, long, ScrollbackDelta>("RequestScrollbackSince", handler);
 
-    public IDisposable OnListFiles(Func<string?, Task<FileListingResult>> handler)
-        => _connection.On<string?, FileListingResult>("ListFiles", handler);
+    public IDisposable OnListFiles(Func<string, string?, Task<FileListingResult>> handler)
+        => _connection.On<string, string?, FileListingResult>("ListFiles", handler);
 
-    public IDisposable OnMirrorUploadedFile(Func<FileMirrorRequest, Task<FileOperationAck>> handler)
-        => _connection.On<FileMirrorRequest, FileOperationAck>("MirrorUploadedFile", handler);
+    public IDisposable OnPrepareFileReceive(Func<PrepareFileReceiveCommand, Task<FileOperationAck>> handler)
+        => _connection.On<PrepareFileReceiveCommand, FileOperationAck>("PrepareFileReceive", handler);
 
-    public IDisposable OnBeginFileUpload(Func<BeginFileUploadRequest, Task<FileOperationAck>> handler)
-        => _connection.On<BeginFileUploadRequest, FileOperationAck>("BeginFileUpload", handler);
+    public IDisposable OnPrepareFileSend(Func<PrepareFileSendCommand, Task<PrepareFileSendAck>> handler)
+        => _connection.On<PrepareFileSendCommand, PrepareFileSendAck>("PrepareFileSend", handler);
+
+    public IDisposable OnCreateWorkspaceDirectory(Func<CreateWorkspaceDirectoryCommand, Task<WorkspaceDirectoryAck>> handler)
+        => _connection.On<CreateWorkspaceDirectoryCommand, WorkspaceDirectoryAck>("CreateWorkspaceDirectory", handler);
+
+    public IDisposable OnIssueRelayToken(Func<string, string, Task<FileOperationAck>> handler)
+        => _connection.On<string, string, FileOperationAck>("IssueRelayToken", handler);
 
     public IDisposable OnProbeTunnelPort(Func<int, ProbePortResponse> handler)
         => _connection.On<int, ProbePortResponse>("ProbeTunnelPort", handler);
-
-    public IDisposable OnTunnelHttpRequest(Func<TunnelHttpRequest, TunnelHttpResponse> handler)
-        => _connection.On<TunnelHttpRequest, TunnelHttpResponse>("TunnelHttpRequest", handler);
 
     public IDisposable OnReconnected(Func<string?, Task> handler)
     {
@@ -142,12 +145,6 @@ public sealed class WorkerGatewayClient : IWorkerGatewayClient
 
     public Task SendWorkerInfoAsync(WorkerInfoFrame info, CancellationToken ct)
         => _connection.InvokeAsync("UpdateWorkerInfo", info, ct);
-
-    public Task<TransferUploadUrlResponse> RequestFileUploadUrlAsync(FileUploadUrlRequest request, CancellationToken ct)
-        => _connection.InvokeAsync<TransferUploadUrlResponse>("RequestFileUploadUrl", request, ct);
-
-    public Task CompleteFileTransferAsync(CompleteFileTransferRequest request, CancellationToken ct)
-        => _connection.SendAsync("CompleteFileTransfer", request, ct);
 
     public ValueTask DisposeAsync() => _connection.DisposeAsync();
 

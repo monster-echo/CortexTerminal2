@@ -2,7 +2,7 @@ using CortexTerminal.Contracts.Sessions;
 using CortexTerminal.Contracts.Streaming;
 using CortexTerminal.Gateway.Audit;
 using CortexTerminal.Gateway.Hubs;
-using CortexTerminal.Gateway.RemoteFiles;
+using CortexTerminal.Gateway.Workspaces;
 using CortexTerminal.Gateway.Sessions;
 using CortexTerminal.Gateway.Stats;
 using CortexTerminal.Gateway.Tests.Workers;
@@ -156,7 +156,7 @@ public sealed class TerminalHubReconnectTests
             replayCoordinator,
             timeProvider,
             dispatcher,
-            new SessionLaunchCoordinator(sessions, dispatcher, new ScrollbackSettings(), TestSessionFactory.CreatePreferenceService()),
+            new SessionLaunchCoordinator(sessions, dispatcher, new ScrollbackSettings(), TestSessionFactory.CreatePreferenceService(), TestSessionFactory.CreateWorkspaceRegistry()),
             new NoOpStatsService(),
             NullLogger<TerminalHub>.Instance)!;
 
@@ -167,12 +167,9 @@ public sealed class TerminalHubReconnectTests
         IReadOnlyDictionary<string, IClientProxy>? terminalClients = null)
     {
         var hub = new CortexTerminal.Gateway.Tests.Sessions.Fakes.ArtifactTestHubContext();
-        var remoteFiles = new RemoteFileService(
-            sessions,
-            new NoOpWorkerCommandDispatcher(),
-            new FakeS3ObjectBroker(),
-            new PendingTransferRegistry(),
-            Microsoft.Extensions.Options.Options.Create(new RemoteFilesOptions()));
+        var workspaces = new WorkspaceRegistry(
+            TestSessionFactory.CreateContextFactoryPublic(),
+            new FixedTimeProvider(DateTimeOffset.UtcNow));
         var agentActivity = TestSessionFactory.CreateAgentActivityService(hub);
         return (WorkerHub)Activator.CreateInstance(
             typeof(WorkerHub),
@@ -183,7 +180,8 @@ public sealed class TerminalHubReconnectTests
             new TestHubContext<TerminalHub>(terminalClients ?? new Dictionary<string, IClientProxy>()),
             new NoOpStatsService(),
             new NoOpSessionStatsService(),
-            remoteFiles,
+            workspaces,
+            Microsoft.Extensions.Options.Options.Create(new CortexTerminal.Gateway.Workspaces.RelayOptions()).Value,
             agentActivity,
             NullLogger<WorkerHub>.Instance)!;
     }
@@ -226,19 +224,24 @@ public sealed class TerminalHubReconnectTests
             => Task.FromResult<IReadOnlyList<TerminalChunk>>(
                 _scrollback.Select(item => new TerminalChunk(sessionId, item.Stream, item.Payload)).ToArray());
 
-        public Task<FileListingResult> ListFilesAsync(string workerConnectionId, string relativePath, CancellationToken cancellationToken)
+        public Task<FileListingResult> ListFilesAsync(string workerConnectionId, string rootDir, string relativePath, CancellationToken cancellationToken)
             => Task.FromResult(new FileListingResult(null, new FileOperationError(FileTransferErrorCode.TransferFailed, "not supported")));
 
-        public Task<FileOperationAck> MirrorUploadedFileAsync(string workerConnectionId, FileMirrorRequest request, CancellationToken cancellationToken)
+                public Task<ScrollbackDelta> RequestScrollbackSinceAsync(string workerConnectionId, string sessionId, long sinceSeq, CancellationToken cancellationToken)
+            => Task.FromResult(new ScrollbackDelta(Gap: true, LastSeq: 0, Items: []));
+
+        public Task<FileOperationAck> PrepareFileReceiveAsync(string workerConnectionId, PrepareFileReceiveCommand command, CancellationToken cancellationToken)
             => Task.FromResult(new FileOperationAck(false, new FileOperationError(FileTransferErrorCode.TransferFailed, "not supported")));
 
-        public Task<FileOperationAck> BeginFileUploadAsync(string workerConnectionId, BeginFileUploadRequest request, CancellationToken cancellationToken)
-            => Task.FromResult(new FileOperationAck(false, new FileOperationError(FileTransferErrorCode.TransferFailed, "not supported")));
+        public Task<PrepareFileSendAck> PrepareFileSendAsync(string workerConnectionId, PrepareFileSendCommand command, CancellationToken cancellationToken)
+            => Task.FromResult(new PrepareFileSendAck(false, new FileOperationError(FileTransferErrorCode.TransferFailed, "not supported"), 0, ""));
 
+        public Task<WorkspaceDirectoryAck> CreateWorkspaceDirectoryAsync(string workerConnectionId, CreateWorkspaceDirectoryCommand command, CancellationToken cancellationToken)
+            => Task.FromResult(new WorkspaceDirectoryAck(false, new FileOperationError(FileTransferErrorCode.TransferFailed, "not supported"), ""));
+
+        public Task<FileOperationAck> IssueRelayTokenAsync(string workerConnectionId, string relayUrl, string token, CancellationToken cancellationToken)
+            => Task.FromResult(new FileOperationAck(true, null));
         public Task<ProbePortResponse> ProbeTunnelPortAsync(string workerConnectionId, int port, CancellationToken cancellationToken)
             => Task.FromResult(new ProbePortResponse(true, null));
-
-        public Task<TunnelHttpResponse> SendTunnelHttpRequestAsync(string workerConnectionId, string tunnelId, TunnelHttpRequest request, CancellationToken cancellationToken)
-            => Task.FromResult(new TunnelHttpResponse(200, new Dictionary<string, string[]>(), Array.Empty<byte>(), null));
     }
 }

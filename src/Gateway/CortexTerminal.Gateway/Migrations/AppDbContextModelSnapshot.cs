@@ -198,6 +198,11 @@ namespace CortexTerminal.Gateway.Migrations
                         .HasColumnType("text")
                         .HasColumnName("worker_id");
 
+                    b.Property<string>("WorkspaceId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("workspace_id");
+
                     b.HasKey("SessionId");
 
                     b.HasIndex("AttachmentState");
@@ -508,6 +513,59 @@ namespace CortexTerminal.Gateway.Migrations
                     b.HasIndex("OwnerUserId");
 
                     b.ToTable("Workers");
+                });
+
+            modelBuilder.Entity("CortexTerminal.Gateway.Data.WorkspaceEntity", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<DateTimeOffset?>("DeletedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at_utc");
+
+                    b.Property<bool>("IsDefault")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_default");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("OwnerUserId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("owner_user_id");
+
+                    b.Property<string>("RootPath")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)")
+                        .HasColumnName("root_path");
+
+                    b.Property<string>("WorkerId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("worker_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OwnerUserId");
+
+                    b.HasIndex("WorkerId");
+
+                    b.HasIndex("WorkerId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("Workspaces");
                 });
 #pragma warning restore 612, 618
         }

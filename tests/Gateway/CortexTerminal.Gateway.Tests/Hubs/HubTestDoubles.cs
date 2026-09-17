@@ -3,9 +3,8 @@ using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.SignalR;
 using CortexTerminal.Contracts.Sessions;
 using CortexTerminal.Contracts.Streaming;
-using CortexTerminal.Gateway.RemoteFiles;
 using CortexTerminal.Gateway.Stats;
-using CortexTerminal.Gateway.Storage;
+using CortexTerminal.Gateway.Workspaces;
 using CortexTerminal.Gateway.Workers;
 
 namespace CortexTerminal.Gateway.Tests.Hubs;
@@ -99,16 +98,20 @@ internal sealed class NoOpWorkerCommandDispatcher : IWorkerCommandDispatcher
     public Task UpgradeWorkerAsync(string workerConnectionId, UpgradeWorkerCommand command, CancellationToken cancellationToken) => Task.CompletedTask;
     public Task<IReadOnlyList<TerminalChunk>> RequestScrollbackAsync(string workerConnectionId, string sessionId, CancellationToken cancellationToken)
         => Task.FromResult<IReadOnlyList<TerminalChunk>>(Array.Empty<TerminalChunk>());
-    public Task<FileListingResult> ListFilesAsync(string workerConnectionId, string relativePath, CancellationToken cancellationToken)
+    public Task<ScrollbackDelta> RequestScrollbackSinceAsync(string workerConnectionId, string sessionId, long sinceSeq, CancellationToken cancellationToken)
+        => Task.FromResult(new ScrollbackDelta(Gap: true, LastSeq: 0, Items: []));
+    public Task<FileListingResult> ListFilesAsync(string workerConnectionId, string rootDir, string relativePath, CancellationToken cancellationToken)
         => Task.FromResult(new FileListingResult(null, new FileOperationError(FileTransferErrorCode.TransferFailed, "no-op dispatcher")));
-    public Task<FileOperationAck> MirrorUploadedFileAsync(string workerConnectionId, FileMirrorRequest request, CancellationToken cancellationToken)
+    public Task<FileOperationAck> PrepareFileReceiveAsync(string workerConnectionId, PrepareFileReceiveCommand command, CancellationToken cancellationToken)
         => Task.FromResult(new FileOperationAck(false, new FileOperationError(FileTransferErrorCode.TransferFailed, "no-op dispatcher")));
-    public Task<FileOperationAck> BeginFileUploadAsync(string workerConnectionId, BeginFileUploadRequest request, CancellationToken cancellationToken)
-        => Task.FromResult(new FileOperationAck(false, new FileOperationError(FileTransferErrorCode.TransferFailed, "no-op dispatcher")));
+    public Task<PrepareFileSendAck> PrepareFileSendAsync(string workerConnectionId, PrepareFileSendCommand command, CancellationToken cancellationToken)
+        => Task.FromResult(new PrepareFileSendAck(false, new FileOperationError(FileTransferErrorCode.TransferFailed, "no-op dispatcher"), 0, ""));
+    public Task<WorkspaceDirectoryAck> CreateWorkspaceDirectoryAsync(string workerConnectionId, CreateWorkspaceDirectoryCommand command, CancellationToken cancellationToken)
+        => Task.FromResult(new WorkspaceDirectoryAck(false, new FileOperationError(FileTransferErrorCode.TransferFailed, "no-op dispatcher"), ""));
+    public Task<FileOperationAck> IssueRelayTokenAsync(string workerConnectionId, string relayUrl, string token, CancellationToken cancellationToken)
+        => Task.FromResult(new FileOperationAck(true, null));
     public Task<ProbePortResponse> ProbeTunnelPortAsync(string workerConnectionId, int port, CancellationToken cancellationToken)
         => Task.FromResult(new ProbePortResponse(true, null));
-    public Task<TunnelHttpResponse> SendTunnelHttpRequestAsync(string workerConnectionId, string tunnelId, TunnelHttpRequest request, CancellationToken cancellationToken)
-        => Task.FromResult(new TunnelHttpResponse(200, new Dictionary<string, string[]>(), Array.Empty<byte>(), null));
 }
 
 internal sealed class NoOpStatsService : IGatewayStatsService
@@ -154,38 +157,18 @@ internal sealed class ThrowingWorkerCommandDispatcher(string message) : IWorkerC
 
     public Task<IReadOnlyList<TerminalChunk>> RequestScrollbackAsync(string workerConnectionId, string sessionId, CancellationToken cancellationToken)
         => Task.FromException<IReadOnlyList<TerminalChunk>>(new InvalidOperationException(message));
-    public Task<FileListingResult> ListFilesAsync(string workerConnectionId, string relativePath, CancellationToken cancellationToken)
+    public Task<ScrollbackDelta> RequestScrollbackSinceAsync(string workerConnectionId, string sessionId, long sinceSeq, CancellationToken cancellationToken)
+        => Task.FromException<ScrollbackDelta>(new InvalidOperationException(message));
+    public Task<FileListingResult> ListFilesAsync(string workerConnectionId, string rootDir, string relativePath, CancellationToken cancellationToken)
         => Task.FromException<FileListingResult>(new InvalidOperationException(message));
-    public Task<FileOperationAck> MirrorUploadedFileAsync(string workerConnectionId, FileMirrorRequest request, CancellationToken cancellationToken)
+    public Task<FileOperationAck> PrepareFileReceiveAsync(string workerConnectionId, PrepareFileReceiveCommand command, CancellationToken cancellationToken)
         => Task.FromException<FileOperationAck>(new InvalidOperationException(message));
-    public Task<FileOperationAck> BeginFileUploadAsync(string workerConnectionId, BeginFileUploadRequest request, CancellationToken cancellationToken)
-        => Task.FromException<FileOperationAck>(new InvalidOperationException(message));
+    public Task<PrepareFileSendAck> PrepareFileSendAsync(string workerConnectionId, PrepareFileSendCommand command, CancellationToken cancellationToken)
+        => Task.FromException<PrepareFileSendAck>(new InvalidOperationException(message));
+    public Task<WorkspaceDirectoryAck> CreateWorkspaceDirectoryAsync(string workerConnectionId, CreateWorkspaceDirectoryCommand command, CancellationToken cancellationToken)
+        => Task.FromException<WorkspaceDirectoryAck>(new InvalidOperationException(message));
+    public Task<FileOperationAck> IssueRelayTokenAsync(string workerConnectionId, string relayUrl, string token, CancellationToken cancellationToken)
+        => Task.FromResult(new FileOperationAck(true, null));
     public Task<ProbePortResponse> ProbeTunnelPortAsync(string workerConnectionId, int port, CancellationToken cancellationToken)
         => Task.FromException<ProbePortResponse>(new InvalidOperationException(message));
-    public Task<TunnelHttpResponse> SendTunnelHttpRequestAsync(string workerConnectionId, string tunnelId, TunnelHttpRequest request, CancellationToken cancellationToken)
-        => Task.FromException<TunnelHttpResponse>(new InvalidOperationException(message));
-}
-
-/// <summary>
-/// Presigned-URL broker double: hands out deterministic fake URLs and records deletions so
-/// RemoteFileService tests can observe the S3 interactions without a storage endpoint.
-/// </summary>
-internal sealed class FakeS3ObjectBroker : IS3ObjectBroker
-{
-    public List<string> DeletedKeys { get; } = [];
-
-    public Task<PresignedUrl> GeneratePutUrlAsync(string key, CancellationToken ct)
-        => Task.FromResult(new PresignedUrl($"https://s3.test/put/{key}", DateTimeOffset.UtcNow.AddMinutes(15)));
-
-    public Task<PresignedUrl> GenerateGetUrlAsync(string key, CancellationToken ct)
-        => Task.FromResult(new PresignedUrl($"https://s3.test/get/{key}", DateTimeOffset.UtcNow.AddMinutes(15)));
-
-    public Task DeleteAsync(string key, CancellationToken ct)
-    {
-        DeletedKeys.Add(key);
-        return Task.CompletedTask;
-    }
-
-    public Task<IReadOnlyList<StoredObject>> ListByPrefixAsync(string prefix, CancellationToken ct)
-        => Task.FromResult<IReadOnlyList<StoredObject>>(Array.Empty<StoredObject>());
 }

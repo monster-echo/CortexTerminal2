@@ -3,6 +3,7 @@ using System.Threading;
 using CortexTerminal.Contracts.Sessions;
 using CortexTerminal.Contracts.Streaming;
 using CortexTerminal.Gateway.Workers;
+using CortexTerminal.Gateway.Workspaces;
 
 namespace CortexTerminal.Gateway.Sessions;
 
@@ -10,7 +11,8 @@ public sealed class SessionLaunchCoordinator(
     ISessionCoordinator sessions,
     IWorkerCommandDispatcher workerCommands,
     ScrollbackSettings scrollbackSettings,
-    UserPreferenceService preferences) : ISessionLaunchCoordinator
+    UserPreferenceService preferences,
+    WorkspaceRegistry workspaceRegistry) : ISessionLaunchCoordinator
 {
     private readonly ConcurrentDictionary<string, Lazy<Task<CreateSessionResult>>> _launches = new();
 
@@ -57,6 +59,36 @@ public sealed class SessionLaunchCoordinator(
         string? clientConnectionId,
         CancellationToken cancellationToken)
     {
+        // 工作区解析：会话绑定工作区，PTY 以工作区根为 cwd。指定 worker 时必须同属该 worker。
+        string? cwd = null;
+        if (!string.IsNullOrEmpty(request.WorkspaceId))
+        {
+            Data.WorkspaceEntity workspace;
+            try
+            {
+                workspace = await workspaceRegistry.GetOwnedAsync(userId, request.WorkspaceId!);
+            }
+            catch (WorkspaceNotFoundException)
+            {
+                return CreateSessionResult.Failure("workspace-not-found");
+            }
+            catch (WorkspaceForbiddenException)
+            {
+                return CreateSessionResult.Failure("workspace-not-found");
+            }
+
+            if (!string.IsNullOrEmpty(request.WorkerId)
+                && request.WorkerId != workspace.WorkerId)
+            {
+                return CreateSessionResult.Failure("workspace-worker-mismatch");
+            }
+            if (string.IsNullOrEmpty(request.WorkerId))
+            {
+                request = request with { WorkerId = workspace.WorkerId };
+            }
+            cwd = workspace.RootPath;
+        }
+
         var result = await sessions.CreateSessionAsync(
             userId,
             request,
@@ -79,7 +111,7 @@ public sealed class SessionLaunchCoordinator(
 
             await workerCommands.StartSessionAsync(
                 session.WorkerConnectionId,
-                new StartSessionCommand(session.SessionId, session.Columns, session.Rows, maxBytes),
+                new StartSessionCommand(session.SessionId, session.Columns, session.Rows, maxBytes, cwd),
                 cancellationToken);
         }
         catch (OperationCanceledException)

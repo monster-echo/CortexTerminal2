@@ -76,7 +76,7 @@ public sealed class InteractiveSessionFlowTests : IClassFixture<GatewayApplicati
             sessions,
             new ThrowingWorkerCommandDispatcher("dispatch failed"),
             new ScrollbackSettings(),
-            TestSessionFactory.CreatePreferenceService());
+            TestSessionFactory.CreatePreferenceService(), TestSessionFactory.CreateWorkspaceRegistry());
 
         var payload = await sessionLaunchCoordinator.CreateSessionAsync(
             "test-user",
@@ -111,7 +111,8 @@ public sealed class InteractiveSessionFlowTests : IClassFixture<GatewayApplicati
                         serviceProvider.GetRequiredService<ISessionCoordinator>(),
                         serviceProvider.GetRequiredService<IWorkerCommandDispatcher>(),
                         new ScrollbackSettings(),
-                        serviceProvider.GetRequiredService<UserPreferenceService>()));
+                        serviceProvider.GetRequiredService<UserPreferenceService>(),
+                        TestSessionFactory.CreateWorkspaceRegistry()));
             });
         });
 
@@ -267,19 +268,25 @@ public sealed class InteractiveSessionFlowTests : IClassFixture<GatewayApplicati
         public Task<IReadOnlyList<CortexTerminal.Contracts.Streaming.TerminalChunk>> RequestScrollbackAsync(string workerConnectionId, string sessionId, CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<CortexTerminal.Contracts.Streaming.TerminalChunk>>(Array.Empty<CortexTerminal.Contracts.Streaming.TerminalChunk>());
 
-        public Task<CortexTerminal.Contracts.Sessions.FileListingResult> ListFilesAsync(string workerConnectionId, string relativePath, CancellationToken cancellationToken)
+        public Task<CortexTerminal.Contracts.Sessions.FileListingResult> ListFilesAsync(string workerConnectionId, string rootDir, string relativePath, CancellationToken cancellationToken)
             => Task.FromResult(new CortexTerminal.Contracts.Sessions.FileListingResult(null, new CortexTerminal.Contracts.Sessions.FileOperationError(CortexTerminal.Contracts.Sessions.FileTransferErrorCode.TransferFailed, "not supported")));
 
-        public Task<CortexTerminal.Contracts.Sessions.FileOperationAck> MirrorUploadedFileAsync(string workerConnectionId, CortexTerminal.Contracts.Sessions.FileMirrorRequest request, CancellationToken cancellationToken)
+                public Task<CortexTerminal.Contracts.Streaming.ScrollbackDelta> RequestScrollbackSinceAsync(string workerConnectionId, string sessionId, long sinceSeq, CancellationToken cancellationToken)
+            => Task.FromResult(new CortexTerminal.Contracts.Streaming.ScrollbackDelta(Gap: true, LastSeq: 0, Items: []));
+
+        public Task<CortexTerminal.Contracts.Sessions.FileOperationAck> PrepareFileReceiveAsync(string workerConnectionId, CortexTerminal.Contracts.Sessions.PrepareFileReceiveCommand command, CancellationToken cancellationToken)
             => Task.FromResult(new CortexTerminal.Contracts.Sessions.FileOperationAck(false, new CortexTerminal.Contracts.Sessions.FileOperationError(CortexTerminal.Contracts.Sessions.FileTransferErrorCode.TransferFailed, "not supported")));
 
-        public Task<CortexTerminal.Contracts.Sessions.FileOperationAck> BeginFileUploadAsync(string workerConnectionId, CortexTerminal.Contracts.Sessions.BeginFileUploadRequest request, CancellationToken cancellationToken)
-            => Task.FromResult(new CortexTerminal.Contracts.Sessions.FileOperationAck(false, new CortexTerminal.Contracts.Sessions.FileOperationError(CortexTerminal.Contracts.Sessions.FileTransferErrorCode.TransferFailed, "not supported")));
+        public Task<CortexTerminal.Contracts.Sessions.PrepareFileSendAck> PrepareFileSendAsync(string workerConnectionId, CortexTerminal.Contracts.Sessions.PrepareFileSendCommand command, CancellationToken cancellationToken)
+            => Task.FromResult(new CortexTerminal.Contracts.Sessions.PrepareFileSendAck(false, null, 0, ""));
+
+        public Task<CortexTerminal.Contracts.Sessions.WorkspaceDirectoryAck> CreateWorkspaceDirectoryAsync(string workerConnectionId, CortexTerminal.Contracts.Sessions.CreateWorkspaceDirectoryCommand command, CancellationToken cancellationToken)
+            => Task.FromResult(new CortexTerminal.Contracts.Sessions.WorkspaceDirectoryAck(false, null, ""));
+
+        public Task<CortexTerminal.Contracts.Sessions.FileOperationAck> IssueRelayTokenAsync(string workerConnectionId, string relayUrl, string token, CancellationToken cancellationToken)
+            => Task.FromResult(new CortexTerminal.Contracts.Sessions.FileOperationAck(true, null));
 
         public Task<CortexTerminal.Contracts.Streaming.ProbePortResponse> ProbeTunnelPortAsync(string workerConnectionId, int port, CancellationToken cancellationToken)
             => Task.FromResult(new CortexTerminal.Contracts.Streaming.ProbePortResponse(true, null));
-
-        public Task<CortexTerminal.Contracts.Streaming.TunnelHttpResponse> SendTunnelHttpRequestAsync(string workerConnectionId, string tunnelId, CortexTerminal.Contracts.Streaming.TunnelHttpRequest request, CancellationToken cancellationToken)
-            => Task.FromResult(new CortexTerminal.Contracts.Streaming.TunnelHttpResponse(200, new Dictionary<string, string[]>(), Array.Empty<byte>(), null));
     }
 }

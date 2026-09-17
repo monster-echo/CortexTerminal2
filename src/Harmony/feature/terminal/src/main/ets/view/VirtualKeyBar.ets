@@ -9,6 +9,7 @@ import { pasteboard } from '@kit.BasicServicesKit'
 import { I18n, lightHaptic, clickHaptic } from '@rwecho/core'
 
 type OnKeyPressCallback = (key: string) => void
+type OnPasteTextCallback = (text: string) => void
 
 @Component
 struct LatchButton {
@@ -40,6 +41,9 @@ struct LatchButton {
 @Component
 export struct VirtualKeyBar {
   onKeyPress: OnKeyPressCallback = (_key: string) => {}
+  // Plain paste from the system pasteboard — routed through xterm's paste so
+  // bracketed-paste mode is honored for programs that opt in.
+  onPasteText: OnPasteTextCallback = (_text: string) => {}
   onDismiss: (() => void) | null = null
   onModifierChange: ((ctrl: boolean, alt: boolean) => void) | null = null
   @State ctrlLatched: boolean = false
@@ -170,7 +174,7 @@ export struct VirtualKeyBar {
         } else if (this.altLatched) {
           this.onKeyPress(`Alt+${text}`)
         } else {
-          this.onKeyPress(text)
+          this.onPasteText(text)
         }
       }
     } catch (e) {

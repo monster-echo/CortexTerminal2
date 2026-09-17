@@ -23,6 +23,9 @@ internal static class TestSessionFactory
 
     public static IDbContextFactory<AppDbContext> CreateContextFactoryPublic() => CreateContextFactory();
 
+    public static CortexTerminal.Gateway.Workspaces.WorkspaceRegistry CreateWorkspaceRegistry()
+        => new(CreateContextFactoryPublic(), TimeProvider.System);
+
     public static PostgresWorkerRegistry CreateWorkerRegistry()
         => new(
             CreateContextFactory(),

@@ -10,11 +10,10 @@ using CortexTerminal.Gateway.Audit;
 using CortexTerminal.Gateway.Auth;
 using CortexTerminal.Gateway.Data;
 using CortexTerminal.Gateway.Hubs;
-using CortexTerminal.Gateway.RemoteFiles;
 using CortexTerminal.Gateway.Sessions;
-using CortexTerminal.Gateway.Storage;
 using CortexTerminal.Gateway.Tunnels;
 using CortexTerminal.Gateway.Support;
+using CortexTerminal.Gateway.Workspaces;
 using CortexTerminal.Gateway.WebSockets;
 using CortexTerminal.Gateway.Tts;
 using CortexTerminal.Gateway.Workers;
@@ -163,7 +162,7 @@ static string GetUserId(ClaimsPrincipal user)
 // RemoteFileServiceException codes → HTTP statuses. Not-found codes map to 404, caller
 // mistakes to 400, and anything unexpected on the worker side surfaces as a 502 so the
 // phone renders it instead of treating it as its own bug.
-static IResult MapFileError(CortexTerminal.Gateway.RemoteFiles.RemoteFileServiceException ex)
+static IResult MapFileError(CortexTerminal.Gateway.Workspaces.WorkspaceFileServiceException ex)
     => ex.Code switch
     {
         CortexTerminal.Contracts.Sessions.FileTransferErrorCode.PathNotFound
@@ -199,7 +198,8 @@ static object ToSessionSummaryResponse(SessionRecord session, string? workerName
         session.ExitReason,
         session.AgentKind,
         session.AgentSessionId,
-        session.InferredTitle
+        session.InferredTitle,
+        session.WorkspaceId
     };
 
 static object ToSessionDetailResponse(
@@ -240,7 +240,8 @@ static object ToSessionDetailResponse(
         WorkerLastSeenAt = currentWorker?.LastSeenAtUtc ?? workerRecord?.LastSeenAtUtc,
         session.AgentKind,
         session.AgentSessionId,
-        session.InferredTitle
+        session.InferredTitle,
+        session.WorkspaceId
     };
 }
 
@@ -343,17 +344,18 @@ builder.Services.PostConfigure<TunnelOptions>(o =>
     if (bool.TryParse(Environment.GetEnvironmentVariable("TUNNELS_ENABLED"), out var enabled))
         o.Enabled = enabled;
 });
-// TunnelQuota 的构造函数注入具体类型,这里把经过 Configure + PostConfigure 的实例注册为 singleton。
+// TunnelOptions 的构造函数注入具体类型,这里把经过 Configure + PostConfigure 的实例注册为 singleton。
 builder.Services.AddSingleton<TunnelOptions>(sp => sp.GetRequiredService<IOptions<TunnelOptions>>().Value);
 builder.Services.AddSingleton<TunnelRegistry>();
-builder.Services.AddSingleton<TunnelQuota>();
-builder.Services.Configure<CortexTerminal.Gateway.Storage.ObjectStorageOptions>(builder.Configuration.GetSection(CortexTerminal.Gateway.Storage.ObjectStorageOptions.SectionName));
-builder.Services.Configure<CortexTerminal.Gateway.RemoteFiles.RemoteFilesOptions>(builder.Configuration.GetSection(CortexTerminal.Gateway.RemoteFiles.RemoteFilesOptions.SectionName));
-builder.Services.AddSingleton<CortexTerminal.Gateway.Storage.IS3ObjectBroker, CortexTerminal.Gateway.Storage.S3ObjectBroker>();
-builder.Services.AddSingleton<CortexTerminal.Gateway.RemoteFiles.PendingTransferRegistry>();
-builder.Services.AddSingleton<CortexTerminal.Gateway.RemoteFiles.RemoteFileService>();
+builder.Services.Configure<RelayOptions>(builder.Configuration.GetSection(RelayOptions.SectionName));
+builder.Services.AddSingleton<RelayOptions>(sp => sp.GetRequiredService<IOptions<RelayOptions>>().Value);
+builder.Services.AddSingleton<WorkspaceRegistry>();
+builder.Services.AddSingleton<RelayFileTransferService>();
+builder.Services.AddSingleton<FeedbackStorage>();
 builder.Services.AddSingleton<AgentActivityService>();
-builder.Services.AddHostedService<CortexTerminal.Gateway.RemoteFiles.TransferObjectCleanupService>();
+
+var feedbackOptions = new FeedbackOptions();
+builder.Configuration.GetSection(FeedbackOptions.SectionName).Bind(feedbackOptions);
 
 var useInMemory = builder.Configuration.GetValue<bool>("Database:UseInMemory");
 
@@ -388,9 +390,6 @@ var forwardedHeadersOptions = new ForwardedHeadersOptions
 forwardedHeadersOptions.KnownIPNetworks.Clear();
 forwardedHeadersOptions.KnownProxies.Clear();
 app.UseForwardedHeaders(forwardedHeadersOptions);
-
-// Visitor HTTP entry point: intercept /t/<key>/... before auth/static files, validate tunnel secret.
-app.UseMiddleware<TunnelMiddleware>();
 
 // Auto-migrate database schema (Postgres only — in-memory provider auto-creates)
 if (!useInMemory)
@@ -1282,7 +1281,7 @@ app.MapGet("/api/support/info", (SupportOptions opts, HttpContext httpCtx) =>
 
 // --- Feedback Image Upload ---
 
-app.MapPost("/api/me/feedback/uploads", async (FeedbackUploadRequest req, IS3ObjectBroker storage, HttpContext ctx, CancellationToken ct) =>
+app.MapPost("/api/me/feedback/uploads", async (FeedbackUploadRequest req, FeedbackStorage storage, HttpContext ctx, CancellationToken ct) =>
 {
     var userId = GetUserId(ctx.User);
     var filename = Uri.UnescapeDataString(req.Filename ?? string.Empty);
@@ -1305,14 +1304,48 @@ app.MapPost("/api/me/feedback/uploads", async (FeedbackUploadRequest req, IS3Obj
     }
     var guid = Guid.NewGuid().ToString("N");
     var objectName = $"{userId}/{guid}{ext}";
-    var upload = await storage.GeneratePutUrlAsync($"feedback/{objectName}", ct);
-    return Results.Ok(new { uploadUrl = upload.Url, imageUrl = $"/api/feedback/files/{objectName}" });
+
+    // 上传直连 gateway 本地磁盘（S3 已移除）：签发短命 HMAC 令牌鉴权 PUT。
+    var token = CortexTerminal.Contracts.Streaming.RelayToken.Mint(
+        signingKey, "feedback", objectName, DateTimeOffset.UtcNow.AddSeconds(feedbackOptions.UploadTokenTtlSeconds));
+    var uploadUrl = $"{ctx.Request.Scheme}://{ctx.Request.Host}/api/feedback/binary/{objectName}?token={Uri.EscapeDataString(token)}";
+    return Results.Ok(new { uploadUrl, imageUrl = $"/api/feedback/files/{objectName}" });
 }).RequireAuthorization();
 
-app.MapGet("/api/feedback/files/{*objectName}", async (string objectName, IS3ObjectBroker storage, CancellationToken ct) =>
+app.MapPut("/api/feedback/binary/{*objectName}", async (string objectName, HttpContext ctx, FeedbackStorage storage, CancellationToken ct) =>
 {
-    var download = await storage.GenerateGetUrlAsync($"feedback/{objectName}", ct);
-    return Results.Redirect(download.Url, permanent: false);
+    var token = ctx.Request.Query["token"].FirstOrDefault() ?? string.Empty;
+    if (!CortexTerminal.Contracts.Streaming.RelayToken.TryValidate(signingKey, token, "feedback", objectName, out _))
+    {
+        return Results.Unauthorized();
+    }
+    try
+    {
+        await storage.SaveAsync(objectName, ctx.Request.Body, ct);
+        return Results.Ok();
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+}).AllowAnonymous();
+
+app.MapGet("/api/feedback/files/{*objectName}", (string objectName, FeedbackStorage storage) =>
+{
+    FileStream stream;
+    try
+    {
+        stream = storage.OpenRead(objectName);
+    }
+    catch (FileNotFoundException)
+    {
+        return Results.NotFound(new { error = "attachment not found" });
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+    return Results.Stream(stream, contentType: "application/octet-stream", enableRangeProcessing: false);
 }).AllowAnonymous();
 
 // --- Captcha Endpoints ---
@@ -2675,53 +2708,133 @@ app.MapDelete("/api/users/{userId}", async (string userId, ClaimsPrincipal user,
     return Results.Ok();
 }).RequireAuthorization();
 
-// ---- Remote files ----
-// Phone-side file manager over the session root (the worker's PTY cwd). Browsing is a
-// live worker RPC; uploads/downloads relay bytes through presigned S3 URLs (never through
-// the gateway). See RemoteFileService for the flow orchestration.
-app.MapGet("/api/sessions/{sessionId}/files", async (string sessionId, string? path, ClaimsPrincipal user, RemoteFileService files) =>
+// ---- Workspaces & remote files (v2) ----
+// 文件管理以工作区为边界：工作区 = Worker 上的命名根目录，session 在工作区内创建。
+// 上传/下载由 Gateway 签发短命 Relay 令牌并通知 Worker 连入 Relay，字节在
+// 「客户端 HTTP ⇄ Relay ⇄ Worker WS」之间流式对拷，Gateway 与 Relay 均不落盘、无轮询。
+app.MapGet("/api/workspaces", async (ClaimsPrincipal user, WorkspaceRegistry workspaces) =>
 {
     var userId = GetUserId(user);
-    try { return Results.Ok(await files.ListAsync(userId, sessionId, path, CancellationToken.None)); }
-    catch (UnauthorizedAccessException) { return Results.Forbid(); }
-    catch (RemoteFileServiceException ex) { return MapFileError(ex); }
+    var list = await workspaces.ListForUserAsync(userId);
+    return Results.Ok(list.Select(w => new
+    {
+        w.Id,
+        w.WorkerId,
+        w.Name,
+        w.RootPath,
+        w.IsDefault,
+        w.CreatedAtUtc,
+    }));
 }).RequireAuthorization();
 
-app.MapPost("/api/sessions/{sessionId}/files/uploads", async (string sessionId, CreateFileUploadRequest body, ClaimsPrincipal user, RemoteFileService files) =>
+app.MapPost("/api/workspaces", async (CreateWorkspaceRequest body, ClaimsPrincipal user, WorkspaceRegistry workspaces, IWorkerRegistry workers, IWorkerCommandDispatcher workerCommands, IAuditLogStore auditLog, HttpContext httpContext, CancellationToken ct) =>
 {
     var userId = GetUserId(user);
-    try { return Results.Ok(await files.CreateUploadAsync(userId, sessionId, body.DirPath, body.Filename, body.SizeBytes, body.Sha256, CancellationToken.None)); }
-    catch (UnauthorizedAccessException) { return Results.Forbid(); }
-    catch (RemoteFileServiceException ex) { return MapFileError(ex); }
-}).RequireAuthorization();
+    if (string.IsNullOrWhiteSpace(body.Name) || string.IsNullOrWhiteSpace(body.RootPath))
+    {
+        return Results.BadRequest(new { error = "name and rootPath are required" });
+    }
+    if (!workers.TryGetWorker(body.WorkerId, out var worker)
+        || (worker.OwnerUserId is not null && worker.OwnerUserId != userId))
+    {
+        return Results.NotFound(new { error = "Worker not found" });
+    }
 
-app.MapPost("/api/sessions/{sessionId}/files/uploads/{requestId}/complete", async (string sessionId, string requestId, ClaimsPrincipal user, RemoteFileService files) =>
-{
-    var userId = GetUserId(user);
+    var command = new CreateWorkspaceDirectoryCommand(Guid.NewGuid().ToString("N"), body.RootPath);
+    WorkspaceDirectoryAck ack;
     try
     {
-        await files.CompleteUploadAsync(userId, requestId, CancellationToken.None);
-        return Results.Ok();
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(TimeSpan.FromSeconds(20));
+        ack = await workerCommands.CreateWorkspaceDirectoryAsync(worker.ConnectionId, command, timeout.Token);
     }
-    catch (UnauthorizedAccessException) { return Results.Forbid(); }
-    catch (RemoteFileServiceException ex) { return MapFileError(ex); }
+    catch (Exception ex)
+    {
+        return Results.Json(new { error = "worker did not create the directory: " + ex.Message },
+            statusCode: StatusCodes.Status502BadGateway);
+    }
+    if (!ack.Success)
+    {
+        var error = ack.Error ?? new FileOperationError(FileTransferErrorCode.TransferFailed, "worker rejected the workspace");
+        return MapFileError(new WorkspaceFileServiceException(error.Code, error.Message));
+    }
+
+    var entity = await workspaces.CreateAsync(userId, body.WorkerId, body.Name, ack.ResolvedPath);
+    auditLog.Record(httpContext.CreateAuditEntry(userId, userId, "workspace.create", "workspace", entity.Id));
+    return Results.Ok(new { entity.Id, entity.WorkerId, entity.Name, entity.RootPath, entity.IsDefault, entity.CreatedAtUtc });
 }).RequireAuthorization();
 
-app.MapPost("/api/sessions/{sessionId}/files/downloads", async (string sessionId, CreateFileDownloadRequest body, ClaimsPrincipal user, RemoteFileService files) =>
+app.MapDelete("/api/workspaces/{workspaceId}", async (string workspaceId, ClaimsPrincipal user, WorkspaceRegistry workspaces, ISessionCoordinator sessions, IAuditLogStore auditLog, HttpContext httpContext) =>
 {
     var userId = GetUserId(user);
-    try { return Results.Ok(new { requestId = await files.StartDownloadAsync(userId, sessionId, body.Path, CancellationToken.None) }); }
-    catch (UnauthorizedAccessException) { return Results.Forbid(); }
-    catch (RemoteFileServiceException ex) { return MapFileError(ex); }
+    var userSessions = await sessions.GetSessionsForUser(userId);
+    var bound = userSessions.Count(s => s.WorkspaceId == workspaceId);
+    try
+    {
+        await workspaces.DeleteAsync(userId, workspaceId, bound);
+    }
+    catch (WorkspaceNotFoundException)
+    {
+        return Results.NotFound(new { error = "Workspace not found" });
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+    auditLog.Record(httpContext.CreateAuditEntry(userId, userId, "workspace.delete", "workspace", workspaceId));
+    return Results.Ok();
 }).RequireAuthorization();
 
-app.MapGet("/api/sessions/{sessionId}/files/downloads/{requestId}", async (string sessionId, string requestId, ClaimsPrincipal user, RemoteFileService files) =>
+app.MapGet("/api/workspaces/{workspaceId}/files", async (string workspaceId, string? path, ClaimsPrincipal user, RelayFileTransferService files) =>
 {
     var userId = GetUserId(user);
-    try { return Results.Ok(await files.PollDownloadAsync(userId, requestId, CancellationToken.None)); }
+    try { return Results.Ok(await files.ListAsync(userId, workspaceId, path, CancellationToken.None)); }
     catch (UnauthorizedAccessException) { return Results.Forbid(); }
-    catch (RemoteFileServiceException ex) { return MapFileError(ex); }
+    catch (WorkspaceFileServiceException ex) { return MapFileError(ex); }
 }).RequireAuthorization();
+
+app.MapPost("/api/workspaces/{workspaceId}/files/uploads", async (string workspaceId, CreateFileUploadRequest body, ClaimsPrincipal user, RelayFileTransferService files) =>
+{
+    var userId = GetUserId(user);
+    try { return Results.Ok(await files.CreateUploadAsync(userId, workspaceId, body.DirPath, body.Filename, body.SizeBytes, body.Sha256, CancellationToken.None)); }
+    catch (UnauthorizedAccessException) { return Results.Forbid(); }
+    catch (WorkspaceFileServiceException ex) { return MapFileError(ex); }
+}).RequireAuthorization();
+
+app.MapPost("/api/workspaces/{workspaceId}/files/downloads", async (string workspaceId, CreateFileDownloadRequest body, ClaimsPrincipal user, RelayFileTransferService files) =>
+{
+    var userId = GetUserId(user);
+    try { return Results.Ok(await files.StartDownloadAsync(userId, workspaceId, body.Path, CancellationToken.None)); }
+    catch (UnauthorizedAccessException) { return Results.Forbid(); }
+    catch (WorkspaceFileServiceException ex) { return MapFileError(ex); }
+}).RequireAuthorization();
+
+// ---- Relay 内部 API（Relay → Gateway，X-Relay-Secret 鉴权）----
+// 隧道路由查询：tunnel key → worker/port/secretHash。控制面小流量，Relay 侧短缓存。
+app.MapGet("/internal/tunnels/{tunnelKey}", async (string tunnelKey, HttpContext ctx, TunnelRegistry tunnels) =>
+{
+    var secret = ctx.Request.Headers["X-Relay-Secret"].FirstOrDefault();
+    var relaySecret = app.Services.GetRequiredService<IOptions<RelayOptions>>().Value.SharedSecret;
+    if (string.IsNullOrEmpty(relaySecret)
+        || string.IsNullOrEmpty(secret)
+        || !System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
+            System.Text.Encoding.UTF8.GetBytes(secret),
+            System.Text.Encoding.UTF8.GetBytes(relaySecret)))
+    {
+        return Results.Unauthorized();
+    }
+
+    var tunnel = await tunnels.FindByKeyAsync(tunnelKey);
+    if (tunnel is null)
+    {
+        return Results.NotFound(new { error = "tunnel not found" });
+    }
+    if (tunnel.ExpiresAtUtc <= DateTimeOffset.UtcNow)
+    {
+        return Results.Json(new { error = "tunnel expired" }, statusCode: StatusCodes.Status410Gone);
+    }
+    return Results.Ok(new { tunnel.WorkerId, tunnel.Port, tunnel.SecretHash, tunnel.ExpiresAtUtc });
+}).AllowAnonymous();
 
 // ---- Agent activity ----
 app.MapGet("/api/sessions/{sessionId}/agent-events", async (

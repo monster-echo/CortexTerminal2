@@ -31,18 +31,21 @@ public sealed class SignalRWorkerCommandDispatcher(IHubContext<WorkerHub> hubCon
     public Task<ScrollbackDelta> RequestScrollbackSinceAsync(string workerConnectionId, string sessionId, long sinceSeq, CancellationToken cancellationToken)
         => hubContext.Clients.Client(workerConnectionId).InvokeAsync<ScrollbackDelta>("RequestScrollbackSince", sessionId, sinceSeq, cancellationToken);
 
-    public Task<FileListingResult> ListFilesAsync(string workerConnectionId, string relativePath, CancellationToken cancellationToken)
-        => hubContext.Clients.Client(workerConnectionId).InvokeAsync<FileListingResult>("ListFiles", relativePath, cancellationToken);
+    public Task<FileListingResult> ListFilesAsync(string workerConnectionId, string rootDir, string relativePath, CancellationToken cancellationToken)
+        => hubContext.Clients.Client(workerConnectionId).InvokeAsync<FileListingResult>("ListFiles", rootDir, relativePath, cancellationToken);
 
-    public Task<FileOperationAck> MirrorUploadedFileAsync(string workerConnectionId, FileMirrorRequest request, CancellationToken cancellationToken)
-        => hubContext.Clients.Client(workerConnectionId).InvokeAsync<FileOperationAck>("MirrorUploadedFile", request, cancellationToken);
+    public Task<FileOperationAck> PrepareFileReceiveAsync(string workerConnectionId, PrepareFileReceiveCommand command, CancellationToken cancellationToken)
+        => hubContext.Clients.Client(workerConnectionId).InvokeAsync<FileOperationAck>("PrepareFileReceive", command, cancellationToken);
 
-    public Task<FileOperationAck> BeginFileUploadAsync(string workerConnectionId, BeginFileUploadRequest request, CancellationToken cancellationToken)
-        => hubContext.Clients.Client(workerConnectionId).InvokeAsync<FileOperationAck>("BeginFileUpload", request, cancellationToken);
+    public Task<PrepareFileSendAck> PrepareFileSendAsync(string workerConnectionId, PrepareFileSendCommand command, CancellationToken cancellationToken)
+        => hubContext.Clients.Client(workerConnectionId).InvokeAsync<PrepareFileSendAck>("PrepareFileSend", command, cancellationToken);
+
+    public Task<WorkspaceDirectoryAck> CreateWorkspaceDirectoryAsync(string workerConnectionId, CreateWorkspaceDirectoryCommand command, CancellationToken cancellationToken)
+        => hubContext.Clients.Client(workerConnectionId).InvokeAsync<WorkspaceDirectoryAck>("CreateWorkspaceDirectory", command, cancellationToken);
+
+    public Task<FileOperationAck> IssueRelayTokenAsync(string workerConnectionId, string relayUrl, string token, CancellationToken cancellationToken)
+        => hubContext.Clients.Client(workerConnectionId).InvokeAsync<FileOperationAck>("IssueRelayToken", relayUrl, token, cancellationToken);
 
     public Task<ProbePortResponse> ProbeTunnelPortAsync(string workerConnectionId, int port, CancellationToken cancellationToken)
         => hubContext.Clients.Client(workerConnectionId).InvokeAsync<ProbePortResponse>("ProbeTunnelPort", port, cancellationToken);
-
-    public Task<TunnelHttpResponse> SendTunnelHttpRequestAsync(string workerConnectionId, string tunnelId, TunnelHttpRequest request, CancellationToken cancellationToken)
-        => hubContext.Clients.Client(workerConnectionId).InvokeAsync<TunnelHttpResponse>("TunnelHttpRequest", request, cancellationToken);
 }

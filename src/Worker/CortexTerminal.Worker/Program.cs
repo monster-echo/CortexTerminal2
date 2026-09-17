@@ -12,6 +12,7 @@ using CortexTerminal.Worker.Auth;
 using CortexTerminal.Worker.Logging;
 using CortexTerminal.Worker.Pty;
 using CortexTerminal.Worker.Registration;
+using CortexTerminal.Worker.RemoteFiles;
 using CortexTerminal.Worker.Runtime;
 using CortexTerminal.Worker.Tunnels;
 using Microsoft.AspNetCore.SignalR.Client;
@@ -605,13 +606,12 @@ rootCommand.SetAction(async (ParseResult parseResult, CancellationToken cancella
         return new TokenRefreshService(httpClient, tokenStore, () => currentToken, t => currentToken = t, configuration, lifetime, logger);
     });
 
-    // Tunnel reverse-proxy + port probe executor. AddHttpClient<TunnelHost> wires a dedicated
-    // HttpClient (8MB max response) into TunnelHost's constructor. The handler must NOT use the
-    // system proxy: the reverse-proxy targets http://localhost:<port>, and honoring
-    // HTTP(S)_PROXY (e.g. 127.0.0.1:1081) would send the localhost request to the proxy, which
-    // can't reach the worker's loopback — killing every tunneled request.
-    builder.Services.AddHttpClient<TunnelHost>(c => { c.MaxResponseContentBufferSize = 8 * 1024 * 1024; })
-        .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { UseProxy = false });
+    // Relay 数据面：隧道持久 WS 反代 + 文件传输执行器。
+    builder.Services.AddSingleton<RelayLink>(sp => new RelayLink(
+        workerId, sp.GetRequiredService<ILogger<RelayLink>>()));
+    builder.Services.AddSingleton(sp => new RelayTransferService(
+        50L * 1024 * 1024,
+        sp.GetRequiredService<ILogger<RelayTransferService>>()));
 
     builder.Services.AddHostedService(services => new WorkerRuntimeHost(
         workerId,
@@ -619,7 +619,8 @@ rootCommand.SetAction(async (ParseResult parseResult, CancellationToken cancella
         services.GetRequiredService<IPtyHost>(),
         services.GetRequiredService<ILoggerFactory>(),
         services.GetRequiredService<IHostApplicationLifetime>(),
-        services.GetRequiredService<TunnelHost>(),
+        services.GetRequiredService<RelayLink>(),
+        services.GetRequiredService<RelayTransferService>(),
         ResolveMetricsCollectorOrNull(services),
         agentIntegration: services.GetService<IAgentIntegration>()));
 

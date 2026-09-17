@@ -189,7 +189,7 @@ public sealed class UnixPtyHostTests
             };
 
             var host = new UnixPtyHost();
-            var process = await host.StartAsync(120, 40, environment, cts.Token);
+            var process = await host.StartAsync(120, 40, cwd: null, environment, cts.Token);
             session = await PosixShellSession.StartAsync(process, cts.Token);
 
             var proof = NormalizeOutput(await session.ExecuteAsync("echo $CORTERM_RC_PROOF", cts.Token));

@@ -2,7 +2,7 @@ using CortexTerminal.Contracts.Sessions;
 using CortexTerminal.Contracts.Streaming;
 using CortexTerminal.Gateway.Audit;
 using CortexTerminal.Gateway.Hubs;
-using CortexTerminal.Gateway.RemoteFiles;
+using CortexTerminal.Gateway.Workspaces;
 using CortexTerminal.Gateway.Sessions;
 using CortexTerminal.Gateway.Stats;
 using CortexTerminal.Gateway.Tests.Workers;
@@ -246,12 +246,9 @@ public sealed class WorkerHubTests
         IReadOnlyDictionary<string, IClientProxy> terminalClients)
     {
         var hub = new CortexTerminal.Gateway.Tests.Sessions.Fakes.ArtifactTestHubContext();
-        var remoteFiles = new RemoteFileService(
-            sessions,
-            new NoOpWorkerCommandDispatcher(),
-            new FakeS3ObjectBroker(),
-            new PendingTransferRegistry(),
-            Microsoft.Extensions.Options.Options.Create(new RemoteFilesOptions()));
+        var workspaces = new WorkspaceRegistry(
+            TestSessionFactory.CreateContextFactoryPublic(),
+            new FixedTimeProvider(DateTimeOffset.UtcNow));
         var agentActivity = TestSessionFactory.CreateAgentActivityService(hub);
         return (WorkerHub)Activator.CreateInstance(
             typeof(WorkerHub),
@@ -262,7 +259,8 @@ public sealed class WorkerHubTests
             new TestHubContext<TerminalHub>(terminalClients),
             new NoOpStatsService(),
             new NoOpSessionStatsService(),
-            remoteFiles,
+            workspaces,
+            Microsoft.Extensions.Options.Options.Create(new CortexTerminal.Gateway.Workspaces.RelayOptions()).Value,
             agentActivity,
             NullLogger<WorkerHub>.Instance)!;
     }
@@ -274,7 +272,7 @@ public sealed class WorkerHubTests
             replayCoordinator,
             timeProvider,
             new NoOpWorkerCommandDispatcher(),
-            new SessionLaunchCoordinator(sessions, new NoOpWorkerCommandDispatcher(), new ScrollbackSettings(), TestSessionFactory.CreatePreferenceService()),
+            new SessionLaunchCoordinator(sessions, new NoOpWorkerCommandDispatcher(), new ScrollbackSettings(), TestSessionFactory.CreatePreferenceService(), TestSessionFactory.CreateWorkspaceRegistry()),
             new NoOpStatsService(),
             NullLogger<TerminalHub>.Instance)!;
 

@@ -19,6 +19,7 @@ export struct XtermWebview {
   onInputReady: OnInputReadyCallback = () => {}
   onInput: OnInputCallback = (_data: string) => {}
   onResize: OnResizeCallback = (_cols: number, _rows: number) => {}
+  onContextMenu: (x: number, y: number) => void = (_x: number, _y: number) => {}
   @StorageLink('gatewayUrl') gatewayUrl: string = ''
   @StorageLink('terminalCols') terminalCols: number = 80
   @StorageLink('terminalRows') terminalRows: number = 24
@@ -73,6 +74,12 @@ export struct XtermWebview {
               if (cols > 0 && rows > 0) {
                 this.onResize(cols, rows)
               }
+            } else if (type === 'contextmenu') {
+              const x = (msg['x'] as number) ?? 0
+              const y = (msg['y'] as number) ?? 0
+              this.onContextMenu(x, y)
+            } else if (type === 'contextmenuhide') {
+              this.onContextMenu(-1, -1)
             }
           } catch (e) {
             console.warn('[XtermWebview] onInput handler error: ' + (e as Error).message)
@@ -164,6 +171,45 @@ export struct XtermWebview {
       this.webviewController.runJavaScript(`resizeTerminal(${cols}, ${rows})`)
     } catch (e) {
       console.warn('Failed to resize terminal: ' + (e as Error).message)
+    }
+  }
+
+  /** Selection text as JSON string (JS side JSON.stringify's it — exact text). */
+  getSelectionText(): Promise<string> {
+    return this.webviewController.runJavaScript('getSelection()')
+  }
+
+  hasSelection(): Promise<string> {
+    return this.webviewController.runJavaScript('hasSelection()')
+  }
+
+  selectAllTerminal(): void {
+    try {
+      this.webviewController.runJavaScript('selectAllTerminal()')
+        .catch((e: Error) => console.warn('Failed to select all: ' + e.message))
+    } catch (e) {
+      console.warn('Failed to select all: ' + (e as Error).message)
+    }
+  }
+
+  clearSelectionTerminal(): void {
+    try {
+      this.webviewController.runJavaScript('clearSelection()')
+        .catch((_e: Error) => {})
+    } catch (_e) {}
+  }
+
+  /** Paste through xterm so bracketed-paste mode is honored. */
+  pasteText(text: string): void {
+    try {
+      const escaped = text.replace(/\\/g, '\\\\')
+        .replace(/"/g, '\\"')
+        .replace(/\n/g, '\\n')
+        .replace(/\r/g, '\\r')
+      this.webviewController.runJavaScript(`pasteText("${escaped}")`)
+        .catch((e: Error) => console.warn('Failed to paste: ' + e.message))
+    } catch (e) {
+      console.warn('Failed to paste: ' + (e as Error).message)
     }
   }
 }

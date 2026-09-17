@@ -37,7 +37,7 @@ public sealed class WorkerSessionRuntime : IAsyncDisposable
     public IWorkerGatewayClient GatewayClient { get; }
     public event Func<string, Task>? Terminated;
 
-    public async Task StartAsync(int columns, int rows, CancellationToken cancellationToken)
+    public async Task StartAsync(int columns, int rows, string? cwd, CancellationToken cancellationToken)
     {
         var env = new Dictionary<string, string>();
         if (_agentIntegration is { Enabled: true })
@@ -67,7 +67,7 @@ public sealed class WorkerSessionRuntime : IAsyncDisposable
                 ? _agentIntegration.ShimsDir
                 : _agentIntegration.ShimsDir + separator + _agentIntegration.OriginalPath;
         }
-        _process = await _session.StartAsync(SessionId, columns, rows, env, cancellationToken);
+        _process = await _session.StartAsync(SessionId, columns, rows, cwd, env, cancellationToken);
         _logger.LogDebug("Session {SessionId} PTY started ({Columns}x{Rows}).", SessionId, columns, rows);
         _stdoutPump = PumpAsync(_session.ReadStdoutChunksAsync(SessionId, _lifetime.Token), GatewayClient.ForwardStdoutAsync);
         _stderrPump = PumpAsync(_session.ReadStderrChunksAsync(SessionId, _lifetime.Token), GatewayClient.ForwardStderrAsync);
