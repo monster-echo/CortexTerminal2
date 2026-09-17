@@ -1,10 +1,11 @@
 /**
  * @file FileModels.ets
- * @brief View models for the remote file browser.
+ * @brief View models for the workspace-scoped remote file browser.
  *
  * The Gateway returns FileListing JSON ({path, entries[], truncated}); each entry is
- * {name, isDirectory, sizeBytes, modifiedUtc}. Mapping happens here so views never touch
- * raw Record<string, Object>.
+ * {name, isDirectory, sizeBytes, modifiedUtc}. Transfer init responses carry a list of
+ * candidate endpoints (端点协商：LAN 直连 → Relay 兜底)；Mapping happens here so views
+ * never touch raw Record<string, Object>.
  */
 
 export class FileEntryModel {
@@ -43,24 +44,54 @@ export class FileListingModel {
   }
 }
 
-export class DownloadPollState {
-  status: string = 'pending'
-  downloadUrl: string = ''
-  errorMessage: string = ''
+export class TransferEndpointModel {
+  url: string = ''
+  kind: string = ''
 
-  static fromRecord(record: Record<string, Object>): DownloadPollState {
-    const state = new DownloadPollState()
-    state.status = (record['status'] as string) ?? 'pending'
-    state.downloadUrl = (record['downloadUrl'] as string) ?? ''
-    const error = record['error'] as Record<string, Object>
-    if (error) {
-      state.errorMessage = (error['message'] as string) ?? ''
-    }
-    return state
+  static fromRecord(record: Record<string, Object>): TransferEndpointModel {
+    const model = new TransferEndpointModel()
+    model.url = (record['url'] as string) ?? ''
+    model.kind = (record['kind'] as string) ?? ''
+    return model
+  }
+}
+
+export class WorkspaceModel {
+  id: string = ''
+  workerId: string = ''
+  name: string = ''
+  rootPath: string = ''
+  isDefault: boolean = false
+
+  static fromRecord(record: Record<string, Object>): WorkspaceModel {
+    const model = new WorkspaceModel()
+    model.id = (record['id'] as string) ?? ''
+    model.workerId = (record['workerId'] as string) ?? ''
+    model.name = (record['name'] as string) ?? ''
+    model.rootPath = (record['rootPath'] as string) ?? ''
+    model.isDefault = (record['isDefault'] as boolean) ?? false
+    return model
   }
 }
 
 export class UploadInitModel {
-  requestId: string = ''
-  uploadUrl: string = ''
+  transferId: string = ''
+  endpoints: TransferEndpointModel[] = []
+
+  /** 首个可达端点（当前默认取列表头部）。 */
+  firstUrl(): string {
+    return this.endpoints[0].url
+  }
+}
+
+export class DownloadInitModel {
+  transferId: string = ''
+  sizeBytes: number = 0
+  filename: string = ''
+  endpoints: TransferEndpointModel[] = []
+
+  /** 首个可达端点（当前默认取列表头部）。 */
+  firstUrl(): string {
+    return this.endpoints[0].url
+  }
 }

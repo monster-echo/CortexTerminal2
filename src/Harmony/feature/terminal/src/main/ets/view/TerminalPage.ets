@@ -11,7 +11,7 @@ import { common } from '@kit.AbilityKit'
 import { window } from '@kit.ArkUI'
 import { webview } from '@kit.ArkWeb'
 import { pasteboard } from '@kit.BasicServicesKit'
-import { TerminalNavParam, RouteName, I18n, AnalyticsService, lightHaptic, clickHaptic } from '@rwecho/core'
+import { ApiService, TerminalNavParam, RouteName, I18n, AnalyticsService, lightHaptic, clickHaptic, showToast } from '@rwecho/core'
 import { TerminalCache, TerminalCacheEntry } from '../service/TerminalCache'
 import { TerminalStateManager } from '../service/TerminalStateManager'
 import { TerminalTransport } from '../service/TerminalTransport'
@@ -992,8 +992,40 @@ export struct TerminalPage {
     this.pageStack.replacePath({ name: RouteName.SESSION_HOME })
   }
 
-  private openFiles() {
-    const param: Record<string, string> = { 'sessionId': this.sessionId }
+  private async openFiles() {
+    // 会话绑定工作区；旧会话（无 workspaceId）回落到该 worker 的默认工作区。
+    const session = await ApiService.getSession(this.sessionId)
+    const workspaces = await ApiService.listWorkspaces() as Record<string, Object>[]
+    let workspaceId = ''
+    let workspaceName = ''
+    let fallbackId = ''
+    let fallbackName = ''
+    for (let i = 0; i < workspaces.length; i++) {
+      const item = workspaces[i] as Record<string, Object>
+      const id = (item['id'] as string) ?? ''
+      const name = (item['name'] as string) ?? ''
+      const isDefault = (item['isDefault'] as boolean) ?? false
+      if (id.length > 0 && id === session.workspaceId) {
+        workspaceId = id
+        workspaceName = name
+        break
+      }
+      if (fallbackId.length === 0 && (item['workerId'] as string) === session.workerId) {
+        if (isDefault || fallbackName.length === 0) {
+          fallbackId = id
+          fallbackName = name
+        }
+      }
+    }
+    if (workspaceId.length === 0) {
+      workspaceId = fallbackId
+      workspaceName = fallbackName
+    }
+    if (workspaceId.length === 0) {
+      showToast(I18n.get('workspaces.empty'))
+      return
+    }
+    const param: Record<string, string> = { 'workspaceId': workspaceId, 'workspaceName': workspaceName }
     this.pageStack.pushPath({ name: RouteName.FILES_PAGE, param })
   }
 }

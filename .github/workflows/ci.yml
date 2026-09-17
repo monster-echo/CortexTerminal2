@@ -26,6 +26,7 @@ jobs:
         run: |
           dotnet restore src/Gateway/CortexTerminal.Gateway/CortexTerminal.Gateway.csproj
           dotnet restore src/Worker/CortexTerminal.Worker/CortexTerminal.Worker.csproj
+          dotnet restore src/Relay/CortexTerminal.Relay/CortexTerminal.Relay.csproj
           dotnet restore tests/Gateway/CortexTerminal.Gateway.Tests/CortexTerminal.Gateway.Tests.csproj
           dotnet restore tests/Worker/CortexTerminal.Worker.Tests/CortexTerminal.Worker.Tests.csproj
 
@@ -33,6 +34,7 @@ jobs:
         run: |
           dotnet build src/Gateway/CortexTerminal.Gateway/CortexTerminal.Gateway.csproj --configuration Release --no-restore
           dotnet build src/Worker/CortexTerminal.Worker/CortexTerminal.Worker.csproj --configuration Release --no-restore
+          dotnet build src/Relay/CortexTerminal.Relay/CortexTerminal.Relay.csproj --configuration Release --no-restore
           dotnet build tests/Gateway/CortexTerminal.Gateway.Tests/CortexTerminal.Gateway.Tests.csproj --configuration Release --no-restore
           dotnet build tests/Worker/CortexTerminal.Worker.Tests/CortexTerminal.Worker.Tests.csproj --configuration Release --no-restore
 

@@ -213,7 +213,7 @@ export struct FeedbackPage {
       this.attaching = true
       const filename = `feedback-${Date.now()}-${picked.filename}`
       const uploaded = await ApiService.createFeedbackUpload(filename)
-      await ApiService.putBinaryToS3(uploaded.uploadUrl, picked.bytes)
+      await ApiService.putBinary(uploaded.uploadUrl, picked.bytes)
       const item: AttachmentItem = { url: uploaded.imageUrl, name: picked.filename, contentType: picked.contentType }
       this.attachments.push(item)
     } catch (e) {

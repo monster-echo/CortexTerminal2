@@ -261,7 +261,15 @@ export const zhStrings: Record<string, string> = {
 
   // ── Remote files ─────────────────────────────────────────────────
   'files.title': '远程文件',
-  'files.description': '浏览 Worker 用户主目录的文件夹与文件。',
+  'files.description': '浏览工作区内的文件夹与文件。',
+  'workspaces.title': '工作区',
+  'workspaces.create': '新建工作区',
+  'workspaces.name': '名称',
+  'workspaces.path': '路径（相对于主目录，可留空）',
+  'workspaces.empty': '暂无工作区',
+  'workspaces.create_session': '在此工作区新建会话',
+  'workspaces.open_files': '文件',
+  'workspaces.create_failed': '创建工作区失败',
   'files.empty': '此文件夹为空',
   'files.home': '主目录',
   'files.folder': '文件夹',

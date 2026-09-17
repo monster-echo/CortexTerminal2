@@ -1,45 +1,63 @@
 /**
  * @file FilesService.ets
- * @brief REST client for the remote-files flows.
+ * @brief REST client for the workspace-scoped remote file flows (v2).
  *
- * Pure REST + polling — no SignalR. Byte transfers go through Gateway-brokered
- * presigned S3 URLs (ApiService.putBinaryToS3 / FileDownloader); the Gateway never
- * relays file bytes.
+ * Pure REST — no SignalR, no polling. Browsing is a live worker RPC via the Gateway;
+ * upload/download get a signed transfer id plus candidate endpoints from the Gateway,
+ * then stream bytes directly against the Relay (or a direct endpoint when present).
  */
 import { ApiService } from '@rwecho/core'
-import { FileListingModel, DownloadPollState, UploadInitModel } from '../model/FileModels'
+import { FileListingModel, WorkspaceModel, UploadInitModel, DownloadInitModel, TransferEndpointModel } from '../model/FileModels'
 
 export class FilesService {
-  /** List one directory of the session root ('' = root). */
-  static async listFiles(sessionId: string, path: string): Promise<FileListingModel> {
-    const response = await ApiService.listFiles(sessionId, path) as Record<string, Object>
+  /** List every workspace the signed-in user owns (across all workers). */
+  static async listWorkspaces(): Promise<WorkspaceModel[]> {
+    const response = await ApiService.listWorkspaces() as Record<string, Object>[]
+    const models: WorkspaceModel[] = []
+    for (let i = 0; i < response.length; i++) {
+      models.push(WorkspaceModel.fromRecord(response[i]))
+    }
+    return models
+  }
+
+  static async createWorkspace(workerId: string, name: string, rootPath: string): Promise<WorkspaceModel> {
+    const response = await ApiService.createWorkspace(workerId, name, rootPath)
+    return WorkspaceModel.fromRecord(response)
+  }
+
+  /** List one directory of the workspace ('' = workspace root). */
+  static async listFiles(workspaceId: string, path: string): Promise<FileListingModel> {
+    const response = await ApiService.listFiles(workspaceId, path) as Record<string, Object>
     return FileListingModel.fromRecord(response)
   }
 
-  /** Upload step 1: register the transfer and get a presigned PUT URL. */
-  static async beginUpload(sessionId: string, dirPath: string, filename: string,
+  /** Upload step 1: register the transfer, get candidate endpoints. */
+  static async beginUpload(workspaceId: string, dirPath: string, filename: string,
     sizeBytes: number, sha256: string): Promise<UploadInitModel> {
-    const response = await ApiService.createFileUpload(sessionId, dirPath, filename, sizeBytes, sha256)
-    const init = new UploadInitModel()
-    init.requestId = (response['requestId'] as string) ?? ''
-    init.uploadUrl = (response['uploadUrl'] as string) ?? ''
-    return init
+    const response = await ApiService.createFileUpload(workspaceId, dirPath, filename, sizeBytes, sha256)
+    const model = new UploadInitModel()
+    model.transferId = (response['transferId'] as string) ?? ''
+    FilesService.readEndpoints(response, model.endpoints)
+    return model
   }
 
-  /** Upload step 3: ask the worker to mirror the uploaded object into the target dir. */
-  static async completeUpload(sessionId: string, requestId: string): Promise<void> {
-    await ApiService.completeFileUpload(sessionId, requestId)
+  /** Download step 1: validate on the worker, get candidate endpoints. */
+  static async startDownload(workspaceId: string, path: string): Promise<DownloadInitModel> {
+    const response = await ApiService.startFileDownload(workspaceId, path)
+    const model = new DownloadInitModel()
+    model.transferId = (response['transferId'] as string) ?? ''
+    model.sizeBytes = (response['sizeBytes'] as number) ?? 0
+    model.filename = (response['filename'] as string) ?? ''
+    FilesService.readEndpoints(response, model.endpoints)
+    return model
   }
 
-  /** Download step 1: validate the file on the worker and start the background push to S3. */
-  static async startDownload(sessionId: string, path: string): Promise<string> {
-    const response = await ApiService.startFileDownload(sessionId, path)
-    return (response['requestId'] as string) ?? ''
-  }
-
-  /** Download step 2: poll until status is ready (downloadUrl set) or failed. */
-  static async pollDownload(sessionId: string, requestId: string): Promise<DownloadPollState> {
-    const response = await ApiService.pollFileDownload(sessionId, requestId)
-    return DownloadPollState.fromRecord(response)
+  private static readEndpoints(response: Record<string, Object>, into: TransferEndpointModel[]): void {
+    const rawEndpoints = response['endpoints'] as Record<string, Object>[]
+    if (rawEndpoints) {
+      for (let i = 0; i < rawEndpoints.length; i++) {
+        into.push(TransferEndpointModel.fromRecord(rawEndpoints[i]))
+      }
+    }
   }
 }

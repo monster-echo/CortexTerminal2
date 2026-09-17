@@ -6,7 +6,14 @@
  * active sessions, and provides actions like creating new sessions
  * or connecting to existing ones.
  */
-import { ApiService, I18n, WorkerInfo, WorkerSessionInfo, SessionCreateRequest, showI18nToast, showToast, AnalyticsService, lightHaptic, clickHaptic } from '@rwecho/core'
+import { ApiService, I18n, RouteName, WorkerInfo, WorkerSessionInfo, SessionCreateRequest, showI18nToast, showToast, AnalyticsService, lightHaptic, clickHaptic } from '@rwecho/core'
+
+interface WorkspaceItem {
+  id: string;
+  name: string;
+  rootPath: string;
+  isDefault: boolean;
+}
 
 @Component
 export struct WorkerDetailPage {
@@ -14,8 +21,12 @@ export struct WorkerDetailPage {
   @StorageLink('navWorkerName') workerName: string = 'Worker'
   @State worker: WorkerInfo | null = null
   @State sessions: WorkerSessionInfo[] = []
+  @State workspaces: WorkspaceItem[] = []
   @State isLoading: boolean = false
   @State errorMessage: string = ''
+  @State showCreateWorkspace: boolean = false
+  @State newWorkspaceName: string = ''
+  @State newWorkspacePath: string = ''
   @Consume('pageStack') pageStack: NavPathStack
 
   aboutToAppear() {
@@ -63,6 +74,42 @@ export struct WorkerDetailPage {
             this.WorkerInfoCard()
           }
 
+          // Workspaces section
+          Column() {
+            Row() {
+              Text(I18n.get('workspaces.title'))
+                .fontSize(16)
+                .fontWeight(FontWeight.Medium)
+                .fontColor($r('app.color.terminal_primary'))
+                .layoutWeight(1)
+
+              Button(I18n.get('workspaces.create'))
+                .height(32)
+                .borderRadius(8)
+                .backgroundColor($r('app.color.terminal_secondary_container'))
+                .fontColor($r('app.color.terminal_on_secondary_container'))
+                .fontSize(13)
+                .onClick(() => {
+                  clickHaptic()
+                  this.showCreateWorkspace = true
+                })
+            }
+            .width('100%')
+            .margin({ bottom: 12 })
+
+            if (this.workspaces.length === 0) {
+              Text(I18n.get('workspaces.empty'))
+                .fontSize(14)
+                .fontColor($r('app.color.terminal_on_surface_variant'))
+            } else {
+              ForEach(this.workspaces, (ws: WorkspaceItem) => {
+                this.WorkspaceCard(ws)
+              }, (ws: WorkspaceItem) => ws.id)
+            }
+          }
+          .width('calc(100% - 40vp)')
+          .margin({ top: 24 })
+
           // Active sessions section
           Column() {
             Text(I18n.get('worker.detail.sessions'))
@@ -109,6 +156,62 @@ export struct WorkerDetailPage {
     .width('100%')
     .layoutWeight(1)
     .backgroundColor($r('app.color.terminal_surface'))
+    .bindSheet(this.showCreateWorkspace, this.CreateWorkspaceSheet(), {
+      backgroundColor: $r('app.color.terminal_surface'),
+      onDisappear: () => { this.showCreateWorkspace = false }
+    })
+  }
+
+  @Builder
+  CreateWorkspaceSheet() {
+    Column() {
+      Text(I18n.get('workspaces.create'))
+        .fontSize(18)
+        .fontWeight(FontWeight.Bold)
+        .fontColor($r('app.color.terminal_primary'))
+        .width('100%')
+
+      Text(I18n.get('workspaces.name'))
+        .fontSize(14)
+        .fontColor($r('app.color.terminal_on_surface_variant'))
+        .width('100%')
+        .margin({ top: 16, bottom: 8 })
+      TextInput({ text: this.newWorkspaceName, placeholder: I18n.get('workspaces.name') })
+        .height(48)
+        .borderRadius(8)
+        .backgroundColor($r('app.color.terminal_surface_container_high'))
+        .fontColor($r('app.color.terminal_primary'))
+        .placeholderColor($r('app.color.terminal_on_surface_variant'))
+        .onChange((value: string) => { this.newWorkspaceName = value })
+
+      Text(I18n.get('workspaces.path'))
+        .fontSize(14)
+        .fontColor($r('app.color.terminal_on_surface_variant'))
+        .width('100%')
+        .margin({ top: 16, bottom: 8 })
+      TextInput({ text: this.newWorkspacePath, placeholder: I18n.get('workspaces.path') })
+        .height(48)
+        .borderRadius(8)
+        .backgroundColor($r('app.color.terminal_surface_container_high'))
+        .fontColor($r('app.color.terminal_primary'))
+        .placeholderColor($r('app.color.terminal_on_surface_variant'))
+        .onChange((value: string) => { this.newWorkspacePath = value })
+
+      Button(I18n.get('workspaces.create'))
+        .width('100%')
+        .height(48)
+        .borderRadius(24)
+        .backgroundColor($r('app.color.terminal_secondary_container'))
+        .fontColor($r('app.color.terminal_on_secondary_container'))
+        .fontSize(16)
+        .fontWeight(FontWeight.Medium)
+        .margin({ top: 24 })
+        .onClick(() => {
+          this.submitCreateWorkspace()
+        })
+    }
+    .width('100%')
+    .padding(24)
   }
 
   @Builder
@@ -221,6 +324,63 @@ export struct WorkerDetailPage {
     .margin({ bottom: 8 })
   }
 
+  @Builder
+  WorkspaceCard(ws: WorkspaceItem) {
+    Row() {
+      SymbolGlyph($r('sys.symbol.folder_fill'))
+        .fontSize(20)
+        .fontColor([$r('app.color.terminal_secondary')])
+
+      Column() {
+        Text(ws.name)
+          .fontSize(14)
+          .fontWeight(FontWeight.Medium)
+          .fontColor($r('app.color.terminal_primary'))
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+        Text(ws.rootPath)
+          .fontSize(11)
+          .fontColor($r('app.color.terminal_on_surface_variant'))
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+          .margin({ top: 2 })
+      }
+      .alignItems(HorizontalAlign.Start)
+      .layoutWeight(1)
+      .margin({ left: 10 })
+
+      Button(I18n.get('workspaces.open_files'))
+        .height(32)
+        .borderRadius(8)
+        .backgroundColor(Color.Transparent)
+        .border({ width: 1, color: $r('app.color.terminal_outline_variant') })
+        .fontColor($r('app.color.terminal_primary'))
+        .fontSize(13)
+        .onClick(() => {
+          clickHaptic()
+          const param: Record<string, string> = { 'workspaceId': ws.id, 'workspaceName': ws.name }
+          this.pageStack.pushPath({ name: RouteName.FILES_PAGE, param })
+        })
+
+      Button(I18n.get('session.card.resume'))
+        .height(32)
+        .borderRadius(8)
+        .backgroundColor($r('app.color.terminal_secondary_container'))
+        .fontColor($r('app.color.terminal_on_secondary_container'))
+        .fontSize(13)
+        .margin({ left: 8 })
+        .onClick(() => {
+          clickHaptic()
+          this.createSessionInWorkspace(ws.id)
+        })
+    }
+    .width('100%')
+    .padding(12)
+    .borderRadius(8)
+    .backgroundColor($r('app.color.terminal_surface_container_high'))
+    .margin({ bottom: 8 })
+  }
+
   private formatTime(dateStr: string): string {
     if (!dateStr) {
       return 'Never'
@@ -269,6 +429,12 @@ export struct WorkerDetailPage {
     } finally {
       this.isLoading = false
     }
+
+    try {
+      await this.loadWorkspaces()
+    } catch (e) {
+      showToast((e as Error).message || I18n.get('workspaces.empty'))
+    }
   }
 
   private async createNewSession() {
@@ -285,6 +451,60 @@ export struct WorkerDetailPage {
       this.pageStack.pushPath({ name: 'TerminalSession' })
     } catch (e) {
       showToast((e as Error).message || I18n.get('session.create_failed'))
+    }
+  }
+
+  private async createSessionInWorkspace(workspaceId: string) {
+    try {
+      const request = new SessionCreateRequest()
+      request.workerId = this.workerId
+      request.workspaceId = workspaceId
+      request.columns = 120
+      request.rows = 40
+
+      const response = await ApiService.createSession(request)
+
+      AppStorage.setOrCreate('navSessionId', response.sessionId)
+      AppStorage.setOrCreate('navSessionName', response.name)
+      this.pageStack.pushPath({ name: 'TerminalSession' })
+    } catch (e) {
+      showToast((e as Error).message || I18n.get('session.create_failed'))
+    }
+  }
+
+  private async loadWorkspaces() {
+    const all = await ApiService.listWorkspaces() as Record<string, Object>[]
+    const items: WorkspaceItem[] = []
+    for (let i = 0; i < all.length; i++) {
+      const item = all[i] as Record<string, Object>
+      if (((item['workerId'] as string) ?? '') !== this.workerId) {
+        continue
+      }
+      items.push({
+        id: (item['id'] as string) ?? '',
+        name: (item['name'] as string) ?? '',
+        rootPath: (item['rootPath'] as string) ?? '',
+        isDefault: (item['isDefault'] as boolean) ?? false
+      })
+    }
+    this.workspaces = items
+  }
+
+  private async submitCreateWorkspace() {
+    const name = this.newWorkspaceName.trim()
+    if (name.length === 0) {
+      showToast(I18n.get('workspaces.name'))
+      return
+    }
+    try {
+      lightHaptic()
+      await ApiService.createWorkspace(this.workerId, name, this.newWorkspacePath.trim())
+      this.showCreateWorkspace = false
+      this.newWorkspaceName = ''
+      this.newWorkspacePath = ''
+      await this.loadWorkspaces()
+    } catch (e) {
+      showToast((e as Error).message || I18n.get('workspaces.create_failed'))
     }
   }
 }

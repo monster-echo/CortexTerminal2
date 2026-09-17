@@ -1,33 +1,33 @@
 /**
  * @file FileBrowserPage.ets
- * @brief Remote folder manager — read-only browsing of the session root (the worker's
- * PTY cwd) with on-demand upload/download through presigned S3 URLs.
+ * @brief Workspace file manager — browsing of a workspace (the session root on the worker)
+ * with on-demand upload/download streamed through the Relay (or a direct endpoint).
  *
- * Navigation is a breadcrumb over path segments; listing is a live worker RPC. Downloads
- * poll the gateway until the worker finishes pushing the file to S3, then fetch it into
- * the app sandbox. Uploads relay the picked file: sha256 → presigned PUT → mirror ack.
+ * Navigation is a breadcrumb over path segments; listing is a live worker RPC. Transfers
+ * are initiated over REST and then streamed end-to-end — the PUT/GET response is the final
+ * state, there is no polling and no intermediate storage.
  */
 import { common } from '@kit.AbilityKit'
 import fs from '@ohos.file.fs'
 import hash from '@ohos.file.hash'
 import { window } from '@kit.ArkUI'
 import { ApiService, I18n, showToast, lightHaptic, clickHaptic } from '@rwecho/core'
-import { FileEntryModel, FileListingModel, DownloadPollState } from '../model/FileModels'
+import { FileEntryModel, FileListingModel } from '../model/FileModels'
 import { FilesService } from '../service/FilesService'
 import { FilePicker, FilePickerResult } from '../service/FilePicker'
 import { FileDownloader } from '../service/FileDownloader'
 
 interface FileNavParam {
-  sessionId: string;
+  workspaceId: string;
+  workspaceName: string;
 }
 
-const POLL_INTERVAL_MS = 2000
-const POLL_MAX_ATTEMPTS = 150
 const IMAGE_EXTENSIONS: string[] = ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp', '.svg', '.heic']
 
 @Component
 export struct FileBrowserPage {
-  @State sessionId: string = ''
+  @State workspaceId: string = ''
+  @State workspaceName: string = ''
   @State pathSegments: string[] = []
   @State entries: FileEntryModel[] = []
   @State truncated: boolean = false
@@ -41,22 +41,21 @@ export struct FileBrowserPage {
   @State previewPath: string = ''
   @State showPreview: boolean = false
   @Consume('pageStack') pageStack: NavPathStack
-  private pollCancelled: boolean = false
 
   aboutToAppear() {
     const params = this.pageStack.getParamByName('files/Page') as FileNavParam[]
     if (params && params.length > 0) {
-      this.sessionId = params[params.length - 1].sessionId
+      this.workspaceId = params[params.length - 1].workspaceId
+      this.workspaceName = params[params.length - 1].workspaceName
     }
-    if (this.sessionId.length === 0) {
-      throw new Error('FileBrowserPage requires a sessionId in nav params')
+    if (this.workspaceId.length === 0) {
+      throw new Error('FileBrowserPage requires a workspaceId in nav params')
     }
     this.applyStatusBar(AppStorage.get<string>('colorMode') !== 'light')
     this.loadListing()
   }
 
   aboutToDisappear() {
-    this.pollCancelled = true
     // 唯一入口/返回目标是恒深色的终端页,恢复白字状态栏
     this.applyStatusBar(true)
   }
@@ -79,9 +78,9 @@ export struct FileBrowserPage {
     return this.pathSegments.join('/')
   }
 
-  /** Breadcrumb labels: [主目录, ...segments]. */
+  /** Breadcrumb labels: [工作区名, ...segments]. */
   private breadcrumbItems(): string[] {
-    const items: string[] = [I18n.get('files.home')]
+    const items: string[] = this.workspaceName.length > 0 ? [this.workspaceName] : [I18n.get('files.home')]
     return items.concat(this.pathSegments)
   }
 
@@ -89,7 +88,7 @@ export struct FileBrowserPage {
     this.loading = this.entries.length === 0
     this.loadError = ''
     try {
-      const listing = await FilesService.listFiles(this.sessionId, this.currentPath())
+      const listing = await FilesService.listFiles(this.workspaceId, this.currentPath())
       this.entries = listing.entries
       this.truncated = listing.truncated
     } catch (e) {
@@ -446,7 +445,7 @@ export struct FileBrowserPage {
     }
   }
 
-  /** One file: sandbox copy → sha256 → presigned PUT → mirror ack. Throws to abort the batch. */
+  /** One file: sandbox copy → sha256 → init transfer → stream PUT to the endpoint. Throws to abort the batch. */
   private async uploadOne(dirPath: string, picked: FilePickerResult, index: number, total: number): Promise<void> {
     if (picked.filename.length === 0) {
       throw new Error(I18n.get('common.error'))
@@ -478,9 +477,8 @@ export struct FileBrowserPage {
         fs.closeSync(readFile)
       }
 
-      const init = await FilesService.beginUpload(this.sessionId, dirPath, picked.filename, sizeBytes, sha256)
-      await ApiService.putBinaryToS3(init.uploadUrl, buffer)
-      await FilesService.completeUpload(this.sessionId, init.requestId)
+      const init = await FilesService.beginUpload(this.workspaceId, dirPath, picked.filename, sizeBytes, sha256)
+      await ApiService.putBinary(init.firstUrl(), buffer)
     } finally {
       fs.unlinkSync(sandboxPath)
     }
@@ -499,8 +497,7 @@ export struct FileBrowserPage {
     this.transferMessage = I18n.get('files.download_started')
     try {
       const path = this.entryPath(item.name)
-      const requestId = await FilesService.startDownload(this.sessionId, path)
-      const poll = await this.pollUntilReady(requestId)
+      const init = await FilesService.startDownload(this.workspaceId, path)
 
       const filesDir = AppStorage.get<string>('filesDir') ?? ''
       if (filesDir.length === 0) {
@@ -514,7 +511,7 @@ export struct FileBrowserPage {
       }
       const targetPath = `${downloadDir}/${item.name}`
       const context = getContext(this) as common.UIAbilityContext
-      await FileDownloader.download(context, targetPath, poll.downloadUrl)
+      await FileDownloader.download(context, targetPath, init.firstUrl())
 
       this.transferState = 'done'
       this.transferMessage = I18n.get('files.download_done')
@@ -530,24 +527,6 @@ export struct FileBrowserPage {
     } finally {
       this.transferActive = false
     }
-  }
-
-  /** Poll the gateway every 2s until the worker finishes pushing to S3. */
-  private async pollUntilReady(requestId: string): Promise<DownloadPollState> {
-    for (let attempt = 0; attempt < POLL_MAX_ATTEMPTS; attempt++) {
-      if (this.pollCancelled) {
-        throw new Error(I18n.get('files.download_failed'))
-      }
-      await FileBrowserPage.sleep(POLL_INTERVAL_MS)
-      const poll = await FilesService.pollDownload(this.sessionId, requestId)
-      if (poll.status === 'ready') {
-        return poll
-      }
-      if (poll.status === 'failed') {
-        throw new Error(poll.errorMessage || I18n.get('files.download_failed'))
-      }
-    }
-    throw new Error(I18n.get('files.download_timeout'))
   }
 
   private entryPath(name: string): string {
@@ -585,11 +564,5 @@ export struct FileBrowserPage {
     const date = new Date(ms)
     const pad = (n: number): string => n < 10 ? `0${n}` : `${n}`
     return `${date.getMonth() + 1}-${date.getDate()} ${pad(date.getHours())}:${pad(date.getMinutes())}`
-  }
-
-  private static sleep(ms: number): Promise<void> {
-    return new Promise<void>((resolve) => {
-      setTimeout(() => resolve(), ms)
-    })
   }
 }

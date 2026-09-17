@@ -20,6 +20,7 @@ export class SessionInfo {
   columns: number = 80
   rows: number = 24
   ttl: number = 0
+  workspaceId: string = ''
 }
 
 @Observed
@@ -35,6 +36,7 @@ export class SessionCreateRequest {
   columns: number = 80
   rows: number = 24
   clientRequestId: string = ''
+  workspaceId: string = ''
 }
 
 @Observed

@@ -66,14 +66,28 @@ export class ApiService {
     await ApiService.put(`/api/me/sessions/${encodeURIComponent(sessionId)}`, body as Object)
   }
 
-  // ── Remote file APIs ─────────────────────────────────────────────
+  // ── Workspace & remote file APIs (v2) ────────────────────────────
+  // 文件管理以工作区为边界；上传/下载经 Relay 流式直传，PUT/GET 响应即终态，无轮询。
 
-  static async listFiles(sessionId: string, path: string): Promise<Object> {
-    return await ApiService.get(
-      `/api/sessions/${encodeURIComponent(sessionId)}/files?path=${encodeURIComponent(path)}`)
+  static async listWorkspaces(): Promise<Object[]> {
+    return await ApiService.get('/api/workspaces') as Object[]
   }
 
-  static async createFileUpload(sessionId: string, dirPath: string, filename: string,
+  static async createWorkspace(workerId: string, name: string, rootPath: string): Promise<Record<string, Object>> {
+    const body: Record<string, Object> = {
+      'workerId': workerId,
+      'name': name,
+      'rootPath': rootPath
+    }
+    return await ApiService.post('/api/workspaces', body as Object) as Record<string, Object>
+  }
+
+  static async listFiles(workspaceId: string, path: string): Promise<Object> {
+    return await ApiService.get(
+      `/api/workspaces/${encodeURIComponent(workspaceId)}/files?path=${encodeURIComponent(path)}`)
+  }
+
+  static async createFileUpload(workspaceId: string, dirPath: string, filename: string,
     sizeBytes: number, sha256: string): Promise<Record<string, Object>> {
     const body: Record<string, Object> = {
       'dirPath': dirPath,
@@ -82,31 +96,19 @@ export class ApiService {
       'sha256': sha256
     }
     return await ApiService.post(
-      `/api/sessions/${encodeURIComponent(sessionId)}/files/uploads`,
+      `/api/workspaces/${encodeURIComponent(workspaceId)}/files/uploads`,
       body as Object) as Record<string, Object>
   }
 
-  static async completeFileUpload(sessionId: string, requestId: string): Promise<void> {
-    const body: Record<string, Object> = {}
-    await ApiService.post(
-      `/api/sessions/${encodeURIComponent(sessionId)}/files/uploads/${encodeURIComponent(requestId)}/complete`,
-      body as Object)
-  }
-
-  static async startFileDownload(sessionId: string, path: string): Promise<Record<string, Object>> {
+  static async startFileDownload(workspaceId: string, path: string): Promise<Record<string, Object>> {
     const body: Record<string, Object> = { 'path': path }
     return await ApiService.post(
-      `/api/sessions/${encodeURIComponent(sessionId)}/files/downloads`,
+      `/api/workspaces/${encodeURIComponent(workspaceId)}/files/downloads`,
       body as Object) as Record<string, Object>
   }
 
-  static async pollFileDownload(sessionId: string, requestId: string): Promise<Record<string, Object>> {
-    return await ApiService.get(
-      `/api/sessions/${encodeURIComponent(sessionId)}/files/downloads/${encodeURIComponent(requestId)}`
-    ) as Record<string, Object>
-  }
-
-  static async putBinaryToS3(uploadUrl: string, buffer: ArrayBuffer): Promise<void> {
+  /** PUT 文件字节到传输端点（Relay 或直连），响应即终态。 */
+  static async putBinary(uploadUrl: string, buffer: ArrayBuffer): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       const httpRequest = http.createHttp()
       httpRequest.request(uploadUrl, {
@@ -115,16 +117,16 @@ export class ApiService {
         extraData: buffer,
         expectDataType: http.HttpDataType.STRING,
         connectTimeout: 30000,
-        readTimeout: 30000
+        readTimeout: 600000
       }, (err, data) => {
         if (err) {
-          reject(new Error((err as Error).message || 'S3 upload failed'))
+          reject(new Error((err as Error).message || 'Transfer failed'))
           return
         }
         if (data.responseCode >= 200 && data.responseCode < 300) {
           resolve()
         } else {
-          reject(new Error(`S3 upload failed (${data.responseCode})`))
+          reject(new Error(`Transfer failed (${data.responseCode})`))
         }
         httpRequest.destroy()
       })
@@ -562,6 +564,7 @@ export class ApiService {
     session.lastActiveAt = session.updatedAt
     session.columns = (data['columns'] as number) ?? 80
     session.rows = (data['rows'] as number) ?? 24
+    session.workspaceId = (data['workspaceId'] as string) ?? ''
     return session
   }
 
