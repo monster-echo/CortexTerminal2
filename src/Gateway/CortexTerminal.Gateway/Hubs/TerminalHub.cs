@@ -129,6 +129,123 @@ public sealed class TerminalHub(
         return result;
     }
 
+    /// <summary>
+    /// Incremental reattach for cache-capable clients: the caller declares the
+    /// newest scrollback sequence it already holds and receives only the chunks
+    /// after it (ReplayDelta* events) — the screen continues its cached stream
+    /// without a reset. Falls back to the legacy full-replay event sequence
+    /// (SessionReattached → ReplayChunk* → ReplayCompleted) when the worker
+    /// lacks the incremental RPC or the cursor predates the retained window, so
+    /// clients reuse their existing full-replay handling. Legacy clients never
+    /// call this method and never see the delta events.
+    /// </summary>
+    public async Task<ReattachSessionResult> ReattachSessionIncremental(
+        ReattachSessionSinceRequest request, CancellationToken cancellationToken)
+    {
+        sessions.TryGetSession(request.SessionId, out var oldSession);
+        var oldConnectionId = oldSession?.AttachedClientConnectionId;
+
+        replayCoordinator.BeginReplay(request.SessionId, Context.ConnectionId);
+
+        var result = await sessions.ReattachSessionAsync(
+            Context.UserIdentifier ?? "unknown",
+            new ReattachSessionRequest(request.SessionId),
+            Context.ConnectionId,
+            timeProvider.GetUtcNow(),
+            cancellationToken);
+
+        if (!result.IsSuccess)
+        {
+            replayCoordinator.AbortReplay(request.SessionId);
+            return result;
+        }
+
+        if (!string.IsNullOrEmpty(oldConnectionId) && oldConnectionId != Context.ConnectionId)
+        {
+            if (oldConnectionId.StartsWith("ws-", StringComparison.Ordinal))
+            {
+                _ = WebSockets.DisplacedNotifier.NotifyWebSocketAsync(request.SessionId, oldConnectionId, logger);
+            }
+            else
+            {
+                _ = Clients.Client(oldConnectionId).SendAsync("SessionDisplaced",
+                    new SessionDisplacedEvent(request.SessionId), CancellationToken.None);
+            }
+        }
+
+        try
+        {
+            sessions.TryGetSession(request.SessionId, out var session);
+            var workerConnectionId = session?.WorkerConnectionId;
+
+            ScrollbackDelta? delta = null;
+            IReadOnlyList<TerminalChunk> snapshot = Array.Empty<TerminalChunk>();
+            if (!string.IsNullOrEmpty(workerConnectionId))
+            {
+                try
+                {
+                    delta = await workerCommands.RequestScrollbackSinceAsync(
+                        workerConnectionId, request.SessionId, request.SinceSeq, cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "RequestScrollbackSince failed for session {SessionId}; falling back to legacy full replay.", request.SessionId);
+                }
+                if (delta is null)
+                {
+                    try
+                    {
+                        snapshot = await workerCommands.RequestScrollbackAsync(workerConnectionId, request.SessionId, cancellationToken);
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogWarning(ex, "RequestScrollback failed for session {SessionId}, sending empty replay.", request.SessionId);
+                    }
+                }
+            }
+
+            if (delta is not null && !delta.Gap)
+            {
+                // Incremental: the client continues its cached stream — no reset.
+                await Clients.Caller.SendAsync("ReplayDeltaStarted", new ReplayDeltaStarted(request.SessionId), cancellationToken);
+                foreach (var item in delta.Items)
+                {
+                    await Clients.Caller.SendAsync("ReplayDeltaChunk", new ReplayDeltaChunk(item.Chunk.SessionId, item.Chunk.Stream, item.Chunk.Payload, item.Seq), cancellationToken);
+                }
+                await Clients.Caller.SendAsync("ReplayDeltaCompleted", new ReplayDeltaCompleted(request.SessionId, delta.LastSeq), cancellationToken);
+            }
+            else
+            {
+                // Gap (or an old worker): send the full retained buffer over the
+                // legacy event sequence — the client resets and swaps exactly
+                // like a normal full replay.
+                var resetSnapshot = delta?.Items.Select(i => i.Chunk).ToArray() ?? snapshot;
+                await Clients.Caller.SendAsync("SessionReattached", new SessionReattachedEvent(request.SessionId), cancellationToken);
+                foreach (var chunk in resetSnapshot)
+                {
+                    await Clients.Caller.SendAsync("ReplayChunk", new ReplayChunk(chunk.SessionId, chunk.Stream, chunk.Payload), cancellationToken);
+                }
+                await Clients.Caller.SendAsync("ReplayCompleted", new ReplayCompleted(request.SessionId), cancellationToken);
+            }
+
+            await replayCoordinator.FlushPendingAsync(
+                request.SessionId,
+                Context.ConnectionId,
+                chunk => Clients.Caller.SendAsync("StdoutChunk", chunk, cancellationToken),
+                cancellationToken);
+
+            await sessions.MarkReplayCompleted(request.SessionId, Context.ConnectionId);
+        }
+        catch
+        {
+            replayCoordinator.AbortReplay(request.SessionId);
+            await sessions.DetachSessionAsync(Context.UserIdentifier ?? "unknown", request.SessionId, timeProvider.GetUtcNow(), cancellationToken, clientConnectionId: Context.ConnectionId);
+            throw;
+        }
+
+        return result;
+    }
+
     public async Task WriteInput(WriteInputFrame frame)
     {
         var session = RequireOwnedSession(frame.SessionId);

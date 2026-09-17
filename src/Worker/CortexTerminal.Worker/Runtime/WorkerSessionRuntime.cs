@@ -86,6 +86,9 @@ public sealed class WorkerSessionRuntime : IAsyncDisposable
 
     public IReadOnlyList<TerminalChunk> GetScrollback() => _session.GetScrollback();
 
+    /// <summary>Incremental scrollback after the client's cursor; see ScrollbackBuffer.CreateDelta.</summary>
+    public ScrollbackDelta GetScrollbackSince(long sinceSeq) => _session.GetScrollbackSince(sinceSeq);
+
     public async Task CloseAsync(CancellationToken cancellationToken)
     {
         await DisposeProcessAsync();

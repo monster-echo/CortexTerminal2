@@ -4,6 +4,7 @@ import { I18n, Logger } from '@rwecho/core'
 import {
   TransportFrame,
   ReattachSessionParams,
+  ReattachSessionSinceParams,
   WriteInputParams,
   ResizeSessionParams,
   CloseSessionParams,
@@ -26,8 +27,9 @@ export class TerminalTransport {
   private latencyProbeTimer: number = -1
   private manualDisconnect: boolean = false
   private pendingProbes: Map<string, number> = new Map()
+  private sinceSeq: number = 0
 
-  async connect(sessionId: string, token: string, gatewayUrl: string): Promise<void> {
+  async connect(sessionId: string, token: string, gatewayUrl: string, sinceSeq: number): Promise<void> {
     if (!sessionId || sessionId.trim().length === 0) {
       throw new Error('Missing terminal session id')
     }
@@ -36,6 +38,7 @@ export class TerminalTransport {
     }
 
     this.sessionId = sessionId
+    this.sinceSeq = sinceSeq
     this.manualDisconnect = false
     this.stopLatencyProbe()
 
@@ -74,6 +77,40 @@ export class TerminalTransport {
       replayFrame.type = 'replayCompleted'
       replayFrame.sessionId = this.sessionId
       this.emitFrame(replayFrame)
+
+      const liveFrame = new TransportFrame()
+      liveFrame.type = 'live'
+      liveFrame.sessionId = this.sessionId
+      this.emitFrame(liveFrame)
+    })
+
+    conn.on('ReplayDeltaStarted', (args: Object[]) => {
+      const frame = new TransportFrame()
+      frame.type = 'replayDeltaStart'
+      frame.sessionId = this.sessionId
+      this.emitFrame(frame)
+    })
+
+    conn.on('ReplayDeltaChunk', (args: Object[]) => {
+      const chunk = args[0] as Record<string, Object>
+      const frame = new TransportFrame()
+      frame.type = 'replayDelta'
+      frame.sessionId = (chunk['sessionId'] as string) ?? this.sessionId
+      frame.stream = (chunk['stream'] as string) ?? 'stdout'
+      frame.payload = this.payloadToBase64(chunk['payload'])
+      frame.seq = (chunk['seq'] as number) ?? 0
+      frame.hasSeq = true
+      this.emitFrame(frame)
+    })
+
+    conn.on('ReplayDeltaCompleted', (args: Object[]) => {
+      const done = args[0] as Record<string, Object>
+      const frame = new TransportFrame()
+      frame.type = 'replayDeltaCompleted'
+      frame.sessionId = this.sessionId
+      frame.lastSeq = (done['lastSeq'] as number) ?? 0
+      frame.hasLastSeq = true
+      this.emitFrame(frame)
 
       const liveFrame = new TransportFrame()
       liveFrame.type = 'live'
@@ -253,10 +290,20 @@ export class TerminalTransport {
       return
     }
     try {
-      logger.info(`session.reattaching id=${this.sessionId}`)
-      const params = new ReattachSessionParams()
-      params.sessionId = this.sessionId
-      const result = await this.connection.invoke('ReattachSession', params)
+      logger.info(`session.reattaching id=${this.sessionId} since=${this.sinceSeq}`)
+      const sinceParams = new ReattachSessionSinceParams()
+      sinceParams.sessionId = this.sessionId
+      sinceParams.sinceSeq = this.sinceSeq
+      let result: Object | null = null
+      try {
+        result = await this.connection.invoke('ReattachSessionIncremental', sinceParams)
+      } catch (incrementalError) {
+        // Old gateway without the incremental endpoint — legacy full replay.
+        logger.warn(`session.reattach-incremental-unavailable id=${this.sessionId}: ${(incrementalError as Error).message}`)
+        const params = new ReattachSessionParams()
+        params.sessionId = this.sessionId
+        result = await this.connection.invoke('ReattachSession', params)
+      }
       if (result !== null) {
         const r = result as Record<string, Object>
         const success = r['isSuccess'] ?? r['IsSuccess']

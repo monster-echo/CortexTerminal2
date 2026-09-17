@@ -36,4 +36,7 @@ public sealed class PtySession(IPtyHost host, ScrollbackBuffer scrollbackBuffer)
     }
 
     public IReadOnlyList<TerminalChunk> GetScrollback() => scrollbackBuffer.Snapshot();
+
+    /// <summary>Incremental scrollback after the client's cursor; see ScrollbackBuffer.CreateDelta.</summary>
+    public ScrollbackDelta GetScrollbackSince(long sinceSeq) => scrollbackBuffer.CreateDelta(sinceSeq);
 }

@@ -14,6 +14,20 @@ export class TransportFrame {
   probeId: string = ''
   clientTime: number = 0
   serverTime: number = 0
+  // ReplayDeltaChunk: worker-assigned sequence of this chunk.
+  seq: number = 0
+  hasSeq: boolean = false
+  // ReplayDeltaCompleted: newest sequence in the session stream.
+  lastSeq: number = 0
+  hasLastSeq: boolean = false
+}
+
+/**
+ * Hub method parameter: ReattachSessionIncremental
+ */
+export class ReattachSessionSinceParams {
+  sessionId: string = ''
+  sinceSeq: number = 0
 }
 
 /**

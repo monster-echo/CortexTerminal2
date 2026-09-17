@@ -48,6 +48,9 @@ public sealed class WorkerGatewayClient : IWorkerGatewayClient
     public IDisposable OnRequestScrollback(Func<string, IReadOnlyList<TerminalChunk>> handler)
         => _connection.On<string, IReadOnlyList<TerminalChunk>>("RequestScrollback", handler);
 
+    public IDisposable OnRequestScrollbackSince(Func<string, long, ScrollbackDelta> handler)
+        => _connection.On<string, long, ScrollbackDelta>("RequestScrollbackSince", handler);
+
     public IDisposable OnListFiles(Func<string?, Task<FileListingResult>> handler)
         => _connection.On<string?, FileListingResult>("ListFiles", handler);
 

@@ -28,6 +28,9 @@ public sealed class SignalRWorkerCommandDispatcher(IHubContext<WorkerHub> hubCon
     public Task<IReadOnlyList<TerminalChunk>> RequestScrollbackAsync(string workerConnectionId, string sessionId, CancellationToken cancellationToken)
         => hubContext.Clients.Client(workerConnectionId).InvokeAsync<IReadOnlyList<TerminalChunk>>("RequestScrollback", sessionId, cancellationToken);
 
+    public Task<ScrollbackDelta> RequestScrollbackSinceAsync(string workerConnectionId, string sessionId, long sinceSeq, CancellationToken cancellationToken)
+        => hubContext.Clients.Client(workerConnectionId).InvokeAsync<ScrollbackDelta>("RequestScrollbackSince", sessionId, sinceSeq, cancellationToken);
+
     public Task<FileListingResult> ListFilesAsync(string workerConnectionId, string relativePath, CancellationToken cancellationToken)
         => hubContext.Clients.Client(workerConnectionId).InvokeAsync<FileListingResult>("ListFiles", relativePath, cancellationToken);
 

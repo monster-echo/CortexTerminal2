@@ -12,6 +12,7 @@ import { window } from '@kit.ArkUI'
 import { webview } from '@kit.ArkWeb'
 import { pasteboard } from '@kit.BasicServicesKit'
 import { TerminalNavParam, RouteName, I18n, AnalyticsService, lightHaptic, clickHaptic } from '@rwecho/core'
+import { TerminalCache, TerminalCacheEntry } from '../service/TerminalCache'
 import { TerminalStateManager } from '../service/TerminalStateManager'
 import { TerminalTransport } from '../service/TerminalTransport'
 import { TransportFrame } from '../model/TerminalTransportModels'
@@ -150,6 +151,10 @@ export struct TerminalPage {
   private terminalLive: boolean = false
   private initialFitDone: boolean = false
   private isReplaying: boolean = false
+  private pendingSwap: boolean = false
+  private deltaMode: boolean = false
+  private deltaPacked: string[] = []
+  private replaySinceSeq: number = 0
   private pendingBatch: string[] = []
   private flushScheduled: boolean = false
   private connectTimer: number = -1
@@ -192,6 +197,8 @@ export struct TerminalPage {
       this.sessionId = lastParam.sessionId
       this.sessionName = lastParam.sessionName || 'Terminal'
     }
+    TerminalCache.getInstance().init(getContext(this).filesDir)
+    this.replaySinceSeq = TerminalCache.getInstance().loadLastSeq(this.sessionId)
     this.stateManager.onStateChanged = (state: TerminalState) => {
       this.currentState = state
     }
@@ -336,6 +343,7 @@ export struct TerminalPage {
         webviewController: this.webviewController,
         onInputReady: () => {
           this.webviewReady = true
+          this.paintCachedOutput()
           this.doInitialFit()
         },
         onInput: (data: string) => {
@@ -422,7 +430,7 @@ export struct TerminalPage {
         }
       }
 
-      await this.transport.connect(this.sessionId, this.authToken, this.gatewayUrl)
+      await this.transport.connect(this.sessionId, this.authToken, this.gatewayUrl, this.replaySinceSeq)
       // State will be set to Replaying/Live by the server frames
     } catch (e) {
       if (this.connectTimer !== -1) {
@@ -453,29 +461,51 @@ export struct TerminalPage {
         break
 
       case 'replaying':
-        // SessionReattached arrives before replay chunks. Reset the terminal here —
-        // NOT on replayCompleted — so a re-attach replaces the old screen instead of
-        // stacking the full history on top (MAUI parity: term.reset() on reattached).
-        // term.reset() clears scrollback too; term.clear() truncates to 1 line. Drop
-        // stale buffered output from the previous connection so it can't bleed into
-        // the fresh replay.
+        // SessionReattached arrives before replay chunks. The authoritative
+        // replay replaces whatever is on screen, but resetting now would blank
+        // the terminal for the seconds the replay takes to stream. Keep the
+        // locally cached screen painted, buffer the fresh chunks, and swap
+        // atomically on replayCompleted (reset + single write + cache rewrite).
         this.isReplaying = true
         this.pendingBatch = []
         this.flushScheduled = false
-        try {
-          this.webviewController.runJavaScript('resetTerminal()').catch((e: Error) => {
-            console.warn('Failed to reset terminal: ' + e.message)
-          })
-        } catch (e) {
-          console.warn('Failed to reset terminal: ' + (e as Error).message)
-        }
+        this.pendingSwap = true
         this.stateManager.setState(TerminalState.Replaying)
         break
 
       case 'replayCompleted':
-        // Flush all buffered replay in a single write. No clear here — the screen
-        // was already reset on 'replaying', so writing only the fresh history is correct.
+        // The authoritative replay is fully buffered: swap it onto the screen
+        // atomically (reset + single write) and rewrite the local cache from
+        // the same bytes, so disk and screen can never disagree.
         this.isReplaying = false
+        this.pendingSwap = true
+        this.flushPendingOutput()
+        break
+
+      case 'replayDeltaStart':
+        // Incremental reattach: the cached screen continues seamlessly — no
+        // reset, no swap. Delta chunks paint as they arrive and the cursor
+        // advances when the server confirms completion.
+        this.isReplaying = true
+        this.deltaMode = true
+        this.deltaPacked = []
+        this.stateManager.setState(TerminalState.Replaying)
+        break
+
+      case 'replayDelta':
+        this.deltaPacked.push(frame.payload)
+        this.writeOutput(frame.payload)
+        break
+
+      case 'replayDeltaCompleted':
+        this.isReplaying = false
+        this.deltaMode = false
+        try {
+          TerminalCache.getInstance().commitDelta(this.sessionId, this.deltaPacked.join('|'), frame.lastSeq)
+        } catch (e) {
+          console.error('Failed to commit terminal cache delta: ' + (e as Error).message)
+        }
+        this.deltaPacked = []
         this.flushPendingOutput()
         break
 
@@ -502,6 +532,7 @@ export struct TerminalPage {
 
       case 'expired':
         this.connectionError = frame.reason || I18n.get('terminal.status.expired')
+        TerminalCache.getInstance().clear(this.sessionId)
         this.stateManager.setState(TerminalState.Expired)
         setTimeout(() => {
           this.pageStack.replacePath({ name: RouteName.SESSION_HOME })
@@ -510,6 +541,7 @@ export struct TerminalPage {
 
       case 'exited':
         this.connectionError = frame.reason || I18n.get('terminal.error.process_exited')
+        TerminalCache.getInstance().clear(this.sessionId)
         this.stateManager.setState(TerminalState.Exited)
         setTimeout(() => {
           this.pageStack.replacePath({ name: RouteName.SESSION_HOME })
@@ -519,6 +551,9 @@ export struct TerminalPage {
   }
 
   private writeOutput(payload: string) {
+    // Live output is painted only — it is never written to the cache. The
+    // cache holds exclusively server-confirmed streams (full replays + applied
+    // deltas), so its cursor can never claim bytes the server will resend.
     this.pendingBatch.push(payload)
     if (this.webviewReady && !this.flushScheduled) {
       this.flushScheduled = true
@@ -533,6 +568,10 @@ export struct TerminalPage {
     }
     const packed = this.pendingBatch.join('|')
     this.pendingBatch = []
+    this.writePackedToWebview(packed)
+  }
+
+  private writePackedToWebview(packed: string) {
     try {
       this.webviewController.runJavaScript(`writeBatchedOutput("${packed}")`)
         .catch((e: Error) => {
@@ -545,14 +584,80 @@ export struct TerminalPage {
     }
   }
 
+  private runResetTerminal() {
+    try {
+      this.webviewController.runJavaScript('resetTerminal()').catch((e: Error) => {
+        console.warn('Failed to reset terminal: ' + e.message)
+      })
+    } catch (e) {
+      console.warn('Failed to reset terminal: ' + (e as Error).message)
+    }
+  }
+
+  /**
+   * Paint the session's last-known screen from the local cache the moment the
+   * webview is up. The server replay replaces it wholesale later; until then
+   * this is what the user looks at instead of a blank grid.
+   */
+  private paintCachedOutput() {
+    let entry = new TerminalCacheEntry()
+    try {
+      entry = TerminalCache.getInstance().load(this.sessionId)
+    } catch (e) {
+      console.error('Failed to load terminal cache: ' + (e as Error).message)
+      return
+    }
+    if (entry.packed.length === 0) {
+      return
+    }
+    try {
+      this.webviewController.runJavaScript(`writeBatchedOutput("${entry.packed}")`)
+        .catch((e: Error) => {
+          console.error('Failed to paint cached terminal: ' + e.message)
+        })
+    } catch (e) {
+      console.error('Failed to paint cached terminal: ' + (e as Error).message)
+    }
+  }
+
   private flushPendingOutput() {
     if (this.isReplaying) {
       return
     }
-    if (!this.webviewReady || this.pendingBatch.length === 0) {
+    if (!this.webviewReady) {
+      return
+    }
+    if (this.pendingSwap) {
+      this.swapReplayedScreen()
+      return
+    }
+    if (this.pendingBatch.length === 0) {
       return
     }
     this.flushBatch()
+  }
+
+  /**
+   * Atomically replace the screen with the authoritative replay: the reset
+   * wipes the locally cached paint (stale by definition), then the full replay
+   * goes in as one write. The cache file is rewritten from the same bytes.
+   */
+  private swapReplayedScreen() {
+    this.pendingSwap = false
+    this.runResetTerminal()
+    if (this.pendingBatch.length === 0) {
+      // Empty authoritative replay — the cached screen must not outlive it.
+      TerminalCache.getInstance().clear(this.sessionId)
+      return
+    }
+    const packed = this.pendingBatch.join('|')
+    this.pendingBatch = []
+    this.flushScheduled = false
+    this.writePackedToWebview(packed)
+    // A legacy full replay carries no sequence — drop the cursor so the next
+    // open falls back to a full replay instead of trusting a stale one.
+    TerminalCache.getInstance().replaceAll(this.sessionId, packed)
+    TerminalCache.getInstance().clearCursor(this.sessionId)
   }
 
   private retryConnection() {

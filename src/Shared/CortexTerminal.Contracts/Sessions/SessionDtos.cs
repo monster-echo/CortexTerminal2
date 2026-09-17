@@ -29,6 +29,17 @@ public sealed record CloseSessionRequest(
 public sealed record ReattachSessionRequest(
     [property: Key(0)] string SessionId);
 
+/// <summary>
+/// Incremental reattach: the client declares the newest scrollback sequence
+/// its local cache already holds and receives only the chunks after it.
+/// Separate hub method (ReattachSessionIncremental) — the legacy
+/// ReattachSession endpoint keeps its exact original contract.
+/// </summary>
+[MessagePackObject]
+public sealed record ReattachSessionSinceRequest(
+    [property: Key(0)] string SessionId,
+    [property: Key(1)] long SinceSeq);
+
 [MessagePackObject]
 public sealed record ReattachSessionResult(
     [property: Key(0)] bool IsSuccess,

@@ -92,6 +92,11 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
     public IReadOnlyList<TerminalChunk>? GetSessionScrollback(string sessionId)
         => _sessions.TryGetValue(sessionId, out var runtime) ? runtime.GetScrollback() : null;
 
+    public ScrollbackDelta GetSessionScrollbackSince(string sessionId, long sinceSeq)
+        => _sessions.TryGetValue(sessionId, out var runtime)
+            ? runtime.GetScrollbackSince(sinceSeq)
+            : new ScrollbackDelta(Gap: true, LastSeq: 0, Items: []);
+
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         _subscriptions.Add(_gatewayClient.OnStartSession(HandleStartSessionAsync));
@@ -101,6 +106,7 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         _subscriptions.Add(_gatewayClient.OnCloseSession(HandleCloseSessionAsync));
         _subscriptions.Add(_gatewayClient.OnUpgradeWorker(HandleUpgradeWorkerAsync));
         _subscriptions.Add(_gatewayClient.OnRequestScrollback(HandleRequestScrollbackAsync));
+        _subscriptions.Add(_gatewayClient.OnRequestScrollbackSince(HandleRequestScrollbackSince));
         _subscriptions.Add(_gatewayClient.OnListFiles(path => _remoteFiles.HandleListFilesAsync(path, CancellationToken.None)));
         _subscriptions.Add(_gatewayClient.OnMirrorUploadedFile(req => _remoteFiles.HandleMirrorUploadedFileAsync(req, CancellationToken.None)));
         _subscriptions.Add(_gatewayClient.OnBeginFileUpload(req => _remoteFiles.HandleBeginFileUploadAsync(req, CancellationToken.None)));
@@ -441,6 +447,24 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         }
         _logger.LogInformation("RequestScrollback for session {SessionId}, returning {ChunkCount} chunks.", sessionId, scrollback.Count);
         return scrollback;
+    }
+
+    private ScrollbackDelta HandleRequestScrollbackSince(string sessionId, long sinceSeq)
+    {
+        var delta = GetSessionScrollbackSince(sessionId, sinceSeq);
+        if (delta.Gap)
+        {
+            _logger.LogWarning(
+                "RequestScrollbackSince {SinceSeq} for session {SessionId} hit a gap; sending full retained buffer ({ChunkCount} chunks).",
+                sinceSeq, sessionId, delta.Items.Length);
+        }
+        else
+        {
+            _logger.LogInformation(
+                "RequestScrollbackSince for session {SessionId}: {ChunkCount} delta chunks after seq {SinceSeq}.",
+                sessionId, delta.Items.Length, sinceSeq);
+        }
+        return delta;
     }
 
     private static readonly SemaphoreSlim _upgradeLock = new(1, 1);
