@@ -42,11 +42,29 @@ public sealed class SessionStatsService : ISessionStatsService
 
         await using var db = await _contextFactory.CreateDbContextAsync(cancellationToken);
 
+        // Tracked load + SaveChanges instead of ExecuteUpdateAsync: ExecuteUpdate is
+        // unsupported by the in-memory provider (it takes the whole host down via the
+        // background-service failure policy), and it silently dropped deltas for
+        // sessions whose row did not exist yet.
+        var sessionIds = snapshot.Select(entry => entry.Key).ToArray();
+        var sessions = await db.Sessions
+            .Where(s => sessionIds.Contains(s.SessionId))
+            .ToDictionaryAsync(s => s.SessionId, cancellationToken);
+
         foreach (var (sessionId, delta) in snapshot)
         {
-            await db.Sessions
-                .Where(s => s.SessionId == sessionId)
-                .ExecuteUpdateAsync(s => s.SetProperty(e => e.BytesIngested, e => e.BytesIngested + delta), cancellationToken);
+            if (sessions.TryGetValue(sessionId, out var session))
+            {
+                session.BytesIngested += delta;
+            }
+            else
+            {
+                // Row not written yet — carry the delta to the next flush so ingested
+                // bytes are never lost.
+                _sessionBytes.AddOrUpdate(sessionId, delta, (_, current) => current + delta);
+            }
         }
+
+        await db.SaveChangesAsync(cancellationToken);
     }
 }
