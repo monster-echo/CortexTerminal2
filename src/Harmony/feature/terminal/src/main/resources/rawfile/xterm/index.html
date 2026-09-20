@@ -179,23 +179,45 @@
         console.info('[XtermWebview] DOM renderer active (GPU acceleration disabled)');
       }
 
-      // === Custom touch scroll (ported from MAUI useTouchScroll.ts) ===
+      // === Custom gesture layer (ported from MAUI useTouchScroll.ts) ===
       // xterm 6.0 WebGL doesn't support touch scroll natively — SmoothScrollableElement
       // only listens for wheel events, and the page is overflow:hidden so the browser
       // doesn't synthesize wheel from touch. MAUI solved this in useTouchScroll.ts;
-      // this is a 1:1 native-JS port.
-      //   - long press 500ms → enter selection mode (let xterm handle the touch)
-      //   - move > 10px before long press fires → cancel long press, scroll mode
-      //   - touchmove: passive:false + preventDefault, accumulate dy, scrollLines(±)
-      //   - touchend: if velocity > 0.5, requestAnimationFrame inertia loop (0.95 decay)
-      (function setupTouchScroll() {
-        var PIXELS_PER_LINE = 17;
+      // this is a 1:1 native-JS port, extended with mouse reporting.
+      //
+      // Two modes, decided once per gesture from what the foreground app asked for:
+      //   mouse mode — the app enabled mouse tracking (Claude Code fullscreen renders
+      //                in the alternate screen and requests SGR 1006). Our drags become
+      //                wheel reports and a tap becomes a left click, so its clickable
+      //                collapsed tool rows expand. Claude Code scrolls and hit-tests
+      //                from those reports; the alternate buffer has no scrollback, so
+      //                scrolling locally would be a no-op anyway.
+      //   local mode — no app wants mouse input (plain shell, Claude Code classic
+      //                renderer): scroll our own scrollback and nudge the shell cursor
+      //                toward the tapped column.
+      // Both modes keep the 500ms long press, which selects text in the page so the
+      // host can copy it to the PHONE clipboard (the app's own in-app selection would
+      // copy on the worker machine instead).
+      //
+      // The listeners are non-passive and cancel the gesture: ArkWeb otherwise
+      // synthesizes mousedown/mouseup/click from the tap, and xterm's own mouse
+      // service would report the same finger a second time (or start a stray
+      // selection) on top of what we send.
+      (function setupGestures() {
+        var PIXELS_PER_LINE = 17;         // local mode: one scrollback line per 17px
+        var PIXELS_PER_WHEEL_NOTCH = 48;  // mouse mode: one wheel report per 48px
+        var MAX_WHEEL_NOTCHES_PER_MOVE = 6;
         var FRICTION = 0.95;
         var MIN_VELOCITY = 0.5;
         var LONG_PRESS_MS = 500;
         var MOVE_THRESHOLD = 10;
+        var MOUSE_BUTTON_LEFT = 0;
+        var MOUSE_WHEEL_UP = 64;
+        var MOUSE_WHEEL_DOWN = 65;
 
-        var st = null; // { accumulated, lastY, lastTime, rafId, velocity, startY, longPressTimer, selecting }
+        // { mouseMode, wheelAccum, cursorCell, accumulated, lastY, lastTime, rafId,
+        //   velocity, startX, startY, startMs, totalDelta, anchor, longPressTimer, selecting }
+        var st = null;
 
         function clearLongPress(s) {
           if (s.longPressTimer) {
@@ -204,13 +226,48 @@
           }
         }
 
+        function focusTerminalTextarea() {
+          var textarea = container.querySelector('.xterm-helper-textarea');
+          if (textarea) textarea.focus();
+        }
+
+        /** Turn a drag delta into terminal motion: wheel reports when a foreground
+         *  app owns the mouse, local scrollback otherwise. */
+        function applyScrollDelta(s, delta) {
+          if (s.mouseMode) {
+            if (!s.cursorCell) return;
+            s.wheelAccum += delta;
+            var notches = Math.trunc(s.wheelAccum / PIXELS_PER_WHEEL_NOTCH);
+            if (notches === 0) return;
+            s.wheelAccum -= notches * PIXELS_PER_WHEEL_NOTCH;
+            var button = notches > 0 ? MOUSE_WHEEL_DOWN : MOUSE_WHEEL_UP;
+            var count = Math.min(Math.abs(notches), MAX_WHEEL_NOTCHES_PER_MOVE);
+            for (var i = 0; i < count; i++) {
+              sendMouseReport(button, s.cursorCell.col, s.cursorCell.row, true);
+            }
+            return;
+          }
+          s.accumulated += delta;
+          var lines = Math.trunc(s.accumulated / PIXELS_PER_LINE);
+          if (lines !== 0) {
+            term.scrollLines(lines);
+            s.accumulated -= lines * PIXELS_PER_LINE;
+          }
+        }
+
         container.addEventListener('touchstart', function(e) {
           if (e.touches.length !== 1) return;
+          // Take the gesture over from the browser: no synthetic mouse events, no
+          // native page gestures. Everything below is what the terminal receives.
+          e.preventDefault();
           // Any new touch dismisses the host context menu.
           sendToHost({ type: 'contextmenuhide' });
           if (st && st.rafId) cancelAnimationFrame(st.rafId);
 
           var s = {
+            mouseMode: mouseReportingActive(),
+            wheelAccum: 0,
+            cursorCell: null,
             accumulated: 0,
             lastY: e.touches[0].clientY,
             lastTime: Date.now(),
@@ -225,82 +282,60 @@
             selecting: false
           };
 
-          // Long-press timer: after 500ms of no movement, switch to selection mode.
-          // Focus the xterm helper textarea and dispatch a synthetic touchstart on
-          // the real target under the finger so xterm's selection picks it up.
+          // Long-press timer: after 500ms of no movement, switch to selection mode
+          // and select the word under the finger through xterm's select() API (the
+          // synthetic-touch approach never fired reliably on ArkWeb). The anchor is
+          // the word's first cell, so dragging extends from there.
           s.longPressTimer = setTimeout(function() {
             s.selecting = true;
-            s.anchor = cellAt(s.startX, s.startY);
-            var textarea = container.querySelector('.xterm-helper-textarea');
-            if (textarea) textarea.focus();
-            // Long-press selects the word under the finger directly through
-            // xterm's select() API — the synthetic-touch approach never fired
-            // reliably on ArkWeb.
-            if (s.anchor) {
-              var wr = wordRangeAt(s.anchor.col, s.anchor.row);
+            var cell = cellAtClamped(s.startX, s.startY);
+            focusTerminalTextarea();
+            if (cell) {
+              var wr = wordRangeAt(cell.col, cell.row);
               if (wr) {
-                term.select(wr.col, wr.row, wr.length);
+                s.anchor = { col: wr.col, row: wr.row };
+                term.select(wr.col, wr.row + term.buffer.active.viewportY, wr.length);
               }
             }
           }, LONG_PRESS_MS);
 
           st = s;
-        }, { passive: true });
+        }, { passive: false });
 
         container.addEventListener('touchmove', function(e) {
           if (!st || e.touches.length !== 1) return;
           var s = st;
+          var touch = e.touches[0];
 
-          var currentY = e.touches[0].clientY;
-          var totalDelta = Math.max(
-            Math.abs(currentY - s.startY),
-            Math.abs(e.touches[0].clientX - s.startX));
-          s.totalDelta = totalDelta;
+          s.totalDelta = Math.max(
+            Math.abs(touch.clientY - s.startY),
+            Math.abs(touch.clientX - s.startX));
 
           // Movement beyond threshold before long-press fires → cancel selection intent
-          if (!s.selecting && totalDelta > MOVE_THRESHOLD) {
+          if (!s.selecting && s.totalDelta > MOVE_THRESHOLD) {
             clearLongPress(s);
-          }
-
-          // Selection mode: extend the selection ourselves (xterm's touch
-          // selection is unreliable on ArkWeb — drive term.select directly).
-          if (s.selecting) {
-            e.preventDefault();
-            var cur = cellAt(e.touches[0].clientX, e.touches[0].clientY);
-            if (cur && s.anchor) {
-              var cols = term.cols;
-              var a = s.anchor.row * cols + s.anchor.col;
-              var b = cur.row * cols + cur.col;
-              if (a !== b) {
-                if (Math.floor(Math.min(a, b) / cols) === Math.floor(Math.max(a, b) / cols)) {
-                  // Same row: exact cell range
-                  var start = Math.min(a, b);
-                  term.select(start % cols, Math.floor(start / cols), Math.abs(b - a) + 1);
-                } else {
-                  // Multi-row: whole-line selection between the rows
-                  term.selectLines(Math.min(s.anchor.row, cur.row), Math.max(s.anchor.row, cur.row));
-                }
-              }
-            }
-            return;
           }
 
           e.preventDefault();
 
-          var deltaY = s.lastY - currentY;
+          // Selection mode: drive the exact cell range ourselves (xterm's touch
+          // selection is unreliable on ArkWeb). cellAtClamped keeps a drag that
+          // leaves the screen on the nearest edge cell, so the highlight stops at
+          // the visible area instead of running past it.
+          if (s.selecting) {
+            selectCellRange(s.anchor, cellAtClamped(touch.clientX, touch.clientY));
+            return;
+          }
+
+          var deltaY = s.lastY - touch.clientY;
           var now = Date.now();
           var dt = now - s.lastTime;
           if (dt > 0) s.velocity = deltaY / dt;
 
-          s.lastY = currentY;
+          s.lastY = touch.clientY;
           s.lastTime = now;
-          s.accumulated += deltaY;
-
-          var lines = Math.trunc(s.accumulated / PIXELS_PER_LINE);
-          if (lines !== 0) {
-            term.scrollLines(lines);
-            s.accumulated -= lines * PIXELS_PER_LINE;
-          }
+          s.cursorCell = cellAtClamped(touch.clientX, touch.clientY);
+          applyScrollDelta(s, deltaY);
         }, { passive: false });
 
         container.addEventListener('touchend', function(e) {
@@ -317,6 +352,19 @@
             return;
           }
 
+          // Mouse mode: a tap is a left click for the foreground app, which is what
+          // expands a collapsed tool row or drops the input cursor at that cell.
+          if (s.mouseMode && s.totalDelta <= MOVE_THRESHOLD) {
+            st = null;
+            var tapCell = cellAtClamped(s.startX, s.startY);
+            focusTerminalTextarea();
+            if (tapCell) {
+              sendMouseReport(MOUSE_BUTTON_LEFT, tapCell.col, tapCell.row, true);
+              sendMouseReport(MOUSE_BUTTON_LEFT, tapCell.col, tapCell.row, false);
+            }
+            return;
+          }
+
           if (Math.abs(s.velocity) > MIN_VELOCITY) {
             var inertiaScroll = function() {
               if (!st) return;
@@ -326,32 +374,28 @@
                 st = null;
                 return;
               }
-              var delta = cur.velocity * 16;
-              cur.accumulated += delta;
-              var lines = Math.trunc(cur.accumulated / PIXELS_PER_LINE);
-              if (lines !== 0) {
-                term.scrollLines(lines);
-                cur.accumulated -= lines * PIXELS_PER_LINE;
-              }
+              applyScrollDelta(cur, cur.velocity * 16);
               cur.rafId = requestAnimationFrame(inertiaScroll);
             };
             s.rafId = requestAnimationFrame(inertiaScroll);
-          } else {
-            st = null;
-            // Short tap: refocus the terminal and nudge the shell cursor toward
-            // the tapped column (same viewport row only — cross-row arrow
-            // sequences are ambiguous in raw-mode shells).
-            var tap = e.changedTouches[0];
-            var heldMs = Date.now() - s.startMs;
-            if (tap && s.totalDelta <= MOVE_THRESHOLD && heldMs < LONG_PRESS_MS) {
-              var textarea = container.querySelector('.xterm-helper-textarea');
-              if (textarea) textarea.focus();
-              handleTapToMove(tap.clientX, tap.clientY);
-            }
+            return;
           }
-        }, { passive: true });
 
-        console.info('[XtermWebview] touch scroll installed (ported from MAUI)');
+          st = null;
+          if (s.mouseMode) {
+            return;
+          }
+          // Short tap in local mode: refocus the terminal and nudge the shell cursor
+          // toward the tapped column (same viewport row only — cross-row arrow
+          // sequences are ambiguous in raw-mode shells).
+          var tap = e.changedTouches[0];
+          if (tap && s.totalDelta <= MOVE_THRESHOLD) {
+            focusTerminalTextarea();
+            handleTapToMove(tap.clientX, tap.clientY);
+          }
+        }, { passive: false });
+
+        console.info('[XtermWebview] gesture layer installed (touch scroll + mouse reports)');
       })();
 
       console.log('Terminal initialized: ' + cols + 'x' + rows);
@@ -453,21 +497,51 @@
 
     /**
      * Get current terminal selection.
+     * Two selection sources exist: xterm's own model (pointer drag) and the
+     * native DOM text selection ArkWeb creates on long-press (only .xterm is
+     * user-select:text). The host menu must be able to copy either.
+     * Tapping the host menu dismisses the native selection before Copy's
+     * runJavaScript lands, so captureSelection() snapshots it at menu-open
+     * time and getSelection() falls back to that snapshot.
      * @returns {string} Selected text or empty string
      */
-    function getSelection() {
+    var savedSelection = '';
+
+    function captureSelection() {
+      var text = '';
       if (term) {
-        return term.getSelection() || '';
+        text = term.getSelection() || '';
       }
-      return '';
+      if (text.length === 0 && window.getSelection) {
+        text = String(window.getSelection());
+      }
+      if (text.length > 0) {
+        savedSelection = text;
+      }
+      return text;
+    }
+
+    function getSelection() {
+      var text = captureSelection();
+      if (text.length > 0) {
+        return text;
+      }
+      return savedSelection;
     }
 
     /**
      * Clear terminal selection.
      */
     function clearSelection() {
+      savedSelection = '';
       if (term) {
         term.clearSelection();
+      }
+      if (window.getSelection) {
+        var sel = window.getSelection();
+        if (sel.rangeCount > 0) {
+          sel.removeAllRanges();
+        }
       }
     }
 
@@ -495,22 +569,78 @@
       return { col: col, row: row };
     }
 
-    /** Word range around a cell on its line; a single cell for whitespace. */
+    /**
+     * Same mapping, but a point outside the grid clamps to the nearest cell.
+     * A selection drag that leaves the screen has to stop at the edge cell;
+     * returning null there would freeze the highlight mid-gesture.
+     */
+    function cellAtClamped(clientX, clientY) {
+      if (!term || !terminalContainer) return null;
+      var rowsEl = terminalContainer.querySelector('.xterm-rows');
+      if (!rowsEl) return null;
+      var rect = rowsEl.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return null;
+      var col = Math.floor((clientX - rect.left) / (rect.width / term.cols));
+      var row = Math.floor((clientY - rect.top) / (rect.height / term.rows));
+      col = Math.max(0, Math.min(col, term.cols - 1));
+      row = Math.max(0, Math.min(row, term.rows - 1));
+      return { col: col, row: row };
+    }
+
+    /** True when the foreground app asked for mouse reports (DECSET 1000/1002/1003). */
+    function mouseReportingActive() {
+      return !!term && term.modes.mouseTrackingMode !== 'none';
+    }
+
+    /** SGR (1006) mouse report: cells are 1-based, 'M' = press, 'm' = release. */
+    function sgrMouseReport(button, col, row, pressed) {
+      return '\x1b[<' + button + ';' + (col + 1) + ';' + (row + 1) + (pressed ? 'M' : 'm');
+    }
+
+    /** Send one mouse report to the app through xterm's input path (→ onData → PTY). */
+    function sendMouseReport(button, col, row, pressed) {
+      if (!term) return;
+      term.input(sgrMouseReport(button, col, row, pressed));
+    }
+
+    /**
+     * Select the exact cell range between two viewport cells. xterm's select()
+     * takes a cell count, and its selection model wraps that count across rows,
+     * so one call covers a multi-row drag — without the whole-line highlight that
+     * selectLines() paints to the right edge of the screen. Selection coordinates
+     * are buffer rows, so the viewport offset has to be added.
+     */
+    function selectCellRange(anchor, cur) {
+      if (!term || !anchor || !cur) return;
+      var cols = term.cols;
+      var ydisp = term.buffer.active.viewportY;
+      var a = (anchor.row + ydisp) * cols + anchor.col;
+      var b = (cur.row + ydisp) * cols + cur.col;
+      var start = Math.min(a, b);
+      var end = Math.max(a, b);
+      term.select(start % cols, Math.floor(start / cols), end - start + 1);
+    }
+
+    /**
+     * Word range around a viewport cell on its line; a single cell for whitespace.
+     * The row is returned in viewport coordinates (callers add viewportY to reach
+     * the buffer row), matching cellAt/cellAtClamped.
+     */
     function wordRangeAt(col, row) {
-      var line = term.buffer.active.getLine(row);
+      var line = term.buffer.active.getLine(row + term.buffer.active.viewportY);
       if (!line) return null;
       var text = line.translateToString(true);
       if (!text) return null;
       if (col >= text.length) col = text.length - 1;
       var isWord = function(ch) { return /\S/.test(ch); };
       if (!isWord(text.charAt(col))) {
-        return { col: col, length: 1 };
+        return { col: col, row: row, length: 1 };
       }
       var start = col;
       var end = col;
       while (start > 0 && isWord(text.charAt(start - 1))) start--;
       while (end < text.length - 1 && isWord(text.charAt(end + 1))) end++;
-      return { col: start, length: end - start + 1 };
+      return { col: start, row: row, length: end - start + 1 };
     }
 
     /**
@@ -533,9 +663,7 @@
       for (var i = 0; i < Math.abs(dCol); i++) {
         out += (dCol > 0) ? '\x1b[C' : '\x1b[D';
       }
-      if (term.onData) {
-        term.onData(out);
-      }
+      term.input(out);
     }
 
     /**
@@ -560,7 +688,16 @@
      * '1' when the terminal holds a selection, '0' otherwise.
      */
     function hasSelection() {
-      return (term && term.hasSelection()) ? '1' : '0';
+      return getSelection().length > 0 ? '1' : '0';
+    }
+
+    /**
+     * Selection state for the host context menu, as a JSON object: a bare '1'
+     * crossing the runJavaScript bridge loses its type, so the host reads a named
+     * field instead of pattern-matching a stringified value.
+     */
+    function selectionStateJson() {
+      return JSON.stringify({ hasSelection: getSelection().length > 0 });
     }
 
     // === Scrollback snapshot (serialize → host file → restore) ===

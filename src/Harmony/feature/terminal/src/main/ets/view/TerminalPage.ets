@@ -24,6 +24,9 @@ import { TunnelPanel } from './TunnelPanel'
 
 class TerminalSize { cols: number = 0; rows: number = 0 }
 
+/** selectionStateJson() — whether the page currently holds a text selection. */
+class SelectionState { hasSelection: boolean = false }
+
 /** One JSON-encoded fragment handed to restoreSnapshotChunk() on the JS side. */
 class SnapshotChunk {
   data: string = ''
@@ -888,7 +891,9 @@ export struct TerminalPage {
             return this.webviewController.runJavaScript('getTerminalSize()')
           })
           .then((result: string) => {
-            const size = JSON.parse(result) as TerminalSize
+            // getTerminalSize() returns JSON.stringify output, which ArkWeb wraps
+            // in another JSON string layer (see selectionStateJson below).
+            const size = JSON.parse(JSON.parse(result) as string) as TerminalSize
             if (size.cols && size.rows &&
               (size.cols !== this.lastCols || size.rows !== this.lastRows)) {
               this.lastCols = size.cols
@@ -916,11 +921,15 @@ export struct TerminalPage {
     this.menuAnchorX = x
     this.menuAnchorY = y
     this.layoutTerminalMenu()
-    this.webviewController.runJavaScript('hasSelection()')
+    this.webviewController.runJavaScript('selectionStateJson()')
       .then((r: string) => {
-        this.menuHasSelection = r.indexOf('1') >= 0
+        // ArkWeb JSON-encodes the JS return value, so the page's JSON.stringify
+        // output arrives doubly encoded: "{\"hasSelection\":true}".
+        const state = JSON.parse(JSON.parse(r) as string) as SelectionState
+        this.menuHasSelection = state.hasSelection
       })
-      .catch(() => {
+      .catch((e: Error) => {
+        console.warn('[TerminalPage] selectionState query failed: ' + e.message)
         this.menuHasSelection = false
       })
     this.terminalMenuVisible = true
@@ -957,20 +966,24 @@ export struct TerminalPage {
           text = JSON.parse(result) as string
         } catch (_e) {}
         if (!text) {
+          showToast(I18n.get('terminal.copy_no_selection'))
           return
         }
         lightHaptic()
         const pasteData = pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, text)
         pasteboard.getSystemPasteboard().setData(pasteData)
           .then(() => {
+            showToast(I18n.get('terminal.copy_done'))
             this.webviewController.runJavaScript('clearSelection()')
             this.terminalMenuVisible = false
           })
           .catch((e: Object) => {
+            showToast('Failed to copy terminal selection: ' + (e as Error).message)
             console.error('Failed to copy terminal selection: ' + (e as Error).message)
           })
       })
       .catch((e: Error) => {
+        showToast('Failed to read terminal selection: ' + e.message)
         console.error('Failed to read terminal selection: ' + e.message)
       })
   }
@@ -987,6 +1000,7 @@ export struct TerminalPage {
 
   private pasteTextToTerminal(text: string) {
     if (!text) {
+      showToast(I18n.get('terminal.paste_empty'))
       return
     }
     lightHaptic()
