@@ -13,7 +13,18 @@ builder.Services.AddSingleton<TransferPairingRegistry>();
 builder.Services.AddHostedService<TransferSweeper>();
 builder.Services.AddSingleton<WorkerRelayRegistry>();
 builder.Services.AddSingleton<TunnelRouteResolver>();
-builder.Services.AddHttpClient("tunnel-routes");
+// 隧道路由查询是相对路径（/internal/tunnels/{key}），必须给命名 client 配 BaseAddress，
+// 否则每个访客请求都会以 "BaseAddress must be set" 500 收场。
+var gatewayInternalUrl = builder.Configuration[$"{RelayTunnelOptions.SectionName}:GatewayInternalUrl"];
+if (string.IsNullOrWhiteSpace(gatewayInternalUrl))
+{
+    throw new InvalidOperationException(
+        "Tunnels:GatewayInternalUrl is required — the Relay resolves tunnel routes through the Gateway internal API.");
+}
+builder.Services.AddHttpClient("tunnel-routes", client =>
+{
+    client.BaseAddress = new Uri(gatewayInternalUrl, UriKind.Absolute);
+});
 
 // 上传请求体上限 = 单传输字节上限
 var relayConfig = builder.Configuration

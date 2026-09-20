@@ -191,6 +191,23 @@ static string GenerateCodeSegment()
     return Guid.NewGuid().ToString("N").Substring(0, 8).ToUpperInvariant();
 }
 
+// 隧道数据面由 Relay 提供（Gateway 不代理 /t/），所以访客链接必须以 Relay 公网地址为基地址；
+// 之前的实现用 Gateway 自己的 host 拼路径，复制出来的链接打不开。
+static string BuildTunnelUrl(TunnelOptions options, RelayOptions relay, string key, string? secret)
+{
+    var query = string.IsNullOrEmpty(secret) ? string.Empty : $"?k={secret}";
+    if (!string.IsNullOrEmpty(options.RootDomain))
+    {
+        return $"https://{key}.{options.RootDomain}/{query}";
+    }
+    if (string.IsNullOrWhiteSpace(relay.PublicUrl))
+    {
+        throw new InvalidOperationException(
+            "Relay:PublicUrl is required to build tunnel URLs (or configure Tunnels:RootDomain for subdomain mode).");
+    }
+    return $"{relay.PublicUrl.TrimEnd('/')}{options.RoutePrefix}{key}/{query}";
+}
+
 static string NormalizeVersion(string version)
     => System.Text.RegularExpressions.Regex.Replace(version, @"(\.0)+$", "");
 
@@ -1963,6 +1980,7 @@ app.MapPost("/api/me/sessions/{sessionId}/tunnels", async (
     IWorkerCommandDispatcher workerCommands,
     TunnelRegistry tunnelRegistry,
     IOptions<TunnelOptions> tunnelOptions,
+    IOptions<RelayOptions> relayOptions,
     IAuditLogStore auditLog,
     HttpContext httpContext,
     CancellationToken cancellationToken) =>
@@ -2012,9 +2030,7 @@ app.MapPost("/api/me/sessions/{sessionId}/tunnels", async (
 
     auditLog.Record(httpContext.CreateAuditEntry(userId, userId, "tunnel.created", "tunnel", entity.Id));
 
-    var url = !string.IsNullOrEmpty(options.RootDomain)
-        ? $"https://{key}.{options.RootDomain}/?k={secret}"
-        : $"{httpContext.Request.Scheme}://{httpContext.Request.Host.Value}{options.RoutePrefix}{key}/?k={secret}";
+    var url = BuildTunnelUrl(options, relayOptions.Value, key, secret);
     return Results.Ok(new TunnelDto(entity.Id, entity.TunnelKey, entity.Port, entity.SessionId, entity.WorkerId, url, secret, entity.ExpiresAtUtc, entity.CreatedAtUtc));
 }).RequireAuthorization();
 
@@ -2024,6 +2040,7 @@ app.MapGet("/api/me/sessions/{sessionId}/tunnels", async (
     ISessionCoordinator sessions,
     TunnelRegistry tunnelRegistry,
     IOptions<TunnelOptions> tunnelOptions,
+    IOptions<RelayOptions> relayOptions,
     CancellationToken cancellationToken) =>
 {
     if (!sessions.TryGetSession(sessionId, out var session))
@@ -2033,7 +2050,7 @@ app.MapGet("/api/me/sessions/{sessionId}/tunnels", async (
         return Results.Forbid();
     var list = await tunnelRegistry.ListForSessionAsync(sessionId, userId);
     return Results.Ok(new TunnelListResponse(
-        list.Select(t => new TunnelDto(t.Id, t.TunnelKey, t.Port, t.SessionId, t.WorkerId, $"{tunnelOptions.Value.RoutePrefix}{t.TunnelKey}/", null, t.ExpiresAtUtc, t.CreatedAtUtc)).ToList()));
+        list.Select(t => new TunnelDto(t.Id, t.TunnelKey, t.Port, t.SessionId, t.WorkerId, BuildTunnelUrl(tunnelOptions.Value, relayOptions.Value, t.TunnelKey, null), null, t.ExpiresAtUtc, t.CreatedAtUtc)).ToList()));
 }).RequireAuthorization();
 
 app.MapDelete("/api/me/tunnels/{tunnelId}", async (

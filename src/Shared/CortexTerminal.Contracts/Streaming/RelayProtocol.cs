@@ -88,9 +88,27 @@ public sealed class TunnelEndFrame
     [JsonPropertyName("error")] public string? Error { get; set; }
 }
 
+/// <summary>
+/// 数据面控制帧的源生成序列化上下文。
+/// Worker 以 PublishTrimmed 发布，运行时反射序列化（JsonSerializerIsReflectionEnabledByDefault）
+/// 被关闭；只有 context 绑定的 options 才能序列化这些帧,否则连接建立后第一帧就抛
+/// "Reflection-based serialization has been disabled for this application"。
+/// </summary>
+[JsonSourceGenerationOptions(
+    PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
+    PropertyNameCaseInsensitive = true)]
+[JsonSerializable(typeof(TransferStartFrame))]
+[JsonSerializable(typeof(FileHeadFrame))]
+[JsonSerializable(typeof(TransferDoneFrame))]
+[JsonSerializable(typeof(TunnelRequestFrame))]
+[JsonSerializable(typeof(TunnelRequestBodyEndFrame))]
+[JsonSerializable(typeof(TunnelResponseHeadFrame))]
+[JsonSerializable(typeof(TunnelEndFrame))]
+public partial class RelayJsonContext : JsonSerializerContext;
+
 public static class RelayJson
 {
-    public static readonly JsonSerializerOptions Default = new(JsonSerializerDefaults.Web);
+    public static readonly JsonSerializerOptions Default = RelayJsonContext.Default.Options;
 }
 
 /// <summary>一条已组装完整的 WebSocket 帧（Worker ⇄ Relay 数据面共用）。</summary>

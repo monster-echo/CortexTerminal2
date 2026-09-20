@@ -51,4 +51,22 @@ public sealed class RelayLinkTests
             tcp.Stop();
         }
     }
+
+    // Gateway 以 http(s) 形态下发 Relay 公网地址；WebSocket 连接必须映射成 ws(s)，
+    // 否则数据面永远连不上（"Only Uris starting with 'ws://' or 'wss://' are supported"）。
+    [Theory]
+    [InlineData("http://localhost:8090", "ws", "localhost", 8090)]
+    [InlineData("https://relay.example.com", "wss", "relay.example.com", 443)]
+    [InlineData("ws://localhost:8090", "ws", "localhost", 8090)]
+    [InlineData("wss://relay.example.com:9443/", "wss", "relay.example.com", 9443)]
+    public void BuildRelayUri_MapsHttpSchemeToWebSocket(string relayUrl, string expectedScheme, string expectedHost, int expectedPort)
+    {
+        var uri = RelayLink.BuildRelayUri(relayUrl, "worker-1", "tok en");
+        uri.Scheme.Should().Be(expectedScheme);
+        uri.Host.Should().Be(expectedHost);
+        uri.Port.Should().Be(expectedPort);
+        uri.AbsolutePath.Should().Be("/worker");
+        uri.Query.Should().Contain("workerId=worker-1");
+        uri.Query.Should().Contain("token=tok%20en");
+    }
 }
