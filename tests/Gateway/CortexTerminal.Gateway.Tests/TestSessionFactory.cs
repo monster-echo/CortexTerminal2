@@ -1,6 +1,7 @@
 using CortexTerminal.Gateway.Audit;
 using CortexTerminal.Gateway.Data;
 using CortexTerminal.Gateway.Hubs;
+using CortexTerminal.Gateway.Membership;
 using CortexTerminal.Gateway.Sessions;
 using CortexTerminal.Gateway.Workers;
 using Microsoft.AspNetCore.SignalR;

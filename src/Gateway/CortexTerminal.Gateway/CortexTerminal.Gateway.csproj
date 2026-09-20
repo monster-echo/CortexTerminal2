@@ -10,6 +10,7 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="aliyun-net-sdk-core" Version="1.6.2" />
+    <PackageReference Include="Mimo.AppStoreServerLibrary" Version="0.1.1" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.6" />
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Protocols.MessagePack" Version="10.0.9" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.1" />
@@ -20,6 +21,10 @@
     <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="3.*" />
     <PackageReference Include="AWSSDK.S3" Version="4.0.25.3" />
     <PackageReference Include="AWSSDK.Extensions.NETCore.Setup" Version="4.0.4.11" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Apple root CAs (DER) bundled for JWS transaction verification. -->
+    <EmbeddedResource Include="Membership\Iap\RootCertificates\*.cer" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="CortexTerminal.Gateway.Tests" />

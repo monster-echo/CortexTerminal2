@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.SignalR;
 using CortexTerminal.Contracts.Sessions;
 using CortexTerminal.Contracts.Streaming;
+using CortexTerminal.Gateway.Membership;
 using CortexTerminal.Gateway.Stats;
 using CortexTerminal.Gateway.Workspaces;
 using CortexTerminal.Gateway.Workers;
@@ -123,6 +124,27 @@ internal sealed class NoOpStatsService : IGatewayStatsService
     public GatewayStatsSnapshot GetSnapshot() => throw new NotSupportedException();
     public IReadOnlyList<HourlyStatsPoint> GetHourlyHistory(int hours) => [];
     public void CaptureSnapshot() { }
+}
+
+/// <summary>
+/// Permissive entitlement service for hub tests that exercise rebind/replay/RPC flows and
+/// pre-register workers on the registry directly — the worker quota gate must never fire.
+/// </summary>
+internal sealed class NoOpEntitlementService : IEntitlementService
+{
+    public Task<Entitlement> GetEntitlementAsync(string userId, CancellationToken ct)
+        => Task.FromResult(new Entitlement(
+            UserId: userId,
+            Tier: MembershipTiers.Pro,
+            PlanCode: PlanCodes.ProLifetime,
+            MaxWorkers: int.MaxValue,
+            MaxArtifactsPerSession: int.MaxValue,
+            MaxArtifactSizeBytes: long.MaxValue,
+            MaxArtifactAgeDays: int.MaxValue,
+            MaxScrollbackMegabytes: int.MaxValue,
+            ExpiresAtUtc: null));
+
+    public Task EnforceWorkerQuotaAsync(string userId, CancellationToken ct) => Task.CompletedTask;
 }
 
 internal sealed class NoOpSessionStatsService : ISessionStatsService

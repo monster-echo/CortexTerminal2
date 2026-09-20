@@ -13,6 +13,12 @@ public class AppDbContext : DbContext
     public DbSet<TunnelEntity> Tunnels => Set<TunnelEntity>();
     public DbSet<SessionAgentEventEntity> SessionAgentEvents => Set<SessionAgentEventEntity>();
     public DbSet<WorkspaceEntity> Workspaces => Set<WorkspaceEntity>();
+    public DbSet<Plan> Plans => Set<Plan>();
+    public DbSet<Subscription> Subscriptions => Set<Subscription>();
+    public DbSet<MembershipOrder> MembershipOrders => Set<MembershipOrder>();
+    public DbSet<RedeemCode> RedeemCodes => Set<RedeemCode>();
+    public DbSet<RedeemCodeUsage> RedeemCodeUsages => Set<RedeemCodeUsage>();
+    public DbSet<IapWebhookEvent> IapWebhookEvents => Set<IapWebhookEvent>();
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
@@ -78,6 +84,33 @@ public class AppDbContext : DbContext
             entity.HasIndex(e => e.OwnerUserId);
             entity.HasIndex(e => e.WorkerId);
             entity.HasIndex(e => new { e.WorkerId, e.Name }).IsUnique();
+        });
+
+        modelBuilder.Entity<Plan>(entity =>
+        {
+            entity.HasIndex(e => e.Code).IsUnique();
+        });
+        modelBuilder.Entity<Subscription>(entity =>
+        {
+            entity.HasIndex(e => new { e.UserId, e.Status });
+            entity.HasIndex(e => new { e.Source, e.PlatformTransactionId });
+        });
+        modelBuilder.Entity<MembershipOrder>(entity =>
+        {
+            entity.HasIndex(e => e.UserId);
+        });
+        modelBuilder.Entity<RedeemCode>(entity =>
+        {
+            entity.HasIndex(e => e.Code).IsUnique();
+            entity.HasIndex(e => e.BatchId);
+        });
+        modelBuilder.Entity<RedeemCodeUsage>(entity =>
+        {
+            entity.HasIndex(e => new { e.RedeemCodeId, e.UserId }).IsUnique();
+        });
+        modelBuilder.Entity<IapWebhookEvent>(entity =>
+        {
+            entity.HasIndex(e => new { e.Platform, e.ExternalEventId }).IsUnique();
         });
     }
 }

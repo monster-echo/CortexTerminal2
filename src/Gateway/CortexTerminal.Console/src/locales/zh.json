@@ -7,6 +7,8 @@
     "users": "用户",
     "settings": "设置",
     "auditLog": "审计日志",
+    "membership": "会员",
+    "redeemCodes": "兑换码",
     "homepage": "主页",
     "groups": {
       "overview": "概览",
@@ -337,6 +339,59 @@
       "user.delete": "用户删除",
       "worker.connect": "节点连接",
       "worker.disconnect": "节点断开"
+    }
+  },
+  "billing": {
+    "membership": {
+      "title": "会员管理",
+      "subtitle": "为用户授予会员套餐。",
+      "findUser": "查找用户",
+      "searchLabel": "按姓名、邮箱或 ID 搜索",
+      "searchPlaceholder": "搜索用户...",
+      "selectUser": "选择用户",
+      "noUsers": "没有匹配的用户。",
+      "plan": "套餐",
+      "selectPlan": "选择套餐",
+      "expiresAt": "到期时间（可选）",
+      "expiresAtHint": "留空则使用套餐默认时长。",
+      "grantMembership": "授予会员",
+      "grant": "授予",
+      "grantSuccess": "会员已授予。",
+      "resultTier": "等级",
+      "resultExpiry": "到期时间",
+      "resultSubscription": "订阅 ID",
+      "errors": {
+        "selectUser": "请选择用户。",
+        "selectPlan": "请选择套餐。"
+      }
+    },
+    "redeem": {
+      "title": "兑换码管理",
+      "subtitle": "为套餐生成兑换码。",
+      "generate": "生成兑换码",
+      "plan": "套餐",
+      "selectPlan": "选择套餐",
+      "planHint": "{{period}} · {{currency}} {{price}}",
+      "count": "数量",
+      "maxUses": "每码最多使用次数",
+      "expiresAt": "到期时间（可选）",
+      "expiresAtHint": "留空表示永不过期。",
+      "generateButton": "生成",
+      "generateSuccess": "已生成 {{count}} 个兑换码。",
+      "generatedCodes": "已生成的兑换码",
+      "batchId": "批次",
+      "codesUnit": "个",
+      "codeColumn": "兑换码",
+      "copyAll": "全部复制",
+      "copyOne": "复制",
+      "copiedAll": "全部兑换码已复制到剪贴板。",
+      "copiedOne": "兑换码已复制到剪贴板。",
+      "copyFailed": "无法复制到剪贴板。",
+      "errors": {
+        "selectPlan": "请选择套餐。",
+        "invalidCount": "数量必须为正整数。",
+        "invalidMaxUses": "最多使用次数必须为正整数。"
+      }
     }
   },
   "common": {

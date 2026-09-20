@@ -16,6 +16,12 @@ public interface IWorkerRegistry
     IReadOnlyList<RegisteredWorker> GetOnlineWorkersForUser(string userId);
     Task<IReadOnlyList<WorkerRecord>> GetAllWorkersForUserAsync(string userId);
     int GetOnlineCount();
+    /// <summary>
+    /// STRICT in-memory count of online workers owned by <paramref name="userId"/>. Used by the
+    /// worker-quota gate. Unlike <see cref="GetOnlineWorkersForUser"/>, this does NOT count
+    /// null-owner (legacy open-access) workers — they are never "yours" for quota purposes.
+    /// </summary>
+    int CountOnlineWorkersForUser(string userId);
     IReadOnlyList<RegisteredWorker> GetAllOnline();
     void UpdateMetrics(string workerId, WorkerMetrics? metrics);
     WorkerMetrics? GetMetrics(string workerId);

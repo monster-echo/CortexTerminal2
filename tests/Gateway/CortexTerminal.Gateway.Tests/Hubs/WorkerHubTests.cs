@@ -250,6 +250,9 @@ public sealed class WorkerHubTests
             TestSessionFactory.CreateContextFactoryPublic(),
             new FixedTimeProvider(DateTimeOffset.UtcNow));
         var agentActivity = TestSessionFactory.CreateAgentActivityService(hub);
+        // These hub tests bypass the quota gate (they pre-register workers via the registry then
+        // call RegisterWorker to exercise rebind/replay logic) — the gate must never fire here.
+        var entitlements = new NoOpEntitlementService();
         return (WorkerHub)Activator.CreateInstance(
             typeof(WorkerHub),
             workers,
@@ -262,6 +265,7 @@ public sealed class WorkerHubTests
             workspaces,
             Microsoft.Extensions.Options.Options.Create(new CortexTerminal.Gateway.Workspaces.RelayOptions()).Value,
             agentActivity,
+            entitlements,
             NullLogger<WorkerHub>.Instance)!;
     }
 

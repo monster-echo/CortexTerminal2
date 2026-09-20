@@ -184,6 +184,20 @@ public sealed class PostgresWorkerRegistry : IWorkerRegistry
 
     public int GetOnlineCount() => _workers.Count;
 
+    public int CountOnlineWorkersForUser(string userId)
+    {
+        var count = 0;
+        foreach (var kvp in _workers)
+        {
+            var owner = kvp.Value.OwnerUserId;
+            // STRICT ownership: legacy null-owner workers are public, not "yours" — they must
+            // not count toward quota (regression I-2).
+            if (owner is not null && owner == userId)
+                count++;
+        }
+        return count;
+    }
+
     public IReadOnlyList<RegisteredWorker> GetAllOnline() => _workers.Values.ToArray();
 
     private async Task PersistAsync(Func<AppDbContext, Task> action, string operation)

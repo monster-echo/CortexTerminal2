@@ -140,6 +140,7 @@ public sealed class SessionCoordinatorTests
             => throw new NotSupportedException();
 
         public int GetOnlineCount() => 1;
+        public int CountOnlineWorkersForUser(string userId) => 0;
         public IReadOnlyList<RegisteredWorker> GetAllOnline() => [_worker];
         public Task<IReadOnlyList<WorkerRecord>> GetAllWorkersForUserAsync(string userId)
             => Task.FromResult<IReadOnlyList<WorkerRecord>>(Array.Empty<WorkerRecord>());
@@ -195,6 +196,7 @@ public sealed class SessionCoordinatorTests
             => _inner.GetOnlineWorkersForUser(userId);
 
         public int GetOnlineCount() => _inner.GetOnlineCount();
+        public int CountOnlineWorkersForUser(string userId) => _inner.CountOnlineWorkersForUser(userId);
         public IReadOnlyList<RegisteredWorker> GetAllOnline() => _inner.GetAllOnline();
         public Task<IReadOnlyList<WorkerRecord>> GetAllWorkersForUserAsync(string userId)
             => _inner.GetAllWorkersForUserAsync(userId);
