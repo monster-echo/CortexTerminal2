@@ -222,6 +222,23 @@ export class ApiService {
     return await ApiService.get('/api/me/profile') as Record<string, Object>
   }
 
+  // ── Billing / membership APIs ─────────────────────────────────────
+
+  static async getSubscription(): Promise<Record<string, Object>> {
+    return await ApiService.get('/api/billing/subscription') as Record<string, Object>
+  }
+
+  static async listPlans(): Promise<Object[]> {
+    // Public endpoint — pricing is visible without a token.
+    return await ApiService.get('/api/billing/plans', false) as Object[]
+  }
+
+  static async redeemCode(code: string): Promise<Record<string, Object>> {
+    const body: Record<string, string> = { 'code': code }
+    return await ApiService.post('/api/billing/redeem', body as Object) as Record<string, Object>
+  }
+
+
   static async changePassword(newPassword: string, currentPassword: string): Promise<void> {
     const body: Record<string, Object> = { 'newPassword': newPassword }
     if (currentPassword.length > 0) {

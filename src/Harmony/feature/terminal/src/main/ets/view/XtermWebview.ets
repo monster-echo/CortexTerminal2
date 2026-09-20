@@ -8,6 +8,7 @@
  * Uses WebMessagePort for JS→Native input (replacing crash-prone javaScriptProxy).
  */
 import { webview } from '@kit.ArkWeb'
+import deviceInfo from '@ohos.deviceInfo'
 
 type OnInputReadyCallback = () => void
 type OnInputCallback = (data: string) => void
@@ -29,6 +30,20 @@ export struct XtermWebview {
   @StorageLink('terminalCols') terminalCols: number = 80
   @StorageLink('terminalRows') terminalRows: number = 24
   @StorageLink('webglEnabled') webglEnabled: boolean = true
+  /**
+   * ArkWeb API20 模拟器的 GPU 栈有回归:WebGL canvas 合成输出黑屏(见 xterm/index.html
+   * 内注释)。模拟器上一律走 DOM 渲染;真机维持用户设置。
+   * 在 aboutToAppear 里算一次(避免 struct getter 的编译器坑)。
+   */
+  private useWebGLFlag: boolean = true
+
+  aboutToAppear() {
+    const model = deviceInfo.productModel.toLowerCase()
+    const market = deviceInfo.marketName.toLowerCase()
+    const isEmulator = model.indexOf('emulator') >= 0 || market.indexOf('emulator') >= 0
+    this.useWebGLFlag = this.webglEnabled && !isEmulator
+    console.info(`[XtermWebview] useWebGLFlag=${this.useWebGLFlag} productModel=${deviceInfo.productModel}`)
+  }
 
   private msgPorts: webview.WebMessagePort[] = []
   private readyNotified: boolean = false
@@ -37,7 +52,7 @@ export struct XtermWebview {
 
   build() {
     Column() {
-      Web({ src: $rawfile('xterm/index.html'), controller: this.webviewController, renderMode: RenderMode.SYNC_RENDER })
+      Web({ src: $rawfile('xterm/index.html'), controller: this.webviewController, renderMode: RenderMode.ASYNC_RENDER })
         .width('100%')
         .height('100%')
         .backgroundColor('#121414')
@@ -138,7 +153,7 @@ export struct XtermWebview {
       this.webviewController.runJavaScript(`
         (function () {
           if (typeof initTerminal === 'function') {
-          initTerminal(${this.terminalCols}, ${this.terminalRows}, ${this.webglEnabled});
+          initTerminal(${this.terminalCols}, ${this.terminalRows}, ${this.useWebGLFlag});
             return 'ready';
           }
           return 'missing';

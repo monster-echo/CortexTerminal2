@@ -204,6 +204,10 @@ export struct SettingsPage {
 
         this.SectionHeader('settings.account')
 
+        this.NavRow('settings.membership', () => {
+          this.pageStack.pushPath({ name: RouteName.MEMBERSHIP })
+        })
+
         this.NavRow('settings.account_security', () => {
           this.pageStack.pushPath({ name: RouteName.ACCOUNT_SECURITY })
         })

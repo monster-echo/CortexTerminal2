@@ -91,7 +91,12 @@ export default class EntryAbility extends UIAbility {
     AppStorage.setOrCreate('workerNavStack', null)
     AppStorage.setOrCreate('authNavStack', null)
 
-    // Pre-warm the WebView engine for faster xterm.js loading
+    // WebView pre-warm and analytics init are deferred to after first frame:
+    // doing them in onCreate blocks the foreground transition (~4.5s on emulator)
+    // and trips LIFECYCLE_TIMEOUT appfreeze on cold start.
+  }
+
+  private deferredHeavyInit(): void {
     try {
       webview.WebviewController.initializeWebEngine()
       hilog.info(DOMAIN, TAG, 'WebView engine pre-warmed')
@@ -99,7 +104,6 @@ export default class EntryAbility extends UIAbility {
       hilog.warn(DOMAIN, TAG, `Failed to pre-warm WebView engine: ${(e as Error).message}`)
     }
 
-    // Initialize Analytics Kit and Crash Kit
     AnalyticsService.init()
     CrashService.init(this.context)
   }
@@ -171,6 +175,9 @@ export default class EntryAbility extends UIAbility {
         return
       }
       hilog.info(DOMAIN, TAG, 'Loaded pages/Index')
+
+      // First frame is drawn — safe to run heavy init off the foreground path
+      setTimeout(() => this.deferredHeavyInit(), 0)
 
       const uiContext = windowStage.getMainWindowSync().getUIContext()
       uiContext.runScopedTask(() => {
