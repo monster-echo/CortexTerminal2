@@ -13,7 +13,6 @@ import { I18n, ApiService, RouteName, TunnelInfo, showToast, clickHaptic } from 
 @Component
 export struct TunnelPanel {
   sessionId: string = ''
-  onClose: () => void = () => {}
   @State tunnels: TunnelInfo[] = []
   @State portInput: string = ''
   @State isLoading: boolean = false
@@ -142,20 +141,6 @@ export struct TunnelPanel {
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
         .margin({ left: 8 })
-
-      Button() {
-        SymbolGlyph($r('sys.symbol.arrow_clockwise'))
-          .fontSize(18)
-          .fontColor([$r('app.color.terminal_on_surface')])
-      }
-      .width(40)
-      .height(40)
-      .borderRadius(20)
-      .backgroundColor(Color.Transparent)
-      .onClick(() => {
-        clickHaptic()
-        this.loadTunnels()
-      })
     }
     .width('100%')
     .height(52)

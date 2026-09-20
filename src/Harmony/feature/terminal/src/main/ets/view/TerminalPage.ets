@@ -479,8 +479,7 @@ export struct TerminalPage {
   @Builder
   TunnelSheetContent() {
     TunnelPanel({
-      sessionId: this.sessionId,
-      onClose: () => { this.showTunnelSheet = false }
+      sessionId: this.sessionId
     })
   }
 
