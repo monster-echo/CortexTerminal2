@@ -56,17 +56,18 @@ export struct PageLayout {
           .margin({ left: 8 })
 
         if (this.moreMenuItems !== null && this.moreMenuItems.length > 0) {
-          Text('···')
-            .fontSize(22)
-            .fontWeight(FontWeight.Bold)
-            .fontColor($r('app.color.terminal_primary'))
-            .width(40)
-            .height(40)
-            .textAlign(TextAlign.Center)
-            .onClick(() => {
-              clickHaptic()
-            })
-            .bindMenu(this.moreMenuItems)
+          Button() {
+            Row({ space: 3 }) {
+              Circle().width(4).height(4).fill($r('app.color.terminal_primary'))
+              Circle().width(4).height(4).fill($r('app.color.terminal_primary'))
+              Circle().width(4).height(4).fill($r('app.color.terminal_primary'))
+            }
+          }
+          .width(40)
+          .height(40)
+          .borderRadius(20)
+          .backgroundColor(Color.Transparent)
+          .bindMenu(this.moreMenuItems)
         }
       }
       .width('100%')

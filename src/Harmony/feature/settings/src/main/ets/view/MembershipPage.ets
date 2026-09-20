@@ -13,9 +13,6 @@ import {
   PageLayout,
   PageMenuItem,
   RouteName,
-  showI18nToast,
-  showToast,
-  lightHaptic,
   clickHaptic
 } from '@rwecho/core'
 
@@ -40,9 +37,11 @@ export struct MembershipPage {
   @State maxWorkers: number = 0
   @State maxScrollbackMegabytes: number = 0
   @State plans: BillingPlan[] = []
-  @State redeemCodeInput: string = ''
-  @State isRedeeming: boolean = false
-  @State showRedeem: boolean = false
+  @StorageLink('membershipRefreshTick') @Watch('onRefreshTick') refreshTick: number = 0
+
+  onRefreshTick() {
+    this.loadMembership()
+  }
 
   async aboutToAppear() {
     await this.loadMembership()
@@ -88,24 +87,6 @@ export struct MembershipPage {
       // Plans are informational — a failure here must not hide the entitlement card.
       // The error surfaces in the plans section only.
       this.plans = []
-    }
-  }
-
-  private async redeem() {
-    const code = this.redeemCodeInput.trim()
-    if (code.length === 0) {
-      return
-    }
-    this.isRedeeming = true
-    try {
-      await ApiService.redeemCode(code)
-      showI18nToast('membership.redeem_success')
-      this.redeemCodeInput = ''
-      await this.loadMembership()
-    } catch (e) {
-      showToast(I18n.getWithArgs('membership.redeem_failed', { 'msg': (e as Error).message }))
-    } finally {
-      this.isRedeeming = false
     }
   }
 
@@ -155,7 +136,7 @@ export struct MembershipPage {
     const redeem = new PageMenuItem()
     redeem.value = I18n.get('membership.menu_redeem')
     redeem.action = () => {
-      this.showRedeem = !this.showRedeem
+      this.pageStack.pushPath({ name: RouteName.REDEEM })
     }
     items.push(redeem)
     return items
@@ -198,9 +179,6 @@ export struct MembershipPage {
       Column() {
         this.EntitlementCard()
         this.PlansSection()
-        if (this.showRedeem) {
-          this.RedeemCard()
-        }
       }
       .width('100%')
       .padding({ bottom: 24 })
@@ -303,47 +281,6 @@ export struct MembershipPage {
         .fontSize(12)
         .fontColor($r('app.color.terminal_on_surface_variant'))
         .margin({ top: 8 })
-    }
-    .width('100%')
-    .alignItems(HorizontalAlign.Start)
-  }
-
-  @Builder
-  RedeemCard() {
-    Column() {
-      Text(I18n.get('membership.redeem_title'))
-        .fontSize(14)
-        .fontWeight(FontWeight.Medium)
-        .fontColor($r('app.color.terminal_on_surface_variant'))
-        .margin({ top: 24, bottom: 8 })
-
-      TextInput({ placeholder: I18n.get('membership.redeem_placeholder'), text: this.redeemCodeInput })
-        .width('100%')
-        .height(48)
-        .fontSize(16)
-        .backgroundColor($r('app.color.terminal_surface_container_high'))
-        .borderRadius(8)
-        .fontColor($r('app.color.terminal_primary'))
-        .placeholderColor($r('app.color.terminal_on_surface_variant'))
-        .onChange((value: string) => {
-          this.redeemCodeInput = value
-        })
-
-      Button(this.isRedeeming ? '…' : I18n.get('membership.redeem_button'))
-        .type(ButtonType.Capsule)
-        .width('100%')
-        .height(48)
-        .backgroundColor($r('app.color.terminal_secondary_container'))
-        .fontColor($r('app.color.terminal_on_secondary_container'))
-        .fontSize(16)
-        .fontWeight(FontWeight.Medium)
-        .margin({ top: 12 })
-        .enabled(this.redeemCodeInput.trim().length > 0 && !this.isRedeeming)
-        .opacity(this.redeemCodeInput.trim().length > 0 && !this.isRedeeming ? 1 : 0.5)
-        .onClick(() => {
-          lightHaptic()
-          this.redeem()
-        })
     }
     .width('100%')
     .alignItems(HorizontalAlign.Start)
