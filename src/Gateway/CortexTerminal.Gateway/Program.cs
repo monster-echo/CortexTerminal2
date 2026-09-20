@@ -351,6 +351,7 @@ builder.Services.Configure<RelayOptions>(builder.Configuration.GetSection(RelayO
 builder.Services.AddSingleton<RelayOptions>(sp => sp.GetRequiredService<IOptions<RelayOptions>>().Value);
 builder.Services.AddSingleton<WorkspaceRegistry>();
 builder.Services.AddSingleton<RelayFileTransferService>();
+builder.Services.AddSingleton<PunchRendezvous>();
 builder.Services.AddSingleton<FeedbackStorage>();
 builder.Services.AddSingleton<AgentActivityService>();
 
@@ -2836,6 +2837,35 @@ app.MapGet("/internal/tunnels/{tunnelKey}", async (string tunnelKey, HttpContext
     return Results.Ok(new { tunnel.WorkerId, tunnel.Port, tunnel.SecretHash, tunnel.ExpiresAtUtc });
 }).AllowAnonymous();
 
+// ---- P2P 打洞中介（introducer）----
+// 一次传输的两端各自上报 STUN 得到的公网映射端点（以传输 token 证明参与者身份），
+// Gateway 互换给对方；实际对发探包由两端自行完成，打洞失败客户端自动回落 Relay。
+app.MapPost("/api/transfers/{transferId}/punch", (
+    string transferId,
+    PunchRegisterRequest body,
+    HttpContext ctx,
+    RelayOptions relayOptions,
+    PunchRendezvous rendezvous) =>
+{
+    var token = ctx.Request.Headers["X-Corterm-Transfer-Token"].FirstOrDefault() ?? string.Empty;
+    if (!CortexTerminal.Contracts.Streaming.RelayToken.TryValidate(
+            relayOptions.SharedSecret, token, RelayToken.AudienceTransfer, transferId, out _))
+    {
+        return Results.Unauthorized();
+    }
+
+    PunchRendezvousResult result;
+    try
+    {
+        result = rendezvous.Register(transferId, body.Role, body.Endpoint);
+    }
+    catch (ArgumentException ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+    return Results.Ok(new { ready = result.Ready, peerEndpoint = result.Peer?.Endpoint, expiresAtUtc = result.ExpiresAtUtc });
+}).RequireAuthorization();
+
 // ---- Agent activity ----
 app.MapGet("/api/sessions/{sessionId}/agent-events", async (
     string sessionId,
@@ -3151,6 +3181,8 @@ internal sealed class LatestVersionCache
 }
 
 public sealed record FeedbackUploadRequest(string Filename);
+
+public sealed record PunchRegisterRequest(string Role, string Endpoint);
 
 public sealed record CreateFileUploadRequest(string DirPath, string Filename, long SizeBytes, string Sha256);
 
