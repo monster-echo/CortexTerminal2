@@ -1,11 +1,11 @@
 /**
  * @file MembershipPage.ets
- * @brief Membership / billing surface for HarmonyOS client.
+ * @brief Membership / pricing surface for the HarmonyOS client.
  *
- * Shows the current entitlement (GET /api/billing/subscription), the active
- * plan catalog (GET /api/billing/plans, public), and in-app redeem-code entry
- * (POST /api/billing/redeem). Purchases complete on the web console — the
- * pricing page opens in the in-app browser.
+ * Layout: current-entitlement summary -> selectable plan cards -> one primary CTA.
+ * Data: GET /api/billing/subscription (entitlement) + GET /api/billing/plans (catalog).
+ * Purchases are completed on the web console; the CTA opens the pricing page.
+ * Redeem codes live behind the AppBar "···" menu (secondary action).
  */
 import {
   ApiService,
@@ -29,6 +29,7 @@ interface BillingPlan {
 @Component
 export struct MembershipPage {
   @Consume('pageStack') pageStack: NavPathStack
+  @StorageLink('membershipRefreshTick') @Watch('onRefreshTick') refreshTick: number = 0
   @State isLoading: boolean = true
   @State loadError: string = ''
   @State tier: string = ''
@@ -37,7 +38,7 @@ export struct MembershipPage {
   @State maxWorkers: number = 0
   @State maxScrollbackMegabytes: number = 0
   @State plans: BillingPlan[] = []
-  @StorageLink('membershipRefreshTick') @Watch('onRefreshTick') refreshTick: number = 0
+  @State selectedPlanCode: string = ''
 
   onRefreshTick() {
     this.loadMembership()
@@ -66,35 +67,96 @@ export struct MembershipPage {
   }
 
   private async loadPlans() {
-    try {
-      const raw = await ApiService.listPlans()
-      const mapped: BillingPlan[] = []
-      for (let i = 0; i < raw.length; i++) {
-        const item = raw[i] as Record<string, Object>
-        const plan: BillingPlan = {
-          code: item['code'] as string,
-          tier: item['tier'] as string,
-          billingPeriod: item['billingPeriod'] as string,
-          priceAmount: item['priceAmount'] as number,
-          priceCurrency: item['priceCurrency'] as string,
-          maxWorkers: item['maxWorkers'] as number,
-          maxScrollbackMegabytes: item['maxScrollbackMegabytes'] as number
-        }
-        mapped.push(plan)
+    const raw = await ApiService.listPlans()
+    const mapped: BillingPlan[] = []
+    for (let i = 0; i < raw.length; i++) {
+      const item = raw[i] as Record<string, Object>
+      const plan: BillingPlan = {
+        code: item['code'] as string,
+        tier: item['tier'] as string,
+        billingPeriod: item['billingPeriod'] as string,
+        priceAmount: item['priceAmount'] as number,
+        priceCurrency: item['priceCurrency'] as string,
+        maxWorkers: item['maxWorkers'] as number,
+        maxScrollbackMegabytes: item['maxScrollbackMegabytes'] as number
       }
-      this.plans = mapped
-    } catch (e) {
-      // Plans are informational — a failure here must not hide the entitlement card.
-      // The error surfaces in the plans section only.
-      this.plans = []
+      mapped.push(plan)
+    }
+    this.plans = mapped
+    if (this.selectedPlanCode.length === 0) {
+      this.selectedPlanCode = this.defaultSelection(mapped)
     }
   }
 
-  private periodSuffix(period: string): string {
-    if (period === 'monthly') {
+  /** Yearly Pro is the headline offer; fall back to any paid plan, else free. */
+  private defaultSelection(plans: BillingPlan[]): string {
+    for (let i = 0; i < plans.length; i++) {
+      if (plans[i].code === 'pro_year') {
+        return plans[i].code
+      }
+    }
+    for (let i = 0; i < plans.length; i++) {
+      if (plans[i].tier === 'pro') {
+        return plans[i].code
+      }
+    }
+    return plans.length > 0 ? plans[0].code : ''
+  }
+
+  private planName(code: string): string {
+    const key = `membership.plan_${code}`
+    const localized = I18n.get(key)
+    return localized === key ? code : localized
+  }
+
+  private isRecommended(plan: BillingPlan): boolean {
+    return plan.code === 'pro_year'
+  }
+
+  private isCurrentPlan(plan: BillingPlan): boolean {
+    if (plan.tier === 'free' && !this.isActive) {
+      return true
+    }
+    return this.isActive && plan.tier === 'pro' && plan.code === 'pro_lifetime'
+  }
+
+  private priceMain(plan: BillingPlan): string {
+    if (plan.tier === 'free') {
+      return I18n.get('membership.price_free')
+    }
+    return `${this.currencySymbol(plan.priceCurrency)}${plan.priceAmount}`
+  }
+
+  private currencySymbol(currency: string): string {
+    if (currency === 'CNY') {
+      return '¥'
+    }
+    if (currency === 'USD') {
+      return '$'
+    }
+    if (currency === 'EUR') {
+      return '€'
+    }
+    return `${currency} `
+  }
+
+  private workersLabel(plan: BillingPlan): string {
+    return plan.maxWorkers === 1
+      ? I18n.getWithArgs('membership.benefit_worker_one', { 'n': '1' })
+      : I18n.getWithArgs('membership.benefit_workers', { 'n': `${plan.maxWorkers}` })
+  }
+
+  private currentWorkersLabel(): string {
+    return this.maxWorkers === 1
+      ? I18n.getWithArgs('membership.benefit_worker_one', { 'n': '1' })
+      : I18n.getWithArgs('membership.benefit_workers', { 'n': `${this.maxWorkers}` })
+  }
+
+  private pricePeriod(plan: BillingPlan): string {
+    if (plan.billingPeriod === 'monthly') {
       return I18n.get('membership.per_month')
     }
-    if (period === 'yearly') {
+    if (plan.billingPeriod === 'yearly') {
       return I18n.get('membership.per_year')
     }
     return I18n.get('membership.lifetime')
@@ -179,12 +241,14 @@ export struct MembershipPage {
       Column() {
         this.EntitlementCard()
         this.PlansSection()
+        this.CtaSection()
       }
       .width('100%')
       .padding({ bottom: 24 })
     }
     .layoutWeight(1)
     .align(Alignment.Top)
+    .scrollBar(BarState.Off)
   }
 
   @Builder
@@ -192,7 +256,7 @@ export struct MembershipPage {
     Column() {
       Row() {
         SymbolGlyph(this.isActive ? $r('sys.symbol.checkmark_circle') : $r('sys.symbol.person_2'))
-          .fontSize(28)
+          .fontSize(26)
           .fontColor([this.isActive ? $r('app.color.terminal_tertiary') : $r('app.color.terminal_on_surface_variant')])
         Column() {
           Text(this.isActive ? I18n.get('membership.current_tier_pro') : I18n.get('membership.current_tier_free'))
@@ -212,14 +276,20 @@ export struct MembershipPage {
       }
       .width('100%')
 
-      Text(I18n.getWithArgs('membership.scrollback_quota', { 'n': `${this.maxScrollbackMegabytes}` }))
-        .fontSize(13)
-        .fontColor($r('app.color.terminal_on_surface_variant'))
-        .margin({ top: 12 })
-      Text(I18n.getWithArgs('membership.workers_quota', { 'n': `${this.maxWorkers}` }))
-        .fontSize(13)
-        .fontColor($r('app.color.terminal_on_surface_variant'))
-        .margin({ top: 4 })
+      Divider()
+        .color($r('app.color.terminal_outline_variant'))
+        .margin({ top: 14, bottom: 12 })
+
+      Row() {
+        Text(this.currentWorkersLabel())
+          .fontSize(13)
+          .fontColor($r('app.color.terminal_on_surface_variant'))
+          .layoutWeight(1)
+        Text(I18n.getWithArgs('membership.benefit_scrollback', { 'n': `${this.maxScrollbackMegabytes}` }))
+          .fontSize(13)
+          .fontColor($r('app.color.terminal_on_surface_variant'))
+      }
+      .width('100%')
     }
     .width('100%')
     .padding(16)
@@ -230,40 +300,121 @@ export struct MembershipPage {
   @Builder
   PlansSection() {
     Column() {
-      Text(I18n.get('membership.plans_title'))
-        .fontSize(14)
-        .fontWeight(FontWeight.Medium)
-        .fontColor($r('app.color.terminal_on_surface_variant'))
-        .margin({ top: 24, bottom: 8 })
+      Text(I18n.get('membership.choose_plan'))
+        .fontSize(16)
+        .fontWeight(FontWeight.Bold)
+        .fontColor($r('app.color.terminal_primary'))
+        .width('100%')
+        .margin({ top: 24, bottom: 12 })
 
       ForEach(this.plans, (plan: BillingPlan) => {
-        Row() {
-          Column() {
-            Text(`${plan.code}`)
+        this.PlanCard(plan)
+      }, (plan: BillingPlan) => plan.code)
+    }
+    .width('100%')
+    .alignItems(HorizontalAlign.Start)
+  }
+
+  @Builder
+  PlanCard(plan: BillingPlan) {
+    Column() {
+      Row() {
+        Column() {
+          Row() {
+            Text(this.planName(plan.code))
               .fontSize(16)
               .fontWeight(FontWeight.Medium)
               .fontColor($r('app.color.terminal_primary'))
-            Text(I18n.getWithArgs('membership.scrollback_quota', { 'n': `${plan.maxScrollbackMegabytes}` }))
+            if (this.isRecommended(plan)) {
+              Text(I18n.get('membership.recommended'))
+                .fontSize(11)
+                .fontColor($r('app.color.terminal_on_secondary_container'))
+                .backgroundColor($r('app.color.terminal_secondary_container'))
+                .borderRadius(8)
+                .padding({ left: 6, right: 6, top: 2, bottom: 2 })
+                .margin({ left: 8 })
+            }
+            if (this.isCurrentPlan(plan)) {
+              Text(I18n.get('membership.plan_current'))
+                .fontSize(11)
+                .fontColor($r('app.color.terminal_tertiary'))
+                .borderRadius(8)
+                .border({ width: 1, color: $r('app.color.terminal_tertiary') })
+                .padding({ left: 6, right: 6, top: 1, bottom: 1 })
+                .margin({ left: 8 })
+            }
+          }
+          .alignItems(VerticalAlign.Center)
+
+          Row() {
+            SymbolGlyph($r('sys.symbol.checkmark_circle'))
+              .fontSize(13)
+              .fontColor([$r('app.color.terminal_tertiary')])
+            Text(this.workersLabel(plan))
+              .fontSize(12)
+              .fontColor($r('app.color.terminal_on_surface_variant'))
+              .margin({ left: 6 })
+            SymbolGlyph($r('sys.symbol.checkmark_circle'))
+              .fontSize(13)
+              .fontColor([$r('app.color.terminal_tertiary')])
+              .margin({ left: 12 })
+            Text(I18n.getWithArgs('membership.benefit_scrollback', { 'n': `${plan.maxScrollbackMegabytes}` }))
+              .fontSize(12)
+              .fontColor($r('app.color.terminal_on_surface_variant'))
+              .margin({ left: 6 })
+          }
+          .width('100%')
+          .margin({ top: 8 })
+          .alignItems(VerticalAlign.Center)
+        }
+        .alignItems(HorizontalAlign.Start)
+        .layoutWeight(1)
+
+        Column() {
+          Text(this.priceMain(plan))
+            .fontSize(20)
+            .fontWeight(FontWeight.Bold)
+            .fontColor(plan.tier === 'free'
+              ? $r('app.color.terminal_on_surface_variant')
+              : $r('app.color.terminal_secondary'))
+          if (plan.tier !== 'free') {
+            Text(this.pricePeriod(plan))
               .fontSize(12)
               .fontColor($r('app.color.terminal_on_surface_variant'))
               .margin({ top: 2 })
           }
-          .alignItems(HorizontalAlign.Start)
-          .layoutWeight(1)
-
-          Text(`${plan.priceAmount} ${plan.priceCurrency}${this.periodSuffix(plan.billingPeriod)}`)
-            .fontSize(15)
-            .fontWeight(FontWeight.Medium)
-            .fontColor($r('app.color.terminal_secondary'))
         }
-        .width('100%')
-        .padding(14)
-        .borderRadius(10)
-        .backgroundColor($r('app.color.terminal_surface_container'))
-        .margin({ bottom: 8 })
-      }, (plan: BillingPlan) => plan.code)
+        .alignItems(HorizontalAlign.End)
+        .margin({ left: 12 })
+      }
+      .width('100%')
+      .alignItems(VerticalAlign.Center)
+    }
+    .width('100%')
+    .padding(16)
+    .borderRadius(12)
+    .backgroundColor(this.selectedPlanCode === plan.code
+      ? $r('app.color.terminal_surface_container_high')
+      : $r('app.color.terminal_surface_container'))
+    .border({
+      width: this.selectedPlanCode === plan.code ? 2 : 1,
+      color: this.selectedPlanCode === plan.code
+        ? $r('app.color.terminal_secondary_container')
+        : $r('app.color.terminal_outline_variant')
+    })
+    .margin({ bottom: 12 })
+    .onClick(() => {
+      clickHaptic()
+      this.selectedPlanCode = plan.code
+    })
+  }
 
-      Button(I18n.get('membership.view_pricing'))
+  @Builder
+  CtaSection() {
+    Column() {
+      Button(this.selectedTier() === 'free'
+        ? I18n.get('membership.cta_manage')
+        : I18n.get('membership.cta_upgrade'))
         .type(ButtonType.Capsule)
         .width('100%')
         .height(48)
@@ -271,18 +422,28 @@ export struct MembershipPage {
         .fontColor($r('app.color.terminal_on_secondary_container'))
         .fontSize(16)
         .fontWeight(FontWeight.Medium)
-        .margin({ top: 8 })
         .onClick(() => {
           clickHaptic()
           this.openPricing()
         })
 
-      Text(I18n.get('membership.upgrade_hint'))
+      Text(I18n.get('membership.secure_payment'))
         .fontSize(12)
         .fontColor($r('app.color.terminal_on_surface_variant'))
-        .margin({ top: 8 })
+        .textAlign(TextAlign.Center)
+        .width('100%')
+        .margin({ top: 10 })
     }
     .width('100%')
-    .alignItems(HorizontalAlign.Start)
+    .margin({ top: 8 })
+  }
+
+  private selectedTier(): string {
+    for (let i = 0; i < this.plans.length; i++) {
+      if (this.plans[i].code === this.selectedPlanCode) {
+        return this.plans[i].tier
+      }
+    }
+    return 'free'
   }
 }
