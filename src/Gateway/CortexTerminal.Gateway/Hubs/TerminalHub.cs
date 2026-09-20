@@ -16,6 +16,8 @@ public sealed class TerminalHub(
     IWorkerCommandDispatcher workerCommands,
     ISessionLaunchCoordinator sessionLaunchCoordinator,
     IGatewayStatsService stats,
+    IWorkerRegistry workers,
+    ScrollbackSettings scrollbackSettings,
     ILogger<TerminalHub> logger) : Hub
 {
     public override Task OnConnectedAsync()
@@ -28,6 +30,33 @@ public sealed class TerminalHub(
     {
         stats.ClientDisconnected();
         return base.OnDisconnectedAsync(exception);
+    }
+
+    /// <summary>
+    /// Session outlives the terminal: when the coordinator reports the shell is
+    /// gone (Expired/Exited after a worker restart or start failure), start a
+    /// fresh shell for the SAME session id — Windows-Terminal restart-shell
+    /// semantics. The device-side worker snapshot supplies prior history; the
+    /// fresh shell's output appends below the reconnect divider.
+    /// </summary>
+    private async Task RestartShellIfRequiredAsync(ReattachSessionResult result, string sessionId, CancellationToken cancellationToken)
+    {
+        if (!result.ShellRestartRequired)
+        {
+            return;
+        }
+        if (!sessions.TryGetSession(sessionId, out var session)
+            || !workers.TryGetWorker(session.WorkerId, out var worker))
+        {
+            throw new HubException("worker-offline");
+        }
+        // The session's recorded connection died with the old worker process —
+        // rebind to the worker's current connection before dispatching.
+        sessions.TryRebindSessionWorkerConnection(sessionId, worker.ConnectionId);
+        await workerCommands.StartSessionAsync(
+            worker.ConnectionId,
+            new StartSessionCommand(sessionId, session.Columns, session.Rows, scrollbackSettings.MaxBytes, null),
+            cancellationToken);
     }
     public Task<CreateSessionResult> CreateSession(CreateSessionRequest request)
         => CreateSessionCoreAsync(request, Context.ConnectionAborted);
@@ -70,6 +99,17 @@ public sealed class TerminalHub(
         {
             replayCoordinator.AbortReplay(request.SessionId);
             return result;
+        }
+
+        try
+        {
+            await RestartShellIfRequiredAsync(result, request.SessionId, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Shell restart failed for session {SessionId}.", request.SessionId);
+            replayCoordinator.AbortReplay(request.SessionId);
+            return ReattachSessionResult.Failure("worker-offline");
         }
 
         if (!string.IsNullOrEmpty(oldConnectionId) && oldConnectionId != Context.ConnectionId)
@@ -158,6 +198,17 @@ public sealed class TerminalHub(
         {
             replayCoordinator.AbortReplay(request.SessionId);
             return result;
+        }
+
+        try
+        {
+            await RestartShellIfRequiredAsync(result, request.SessionId, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Shell restart failed for session {SessionId}.", request.SessionId);
+            replayCoordinator.AbortReplay(request.SessionId);
+            return ReattachSessionResult.Failure("worker-offline");
         }
 
         if (!string.IsNullOrEmpty(oldConnectionId) && oldConnectionId != Context.ConnectionId)

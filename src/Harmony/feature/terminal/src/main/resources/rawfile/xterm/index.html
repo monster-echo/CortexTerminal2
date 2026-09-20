@@ -154,6 +154,17 @@
         }
       });
 
+      // Session title: xterm parses OSC 0/2 emitted by the remote shell (the
+      // Worker injects title-reporting into the managed zshrc/bashrc/prompt) and
+      // fires this callback. Forward to ArkTS so the page title / session list
+      // can track the live title — Windows-Terminal-style passive listening, the
+      // sequence is consumed by the parser and never rendered.
+      term.onTitleChange(function(title) {
+        if (title && h5Port) {
+          h5Port.postMessage(JSON.stringify({ type: 'title', title: title }));
+        }
+      });
+
       // === Renderer: WebGL (user-controlled via settings) ===
       // ArkWeb API20+ emulators have a GPU regression where WebGL canvas
       // renders pure black. Users can disable GPU acceleration in Settings
@@ -741,6 +752,16 @@
       if (!term) return;
       var chunk = JSON.parse(json);
       term.write(chunk.data);
+    }
+
+    /**
+     * Visual boundary between a previous terminal's restored output and the
+     * live output of the freshly attached one (Windows-Terminal restart-shell
+     * style). Dim-styled so it reads as a marker, not content.
+     */
+    function writeDivider(text) {
+      if (!term) return;
+      term.write('\x1b[2m\r\n──── ' + text + ' ────\x1b[0m\r\n');
     }
 
     // === Window resize handling ===

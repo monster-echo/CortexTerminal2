@@ -124,10 +124,12 @@ public sealed class ReattachSessionCoordinatorTests
     }
 
     [Fact]
-    public async Task ReattachSessionAsync_WhenSessionAlreadyExpired_ReturnsExpired()
+    public async Task ReattachSessionAsync_WhenSessionAlreadyExpired_RestartsShell()
     {
-        // Terminal states (Expired/Exited) are still rejected — only DetachedGracePeriod
-        // recovers unconditionally. Guards the retained rejection branch.
+        // Session outlives the terminal (and worker restarts): Expired only means
+        // the shell is gone. Reattach succeeds and flags the hub to start a fresh
+        // shell for the same session id (Windows-Terminal restart-shell semantics;
+        // the device-side worker snapshot supplies prior history).
         var coordinator = CreateCoordinator();
         var createResult = await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), clientConnectionId: null, CancellationToken.None);
         var sessionId = createResult.Response!.SessionId;
@@ -141,8 +143,45 @@ public sealed class ReattachSessionCoordinatorTests
             new DateTimeOffset(2025, 1, 1, 12, 0, 0, TimeSpan.Zero),
             CancellationToken.None);
 
-        result.IsSuccess.Should().BeFalse();
-        result.ErrorCode.Should().Be("session-expired");
+        result.IsSuccess.Should().BeTrue();
+        result.ShellRestartRequired.Should().BeTrue();
+        coordinator.TryGetSession(sessionId, out var reattached).Should().BeTrue();
+        reattached.AttachmentState.Should().Be(SessionAttachmentState.Attached);
+        reattached.AttachedClientConnectionId.Should().Be("client-2");
+        reattached.ReplayPending.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task ReattachSessionAsync_WhenSessionExited_RestartsShellToo()
+    {
+        var coordinator = CreateCoordinator();
+        var createResult = await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), clientConnectionId: null, CancellationToken.None);
+        var sessionId = createResult.Response!.SessionId;
+        var sessions = GetSessions(coordinator);
+        sessions[sessionId] = sessions[sessionId] with { AttachmentState = SessionAttachmentState.Exited };
+
+        var result = await coordinator.ReattachSessionAsync(
+            "user-1",
+            new ReattachSessionRequest(sessionId),
+            "client-2",
+            new DateTimeOffset(2025, 1, 1, 12, 0, 0, TimeSpan.Zero),
+            CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.ShellRestartRequired.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task TryRebindSessionWorkerConnection_PointsSessionAtCurrentWorkerConnection()
+    {
+        var coordinator = CreateCoordinator();
+        var createResult = await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 120, 40), clientConnectionId: null, CancellationToken.None);
+        var sessionId = createResult.Response!.SessionId;
+
+        coordinator.TryRebindSessionWorkerConnection(sessionId, "worker-conn-new").Should().BeTrue();
+        coordinator.TryGetSession(sessionId, out var rebound).Should().BeTrue();
+        rebound.WorkerConnectionId.Should().Be("worker-conn-new");
+        coordinator.TryRebindSessionWorkerConnection("sess_missing", "worker-conn-x").Should().BeFalse();
     }
 
     private static ISessionCoordinator CreateCoordinator()

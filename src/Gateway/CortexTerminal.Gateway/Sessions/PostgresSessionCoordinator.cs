@@ -253,6 +253,7 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
         string? dbState = null;
         string? dbClient = null;
         bool? dbReplay = null;
+        var shellRestartRequired = false;
         string logMessage = "";
         ReattachSessionResult result;
 
@@ -291,10 +292,27 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
                 logMessage = $"Reattach: {request.SessionId} Recovering → Attached (client={clientConnectionId})";
                 result = ReattachSessionResult.Success();
             }
-            else if (session.AttachmentState != SessionAttachmentState.DetachedGracePeriod)
+            else if (session.AttachmentState is SessionAttachmentState.Expired
+                     or SessionAttachmentState.Exited)
             {
-                // Expired/Exited — terminal states are still rejected.
-                return ReattachSessionResult.Failure("session-expired");
+                // Session outlives the terminal (and worker restarts): Expired/Exited
+                // only means the shell is gone — the session container stays attachable.
+                // The hub starts a fresh shell for the same session id (Windows-Terminal
+                // restart-shell semantics); the device-side worker snapshot supplies the
+                // prior history and the hub inserts a divider before new output.
+                staged = session with
+                {
+                    AttachmentState = SessionAttachmentState.Attached,
+                    AttachedClientConnectionId = clientConnectionId,
+                    ReplayPending = true,
+                    LastActivityAtUtc = nowUtc
+                };
+                dbState = "Attached";
+                dbClient = clientConnectionId;
+                dbReplay = true;
+                shellRestartRequired = true;
+                logMessage = $"session.reattached {request.SessionId} client={clientConnectionId} (shell-restart from {session.AttachmentState})";
+                result = ReattachSessionResult.SuccessWithShellRestart();
             }
             else
             {
@@ -335,7 +353,9 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
             _logger.LogInformation("{Message}", logMessage);
         }
 
-        return result;
+        return shellRestartRequired
+            ? ReattachSessionResult.SuccessWithShellRestart()
+            : result;
     }
 
     public async Task MarkSessionStartFailed(string sessionId, string reason)
@@ -654,6 +674,25 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
         lock (_sync)
         {
             return _sessions.TryGetValue(sessionId, out session!);
+        }
+    }
+
+    /// <summary>
+    /// Point one session at the worker's CURRENT connection (used when a shell
+    /// restart re-attaches a session whose recorded connection died with the
+    /// previous worker process). In-memory only — the DB column is refreshed by
+    /// RebindActiveSessions on the next worker re-register.
+    /// </summary>
+    public bool TryRebindSessionWorkerConnection(string sessionId, string workerConnectionId)
+    {
+        lock (_sync)
+        {
+            if (!_sessions.TryGetValue(sessionId, out var session))
+            {
+                return false;
+            }
+            _sessions[sessionId] = session with { WorkerConnectionId = workerConnectionId };
+            return true;
         }
     }
 

@@ -44,9 +44,14 @@ public sealed record ReattachSessionSinceRequest(
 [MessagePackObject]
 public sealed record ReattachSessionResult(
     [property: Key(0)] bool IsSuccess,
-    [property: Key(1)] string? ErrorCode)
+    [property: Key(1)] string? ErrorCode,
+    [property: Key(2)] bool ShellRestartRequired = false)
 {
     public static ReattachSessionResult Success() => new(true, null);
+
+    /// <summary>Attach succeeded but the shell is gone (worker restart / start
+    /// failure) — the hub starts a fresh shell for the same session id.</summary>
+    public static ReattachSessionResult SuccessWithShellRestart() => new(true, null, true);
 
     public static ReattachSessionResult Failure(string errorCode) => new(false, errorCode);
 }

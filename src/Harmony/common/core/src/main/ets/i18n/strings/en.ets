@@ -113,6 +113,7 @@ export const enStrings: Record<string, string> = {
   'terminal.copy_no_selection': 'No text selected',
   'terminal.copy_done': 'Copied',
   'terminal.paste_empty': 'Clipboard is empty',
+  'terminal.reconnect_divider': 'Reconnected · previous output above',
   'terminal.error.retry': 'Retry',
   'terminal.key.esc': 'Esc',
   'terminal.key.ctrl': 'Ctrl',

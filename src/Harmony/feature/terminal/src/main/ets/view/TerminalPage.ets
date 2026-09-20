@@ -46,7 +46,7 @@ struct SessionDetailDialog {
       Text(I18n.get('terminal.detail.title'))
         .fontSize(18)
         .fontWeight(FontWeight.Bold)
-        .fontColor($r('app.color.terminal_primary'))
+        .fontColor($r('app.color.terminal_on_surface'))
         .width('100%')
         .textAlign(TextAlign.Start)
         .margin({ bottom: 12 })
@@ -59,7 +59,7 @@ struct SessionDetailDialog {
         Text(this.status)
           .fontSize(14)
           .fontWeight(FontWeight.Medium)
-          .fontColor($r('app.color.terminal_primary'))
+          .fontColor($r('app.color.terminal_on_surface'))
       }
       .width('100%')
       .height(36)
@@ -73,7 +73,7 @@ struct SessionDetailDialog {
         Text(`${this.cols}`)
           .fontSize(14)
           .fontWeight(FontWeight.Medium)
-          .fontColor($r('app.color.terminal_primary'))
+          .fontColor($r('app.color.terminal_on_surface'))
       }
       .width('100%')
       .height(36)
@@ -87,7 +87,7 @@ struct SessionDetailDialog {
         Text(`${this.rows}`)
           .fontSize(14)
           .fontWeight(FontWeight.Medium)
-          .fontColor($r('app.color.terminal_primary'))
+          .fontColor($r('app.color.terminal_on_surface'))
       }
       .width('100%')
       .height(36)
@@ -101,7 +101,7 @@ struct SessionDetailDialog {
         Text(this.latencyMs >= 0 ? `${this.latencyMs}ms` : '—')
           .fontSize(14)
           .fontWeight(FontWeight.Medium)
-          .fontColor($r('app.color.terminal_primary'))
+          .fontColor($r('app.color.terminal_on_surface'))
       }
       .width('100%')
       .height(36)
@@ -111,8 +111,8 @@ struct SessionDetailDialog {
         .height(40)
         .margin({ top: 16 })
         .fontSize(15)
-        .fontColor($r('app.color.terminal_on_secondary_container'))
-        .backgroundColor($r('app.color.terminal_secondary_container'))
+        .fontColor($r('app.color.terminal_on_primary'))
+        .backgroundColor($r('app.color.terminal_primary'))
         .borderRadius(10)
         .onClick(() => {
           clickHaptic()
@@ -132,6 +132,9 @@ struct SessionDetailDialog {
 export struct TerminalPage {
   @State sessionId: string = ''
   @State sessionName: string = 'Terminal'
+  private storedName: string = ''
+  private autoNamed: boolean = false
+  private autoRenameInFlight: boolean = false
   @State currentState: TerminalState = TerminalState.Disconnected
   @StorageLink('gatewayUrl') gatewayUrl: string = ''
   @StorageLink('authToken') authToken: string = ''
@@ -229,6 +232,9 @@ export struct TerminalPage {
       const lastParam = param[param.length - 1]
       this.sessionId = lastParam.sessionId
       this.sessionName = lastParam.sessionName || 'Terminal'
+      // Stored (server-side) name — used to detect the default `session xxxxxxxx`
+      // placeholder so the first OSC title can upgrade it to something meaningful.
+      this.storedName = this.sessionName
       // Snapshot key: the WORKER when known — every session on the same
       // machine shares one rolling history. Worker-less navigation falls
       // back to the session id (per-session snapshot, no cross concat).
@@ -284,7 +290,7 @@ export struct TerminalPage {
         Button() {
           SymbolGlyph($r('sys.symbol.chevron_left'))
             .fontSize(20)
-            .fontColor([$r('app.color.terminal_primary')])
+            .fontColor([$r('app.color.terminal_on_surface')])
         }
         .width(40)
         .height(40)
@@ -298,7 +304,7 @@ export struct TerminalPage {
         Text(this.sessionName)
           .fontSize(17)
           .fontWeight(FontWeight.Medium)
-          .fontColor($r('app.color.terminal_primary'))
+          .fontColor($r('app.color.terminal_on_surface'))
           .layoutWeight(1)
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
@@ -350,8 +356,8 @@ export struct TerminalPage {
             Button(I18n.get('terminal.error.retry_connection'))
               .height(32)
               .borderRadius(8)
-              .backgroundColor($r('app.color.terminal_secondary_container'))
-              .fontColor($r('app.color.terminal_on_secondary_container'))
+              .backgroundColor($r('app.color.terminal_primary'))
+              .fontColor($r('app.color.terminal_on_primary'))
               .fontSize(12)
               .margin({ top: 8 })
               .onClick(() => {
@@ -404,6 +410,18 @@ export struct TerminalPage {
           },
           onSnapshotFailed: (message: string) => {
             this.onSnapshotFailed(message)
+          },
+          onTitleChange: (title: string) => {
+            // Remote shell reported its title (OSC 0/2). Update the page title
+            // live; additionally, if the user never named this session, upgrade
+            // the stored `session xxxxxxxx` placeholder ONCE using the first
+            // title. Later OSC updates keep touching only the page title —
+            // a user rename and the session list stay authoritative (WT-style).
+            if (title.length === 0) {
+              return
+            }
+            this.sessionName = title
+            this.maybeAutoRename(title)
           }
         })
 
@@ -754,6 +772,10 @@ export struct TerminalPage {
           .catch((e: Error) => console.warn('Failed to restore snapshot chunk: ' + e.message))
       }
       this.hasRestoredSnapshot = true
+      // Divider goes in IMMEDIATELY after the restored history (runJavaScript is
+      // FIFO, so it lands before the replay/live output that follows) — writing
+      // it later at swap time would race the live stream and interleave mid-line.
+      this.writeReconnectDivider()
     } catch (e) {
       console.error('Failed to restore terminal snapshot: ' + (e as Error).message)
       showToast(I18n.get('terminal.snapshot.load_failed'))
@@ -775,9 +797,73 @@ export struct TerminalPage {
     }
   }
 
+  /**
+   * One-shot auto-rename: when the session still carries the server-side default
+   * placeholder (`session xxxxxxxx` / 'Terminal'), derive a friendly name from the
+   * first OSC title the shell reports and persist it via the rename API. Never
+   * runs again after success — a user rename (from the session list) and any
+   * later AI-generated titles stay authoritative.
+   */
+  private maybeAutoRename(title: string) {
+    if (this.autoNamed || this.autoRenameInFlight) {
+      return
+    }
+    if (!this.isDefaultSessionName(this.storedName)) {
+      this.autoNamed = true
+      return
+    }
+    const friendly = this.friendlyNameFromTitle(title)
+    if (friendly.length === 0) {
+      return
+    }
+    this.autoRenameInFlight = true
+    ApiService.renameSession(this.sessionId, friendly)
+      .then(() => {
+        this.autoNamed = true
+        this.autoRenameInFlight = false
+        this.storedName = friendly
+      })
+      .catch((_e: Error) => {
+        // Leave autoNamed=false — the next prompt's title retries the upgrade.
+        // The terminal itself is unaffected; no error surface needed for a
+        // cosmetic background upgrade that self-heals on the next prompt.
+        this.autoRenameInFlight = false
+      })
+  }
+
+  /** True while the session still wears the auto-generated placeholder name. */
+  private isDefaultSessionName(name: string): boolean {
+    if (name.length === 0 || name === 'Terminal') {
+      return true
+    }
+    return /^session \S{1,12}$/.test(name)
+  }
+
+  /**
+   * Derive a friendly session name from a shell title.
+   * - Corterm's injected format `user@host:~/path` → basename of the path
+   *   (`~/projects/foo` → `foo`), or the host when at `~`.
+   * - Windows PowerShell titles (absolute paths) → last path segment.
+   * - Anything else (vim's `file.rs (VIM)`, claude's chat titles) → used as-is.
+   * All results are trimmed and capped so a long cwd can't flood the list.
+   */
+  private friendlyNameFromTitle(title: string): string {
+    let name = title
+    const shellTitle = /^[^@\s]+@[^:]+:(.+)$/.exec(title)
+    if (shellTitle !== null) {
+      const host = title.substring(0, title.indexOf(':'))
+      const hostName = host.substring(host.indexOf('@') + 1)
+      const path = shellTitle[1]
+      name = (path === '~' || path === '/') ? hostName : path.substring(Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\')) + 1)
+    } else {
+      name = title.substring(Math.max(title.lastIndexOf('/'), title.lastIndexOf('\\')) + 1)
+    }
+    name = name.trim()
+    return name.length > 24 ? name.substring(0, 24) : name
+  }
+
   /** Output writes reset this — snapshots are taken 3s after the stream quiets. */
-  private scheduleSnapshotSave() {
-    if (this.snapshotIdleTimer !== -1) {
+  private scheduleSnapshotSave() {    if (this.snapshotIdleTimer !== -1) {
       clearTimeout(this.snapshotIdleTimer)
     }
     this.snapshotIdleTimer = setTimeout(() => {
@@ -837,7 +923,8 @@ export struct TerminalPage {
       // re-opened session it duplicates the snapshot's tail. Resetting here
       // would destroy the concatenated history for nothing. pendingBatch may
       // still hold LIVE output that arrived during the replay window (e.g.
-      // the fresh shell banner) — flush it BELOW the restored history.
+      // the fresh shell banner) — flush it BELOW the restored history, after
+      // the reconnect divider that marks where the previous terminal ended.
       console.info('[snapshot] skip reset+replay swap (snapshot restored)')
       this.pendingSwap = false
       this.flushBatch()
@@ -857,6 +944,17 @@ export struct TerminalPage {
     // open falls back to a full replay instead of trusting a stale one.
     TerminalCache.getInstance().replaceAll(this.sessionId, packed)
     TerminalCache.getInstance().clearCursor(this.sessionId)
+  }
+
+  /** Dim separator between the previous terminal's output and the fresh one. */
+  private writeReconnectDivider() {
+    const divider = I18n.get('terminal.reconnect_divider')
+    try {
+      this.webviewController.runJavaScript(`writeDivider("${divider}")`)
+        .catch((e: Error) => console.warn('Failed to write reconnect divider: ' + e.message))
+    } catch (e) {
+      console.warn('Failed to write reconnect divider: ' + (e as Error).message)
+    }
   }
 
   private retryConnection() {
@@ -1033,7 +1131,7 @@ export struct TerminalPage {
       .constraintSize({ minWidth: 64 })
       .borderRadius(8)
       .backgroundColor(Color.Transparent)
-      .fontColor(enabled ? $r('app.color.terminal_primary') : $r('app.color.terminal_outline'))
+      .fontColor(enabled ? $r('app.color.terminal_on_surface') : $r('app.color.terminal_outline'))
       .opacity(enabled ? 1 : 0.5)
       .fontSize(14)
       .margin({ left: 2, right: 2 })
