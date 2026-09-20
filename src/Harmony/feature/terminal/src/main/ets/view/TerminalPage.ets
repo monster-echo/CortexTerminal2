@@ -971,6 +971,7 @@ export struct TerminalPage {
         }
         lightHaptic()
         const pasteData = pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, text)
+        AppStorage.setOrCreate('terminalClipboard', text)
         pasteboard.getSystemPasteboard().setData(pasteData)
           .then(() => {
             showToast(I18n.get('terminal.copy_done'))
@@ -991,7 +992,15 @@ export struct TerminalPage {
   private pasteFromClipboardToTerminal() {
     pasteboard.getSystemPasteboard().getData()
       .then((data: pasteboard.PasteData) => {
-        this.pasteTextToTerminal(data.getPrimaryText() ?? '')
+        const text = data.getPrimaryText() ?? ''
+        if (text.length > 0) {
+          this.pasteTextToTerminal(text)
+          return
+        }
+        // 模拟器 pasteboard 读回为空（setData 成功后 getData 仍空）。终端有自己的
+        // 内部缓冲（copy 时同步写入），与 tmux 的内部 buffer 同理。
+        const internal = AppStorage.get<string>('terminalClipboard') ?? ''
+        this.pasteTextToTerminal(internal)
       })
       .catch((e: Object) => {
         console.warn('Failed to read pasteboard: ' + (e as Error).message)
