@@ -315,10 +315,12 @@ export const zhStrings: Record<string, string> = {
   'files.uploading': '上传中...',
   'files.upload_done': '上传完成',
   'files.upload_failed': '上传失败',
-  'files.download_started': '正在准备下载...',
-  'files.download_done': '已下载',
-  'files.download_failed': '下载失败',
-  'files.download_timeout': '下载超时，请重试',
+  'files.preview_failed': '无法打开文件',
+  'files.preview_truncated': '文件较大，仅显示前 512KB',
+  'files.preview_unsupported': '此文件类型暂不支持预览',
+  'files.preview_size': '文件大小',
+  'files.preview_audio_playing': '正在播放',
+  'files.browse': '文件浏览',
 
   // ── Tunnel (Port Forwarding) ───────────────────────────────────────
   'tunnel.title': '端口转发',

@@ -7,7 +7,7 @@ import { AuthInterceptorExecute } from '../interceptor/AuthInterceptor'
 import { AuthService, RouteName } from '@rwecho/core'
 import { LoginPage, ActivateWorkerPage } from '@rwecho/auth'
 import { TerminalPage } from '@rwecho/terminal'
-import { FileBrowserPage } from '@rwecho/files'
+import { FileBrowserPage, FilePreviewPage } from '@rwecho/files'
 import { ShellScaffold } from '../shell/ShellScaffold'
 import { AccountSecurityPage, ChangePasswordPage, WebPage, ContactSupportPage, FeedbackPage, ImagePreviewPage, MembershipPage, RedeemPage } from '@rwecho/settings'
 
@@ -129,6 +129,12 @@ struct Index {
     } else if (name === RouteName.FILES_PAGE) {
       NavDestination() {
         FileBrowserPage()
+      }
+      .hideTitleBar(true)
+      .backgroundColor($r('app.color.terminal_surface'))
+    } else if (name === RouteName.FILE_PREVIEW) {
+      NavDestination() {
+        FilePreviewPage()
       }
       .hideTitleBar(true)
       .backgroundColor($r('app.color.terminal_surface'))

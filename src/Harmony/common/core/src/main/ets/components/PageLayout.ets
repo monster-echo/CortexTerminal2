@@ -8,6 +8,7 @@
  */
 
 import { clickHaptic } from '../utils/HapticUtils'
+import { OverflowMenuButton } from './OverflowMenuButton'
 
 /** One entry of the AppBar "···" overflow menu. */
 export class PageMenuItem {
@@ -56,18 +57,7 @@ export struct PageLayout {
           .margin({ left: 8 })
 
         if (this.moreMenuItems !== null && this.moreMenuItems.length > 0) {
-          Button() {
-            Row({ space: 3 }) {
-              Circle().width(4).height(4).fill($r('app.color.terminal_primary'))
-              Circle().width(4).height(4).fill($r('app.color.terminal_primary'))
-              Circle().width(4).height(4).fill($r('app.color.terminal_primary'))
-            }
-          }
-          .width(40)
-          .height(40)
-          .borderRadius(20)
-          .backgroundColor(Color.Transparent)
-          .bindMenu(this.moreMenuItems)
+          OverflowMenuButton({ items: this.moreMenuItems })
         }
       }
       .width('100%')

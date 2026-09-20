@@ -1,7 +1,8 @@
 /**
  * @file FileBrowserPage.ets
  * @brief Workspace file manager — browsing of a workspace (the session root on the worker)
- * with on-demand upload/download streamed through the Relay (or a direct endpoint).
+ * with on-demand upload streamed through the Relay (or a direct endpoint) and in-place
+ * preview for every file (see FilePreviewPage; no separate download step).
  *
  * Navigation is a breadcrumb over path segments; listing is a live worker RPC. Transfers
  * are initiated over REST and then streamed end-to-end — the PUT/GET response is the final
@@ -11,18 +12,22 @@ import { common } from '@kit.AbilityKit'
 import fs from '@ohos.file.fs'
 import hash from '@ohos.file.hash'
 import { window } from '@kit.ArkUI'
-import { ApiService, I18n, showToast, lightHaptic, clickHaptic } from '@rwecho/core'
+import { ApiService, I18n, RouteName, showToast, lightHaptic, clickHaptic } from '@rwecho/core'
 import { FileEntryModel, FileListingModel } from '../model/FileModels'
 import { FilesService } from '../service/FilesService'
 import { FilePicker, FilePickerResult } from '../service/FilePicker'
-import { FileDownloader } from '../service/FileDownloader'
 
 interface FileNavParam {
   workspaceId: string;
   workspaceName: string;
 }
 
-const IMAGE_EXTENSIONS: string[] = ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp', '.svg', '.heic']
+interface PreviewNavParam {
+  workspaceId: string;
+  path: string;
+  name: string;
+  sizeBytes: number;
+}
 
 @Component
 export struct FileBrowserPage {
@@ -38,8 +43,6 @@ export struct FileBrowserPage {
   @State transferName: string = ''
   @State transferState: string = ''
   @State transferMessage: string = ''
-  @State previewPath: string = ''
-  @State showPreview: boolean = false
   @Consume('pageStack') pageStack: NavPathStack
 
   aboutToAppear() {
@@ -164,18 +167,6 @@ export struct FileBrowserPage {
     .width('100%')
     .height('100%')
     .backgroundColor($r('app.color.terminal_surface'))
-    .bindSheet(this.showPreview, this.PreviewSheet(), {
-      backgroundColor: $r('app.color.terminal_surface'),
-      onDisappear: () => { this.showPreview = false }
-    })
-  }
-
-  @Builder
-  PreviewSheet() {
-    Image(`file://${this.previewPath}`)
-      .width('100%')
-      .height('100%')
-      .objectFit(ImageFit.Contain)
   }
 
   @Builder
@@ -282,9 +273,9 @@ export struct FileBrowserPage {
       .margin({ left: 10 })
 
       if (!item.isDirectory) {
-        SymbolGlyph($r('sys.symbol.arrow_down_circle'))
-          .fontSize(18)
-          .fontColor([$r('app.color.terminal_secondary')])
+        SymbolGlyph($r('sys.symbol.chevron_right'))
+          .fontSize(16)
+          .fontColor([$r('app.color.terminal_on_surface_variant')])
       }
     }
     .width('100%')
@@ -295,7 +286,7 @@ export struct FileBrowserPage {
       if (item.isDirectory) {
         this.openDirectory(item.name)
       } else {
-        this.handleDownload(item)
+        this.openPreview(item)
       }
     })
   }
@@ -484,64 +475,22 @@ export struct FileBrowserPage {
     }
   }
 
-  // ── Download flow ─────────────────────────────────────────────────
+  // ── Preview ───────────────────────────────────────────────────────
 
-  private async handleDownload(item: FileEntryModel): Promise<void> {
-    if (this.transferActive) {
-      return
-    }
+  private openPreview(item: FileEntryModel): void {
     lightHaptic()
-    this.transferActive = true
-    this.transferName = item.name
-    this.transferState = 'downloading'
-    this.transferMessage = I18n.get('files.download_started')
-    try {
-      const path = this.entryPath(item.name)
-      const init = await FilesService.startDownload(this.workspaceId, path)
-
-      const filesDir = AppStorage.get<string>('filesDir') ?? ''
-      if (filesDir.length === 0) {
-        throw new Error('filesDir not available')
-      }
-      const downloadDir = `${filesDir}/downloads`
-      try {
-        fs.mkdirSync(downloadDir, true)
-      } catch (_e) {
-        // 目录已存在,忽略 —— 鸿蒙 request.downloadFile 写文件要求父目录存在,否则报 get FD
-      }
-      const targetPath = `${downloadDir}/${item.name}`
-      const context = getContext(this) as common.UIAbilityContext
-      await FilesService.downloadViaEndpoints(context, targetPath, init.endpoints)
-
-      this.transferState = 'done'
-      this.transferMessage = I18n.get('files.download_done')
-      showToast(item.name)
-      if (FileBrowserPage.isImageName(item.name)) {
-        this.previewPath = targetPath
-        this.showPreview = true
-      }
-    } catch (e) {
-      this.transferState = 'failed'
-      this.transferMessage = (e as Error).message || I18n.get('files.download_failed')
-      showToast(this.transferMessage)
-    } finally {
-      this.transferActive = false
+    const param: PreviewNavParam = {
+      workspaceId: this.workspaceId,
+      path: this.entryPath(item.name),
+      name: item.name,
+      sizeBytes: item.sizeBytes
     }
+    this.pageStack.pushPath({ name: RouteName.FILE_PREVIEW, param: param })
   }
 
   private entryPath(name: string): string {
     const segments = [...this.pathSegments, name]
     return segments.join('/')
-  }
-
-  private static isImageName(name: string): boolean {
-    const lower = name.toLowerCase()
-    for (let i = 0; i < IMAGE_EXTENSIONS.length; i++) {
-      if (lower.endsWith(IMAGE_EXTENSIONS[i])) {
-        return true
-      }
-    }
-    return false
   }
 
   private static formatSize(bytes: number): string {

@@ -315,10 +315,12 @@ export const enStrings: Record<string, string> = {
   'files.uploading': 'Uploading...',
   'files.upload_done': 'Upload complete',
   'files.upload_failed': 'Upload failed',
-  'files.download_started': 'Preparing download...',
-  'files.download_done': 'Downloaded',
-  'files.download_failed': 'Download failed',
-  'files.download_timeout': 'Download timed out, try again',
+  'files.preview_failed': 'Unable to open this file',
+  'files.preview_truncated': 'Large file — showing the first 512 KB',
+  'files.preview_unsupported': 'Preview is not available for this file type',
+  'files.preview_size': 'File size',
+  'files.preview_audio_playing': 'Playing',
+  'files.browse': 'Browse files',
 
   // ── Tunnel (Port Forwarding) ───────────────────────────────────────
   'tunnel.title': 'Port Forwarding',

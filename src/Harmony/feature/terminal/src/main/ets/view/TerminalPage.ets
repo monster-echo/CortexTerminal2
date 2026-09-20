@@ -11,7 +11,7 @@ import { common } from '@kit.AbilityKit'
 import { window } from '@kit.ArkUI'
 import { webview } from '@kit.ArkWeb'
 import { pasteboard } from '@kit.BasicServicesKit'
-import { ApiService, TerminalNavParam, RouteName, I18n, AnalyticsService, lightHaptic, clickHaptic, showToast } from '@rwecho/core'
+import { ApiService, TerminalNavParam, RouteName, I18n, AnalyticsService, lightHaptic, clickHaptic, showToast, PageMenuItem, OverflowMenuButton } from '@rwecho/core'
 import { TerminalCache, TerminalCacheEntry } from '../service/TerminalCache'
 import { SnapshotStore } from '../service/SnapshotStore'
 import { TerminalStateManager } from '../service/TerminalStateManager'
@@ -166,6 +166,16 @@ export struct TerminalPage {
   @State private menuX: number = 0
   @State private menuY: number = 0
   @State private menuHasSelection: boolean = false
+  // Measured geometry (vp): the overlay is the terminal area, the menu is the
+  // copy/select-all/paste/cancel row. The menu is clamped against both so a long
+  // press near an edge can't push it off screen.
+  @State private menuW: number = 0
+  @State private menuH: number = 0
+  @State private menuMeasured: boolean = false
+  @State private overlayW: number = 0
+  @State private overlayH: number = 0
+  private menuAnchorX: number = 0
+  private menuAnchorY: number = 0
   private pendingBatch: string[] = []
   private flushScheduled: boolean = false
   private connectTimer: number = -1
@@ -313,32 +323,12 @@ export struct TerminalPage {
         })
 
         Button() {
-          SymbolGlyph($r('sys.symbol.link'))
-            .fontSize(18)
-            .fontColor([$r('app.color.terminal_primary')])
+          OverflowMenuButton({ items: this.buildOverflowMenu() })
         }
         .width(40)
         .height(40)
         .borderRadius(20)
         .backgroundColor(Color.Transparent)
-        .onClick(() => {
-          clickHaptic()
-          this.showTunnelSheet = true
-        })
-
-        Button() {
-          SymbolGlyph($r('sys.symbol.paperplane'))
-            .fontSize(18)
-            .fontColor([$r('app.color.terminal_primary')])
-        }
-        .width(40)
-        .height(40)
-        .borderRadius(20)
-        .backgroundColor(Color.Transparent)
-        .onClick(() => {
-          clickHaptic()
-          this.openFiles()
-        })
       }
       .width('100%')
       .height(52)
@@ -439,11 +429,26 @@ export struct TerminalPage {
           .borderRadius(8)
           .backgroundColor($r('app.color.terminal_surface_container_highest'))
           .shadow({ radius: 12, color: 'rgba(0,0,0,0.4)', offsetY: 2 })
+          .onAreaChange((_oldArea: Area, newArea: Area) => {
+            this.menuW = newArea.width as number
+            this.menuH = newArea.height as number
+            this.menuMeasured = true
+            this.layoutTerminalMenu()
+          })
           .position({ x: this.menuX, y: this.menuY })
+          // The menu is placed from its measured size, so the very first layout
+          // (before that size exists) stays invisible instead of flashing at a
+          // guessed spot.
+          .opacity(this.menuMeasured ? 1 : 0)
         }
       }
       .layoutWeight(1)
       .alignContent(Alignment.TopStart)
+      .onAreaChange((_oldArea: Area, newArea: Area) => {
+        this.overlayW = newArea.width as number
+        this.overlayH = newArea.height as number
+        this.layoutTerminalMenu()
+      })
 
       // Virtual key bar (visible when keyboard is shown)
       if (this.isKeyboardVisible) {
@@ -908,8 +913,9 @@ export struct TerminalPage {
       this.terminalMenuVisible = false
       return
     }
-    this.menuX = Math.max(8, Math.min(x - 16, 280))
-    this.menuY = y > 160 ? y - 64 : y + 24
+    this.menuAnchorX = x
+    this.menuAnchorY = y
+    this.layoutTerminalMenu()
     this.webviewController.runJavaScript('hasSelection()')
       .then((r: string) => {
         this.menuHasSelection = r.indexOf('1') >= 0
@@ -918,6 +924,29 @@ export struct TerminalPage {
         this.menuHasSelection = false
       })
     this.terminalMenuVisible = true
+  }
+
+  /**
+   * Place the long-press menu from measured sizes instead of a fixed guess: it
+   * sits above the pressed cell when there is room (the finger is on the anchor,
+   * so a menu below it would be under the hand), and is clamped to the terminal
+   * area so it never runs off screen on either axis. Called again whenever the
+   * overlay or the menu is re-measured (rotation, keyboard, language switch).
+   */
+  private layoutTerminalMenu() {
+    if (!this.terminalMenuVisible || !this.menuMeasured) {
+      return
+    }
+    const margin = 8
+    const gap = 12
+    const maxX = Math.max(margin, this.overlayW - this.menuW - margin)
+    const maxY = Math.max(margin, this.overlayH - this.menuH - margin)
+    let y = this.menuAnchorY - this.menuH - gap
+    if (y < margin) {
+      y = this.menuAnchorY + gap
+    }
+    this.menuX = Math.min(Math.max(margin, this.menuAnchorX - this.menuW / 2), maxX)
+    this.menuY = Math.min(Math.max(margin, y), maxY)
   }
 
   private copyTerminalSelection() {
@@ -1132,6 +1161,27 @@ export struct TerminalPage {
       customStyle: true
     })
     this.detailDialog.open()
+  }
+
+  /** 二级入口（端口转发 / 文件浏览）统一放进 AppBar 的溢出菜单。 */
+  private buildOverflowMenu(): PageMenuItem[] {
+    const items: PageMenuItem[] = []
+
+    const tunnels = new PageMenuItem()
+    tunnels.value = I18n.get('tunnel.title')
+    tunnels.action = () => {
+      this.showTunnelSheet = true
+    }
+    items.push(tunnels)
+
+    const files = new PageMenuItem()
+    files.value = I18n.get('files.browse')
+    files.action = () => {
+      this.openFiles()
+    }
+    items.push(files)
+
+    return items
   }
 
   private handleBack() {

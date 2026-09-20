@@ -341,7 +341,10 @@ public sealed class RelayTransferService(long maxTransferBytes, ILogger<RelayTra
         try
         {
             using var socket = new System.Net.WebSockets.ClientWebSocket();
-            var uri = new Uri($"{command.RelayUrl.TrimEnd('/')}/transfer/{command.TransferId}/worker?token={Uri.EscapeDataString(command.Token)}");
+            var uri = RelayUri.BuildWebSocketUri(
+                command.RelayUrl,
+                $"transfer/{command.TransferId}/worker",
+                new KeyValuePair<string, string>("token", command.Token));
             using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             connectCts.CancelAfter(TimeSpan.FromSeconds(30));
             await socket.ConnectAsync(uri, connectCts.Token);
@@ -409,7 +412,10 @@ public sealed class RelayTransferService(long maxTransferBytes, ILogger<RelayTra
         try
         {
             using var socket = new System.Net.WebSockets.ClientWebSocket();
-            var uri = new Uri($"{command.RelayUrl.TrimEnd('/')}/transfer/{command.TransferId}/worker?token={Uri.EscapeDataString(command.Token)}");
+            var uri = RelayUri.BuildWebSocketUri(
+                command.RelayUrl,
+                $"transfer/{command.TransferId}/worker",
+                new KeyValuePair<string, string>("token", command.Token));
             using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             connectCts.CancelAfter(TimeSpan.FromSeconds(30));
             await socket.ConnectAsync(uri, connectCts.Token);

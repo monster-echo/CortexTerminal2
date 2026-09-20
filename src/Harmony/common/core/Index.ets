@@ -27,6 +27,7 @@ export { AppRouter } from './src/main/ets/router/AppRouter'
 export { AppBar } from './src/main/ets/components/AppBar'
 export { PageLayout } from './src/main/ets/components/PageLayout'
 export { PageMenuItem } from './src/main/ets/components/PageLayout'
+export { OverflowMenuButton } from './src/main/ets/components/OverflowMenuButton'
 
 // Utils
 export { Logger } from './src/main/ets/utils/Logger'

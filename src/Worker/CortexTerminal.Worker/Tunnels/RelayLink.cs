@@ -125,21 +125,14 @@ public sealed class RelayLink(string workerId, ILogger<RelayLink> logger) : IAsy
 
     /// <summary>
     /// Relay 公网地址在 Gateway 侧以 http(s) 形态配置（同一地址也用于拼传输端点 URL），
-    /// 但 WebSocket 连接只接受 ws(s)。这里做一次显式映射，避免 "Only Uris starting with
-    /// 'ws://' or 'wss://' are supported" 导致隧道数据面永远连不上。
+    /// 但 WebSocket 连接只接受 ws(s)。映射收敛在 RelayUri，避免各调用点重写一遍。
     /// </summary>
     internal static Uri BuildRelayUri(string relayUrl, string workerId, string token)
-    {
-        var builder = new UriBuilder($"{relayUrl.TrimEnd('/')}/worker");
-        builder.Scheme = builder.Scheme switch
-        {
-            "http" => "ws",
-            "https" => "wss",
-            _ => builder.Scheme,
-        };
-        builder.Query = $"workerId={Uri.EscapeDataString(workerId)}&token={Uri.EscapeDataString(token)}";
-        return builder.Uri;
-    }
+        => RelayUri.BuildWebSocketUri(
+            relayUrl,
+            "worker",
+            new KeyValuePair<string, string>("workerId", workerId),
+            new KeyValuePair<string, string>("token", token));
 
     private async Task RunConnectionAsync(WebSocket socket, CancellationToken ct)
     {
