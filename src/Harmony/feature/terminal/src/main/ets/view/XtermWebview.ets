@@ -63,7 +63,7 @@ export struct XtermWebview {
         .zoomAccess(false)
         .databaseAccess(true)
         .cacheMode(CacheMode.Default)
-        .darkMode(WebDarkMode.On)
+        .darkMode(WebDarkMode.Off)
         .focusable(true)
         .onPageEnd(() => {
           this.initMessagePort()
