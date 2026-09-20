@@ -211,6 +211,7 @@ export const zhStrings: Record<string, string> = {
   'membership.scrollback_quota': '回滚上限 {n} MB',
   'membership.workers_quota': '最多 {n} 台 Worker',
   'membership.redeem_title': '有兑换码?',
+  'membership.menu_redeem': '兑换码',
   'membership.redeem_placeholder': '输入兑换码',
   'membership.redeem_button': '兑换',
   'membership.redeem_success': '兑换成功,Pro 已生效!',

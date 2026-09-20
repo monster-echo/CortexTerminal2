@@ -211,6 +211,7 @@ export const enStrings: Record<string, string> = {
   'membership.scrollback_quota': 'Scrollback up to {n} MB',
   'membership.workers_quota': 'Up to {n} workers',
   'membership.redeem_title': 'Have a redeem code?',
+  'membership.menu_redeem': 'Redeem code',
   'membership.redeem_placeholder': 'Enter redeem code',
   'membership.redeem_button': 'Redeem',
   'membership.redeem_success': 'Redeemed! Pro is now active.',

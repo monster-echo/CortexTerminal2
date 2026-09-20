@@ -11,6 +11,7 @@ import {
   ApiService,
   I18n,
   PageLayout,
+  PageMenuItem,
   RouteName,
   showI18nToast,
   showToast,
@@ -41,6 +42,7 @@ export struct MembershipPage {
   @State plans: BillingPlan[] = []
   @State redeemCodeInput: string = ''
   @State isRedeeming: boolean = false
+  @State showRedeem: boolean = false
 
   async aboutToAppear() {
     await this.loadMembership()
@@ -124,7 +126,10 @@ export struct MembershipPage {
   }
 
   build() {
-    PageLayout({ title: I18n.get('membership.title') }) {
+    PageLayout({
+      title: I18n.get('membership.title'),
+      moreMenuItems: this.buildMoreMenu()
+    }) {
       Column() {
         if (this.isLoading) {
           Column() {
@@ -143,6 +148,17 @@ export struct MembershipPage {
       .layoutWeight(1)
       .padding({ left: 24, right: 24, top: 8 })
     }
+  }
+
+  private buildMoreMenu(): PageMenuItem[] {
+    const items: PageMenuItem[] = []
+    const redeem = new PageMenuItem()
+    redeem.value = I18n.get('membership.menu_redeem')
+    redeem.action = () => {
+      this.showRedeem = !this.showRedeem
+    }
+    items.push(redeem)
+    return items
   }
 
   @Builder
@@ -182,7 +198,9 @@ export struct MembershipPage {
       Column() {
         this.EntitlementCard()
         this.PlansSection()
-        this.RedeemCard()
+        if (this.showRedeem) {
+          this.RedeemCard()
+        }
       }
       .width('100%')
       .padding({ bottom: 24 })
