@@ -82,14 +82,40 @@ internal sealed class UnixPtyProcess : IPtyProcess
     {
         while (!_disposeCts.IsCancellationRequested)
         {
-            if (_connection.WaitForExit(250))
+            bool exited;
+            try
             {
-                _exitCode.TrySetResult(_connection.ExitCode);
+                exited = _connection.WaitForExit(250);
+            }
+            catch (InvalidOperationException)
+            {
+                // Windows Pty.Net tears down its Process object as the child exits; a
+                // WaitForExit call racing that teardown throws "No process is associated
+                // with this object". The child is by definition gone — treat as exited.
+                break;
+            }
+
+            if (exited)
+            {
+                TrySetExitCode();
                 return;
             }
         }
 
         _exitCode.TrySetCanceled();
+    }
+
+    private void TrySetExitCode()
+    {
+        try
+        {
+            _exitCode.TrySetResult(_connection.ExitCode);
+        }
+        catch (InvalidOperationException)
+        {
+            // Same teardown race as WaitForExit — the code is unobservable now.
+            _exitCode.TrySetCanceled();
+        }
     }
 
     private static async IAsyncEnumerable<byte[]> ReadStreamAsync(
