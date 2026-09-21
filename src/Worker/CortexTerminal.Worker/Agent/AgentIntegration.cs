@@ -22,6 +22,7 @@ public sealed class AgentIntegration : IAgentIntegration
     private readonly string _shimsDir;
     private readonly string _zdotdir;
     private readonly string _bashrcFile;
+    private readonly string _powershellInitFile;
     private readonly string _originalPath;
     private volatile string? _hookUrl;
     private volatile bool _enabled;
@@ -33,6 +34,7 @@ public sealed class AgentIntegration : IAgentIntegration
         _shimsDir = Path.Combine(installDir, "shims");
         _zdotdir = Path.Combine(installDir, "zdotdir");
         _bashrcFile = Path.Combine(_zdotdir, "bashrc");
+        _powershellInitFile = Path.Combine(installDir, "prompt.ps1");
         _originalPath = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
     }
 
@@ -46,6 +48,8 @@ public sealed class AgentIntegration : IAgentIntegration
     public string Zdotdir => _zdotdir;
 
     public string BashrcFile => _bashrcFile;
+
+    public string PowerShellInitFile => _powershellInitFile;
 
     public string OriginalPath => _originalPath;
 
@@ -110,6 +114,10 @@ public sealed class AgentIntegration : IAgentIntegration
         {
             EnsureZdotdirWritten();
         }
+        else
+        {
+            WritePowerShellInit();
+        }
 
         _logger.LogInformation("Agent shims installed at {ShimsDir} (wrapper = {Wrapper}).", _shimsDir, wrapperPath);
     }
@@ -165,6 +173,17 @@ public sealed class AgentIntegration : IAgentIntegration
         "  _corterm_path=\"${_corterm_path%:$CORTERM_SHIMS_DIR}\"\n" +
         "  export PATH=\"$CORTERM_SHIMS_DIR:$_corterm_path\"\n" +
         "  unset _corterm_path\n" +
+        "fi\n" +
+        "\n" +
+        "# Report the live session title after every prompt: OSC 0 = title,\n" +
+        "# OSC 7 = cwd as a file:// URI. The terminal app listens via xterm.js's\n" +
+        "# onTitleChange (Windows-Terminal-style passive reporting; never rendered).\n" +
+        "corterm_title() {\n" +
+        "  printf '\\e]0;%s@%s:%s\\7' \"${USER:-$(id -un)}\" \"${HOST:-$(hostname -s)}\" \"${PWD/#$HOME/~}\"\n" +
+        "  printf '\\e]7;file://%s%s\\7' \"${HOST:-$(hostname -s)}\" \"${PWD// /%20}\"\n" +
+        "}\n" +
+        "if [[ -o interactive ]]; then\n" +
+        "  precmd_functions=(corterm_title $precmd_functions)\n" +
         "fi\n";
 
     // .zlogin runs after .zshrc for login shells. Source the user's real .zlogin.
@@ -192,7 +211,45 @@ public sealed class AgentIntegration : IAgentIntegration
         "  _corterm_path=\"${_corterm_path%:$CORTERM_SHIMS_DIR}\"\n" +
         "  export PATH=\"$CORTERM_SHIMS_DIR:$_corterm_path\"\n" +
         "  unset _corterm_path\n" +
-        "fi\n";
+        "fi\n" +
+        "\n" +
+        "# Report the live session title before every prompt: OSC 0 = title,\n" +
+        "# OSC 7 = cwd as a file:// URI (see the managed .zshrc — same protocol).\n" +
+        "corterm_title() {\n" +
+        "  printf '\\e]0;%s@%s:%s\\7' \"${USER:-$(id -un)}\" \"${HOSTNAME:-$(hostname -s)}\" \"${PWD/#$HOME/~}\"\n" +
+        "  printf '\\e]7;file://%s%s\\7' \"${HOSTNAME:-$(hostname -s)}\" \"${PWD// /%20}\"\n" +
+        "}\n" +
+        "PROMPT_COMMAND=\"corterm_title${PROMPT_COMMAND:+;$PROMPT_COMMAND}\"\n" +
+        "export PROMPT_COMMAND\n";
+
+    /// <summary>
+    /// Writes the managed PowerShell prompt script (Windows). Wraps the existing
+    /// <c>prompt</c> function (profile-loaded custom prompts preserved) so every
+    /// prompt emits OSC 0 (session title) and OSC 7 (cwd file:// URI). Runs per-PTY
+    /// via <c>-Command ". file"</c> — the user's profile is untouched.
+    /// </summary>
+    private void WritePowerShellInit()
+    {
+        File.WriteAllText(_powershellInitFile, PowerShellPromptBody);
+    }
+
+    private const string PowerShellPromptBody =
+        "# Corterm-managed PowerShell prompt. Emits OSC 0 (session title) and\n" +
+        "# OSC 7 (cwd) before each prompt so the CortexTerminal app can track the\n" +
+        "# live session title. Wraps the existing prompt — user profile custom\n" +
+        "# prompts still render; we only add the escape sequences.\n" +
+        "$__cortermPrevPrompt = $function:prompt\n" +
+        "function global:prompt {\n" +
+        "  $e = [char]27\n" +
+        "  $bel = [char]7\n" +
+        "  $loc = $ExecutionContext.SessionState.Path.CurrentFileSystemLocation.ProviderPath\n" +
+        "  $uri = $loc -replace '\\\\', '/' -replace ' ', '%20'\n" +
+        "  $osc = \"$e]0;$loc$bel$e]7;file:///$uri$bel\"\n" +
+        "  if ($__cortermPrevPrompt) {\n" +
+        "    return $osc + (& $__cortermPrevPrompt)\n" +
+        "  }\n" +
+        "  return \"$osc PS $loc> \"\n" +
+        "}\n";
 
     private static string UnixShimBody(string wrapperPath, string kind)
     {

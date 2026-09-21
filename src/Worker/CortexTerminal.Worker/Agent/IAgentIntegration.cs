@@ -34,6 +34,16 @@ public interface IAgentIntegration
     /// </summary>
     string BashrcFile { get; }
 
+    /// <summary>
+    /// Path to a managed PowerShell prompt script (Windows only). The PTY launches
+    /// PowerShell as <c>pwsh -NoLogo -ExecutionPolicy Bypass -NoExit -Command ". &lt;file&gt;"</c>;
+    /// the script wraps the existing <c>prompt</c> function so every prompt emits
+    /// OSC 0 (session title) and OSC 7 (cwd) — same as <see cref="Zdotdir"/>/
+    /// <see cref="BashrcFile"/> but for PowerShell. Not user-visible dotfile changes:
+    /// the script lives in the Worker install dir and is loaded per-PTY only.
+    /// </summary>
+    string PowerShellInitFile { get; }
+
     /// <summary>PATH before the shim dir was prepended. The wrapper uses this to find the real agent binary.</summary>
     string OriginalPath { get; }
 }

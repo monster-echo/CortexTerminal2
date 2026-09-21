@@ -63,7 +63,6 @@ public sealed class ClaudeCodeLaunchSetup : IAgentLaunchSetup
 
         return new LaunchSetupResult(
             tempDir,
-            EnvironmentVariables: new Dictionary<string, string>(StringComparer.Ordinal),
             PassthroughArgs: new[] { "--settings", settingsPath });
     }
 

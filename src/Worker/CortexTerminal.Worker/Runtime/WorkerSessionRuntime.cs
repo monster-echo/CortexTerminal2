@@ -40,26 +40,40 @@ public sealed class WorkerSessionRuntime : IAsyncDisposable
     public async Task StartAsync(int columns, int rows, string? cwd, CancellationToken cancellationToken)
     {
         var env = new Dictionary<string, string>();
+        if (_agentIntegration is not null)
+        {
+            // Shell integration injection (VS Code style: managed rc files, never the
+            // user's dotfiles). Independent of agent tracking — session title reporting
+            // (OSC 0/7) must work on every session.
+            if (OperatingSystem.IsWindows())
+            {
+                // PowerShell prompt script, loaded per-PTY via `-Command ". file"`.
+                env["CORTERM_POWERSHELL_INIT"] = _agentIntegration.PowerShellInitFile;
+            }
+            else
+            {
+                // Set ZDOTDIR to the managed one so zsh picks up our .zshrc. The real
+                // ZDOTDIR (usually $HOME) is captured in CORTERM_REAL_ZDOTDIR so the
+                // managed .zshrc/.zshenv/.zprofile/.zlogin can still source the user's
+                // real files.
+                var realZdotdir = Environment.GetEnvironmentVariable("ZDOTDIR");
+                if (!string.IsNullOrEmpty(realZdotdir))
+                {
+                    env["CORTERM_REAL_ZDOTDIR"] = realZdotdir;
+                }
+                env["ZDOTDIR"] = _agentIntegration.Zdotdir;
+                // Bash doesn't honor ZDOTDIR; UnixPtyHost detects this env var and switches the
+                // launch command to `bash --rcfile=<BashrcFile>`. The rcfile sources the user's
+                // .profile + .bashrc then (when tracking is enabled) prepends the shims dir.
+                env["CORTERM_BASH_RCFILE"] = _agentIntegration.BashrcFile;
+            }
+        }
         if (_agentIntegration is { Enabled: true })
         {
             env["CORTERM_SESSION_ID"] = SessionId;
             env["CORTERM_AGENT_HOOK_URL"] = _agentIntegration.HookUrl;
             env["CORTERM_ORIGINAL_PATH"] = _agentIntegration.OriginalPath;
             env["CORTERM_SHIMS_DIR"] = _agentIntegration.ShimsDir;
-            // Set ZDOTDIR to the managed one so zsh picks up our .zshrc that prepends the
-            // shim dir after the user's .zshrc. The real ZDOTDIR (usually $HOME) is captured
-            // in CORTERM_REAL_ZDOTDIR so the managed .zshrc/.zshenv/.zprofile/.zlogin can
-            // still source the user's real files.
-            var realZdotdir = Environment.GetEnvironmentVariable("ZDOTDIR");
-            if (!string.IsNullOrEmpty(realZdotdir))
-            {
-                env["CORTERM_REAL_ZDOTDIR"] = realZdotdir;
-            }
-            env["ZDOTDIR"] = _agentIntegration.Zdotdir;
-            // Bash doesn't honor ZDOTDIR; UnixPtyHost detects this env var and switches the
-            // launch command to `bash -i --rcfile=<BashrcFile>`. The rcfile sources the user's
-            // .profile + .bashrc then prepends the shims dir.
-            env["CORTERM_BASH_RCFILE"] = _agentIntegration.BashrcFile;
             // PATH is still set as a baseline. zsh re-prepends via the managed .zshrc; bash
             // re-prepends via the managed bashrc; other shells (fish, sh) rely on this baseline.
             var separator = OperatingSystem.IsWindows() ? ';' : ':';

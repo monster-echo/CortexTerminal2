@@ -286,14 +286,6 @@ public static class AgentRunnerEntry
             psi.Environment["CORTERM_SESSION_ID"] = sessionId;
         }
 
-        if (setup is not null)
-        {
-            foreach (var (k, v) in setup.EnvironmentVariables)
-            {
-                psi.Environment[k] = v;
-            }
-        }
-
         try
         {
             var process = Process.Start(psi);

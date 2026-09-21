@@ -98,31 +98,6 @@ public sealed class ClaudeCodeLaunchSetupTests
             File.Exists(settingsPath).Should().BeTrue();
 
             result.PassthroughArgs.Should().ContainInOrder("--settings", settingsPath);
-            result.EnvironmentVariables.Should().BeEmpty();
-        }
-        finally
-        {
-            try { if (Directory.Exists(expectedTempDir)) Directory.Delete(expectedTempDir, recursive: true); } catch { }
-        }
-    }
-
-    [Fact]
-    public void Prepare_DoesNotSetClaudeConfigDir()
-    {
-        // Critical regression guard: we must NOT set CLAUDE_CONFIG_DIR, or Claude Code will
-        // treat the temp dir as a fresh install (numStartups reset, theme picker, login
-        // state lost, "Claude configuration file not found" spam).
-        var sessionId = "test-sess-" + Guid.NewGuid().ToString("N");
-        var expectedTempDir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-            ".corterm", "agent-hooks", sessionId);
-
-        try
-        {
-            var setup = new ClaudeCodeLaunchSetup(sessionId);
-            var result = setup.Prepare();
-
-            result.EnvironmentVariables.Should().NotContainKey("CLAUDE_CONFIG_DIR");
         }
         finally
         {

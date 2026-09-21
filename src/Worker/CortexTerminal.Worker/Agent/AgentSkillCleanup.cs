@@ -5,9 +5,12 @@ namespace CortexTerminal.Worker.Agent;
 /// <summary>
 /// One-time migration cleanup, run at every worker startup (cheap no-op once done):
 /// removes the prompt-injection leftovers of the retired corterm-artifacts skill — the
-/// installed copy Claude Code would still auto-discover, the codex AGENTS.md section, the
-/// local skill cache, and the legacy per-session artifacts tree. Without the cleanup, a
-/// worker upgraded past the skill's removal would keep injecting stale prompt content.
+/// installed copy Claude Code would still auto-discover, the codex AGENTS.md section, and
+/// the local skill cache. Without the cleanup, a worker upgraded past the skill's removal
+/// would keep injecting stale prompt content.
+///
+/// <c>~/.corterm/sessions</c> is deliberately NOT touched: it now hosts cortap's live
+/// session logs (SessionPaths), not the legacy artifacts tree it once was.
 /// </summary>
 /// <remarks>
 /// Data-migration semantics apply: each step logs and continues on failure rather than
@@ -26,7 +29,6 @@ internal static class AgentSkillCleanup
 
             TryDeleteDir(logger, Path.Combine(home, ".claude", "skills", SkillName), "installed Claude Code skill dir");
             TryDeleteDir(logger, Path.Combine(home, ".corterm", "skill-cache", SkillName), "skill cache dir");
-            TryDeleteDir(logger, Path.Combine(home, ".corterm", "sessions"), "legacy per-session artifacts tree");
             TryStripCodexSection(logger, Path.Combine(home, ".codex", "AGENTS.md"));
         }, ct);
 

@@ -54,14 +54,16 @@ public sealed class UnixPtyHost : IPtyHost
     {
         if (OperatingSystem.IsWindows())
         {
-            // Prefer PowerShell (pwsh) over cmd.exe
+            // Prefer PowerShell (pwsh) over cmd.exe. When CORTERM_POWERSHELL_INIT is
+            // set, launch with `-Command ". <file>"` so the managed prompt script
+            // (OSC 0/7 title reporting) loads per-PTY — the user's profile is untouched.
             var pwsh = FindOnPath("pwsh.exe");
             if (pwsh is not null)
-                return (pwsh, Array.Empty<string>());
+                return (pwsh, PowerShellLaunchArgs(env));
 
             var ps = FindOnPath("powershell.exe");
             if (ps is not null)
-                return (ps, Array.Empty<string>());
+                return (ps, PowerShellLaunchArgs(env));
 
             var comspec = Environment.GetEnvironmentVariable("COMSPEC");
             if (!string.IsNullOrWhiteSpace(comspec))
@@ -100,6 +102,34 @@ public sealed class UnixPtyHost : IPtyHost
     /// its own. Zsh and other shells use the standard <c>-l</c> flag because zsh honors
     /// ZDOTDIR (set separately in the env).
     /// </summary>
+    /// <summary>
+    /// PowerShell launch args: when <c>CORTERM_POWERSHELL_INIT</c> is set, dot-source
+    /// the managed prompt script on startup (VS Code's shell-integration injection).
+    /// <c>-ExecutionPolicy Bypass</c> covers installs where script execution is
+    /// restricted — without it the dot-source would be blocked and titles lost.
+    /// <c>-NoExit</c> keeps the session alive after the script; <c>-NoLogo</c> saves
+    /// the banner. cmd.exe gets no injection (no supported hook without touching the
+    /// AutoRun registry — a user-machine change we deliberately avoid).
+    /// </summary>
+    private static string[] PowerShellLaunchArgs(IReadOnlyDictionary<string, string>? env)
+    {
+        if (env is not null &&
+            env.TryGetValue("CORTERM_POWERSHELL_INIT", out var initScript) &&
+            !string.IsNullOrWhiteSpace(initScript))
+        {
+            return new[]
+            {
+                "-NoLogo",
+                "-ExecutionPolicy", "Bypass",
+                "-NoExit",
+                "-Command",
+                $". '{initScript}'",
+            };
+        }
+
+        return Array.Empty<string>();
+    }
+
     private static (string App, string[] CommandLine) ResolveUnixShell(string shellPath, IReadOnlyDictionary<string, string>? env)
     {
         var isBash = shellPath.EndsWith("/bash", StringComparison.Ordinal) ||
