@@ -11,7 +11,7 @@ import { window, KeyboardAvoidMode } from '@kit.ArkUI'
 import { webview } from '@kit.ArkWeb'
 import { hilog } from '@kit.PerformanceAnalysisKit'
 import { bundleManager } from '@kit.AbilityKit'
-import { AnalyticsService, AnalyticsEvent, CrashService } from '@rwecho/core'
+import { AnalyticsService, AnalyticsEvent, CrashService, TerminalThemes } from '@rwecho/core'
 import { DynamicsRouter } from 'routermodule'
 
 const TAG = 'EntryAbility'
@@ -24,6 +24,30 @@ const DOMAIN = 0x0001
 export default class EntryAbility extends UIAbility {
   private mainWindow: window.Window | null = null
   private colorModeSyncing: boolean = false
+
+  /**
+   * 解析终端主题设置并写 AppStorage：
+   * - terminalTheme 存量值迁移：'system'→'followApp'、'dark'→'default-dark'、'light'→'default-light'（不改持久化存储）
+   * - 'followApp' → 按 colorMode 归到 default-dark/default-light
+   * - 具体 profile id → 解析该档案，深浅写 terminalColorMode，完整 theme JSON 写 terminalThemeJson
+   */
+  private syncTerminalColorMode(): void {
+    const raw = AppStorage.get<string>('terminalTheme') ?? 'followApp'
+    let selection: string = raw
+    if (raw === 'system') {
+      selection = 'followApp'
+    } else if (raw === 'dark') {
+      selection = 'default-dark'
+    } else if (raw === 'light') {
+      selection = 'default-light'
+    }
+    const appColorMode = (AppStorage.get<string>('colorMode') ?? 'dark') === 'light' ? 'light' : 'dark'
+    const customJson = AppStorage.get<string>('terminalCustomThemes') ?? ''
+    const resolution = TerminalThemes.resolve(selection, appColorMode, customJson)
+    AppStorage.setOrCreate('terminalColorMode', resolution.colorMode)
+    AppStorage.setOrCreate('terminalThemeJson', resolution.themeJson)
+    AppStorage.setOrCreate('terminalThemeName', resolution.themeName)
+  }
 
   private syncColorMode(): void {
     if (this.colorModeSyncing) return
@@ -50,6 +74,7 @@ export default class EntryAbility extends UIAbility {
       }
     } finally {
       this.colorModeSyncing = false
+      this.syncTerminalColorMode()
     }
   }
 
@@ -187,10 +212,13 @@ export default class EntryAbility extends UIAbility {
         PersistentStorage.persistProp('userInfo', '')
         PersistentStorage.persistProp('gatewayUrl', this.context.resourceManager.getStringByNameSync('gateway_url'))
         PersistentStorage.persistProp('themeMode', 'system')
+        PersistentStorage.persistProp('terminalTheme', 'followApp')
+        PersistentStorage.persistProp('terminalCustomThemes', '[]')
         PersistentStorage.persistProp('language', 'en')
         PersistentStorage.persistProp('webglEnabled', true)
         PersistentStorage.persistProp('showDevOptions', false)
         PersistentStorage.persistProp('firstLaunchDone', false)
+        this.syncTerminalColorMode()
 
         hilog.info(DOMAIN, TAG, `[STARTUP] token=${AppStorage.get<string>('authToken') || '(empty)'} isLoggedIn=${AppStorage.get<boolean>('isLoggedIn') ?? false} language=${AppStorage.get<string>('language') || 'en'}`)
 
@@ -231,6 +259,7 @@ export default class EntryAbility extends UIAbility {
       const isDark = newConfig.colorMode !== ConfigurationConstant.ColorMode.COLOR_MODE_LIGHT
       AppStorage.setOrCreate('colorMode', isDark ? 'dark' : 'light')
       this.applyStatusBar(isDark)
+      this.syncTerminalColorMode()
     } else {
       this.syncColorMode()
     }

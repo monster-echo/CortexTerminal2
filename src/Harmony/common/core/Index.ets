@@ -57,3 +57,11 @@ export {
   SessionCreateRequest,
   SessionCreateResponse
 } from './src/main/ets/model/SessionModels'
+
+// Terminal Theme Profiles
+export {
+  TerminalThemeProfile,
+  TerminalThemeResolution,
+  TerminalThemes,
+  profilesToColorJson
+} from './src/main/ets/model/TerminalThemeProfile'

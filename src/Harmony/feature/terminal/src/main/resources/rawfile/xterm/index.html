@@ -58,20 +58,107 @@
       }
     });
 
-    // === Bridge functions (called from ArkTS via runJavaScript) ===
+    // Terminal color presets. 'dark' is the original palette (#121414 base);
+    // 'light' is One Half Light. setTerminalTheme() hot-swaps both the xterm
+    // theme and the page CSS background at runtime (xterm supports it).
+    var TERMINAL_THEMES = {
+      dark: {
+        background: '#121414',
+        foreground: '#e3e2e2',
+        cursor: '#9fcaff',
+        cursorAccent: '#121414',
+        selectionBackground: '#3a95e8',
+        black: '#3a3d3d',
+        red: '#ffb4ab',
+        green: '#a2d489',
+        yellow: '#ffd180',
+        blue: '#9fcaff',
+        magenta: '#f5a8d0',
+        cyan: '#80cbc4',
+        white: '#e3e2e2',
+        brightBlack: '#8e9192',
+        brightRed: '#ffb4ab',
+        brightGreen: '#a2d489',
+        brightYellow: '#ffd180',
+        brightBlue: '#9fcaff',
+        brightMagenta: '#f5a8d0',
+        brightCyan: '#80cbc4',
+        brightWhite: '#e3e2e2'
+      },
+      light: {
+        background: '#FAFAFA',
+        foreground: '#383A42',
+        cursor: '#0184BC',
+        cursorAccent: '#FAFAFA',
+        selectionBackground: '#BFCEFF',
+        black: '#383A42',
+        red: '#E45649',
+        green: '#50A14F',
+        yellow: '#C18301',
+        blue: '#0184BC',
+        magenta: '#A626A4',
+        cyan: '#0997B3',
+        white: '#FAFAFA',
+        brightBlack: '#4F525D',
+        brightRed: '#E06C75',
+        brightGreen: '#98C379',
+        brightYellow: '#E5C07B',
+        brightBlue: '#61AFEF',
+        brightMagenta: '#C678DD',
+        brightCyan: '#56B6C2',
+        brightWhite: '#FFFFFF'
+      }
+    };
+
+    function applyThemeBackground(theme) {
+      document.documentElement.style.background = theme.background;
+      document.body.style.background = theme.background;
+      var container = document.getElementById('terminal-container');
+      if (container) {
+        container.style.background = theme.background;
+      }
+    }
+
+    /**
+     * Apply a full xterm.js ITheme JSON payload at runtime (custom/preset themes).
+     * @param {string} jsonString - serialized ITheme JSON (from native TerminalThemes.toColorJson)
+     */
+    function setTerminalThemeJson(jsonString) {
+      var theme = JSON.parse(jsonString);
+      if (term) {
+        term.options.theme = theme;
+      }
+      applyThemeBackground(theme);
+    }
+
+    /**
+     * Switch the terminal theme at runtime (xterm hot-updates its options).
+     * @param {string} themeName - 'dark' or 'light'
+     */
+    function setTerminalTheme(themeName) {
+      var theme = TERMINAL_THEMES[themeName] || TERMINAL_THEMES.dark;
+      if (term) {
+        term.options.theme = theme;
+      }
+      applyThemeBackground(theme);
+    }
 
     /**
      * Initialize xterm.js terminal instance.
      * @param {number} cols - Initial columns (default 80)
      * @param {number} rows - Initial rows (default 24)
+     * @param {boolean} useWebGL - Enable the WebGL renderer (default true)
+     * @param {string} themeName - 'dark' or 'light' (default 'dark')
      */
-    function initTerminal(cols, rows, useWebGL) {
+    function initTerminal(cols, rows, useWebGL, themeName) {
       if (term) {
         term.dispose();
       }
 
       cols = cols || 80;
       rows = rows || 24;
+      var theme = TERMINAL_THEMES[themeName] || TERMINAL_THEMES.dark;
+      applyThemeBackground(theme);
 
       term = new Terminal({
         cols: cols,
@@ -80,29 +167,7 @@
         cursorStyle: 'bar',
         fontSize: 14,
         fontFamily: 'monospace',
-        theme: {
-          background: '#121414',
-          foreground: '#e3e2e2',
-          cursor: '#9fcaff',
-          cursorAccent: '#121414',
-          selectionBackground: '#3a95e8',
-          black: '#3a3d3d',
-          red: '#ffb4ab',
-          green: '#a2d489',
-          yellow: '#ffd180',
-          blue: '#9fcaff',
-          magenta: '#f5a8d0',
-          cyan: '#80cbc4',
-          white: '#e3e2e2',
-          brightBlack: '#8e9192',
-          brightRed: '#ffb4ab',
-          brightGreen: '#a2d489',
-          brightYellow: '#ffd180',
-          brightBlue: '#9fcaff',
-          brightMagenta: '#f5a8d0',
-          brightCyan: '#80cbc4',
-          brightWhite: '#e3e2e2'
-        },
+        theme: theme,
         scrollback: 64000,
         allowProposedApi: true,
         allowTransparency: false

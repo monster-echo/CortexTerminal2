@@ -5,11 +5,11 @@
 import { DynamicsRouter, Interceptor } from 'routermodule'
 import { AuthInterceptorExecute } from '../interceptor/AuthInterceptor'
 import { AuthService, RouteName } from '@rwecho/core'
-import { LoginPage, ActivateWorkerPage } from '@rwecho/auth'
+import { LoginPage, ActivateWorkerPage, EnterActivationCodePage } from '@rwecho/auth'
 import { TerminalPage } from '@rwecho/terminal'
 import { FileBrowserPage, FilePreviewPage } from '@rwecho/files'
 import { ShellScaffold } from '../shell/ShellScaffold'
-import { AccountSecurityPage, ChangePasswordPage, WebPage, ContactSupportPage, FeedbackPage, ImagePreviewPage, MembershipPage, RedeemPage, ReferralPage, PreferencesPage, AboutPage } from '@rwecho/settings'
+import { AccountSecurityPage, ChangePasswordPage, WebPage, ContactSupportPage, FeedbackPage, ImagePreviewPage, MembershipPage, RedeemPage, ReferralPage, PreferencesPage, TerminalThemesPage, AboutPage } from '@rwecho/settings'
 
 @Entry
 @Component
@@ -120,6 +120,12 @@ struct Index {
       }
       .hideTitleBar(true)
       .backgroundColor($r('app.color.terminal_surface'))
+    } else if (name === RouteName.ACTIVATE_CODE) {
+      NavDestination() {
+        EnterActivationCodePage({ initialCode: param as string })
+      }
+      .hideTitleBar(true)
+      .backgroundColor($r('app.color.terminal_surface'))
     } else if (name === RouteName.WEB_PAGE) {
       NavDestination() {
         WebPage()
@@ -177,6 +183,12 @@ struct Index {
     } else if (name === RouteName.PREFERENCES) {
       NavDestination() {
         PreferencesPage()
+      }
+      .hideTitleBar(true)
+      .backgroundColor($r('app.color.terminal_surface'))
+    } else if (name === RouteName.TERMINAL_THEMES) {
+      NavDestination() {
+        TerminalThemesPage()
       }
       .hideTitleBar(true)
       .backgroundColor($r('app.color.terminal_surface'))

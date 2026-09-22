@@ -3,11 +3,13 @@
  * @brief 通用设置二级页：外观主题 / 语言 / 终端回滚 / GPU 加速（开发者）
  */
 import { common, ConfigurationConstant } from '@kit.AbilityKit'
-import { ApiService, I18n, PageLayout, showToast, clickHaptic } from '@rwecho/core'
+import { ApiService, I18n, PageLayout, showToast, clickHaptic, RouteName, TerminalThemes } from '@rwecho/core'
 
 @Component
 export struct PreferencesPage {
   @StorageLink('themeMode') currentTheme: string = 'system'
+  @StorageLink('terminalTheme') terminalTheme: string = 'followApp'
+  @StorageLink('terminalCustomThemes') customThemesJson: string = '[]'
   @StorageLink('language') currentLanguage: string = 'en'
   @StorageLink('webglEnabled') webglEnabled: boolean = true
   @Consume('pageStack') pageStack: NavPathStack
@@ -106,6 +108,33 @@ export struct PreferencesPage {
         }
         .prefCardStyle()
 
+        Column() {
+          Row() {
+            Column() {
+              Text(this.tr('terminalTheme.title'))
+                .fontSize(16)
+                .fontColor($r('app.color.terminal_on_surface'))
+              Text(this.currentTerminalThemeLabel())
+                .fontSize(13)
+                .fontColor($r('app.color.terminal_on_surface_variant'))
+                .margin({ top: 2 })
+            }
+            .alignItems(HorizontalAlign.Start)
+            .layoutWeight(1)
+
+            Text('›')
+              .fontSize(20)
+              .fontColor($r('app.color.terminal_on_surface_variant'))
+          }
+          .width('100%')
+          .height(56)
+          .onClick(() => {
+            clickHaptic()
+            this.pageStack.pushPath({ name: RouteName.TERMINAL_THEMES })
+          })
+        }
+        .prefCardStyle()
+
         this.SectionHeader('settings.terminal')
 
         Column() {
@@ -191,6 +220,23 @@ export struct PreferencesPage {
         this.applyTheme(this.currentTheme)
         showToast(I18n.get('settings.theme_changed').replace('{v}', I18n.get(`settings.theme_${value}`)))
       })
+  }
+
+  /** 当前选中主题的展示名：followApp → i18n；内置 → i18n key；自定义 → 名称。 */
+  private currentTerminalThemeLabel(): string {
+    const selection = this.terminalTheme
+    if (selection === 'followApp' || selection === 'system') {
+      return this.tr('terminalTheme.follow')
+    }
+    try {
+      const customList = this.customThemesJson.length > 0
+        ? TerminalThemes.parseCustomThemes(this.customThemesJson)
+        : []
+      const profile = TerminalThemes.findById(selection, customList)
+      return profile.builtIn ? this.tr(profile.name) : profile.name
+    } catch (e) {
+      throw new Error('terminalTheme label resolve failed: ' + (e as Error).message)
+    }
   }
 
   @Builder

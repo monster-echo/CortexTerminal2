@@ -36,6 +36,10 @@ export struct XtermWebview {
   @StorageLink('terminalCols') terminalCols: number = 80
   @StorageLink('terminalRows') terminalRows: number = 24
   @StorageLink('webglEnabled') webglEnabled: boolean = true
+  /** 解析后的终端配色（'dark'/'light'，由 EntryAbility/设置页按 terminalTheme 归类）。 */
+  @StorageLink('terminalColorMode') @Watch('onTerminalColorModeChange') terminalColorMode: string = 'dark'
+  /** 完整 xterm ITheme JSON（由 EntryAbility/设置页按 terminalTheme 解析写入）。 */
+  @StorageLink('terminalThemeJson') @Watch('onTerminalColorModeChange') terminalThemeJson: string = ''
   /**
    * ArkWeb API20 模拟器的 GPU 栈有回归:WebGL canvas 合成输出黑屏(见 xterm/index.html
    * 内注释)。模拟器上一律走 DOM 渲染;真机维持用户设置。
@@ -51,6 +55,26 @@ export struct XtermWebview {
     console.info(`[XtermWebview] useWebGLFlag=${this.useWebGLFlag} productModel=${deviceInfo.productModel}`)
   }
 
+  /** colorMode/terminalThemeJson 变化时热更新 webview 内的 xterm 主题（webview 未就绪时跳过，init 时会用当前值）。 */
+  onTerminalColorModeChange() {
+    if (this.readyNotified) {
+      this.updateTheme()
+    }
+  }
+
+  updateTheme() {
+    if (this.terminalThemeJson.length === 0) {
+      return
+    }
+    const escaped = this.terminalThemeJson.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+    try {
+      this.webviewController.runJavaScript(`setTerminalThemeJson("${escaped}")`)
+        .catch((e: Error) => console.warn('[XtermWebview] setTerminalThemeJson failed: ' + e.message))
+    } catch (e) {
+      console.warn('[XtermWebview] setTerminalThemeJson failed: ' + (e as Error).message)
+    }
+  }
+
   private msgPorts: webview.WebMessagePort[] = []
   private readyNotified: boolean = false
   private snapshotChunks: string[] = []
@@ -61,7 +85,7 @@ export struct XtermWebview {
       Web({ src: $rawfile('xterm/index.html'), controller: this.webviewController, renderMode: RenderMode.ASYNC_RENDER })
         .width('100%')
         .height('100%')
-        .backgroundColor('#121414')
+        .backgroundColor(this.terminalColorMode === 'light' ? '#FAFAFA' : '#121414')
         .javaScriptAccess(true)
         .domStorageAccess(true)
         .mixedMode(MixedMode.All)
@@ -163,7 +187,7 @@ export struct XtermWebview {
       this.webviewController.runJavaScript(`
         (function () {
           if (typeof initTerminal === 'function') {
-          initTerminal(${this.terminalCols}, ${this.terminalRows}, ${this.useWebGLFlag});
+          initTerminal(${this.terminalCols}, ${this.terminalRows}, ${this.useWebGLFlag}, '${this.terminalColorMode === 'light' ? 'light' : 'dark'}');
             return 'ready';
           }
           return 'missing';
@@ -178,6 +202,7 @@ export struct XtermWebview {
               )
             } catch (_e) {}
             this.onInputReady()
+            this.updateTheme()
             return
           }
           setTimeout(() => {

@@ -41,7 +41,6 @@ struct SessionDetailDialog {
   latencyMs: number = -1
 
   build() {
-    WithTheme({ colorMode: ThemeColorMode.DARK }) {
     Column() {
       Text(I18n.get('terminal.detail.title'))
         .fontSize(18)
@@ -124,7 +123,6 @@ struct SessionDetailDialog {
     .backgroundColor($r('app.color.terminal_surface_container_high'))
     .width('80%')
     .constraintSize({ maxWidth: 320 })
-    }
   }
 }
 
@@ -143,6 +141,8 @@ export struct TerminalPage {
   @StorageLink('isKeyboardVisible') isKeyboardVisible: boolean = false
   @StorageLink('keyboardHeight') @Watch('onKeyboardHeightChange') keyboardHeight: number = 0
   @StorageLink('appBackgroundTick') @Watch('onAppBackground') appBackgroundTick: number = 0
+  /** 解析后的终端配色（'dark'/'light'）；变化时同步系统状态栏颜色。 */
+  @StorageLink('terminalColorMode') @Watch('onTerminalColorModeChange') terminalColorMode: string = 'dark'
   @State connectionError: string = ''
   @State latencyMs: number = -1
   @State lastPingTime: number = 0
@@ -250,15 +250,14 @@ export struct TerminalPage {
     if (!this.transport.isConnected) {
       this.connectSession()
     }
-    // Terminal always uses dark theme — set white status bar text
+    // 状态栏颜色跟随终端配色（浅色主题下用深色内容）
     AppStorage.setOrCreate('terminalPageActive', true)
-    this.applyStatusBar(true)
+    this.applyStatusBar(this.terminalColorMode !== 'light')
   }
 
   aboutToDisappear() {
     AppStorage.setOrCreate('terminalPageActive', false)
-    const isDark = AppStorage.get<string>('colorMode') !== 'light'
-    this.applyStatusBar(isDark)
+    this.applyStatusBar(this.terminalColorMode !== 'light')
     this.pageVisible = false
     if (this.connectTimer !== -1) {
       clearTimeout(this.connectTimer)
@@ -282,8 +281,11 @@ export struct TerminalPage {
     this.captureSnapshot()
   }
 
+  onTerminalColorModeChange() {
+    this.applyStatusBar(this.terminalColorMode !== 'light')
+  }
+
   build() {
-    WithTheme({ colorMode: ThemeColorMode.DARK }) {
     Column() {
       // Custom AppBar with status badge
       Row() {
@@ -370,7 +372,7 @@ export struct TerminalPage {
         }
         .width('100%')
         .padding({ left: 16, right: 16, top: 10, bottom: 10 })
-        .backgroundColor('#1AFF4444')
+        .backgroundColor(this.terminalColorMode === 'light' ? '#33D92D3A' : '#1AFF4444')
       }
 
       // Xterm webview (main terminal area) + context menu overlay.
@@ -503,7 +505,6 @@ export struct TerminalPage {
       backgroundColor: $r('app.color.terminal_surface'),
       onDisappear: () => { this.showTunnelSheet = false }
     })
-    }
   }
 
   @Builder
@@ -1268,12 +1269,12 @@ export struct TerminalPage {
     switch (this.currentState) {
       case TerminalState.Live:
         if (this.latencyMs > 300) return $r('app.color.terminal_error')
-        if (this.latencyMs > 100) return '#FFC107'
+        if (this.latencyMs > 100) return $r('app.color.terminal_warning')
         return $r('app.color.terminal_tertiary')
       case TerminalState.Connecting:
       case TerminalState.Reconnecting:
       case TerminalState.Replaying:
-        return '#FFC107'
+        return $r('app.color.terminal_warning')
       case TerminalState.Expired:
       case TerminalState.Error:
         return $r('app.color.terminal_error')
