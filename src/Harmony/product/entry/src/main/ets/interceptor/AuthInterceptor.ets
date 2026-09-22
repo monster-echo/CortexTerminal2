@@ -6,7 +6,7 @@ import { DynamicsRouter, Interceptor, InterceptorExecute } from 'routermodule'
 
 export class AuthInterceptorExecute implements InterceptorExecute {
   executeFunction(appUri: string): boolean {
-    if (appUri === 'auth/Login' || appUri === 'ActivateWorker') {
+    if (appUri === 'auth/Login' || appUri === 'ActivateWorker' || appUri === 'ActivateCode') {
       return false
     }
     const isLoggedIn = AppStorage.get<boolean>('isLoggedIn') ?? false

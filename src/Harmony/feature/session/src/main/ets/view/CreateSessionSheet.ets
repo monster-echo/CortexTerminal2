@@ -7,10 +7,13 @@ export struct CreateSessionSheet {
   @State isModalLoading: boolean = false
   @State errorMessage: string = ''
   @State isCreating: boolean = false
+  @Link @Watch('onSheetVisibilityChanged') showSheet: boolean
   onSessionCreated?: (sessionId: string, sessionName: string, workerId: string) => void
 
-  aboutToAppear() {
-    this.loadWorkers()
+  onSheetVisibilityChanged() {
+    if (this.showSheet) {
+      this.loadWorkers()
+    }
   }
 
   build() {

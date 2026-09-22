@@ -36,6 +36,7 @@ export struct PageLayout {
         }
         .width(40)
         .height(40)
+        .padding(0)
         .borderRadius(20)
         .backgroundColor(Color.Transparent)
         .onClick(() => {

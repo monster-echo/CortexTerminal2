@@ -27,6 +27,7 @@ export struct AppBar {
         }
         .width(44)
         .height(44)
+        .padding(0)
         .borderRadius(22)
         .backgroundColor(Color.Transparent)
         .onClick(() => {
@@ -41,6 +42,7 @@ export struct AppBar {
         }
         .width(44)
         .height(44)
+        .padding(0)
         .borderRadius(22)
         .backgroundColor(Color.Transparent)
         .onClick(() => {
@@ -66,6 +68,7 @@ export struct AppBar {
         }
         .width(44)
         .height(44)
+        .padding(0)
         .borderRadius(22)
         .backgroundColor(Color.Transparent)
         .onClick(() => {

@@ -389,6 +389,17 @@ export class ApiService {
     return newToken
   }
 
+  // ── 统一响应形状校验 ─────────────────────────────────────────────
+  // expectDataType 为 OBJECT 时，若网关返回 200 但 body 不是 JSON
+  // （典型场景：网关版本过旧，未知路由被 SPA 回退成 200 + HTML），
+  // NetworkKit 会把原始字符串放进 result。与 Flutter 端保持同一文案。
+
+  private static readonly badJsonMessage: string = '网关响应不是有效 JSON（网关可能版本过旧）'
+
+  private static isNonJsonResult(result: Object): boolean {
+    return typeof result === 'string'
+  }
+
   // ── HTTP primitives ───────────────────────────────────────────────
 
   private static async get(path: string, requiresAuth: boolean = true, isRetry: boolean = false): Promise<Object> {
@@ -408,7 +419,11 @@ export class ApiService {
           return
         }
         if (data.responseCode === 200) {
-          resolve(data.result as Object)
+          if (ApiService.isNonJsonResult(data.result as Object)) {
+            reject(new Error(`${ApiService.badJsonMessage}：GET ${path}`))
+          } else {
+            resolve(data.result as Object)
+          }
         } else if (data.responseCode === 401 && requiresAuth && !isRetry) {
           try {
             const retried = await ApiService.handle401AndRetry('GET', path, null, requiresAuth)
@@ -448,7 +463,11 @@ export class ApiService {
           return
         }
         if (data.responseCode === 200 || data.responseCode === 201) {
-          resolve(data.result as Object)
+          if (ApiService.isNonJsonResult(data.result as Object)) {
+            reject(new Error(`${ApiService.badJsonMessage}：POST ${path}`))
+          } else {
+            resolve(data.result as Object)
+          }
         } else if (data.responseCode === 401 && requiresAuth && !isRetry) {
           try {
             const retried = await ApiService.handle401AndRetry('POST', path, body, requiresAuth)
@@ -489,7 +508,11 @@ export class ApiService {
           return
         }
         if (data.responseCode === 200 || data.responseCode === 204) {
-          resolve(data.result as Object ?? new Object())
+          if (data.responseCode === 200 && ApiService.isNonJsonResult(data.result as Object)) {
+            reject(new Error(`${ApiService.badJsonMessage}：DELETE ${path}`))
+          } else {
+            resolve(data.result as Object ?? new Object())
+          }
         } else if (data.responseCode === 401 && requiresAuth && !isRetry) {
           try {
             const retried = await ApiService.handle401AndRetry('DELETE', path, null, requiresAuth)
@@ -526,7 +549,11 @@ export class ApiService {
           return
         }
         if (data.responseCode === 200) {
-          resolve(data.result as Object)
+          if (ApiService.isNonJsonResult(data.result as Object)) {
+            reject(new Error(`${ApiService.badJsonMessage}：PUT ${path}`))
+          } else {
+            resolve(data.result as Object)
+          }
         } else if (data.responseCode === 401 && requiresAuth && !isRetry) {
           try {
             const retried = await ApiService.handle401AndRetry('PUT', path, body, requiresAuth)

@@ -1,0 +1,158 @@
+/**
+ * @file EnterActivationCodePage.ets
+ * @brief Manual worker activation code entry.
+ *
+ * Reached from the scan page's bottom button, or pushed with a scanned code
+ * (`initialCode`) which activates immediately.
+ */
+import { AuthService, I18n, PageLayout, showI18nToast, AnalyticsService, AnalyticsEvent } from '@rwecho/core'
+
+@Component
+export struct EnterActivationCodePage {
+  @Prop initialCode: string = ''
+  @State activationCode: string = ''
+  @State isLoading: boolean = false
+  @State errorMessage: string = ''
+  @State successMessage: string = ''
+  @Consume('pageStack') pageStack: NavPathStack
+
+  aboutToAppear() {
+    AnalyticsService.onPageStart('EnterActivationCode')
+    if (this.initialCode.length > 0) {
+      this.activationCode = this.initialCode
+      this.activate()
+    }
+  }
+
+  build() {
+    PageLayout({ title: I18n.get('auth.activate.code_title') }) {
+      Column() {
+        Text($r('app.string.activate_subtitle'))
+          .fontSize(14)
+          .fontColor($r('app.color.terminal_on_surface_variant'))
+          .textAlign(TextAlign.Center)
+          .width('100%')
+          .margin({ top: 8 })
+
+        // Success state
+        if (this.successMessage.length > 0) {
+          Column() {
+            Text('✓')
+              .fontSize(48)
+              .fontColor($r('app.color.terminal_tertiary'))
+            Text($r('app.string.activate_success'))
+              .fontSize(16)
+              .fontWeight(FontWeight.Medium)
+              .fontColor($r('app.color.terminal_tertiary'))
+              .margin({ top: 12 })
+          }
+          .width('100%')
+          .alignItems(HorizontalAlign.Center)
+          .margin({ top: 32 })
+        } else {
+          // Activation form card
+          Column() {
+            Text($r('app.string.activate_code_label'))
+              .fontSize(14)
+              .fontColor($r('app.color.terminal_on_surface_variant'))
+              .width('100%')
+              .margin({ bottom: 8 })
+
+            TextInput({ placeholder: $r('app.string.activate_code_placeholder'), text: this.activationCode })
+              .width('100%')
+              .height(48)
+              .borderRadius(8)
+              .backgroundColor($r('app.color.terminal_surface_container_high'))
+              .fontColor($r('app.color.terminal_primary'))
+              .placeholderColor($r('app.color.terminal_on_surface_variant'))
+              .onChange((value: string) => {
+                this.activationCode = this.formatCode(value)
+                this.errorMessage = ''
+              })
+
+            if (this.errorMessage.length > 0) {
+              Row() {
+                Text('⚠')
+                  .fontSize(14)
+                  .fontColor($r('app.color.terminal_error'))
+                  .margin({ right: 8 })
+                Text(this.errorMessage)
+                  .fontSize(14)
+                  .fontWeight(FontWeight.Medium)
+                  .fontColor($r('app.color.terminal_error'))
+                  .layoutWeight(1)
+              }
+              .width('100%')
+              .margin({ top: 12 })
+            }
+
+            Button() {
+              if (this.isLoading) {
+                LoadingProgress()
+                  .width(20)
+                  .height(20)
+                  .color($r('app.color.terminal_on_primary'))
+              } else {
+                Text($r('app.string.activate_button'))
+                  .fontSize(16)
+                  .fontWeight(FontWeight.Medium)
+                  .fontColor($r('app.color.terminal_on_primary'))
+              }
+            }
+            .width('100%')
+            .height(48)
+            .borderRadius(24)
+            .backgroundColor($r('app.color.terminal_primary'))
+            .margin({ top: 20 })
+            .enabled(!this.isLoading && this.activationCode.length > 0)
+            .onClick(() => {
+              this.activate()
+            })
+          }
+          .width('100%')
+          .constraintSize({ maxWidth: 400 })
+          .padding(20)
+          .borderRadius(12)
+          .backgroundColor($r('app.color.terminal_surface_container'))
+          .margin({ top: 32 })
+        }
+      }
+      .width('100%')
+      .padding({ left: 24, right: 24 })
+    }
+  }
+
+  /** Uppercase alphanumerics only, auto-insert the dash every 4 chars, max 8+1. */
+  private formatCode(value: string): string {
+    const cleaned = value.toUpperCase().replace(/[^A-Z0-9]/g, '')
+    let formatted = ''
+    for (let i = 0; i < cleaned.length && i < 8; i++) {
+      if (i > 0 && i % 4 === 0) {
+        formatted += '-'
+      }
+      formatted += cleaned[i]
+    }
+    return formatted
+  }
+
+  private activate() {
+    if (this.activationCode.length === 0 || this.isLoading) {
+      return
+    }
+    this.isLoading = true
+    this.errorMessage = ''
+
+    AuthService.activateWorker(this.activationCode).then(() => {
+      this.isLoading = false
+      this.successMessage = I18n.get('auth.activate.success')
+      AnalyticsService.onEvent(AnalyticsEvent.WORKER_ACTIVATE)
+      showI18nToast('auth.activate_success')
+      setTimeout(() => {
+        AuthService.navigateHome(this.pageStack)
+      }, 1000)
+    }).catch((err: Error) => {
+      this.errorMessage = err.message || 'Activation failed'
+      this.isLoading = false
+    })
+  }
+}

@@ -304,6 +304,7 @@ export struct SessionHomePage {
   @Builder
   CreateSheetContent() {
     CreateSessionSheet({
+      showSheet: $this.showCreateSheet,
       onSessionCreated: (sessionId: string, sessionName: string, workerId: string) => {
         this.showCreateSheet = false
         const param = new TerminalNavParam()
