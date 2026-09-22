@@ -9,7 +9,7 @@ import { LoginPage, ActivateWorkerPage } from '@rwecho/auth'
 import { TerminalPage } from '@rwecho/terminal'
 import { FileBrowserPage, FilePreviewPage } from '@rwecho/files'
 import { ShellScaffold } from '../shell/ShellScaffold'
-import { AccountSecurityPage, ChangePasswordPage, WebPage, ContactSupportPage, FeedbackPage, ImagePreviewPage, MembershipPage, RedeemPage } from '@rwecho/settings'
+import { AccountSecurityPage, ChangePasswordPage, WebPage, ContactSupportPage, FeedbackPage, ImagePreviewPage, MembershipPage, RedeemPage, ReferralPage } from '@rwecho/settings'
 
 @Entry
 @Component
@@ -165,6 +165,12 @@ struct Index {
     } else if (name === RouteName.REDEEM) {
       NavDestination() {
         RedeemPage()
+      }
+      .hideTitleBar(true)
+      .backgroundColor($r('app.color.terminal_surface'))
+    } else if (name === RouteName.REFERRAL) {
+      NavDestination() {
+        ReferralPage()
       }
       .hideTitleBar(true)
       .backgroundColor($r('app.color.terminal_surface'))

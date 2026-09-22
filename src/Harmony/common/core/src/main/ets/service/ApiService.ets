@@ -238,6 +238,17 @@ export class ApiService {
     return await ApiService.post('/api/billing/redeem', body as Object) as Record<string, Object>
   }
 
+  // ── Referral APIs ─────────────────────────────────────────────────
+
+  static async getReferralSummary(): Promise<Record<string, Object>> {
+    return await ApiService.get('/api/referral/me') as Record<string, Object>
+  }
+
+  static async applyReferralCode(code: string): Promise<void> {
+    const body: Record<string, string> = { 'code': code }
+    await ApiService.post('/api/referral/apply', body as Object)
+  }
+
 
   static async changePassword(newPassword: string, currentPassword: string): Promise<void> {
     const body: Record<string, Object> = { 'newPassword': newPassword }

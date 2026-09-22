@@ -60,6 +60,9 @@ public class User
     [Column("apple_refresh_token")]
     public string? AppleRefreshToken { get; set; }
 
+    [Column("referred_by_user_id")]
+    public string? ReferredByUserId { get; set; }
+
     [Column("deleted_at_utc")]
     public DateTimeOffset? DeletedAtUtc { get; set; }
 

@@ -16,4 +16,7 @@ export class RouteName {
   static readonly IMAGE_PREVIEW: string = 'support/ImagePreview'
   static readonly MEMBERSHIP: string = 'settings/Membership'
   static readonly REDEEM: string = 'settings/Redeem'
+  static readonly REFERRAL: string = 'settings/Referral'
+  static readonly PREFERENCES: string = 'settings/Preferences'
+  static readonly ABOUT: string = 'settings/About'
 }

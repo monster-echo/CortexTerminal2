@@ -19,6 +19,8 @@ public class AppDbContext : DbContext
     public DbSet<RedeemCode> RedeemCodes => Set<RedeemCode>();
     public DbSet<RedeemCodeUsage> RedeemCodeUsages => Set<RedeemCodeUsage>();
     public DbSet<IapWebhookEvent> IapWebhookEvents => Set<IapWebhookEvent>();
+    public DbSet<ReferralCode> ReferralCodes => Set<ReferralCode>();
+    public DbSet<ReferralReward> ReferralRewards => Set<ReferralReward>();
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
@@ -111,6 +113,16 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<IapWebhookEvent>(entity =>
         {
             entity.HasIndex(e => new { e.Platform, e.ExternalEventId }).IsUnique();
+        });
+        modelBuilder.Entity<ReferralCode>(entity =>
+        {
+            entity.HasIndex(e => e.UserId).IsUnique();
+            entity.HasIndex(e => e.Code).IsUnique();
+        });
+        modelBuilder.Entity<ReferralReward>(entity =>
+        {
+            entity.HasIndex(e => e.InvitedUserId).IsUnique();
+            entity.HasIndex(e => e.ReferrerUserId);
         });
     }
 }

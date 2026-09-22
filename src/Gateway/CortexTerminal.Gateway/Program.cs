@@ -399,6 +399,11 @@ builder.Services.AddSingleton(iapOptions);
 
 builder.Services.AddSingleton<IEntitlementService, EntitlementService>();
 builder.Services.AddSingleton<MembershipService>();
+
+var referralOptions = new ReferralOptions();
+builder.Configuration.GetSection(ReferralOptions.SectionName).Bind(referralOptions);
+builder.Services.AddSingleton(referralOptions);
+builder.Services.AddSingleton<ReferralService>();
 builder.Services.AddSingleton<IAppleReceiptValidator, AppleReceiptValidator>();
 // Legacy /verifyReceipt validator (StoreKit 1 / MAUI). Typed HttpClient via the factory so the
 // handler is pooled and the validator itself can stay a singleton.
@@ -2195,7 +2200,42 @@ app.MapPost("/api/billing/redeem", async (RedeemRequest body, ClaimsPrincipal us
         Id: Guid.NewGuid().ToString("N"), Timestamp: DateTimeOffset.UtcNow,
         UserId: userId, UserName: userId, Action: "membership.redeem",
         TargetEntity: "subscription", TargetId: sub.Id));
+    await serviceProvider.GetRequiredService<ReferralService>().RewardIfEligibleAsync(userId, "redeem", CancellationToken.None);
     return Results.Ok(new { tier = plan.Tier, planCode = plan.Code, isActive = true });
+}).RequireAuthorization();
+
+// ---- Referral ----
+app.MapGet("/api/referral/me", async (ClaimsPrincipal user, IServiceProvider serviceProvider) =>
+{
+    var userId = GetUserId(user);
+    var referral = serviceProvider.GetRequiredService<ReferralService>();
+    var summary = await referral.GetSummaryAsync(userId, CancellationToken.None);
+    var referralOpts = serviceProvider.GetRequiredService<ReferralOptions>();
+    return Results.Ok(new
+    {
+        code = summary.Code,
+        rewardDaysPerInvite = referralOpts.RewardDaysToReferrer,
+        invitedCount = summary.InvitedCount,
+        totalRewardDays = summary.TotalRewardDays,
+        rewards = summary.Rewards.Select(r => new
+        {
+            invitedUsername = r.InvitedUsername, rewardDays = r.RewardDays,
+            source = r.Source, createdAtUtc = r.CreatedAtUtc,
+        }),
+    });
+}).RequireAuthorization();
+
+app.MapPost("/api/referral/apply", async (ApplyReferralRequest body, ClaimsPrincipal user, IServiceProvider serviceProvider) =>
+{
+    var userId = GetUserId(user);
+    var referral = serviceProvider.GetRequiredService<ReferralService>();
+    try
+    {
+        await referral.ApplyAsync(userId, body.Code ?? "", CancellationToken.None);
+    }
+    catch (ReferralCodeInvalidException ex) { return Results.BadRequest(new { errorCode = ReferralCodeInvalidException.ErrorCode, message = ex.Message }); }
+    catch (ReferralAlreadyAppliedException ex) { return Results.Conflict(new { errorCode = ReferralAlreadyAppliedException.ErrorCode, message = ex.Message }); }
+    return Results.Ok(new { applied = true });
 }).RequireAuthorization();
 
 // Client calls this after a successful StoreKit purchase. We verify the Apple-signed JWS,
@@ -2239,6 +2279,7 @@ app.MapPost("/api/iap/purchase/verify", async (VerifyIapPurchaseRequest body, Cl
         Id: Guid.NewGuid().ToString("N"), Timestamp: DateTimeOffset.UtcNow,
         UserId: userId, UserName: userId, Action: "membership.iap_verify",
         TargetEntity: "subscription", TargetId: sub.Id));
+    await serviceProvider.GetRequiredService<ReferralService>().RewardIfEligibleAsync(userId, "iap", CancellationToken.None);
     return Results.Ok(new { subscriptionId = sub.Id, isActive = sub.Status == SubscriptionStatuses.Active, expiresAtUtc = sub.ExpiresAtUtc });
 }).RequireAuthorization();
 
@@ -3347,6 +3388,7 @@ record RenameSessionRequest(string? Name);
 record UpdatePreferencesRequest(int ScrollbackMaxBytes);
 record UpdateProfileRequest(string DisplayName);
 record RedeemRequest(string Code);
+record ApplyReferralRequest(string? Code);
 public record GrantRequest(string UserId, string PlanCode, DateTimeOffset? ExpiresAtUtc);
 public record GenerateCodesRequest(string PlanCode, int Count, int? MaxUses, DateTimeOffset? ExpiresAtUtc);
 
