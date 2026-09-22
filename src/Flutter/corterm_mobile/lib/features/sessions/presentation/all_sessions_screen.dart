@@ -127,7 +127,7 @@ class AllSessionsScreen extends ConsumerWidget {
       context: context,
       builder: (context) => SafeArea(
         child: Padding(
-          padding: const EdgeInsets.only(bottom: 16),
+          padding: EdgeInsets.zero,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -175,27 +175,25 @@ class AllSessionsScreen extends ConsumerWidget {
         .where((s) => s.sessionId == sessionId)
         .first;
     final controller = TextEditingController(text: session.name);
-    final name = await showShadDialog<String>(
+    final name = await showCortermSheetDialog<String>(
       context: context,
-      builder: (context) => ShadDialog(
-        title: Text(l10n.sessionRenameTitle),
-        actions: [
-          ShadButton.outline(
-            onPressed: () => Navigator.pop(context),
-            child: Text(l10n.cancel),
-          ),
-          ShadButton(
-            onPressed: () => Navigator.pop(context, controller.text.trim()),
-            child: Text(l10n.save),
-          ),
-        ],
-        child: ShadInputFormField(
-          controller: controller,
-          label: Text(l10n.sessionNameLabel),
-          placeholder: Text(l10n.sessionNameLabel),
-          maxLength: 100,
-        ),
+      title: l10n.sessionRenameTitle,
+      child: ShadInputFormField(
+        controller: controller,
+        label: Text(l10n.sessionNameLabel),
+        placeholder: Text(l10n.sessionNameLabel),
+        maxLength: 100,
       ),
+      actions: [
+        ShadButton.outline(
+          onPressed: () => Navigator.pop(context),
+          child: Text(l10n.cancel),
+        ),
+        ShadButton(
+          onPressed: () => Navigator.pop(context, controller.text.trim()),
+          child: Text(l10n.save),
+        ),
+      ],
     );
     if (name == null) return;
     await ref.read(sessionRepositoryProvider).rename(sessionId: sessionId, name: name);

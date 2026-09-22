@@ -136,26 +136,24 @@ class ProfileScreen extends ConsumerWidget {
       BuildContext context, WidgetRef ref, UserProfile user) async {
     final l10n = AppLocalizations.of(context)!;
     final controller = TextEditingController(text: user.displayName ?? '');
-    final name = await showShadDialog<String>(
+    final name = await showCortermSheetDialog<String>(
       context: context,
-      builder: (context) => ShadDialog(
-        title: Text(l10n.displayNameLabel),
-        actions: [
-          ShadButton.outline(
-            onPressed: () => Navigator.pop(context),
-            child: Text(l10n.cancel),
-          ),
-          ShadButton(
-            onPressed: () => Navigator.pop(context, controller.text.trim()),
-            child: Text(l10n.save),
-          ),
-        ],
-        child: ShadInputFormField(
-          controller: controller,
-          placeholder: Text(l10n.displayNameLabel),
-          maxLength: 32,
-        ),
+      title: l10n.displayNameLabel,
+      child: ShadInputFormField(
+        controller: controller,
+        placeholder: Text(l10n.displayNameLabel),
+        maxLength: 32,
       ),
+      actions: [
+        ShadButton.outline(
+          onPressed: () => Navigator.pop(context),
+          child: Text(l10n.cancel),
+        ),
+        ShadButton(
+          onPressed: () => Navigator.pop(context, controller.text.trim()),
+          child: Text(l10n.save),
+        ),
+      ],
     );
     if (name == null) return;
     try {

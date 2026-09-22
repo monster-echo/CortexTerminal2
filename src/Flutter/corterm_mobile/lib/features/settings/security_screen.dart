@@ -71,39 +71,37 @@ class SecurityScreen extends ConsumerWidget {
     final l10n = AppLocalizations.of(context)!;
     final current = TextEditingController();
     final next = TextEditingController();
-    final ok = await showShadDialog<bool>(
+    final ok = await showCortermSheetDialog<bool>(
       context: context,
-      builder: (context) => ShadDialog(
-        title: Text(l10n.changePassword),
-        actions: [
-          ShadButton.outline(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(l10n.cancel),
+      title: l10n.changePassword,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ShadInputFormField(
+            controller: current,
+            label: Text(l10n.currentPassword),
+            placeholder: Text(l10n.currentPassword),
+            obscureText: true,
           ),
-          ShadButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(l10n.save),
+          const SizedBox(height: 12),
+          ShadInputFormField(
+            controller: next,
+            label: Text(l10n.newPassword),
+            placeholder: Text(l10n.newPassword),
+            obscureText: true,
           ),
         ],
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ShadInputFormField(
-              controller: current,
-              label: Text(l10n.currentPassword),
-              placeholder: Text(l10n.currentPassword),
-              obscureText: true,
-            ),
-            const SizedBox(height: 12),
-            ShadInputFormField(
-              controller: next,
-              label: Text(l10n.newPassword),
-              placeholder: Text(l10n.newPassword),
-              obscureText: true,
-            ),
-          ],
-        ),
       ),
+      actions: [
+        ShadButton.outline(
+          onPressed: () => Navigator.pop(context, false),
+          child: Text(l10n.cancel),
+        ),
+        ShadButton(
+          onPressed: () => Navigator.pop(context, true),
+          child: Text(l10n.save),
+        ),
+      ],
     );
     if (ok != true) return;
     try {

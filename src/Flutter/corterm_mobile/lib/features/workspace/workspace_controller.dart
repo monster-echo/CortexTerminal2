@@ -41,10 +41,11 @@ class WorkspaceState {
   final List<String> openedSessionIds;
   final Map<String, SessionTerminalState> entries;
 
-  /// 粘性 CTRL（MAUI 同款）：armed 后下一个软键盘字母变成控制字符。
+  /// 粘性 CTRL（ArkTS VirtualKeyBar 同款 latch）：吸合期间软键盘字母变成控制
+  /// 字符，保持到手动再点 CTRL 取消。
   final bool ctrlArmed;
 
-  /// 粘性 ALT（MAUI 同款）：armed 后下一个键带 ESC 前缀（meta 键序列）。
+  /// 粘性 ALT（ArkTS VirtualKeyBar 同款 latch）：吸合期间按键带 ESC 前缀（meta 键序列）。
   final bool altArmed;
 
   /// 待展示的 OSC 事件（52 远程剪贴板 / 9,777 远程通知）。
@@ -381,6 +382,8 @@ class WorkspaceController extends StateNotifier<WorkspaceState> {
       return;
     }
     _sockets[sessionId] = socket;
+    // 重新连上：清除退避计数，后续断线从 1s 重新开始。
+    _reconnectAttempts.remove(sessionId);
     _lastServerActivityAt[sessionId] = clock.now();
 
     socket.frames.listen(
@@ -457,6 +460,16 @@ class WorkspaceController extends StateNotifier<WorkspaceState> {
         state = state.copyWith(entries: Map.of(state.entries));
       case ErrorFrame():
         switch (frame.code) {
+          case 'worker-offline':
+            // Worker 链路已断（网关在 worker 掉线时推给附着客户端）。
+            // 当前 socket 已无用：主动关闭（closedByUs → onDone 不重复处理），
+            // 进入 reconnecting 退避，直到 worker 回来 reattach 成功。
+            _timers.remove(sessionId)?.cancel();
+            _stopProbe(sessionId);
+            entry.connState = TerminalConnState.reconnecting;
+            state = state.copyWith(entries: Map.of(state.entries));
+            _sockets.remove(sessionId)?.forceClose();
+            _scheduleReconnect(sessionId, 0);
           case 'session-not-found':
           case 'forbidden':
           case 'reattach-failed':
@@ -545,14 +558,21 @@ class WorkspaceController extends StateNotifier<WorkspaceState> {
     _scheduleReconnect(sessionId, 0);
   }
 
+  /// 连续重连失败次数（worker 长时间离线时退避封顶 30s，不恢复则一直保留）。
+  final _reconnectAttempts = <String, int>{};
+
   void _scheduleReconnect(String sessionId, int attempt) {
     _timers.remove(sessionId)?.cancel();
-    final delay = _backoff[attempt.clamp(0, _backoff.length - 1)];
+    // worker-offline 帧路径不携带次数，用累计值保证退避增长。
+    final effective =
+        attempt > 0 ? attempt : (_reconnectAttempts[sessionId] ?? 0) + 1;
+    _reconnectAttempts[sessionId] = effective;
+    final delay = _backoff[effective.clamp(0, _backoff.length - 1)];
     _timers[sessionId] = Timer(delay, () async {
       if (!state.entries.containsKey(sessionId)) return;
       await _attach(sessionId);
       if (state.entries[sessionId]?.connState != TerminalConnState.live) {
-        _scheduleReconnect(sessionId, attempt + 1);
+        _scheduleReconnect(sessionId, effective + 1);
       }
     });
   }
@@ -563,14 +583,14 @@ class WorkspaceController extends StateNotifier<WorkspaceState> {
     final entry = state.entries[sessionId];
     if (entry == null) return;
     var payload = data;
+    // Ctrl/Alt 是 latch（对齐 ArkTS VirtualKeyBar）：保持吸合直到手动再点取消，
+    // 连续两次 Ctrl+C 连发两个 ^C。
     if (state.ctrlArmed) {
       payload = _applyCtrl(data);
-      state = state.copyWith(ctrlArmed: false);
       if (payload.isEmpty) return;
     }
     if (state.altArmed) {
       payload = '\x1b$payload';
-      state = state.copyWith(altArmed: false);
     }
     final socket = _sockets[sessionId];
     if (socket == null || !entry.canInput) {
@@ -606,14 +626,13 @@ class WorkspaceController extends StateNotifier<WorkspaceState> {
     final entry = state.entries[id];
     if (entry == null) return;
     var payload = seq;
+    // latch：消费时不自动取消（对齐 ArkTS VirtualKeyBar）。
     if (state.ctrlArmed) {
       payload = _applyCtrl(seq);
-      state = state.copyWith(ctrlArmed: false);
       if (payload.isEmpty) return;
     }
     if (state.altArmed) {
       payload = '\x1b$payload';
-      state = state.copyWith(altArmed: false);
     }
     _sockets[id]?.input(payload);
   }

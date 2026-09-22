@@ -62,36 +62,42 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final l10n = AppLocalizations.of(context)!;
     void dismiss() =>
         ref.read(appPreferencesProvider).dismissAnnouncement(a.id);
-    await showShadDialog(
+    await showCortermSheetDialog<void>(
       context: context,
-      builder: (dialogContext) => ShadDialog(
-        title: Text(a.title),
-        description: Text(a.body),
-        actions: [
-          ShadButton.ghost(
-            onPressed: () {
-              dismiss();
-              Navigator.of(dialogContext).pop();
-            },
-            child: Text(l10n.cancel),
-          ),
-          if (a.url.isNotEmpty)
-            ShadButton(
-              onPressed: () async {
-                dismiss();
-                Navigator.of(dialogContext).pop();
-                final ok = await launchUrl(Uri.parse(a.url),
-                    mode: LaunchMode.externalApplication);
-                if (!ok && mounted) {
-                  showAppToast(context, l10n.loginFailed, destructive: true);
-                }
-              },
-              child: Text(
-                a.buttonLabel.isNotEmpty ? a.buttonLabel : l10n.tunnelOpen,
-              ),
-            ),
-        ],
+      title: a.title,
+      child: Builder(
+        builder: (bodyContext) => Text(
+          a.body,
+          style: ShadTheme.of(bodyContext)
+              .textTheme
+              .muted
+              .copyWith(color: ShadTheme.of(bodyContext).colorScheme.mutedForeground),
+        ),
       ),
+      actions: [
+        ShadButton.ghost(
+          onPressed: () {
+            dismiss();
+            Navigator.of(context).pop();
+          },
+          child: Text(l10n.cancel),
+        ),
+        if (a.url.isNotEmpty)
+          ShadButton(
+            onPressed: () async {
+              dismiss();
+              Navigator.of(context).pop();
+              final ok = await launchUrl(Uri.parse(a.url),
+                  mode: LaunchMode.externalApplication);
+              if (!ok && mounted) {
+                showAppToast(context, l10n.loginFailed, destructive: true);
+              }
+            },
+            child: Text(
+              a.buttonLabel.isNotEmpty ? a.buttonLabel : l10n.tunnelOpen,
+            ),
+          ),
+      ],
     );
   }
 
@@ -191,20 +197,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       tab: ShellTab.home,
       title: l10n.homeTitle,
       actions: [
-        // 新建会话：标题栏主按钮（shadcn 仪表盘惯例，不用悬浮按钮）。
-        ShadButton(
-          size: ShadButtonSize.sm,
-          onPressed: () => showNewSessionSheet(
-            context,
-            onCreated: (sessionId) {
-              ref.read(workspaceControllerProvider.notifier).open(sessionId);
-              context.go('/workspace');
-            },
+        // 新建会话：仅图标（移动端标题栏惯例），长按 tooltip 提供语义。
+        Tooltip(
+          message: l10n.newSession,
+          child: ShadIconButton(
+            icon: const Icon(LucideIcons.plus),
+            onPressed: () => showNewSessionSheet(
+              context,
+              onCreated: (sessionId) {
+                ref.read(workspaceControllerProvider.notifier).open(sessionId);
+                context.go('/workspace');
+              },
+            ),
           ),
-          leading: const Icon(LucideIcons.plus, size: 16),
-          child: Text(l10n.newSession),
         ),
-        const SizedBox(width: 4),
       ],
       body: body,
     );
@@ -243,22 +249,20 @@ class _SessionCard extends ConsumerWidget {
             onPressed: (_) async {
               HapticFeedback.selectionClick();
               final controller = TextEditingController(text: session.name);
-              final ok = await showShadDialog<bool>(
+              final ok = await showCortermSheetDialog<bool>(
                 context: context,
-                builder: (context) => ShadDialog(
-                  title: Text(l10n.rename),
-                  actions: [
-                    ShadButton.ghost(
-                      onPressed: () => Navigator.pop(context, false),
-                      child: Text(l10n.cancel),
-                    ),
-                    ShadButton(
-                      onPressed: () => Navigator.pop(context, true),
-                      child: Text(l10n.ok),
-                    ),
-                  ],
-                  child: ShadInputFormField(controller: controller, maxLength: 100),
-                ),
+                title: l10n.rename,
+                child: ShadInputFormField(controller: controller, maxLength: 100),
+                actions: [
+                  ShadButton.ghost(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: Text(l10n.cancel),
+                  ),
+                  ShadButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    child: Text(l10n.ok),
+                  ),
+                ],
               );
               if (ok != true) return;
               final name = controller.text.trim();
@@ -273,7 +277,6 @@ class _SessionCard extends ConsumerWidget {
             borderRadius: BorderRadius.circular(12),
             autoClose: true,
             icon: LucideIcons.pencil,
-            label: l10n.rename,
           ),
           SlidableAction(
             onPressed: (_) async {
@@ -306,7 +309,6 @@ class _SessionCard extends ConsumerWidget {
             borderRadius: BorderRadius.circular(12),
             autoClose: true,
             icon: LucideIcons.trash2,
-            label: alive ? l10n.terminate : l10n.delete,
           ),
         ],
       ),

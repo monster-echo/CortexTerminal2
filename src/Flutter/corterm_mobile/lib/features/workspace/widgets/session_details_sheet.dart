@@ -5,7 +5,6 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import '../../../core/models/session.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/sheets_and_dialogs.dart';
-import '../../../shared/widgets/states.dart';
 import '../../sessions/data/sessions_providers.dart';
 import '../workspace_controller.dart';
 
@@ -15,7 +14,10 @@ class SessionDetailsSheet extends ConsumerStatefulWidget {
 
   final String sessionId;
 
-  static Future<void> show(BuildContext context, {required String sessionId}) {
+  static Future<void> show(
+    BuildContext context, {
+    required String sessionId,
+  }) {
     return showCortermSheet(
       context: context,
       builder: (_) => SessionDetailsSheet(sessionId: sessionId),
@@ -63,7 +65,7 @@ class _SessionDetailsSheetState extends ConsumerState<SessionDetailsSheet> {
 
     return SafeArea(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+        padding: EdgeInsets.zero,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,

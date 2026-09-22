@@ -3,14 +3,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../../l10n/app_localizations.dart';
+import '../../../shared/widgets/connection_status_dot.dart';
+import '../../../shared/widgets/list_group.dart';
 import '../../../shared/widgets/sheets_and_dialogs.dart';
 import '../../../shared/widgets/states.dart';
 import '../../sessions/data/sessions_providers.dart';
 import '../../sessions/data/session_repository.dart';
+import 'session_status.dart';
 
 /// New Session 流程——与 MAUI CreateSessionModal 逐项对齐（旧用户习惯不变）：
-/// 顶部「取消 / 创建会话 / 创建(创建中…)」，内容为在线 worker 单选列表
-/// （默认选中第一个在线 worker），创建按钮仅在未创建中时可用。
+/// 顶部「创建会话 / 创建(创建中…)」，下滑 / 点遮罩关闭；内容为
+/// 在线 worker 单选列表（默认选中第一个在线 worker），创建按钮仅在未创建中时可用。
 /// 终端尺寸按 MAUI 公式由视口推导：fontSize 14，cols=w/(14*0.602)，rows=(h-44)/(14*1.2)。
 /// 成功后关闭并回调；失败弹 danger toast。
 Future<void> showNewSessionSheet(
@@ -32,10 +35,10 @@ Future<void> showNewSessionSheet(
     return;
   }
   if (!context.mounted) return;
+  // 内容自适应高度：内容只有一行工具栏（+ loading/错误提示），撑满 2/3 屏
+  // 只会留大片空白。下滑 sheet 即可关闭。
   return showCortermSheet(
     context: context,
-    minHeightFactor: 2 / 3, // 固定 2/3 屏（上限同值）：与 Material sheet 惯例一致。
-    maxHeightFactor: 2 / 3,
     builder: (_) => NewSessionSheet(onCreated: onCreated),
   );
 }
@@ -66,23 +69,18 @@ class _NewSessionSheetState extends ConsumerState<NewSessionSheet> {
       _selectedWorkerId = online.first.workerId;
     }
 
-    return SafeArea(
-      top: false,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // 顶部栏：取消 / 创建会话 / 创建（对齐 MAUI IonToolbar 布局）。
+    // 边距 / 底部 safe area 由 showCortermSheet 统一提供。
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+          // 顶部栏：标题 + 创建。关闭走下滑 / 点遮罩。
           Row(
             children: [
-              ShadButton.ghost(
-                onPressed: _creating ? null : () => Navigator.of(context).pop(),
-                child: Text(l10n.cancel),
-              ),
               Expanded(
                 child: Text(
                   l10n.createSession,
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.small.copyWith(
+                  textAlign: TextAlign.left,
+                  style: theme.textTheme.large.copyWith(
                     fontWeight: FontWeight.w600,
                     color: scheme.foreground,
                   ),
@@ -97,8 +95,6 @@ class _NewSessionSheetState extends ConsumerState<NewSessionSheet> {
             ],
           ),
           const SizedBox(height: 8),
-          // Worker 不再让用户挑（默认第一个在线，用户无需理解选择成本）。
-          // 仅在线 worker 列表为空时给出不可创建的原因。
           workersAsync.when(
             loading: () => const Padding(
               padding: EdgeInsets.all(16),
@@ -121,13 +117,36 @@ class _NewSessionSheetState extends ConsumerState<NewSessionSheet> {
                   ),
                 );
               }
-              return const SizedBox.shrink();
+              // 在线 worker 单选列表：默认选中第一个（MAUI 惯例），
+              // 多个在线时让用户指定落到哪台机器上。
+              // 选中态用行尾勾号（iOS 风格单选）——不用 ShadRadioGroup/Wrap，
+              // 它们嵌在 sheet 滚动上下文里是布局异常重灾区。
+              return AppGroupCard(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (final w in online)
+                    AppRow(
+                      contentPadding:
+                          const EdgeInsets.symmetric(horizontal: 12),
+                      leadingWidget: ConnectionStatusDot(
+                        color: workerDotColor(scheme, w),
+                        size: 10,
+                        pulse: w.isOnline,
+                      ),
+                      label: w.displayName,
+                      onTap: () =>
+                          setState(() => _selectedWorkerId = w.workerId),
+                      trailing: _selectedWorkerId == w.workerId
+                          ? Icon(LucideIcons.check, size: 18, color: scheme.primary)
+                          : null,
+                    ),
+                ],
+              );
             },
           ),
           const SizedBox(height: 12),
         ],
-      ),
-    );
+      );
   }
 
   /// MAUI useCreateSession.createSession：视口推导终端尺寸后创建。

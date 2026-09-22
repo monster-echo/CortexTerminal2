@@ -200,7 +200,8 @@ class AltInputHandler implements TerminalInputHandler {
 
     if (key.index >= TerminalKey.keyA.index &&
         key.index <= TerminalKey.keyZ.index) {
-      final charCode = key.index - TerminalKey.keyA.index + 65;
+      // ESC + 小写字母（meta-b = ESC b）；发大写会被远端当成 ESC+Shift+b。
+      final charCode = key.index - TerminalKey.keyA.index + 97;
       final input = [0x1b, charCode];
       return String.fromCharCodes(input);
     }

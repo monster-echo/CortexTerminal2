@@ -31,12 +31,12 @@ class SessionSelectorSheet extends ConsumerWidget {
     final groups = ref.watch(sessionGroupsProvider);
     final controller = ref.read(workspaceControllerProvider.notifier);
 
-    return SafeArea(
-      child: Column(
+    // 边距 / 底部 safe area 由 showCortermSheet 统一提供。
+    return Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 12, 0),
+            padding: EdgeInsets.zero,
             child: Row(
               children: [
                 Expanded(
@@ -47,10 +47,12 @@ class SessionSelectorSheet extends ConsumerWidget {
                 ),
                 ShadIconButton(
                   icon: const Icon(LucideIcons.plus),
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    showNewSessionSheet(context, onCreated: controller.open);
-                  },
+                  // 栈式 modal：New Session 压在选择器上方，
+                  // 创建完成 / 取消后返回，选择器列表仍在。
+                  onPressed: () => showNewSessionSheet(
+                    context,
+                    onCreated: controller.open,
+                  ),
                 ),
               ],
             ),
@@ -103,7 +105,6 @@ class SessionSelectorSheet extends ConsumerWidget {
              ),
            ),
          ],
-      ),
     );
   }
 }

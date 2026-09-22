@@ -26,9 +26,16 @@ class AppGroupHeader extends StatelessWidget {
 }
 
 class AppGroupCard extends StatelessWidget {
-  const AppGroupCard({super.key, required this.children});
+  const AppGroupCard({
+    super.key,
+    required this.children,
+    // 页面里默认撑满剩余高度；sheet 等 Column(min) 场景传 MainAxisSize.min，
+    // 否则卡片会被 loose bounded 约束撑到 maxHeight。
+    this.mainAxisSize = MainAxisSize.max,
+  });
 
   final List<Widget> children;
+  final MainAxisSize mainAxisSize;
 
   @override
   Widget build(BuildContext context) {
@@ -40,7 +47,7 @@ class AppGroupCard extends StatelessWidget {
         border: Border.all(color: scheme.border),
       ),
       clipBehavior: Clip.antiAlias,
-      child: Column(children: children),
+      child: Column(mainAxisSize: mainAxisSize, children: children),
     );
   }
 }

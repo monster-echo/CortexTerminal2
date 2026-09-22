@@ -1,4 +1,4 @@
-/// 设计基座：官方 shadcn zinc 色板 + 品牌蓝（tailwind blue-600/500）。
+/// 设计基座：官方 shadcn zinc 色板（黑白灰）。
 ///
 /// 唯一允许出现 hex 的地方。组件一律从 `ShadTheme.of(context)` 取色；
 /// 状态色（success/warning/idle）走官方 colorScheme.custom 槽，与品牌色分离。
@@ -26,10 +26,9 @@ ShadColorScheme _scheme(Brightness brightness) {
   final base = brightness == Brightness.light
       ? const ShadZincColorScheme.light()
       : const ShadZincColorScheme.dark();
+  // shadcn 原生 zinc：primary = foreground（近黑/近白），黑白灰观感。
+  // 不覆盖 primary/ring；状态色（success/warning/idle）走 custom 槽。
   return base.copyWith(
-    primary:
-        brightness == Brightness.light ? CortermBrand.light : CortermBrand.dark,
-    ring: brightness == Brightness.light ? CortermBrand.light : CortermBrand.dark,
     custom: {
       'success':
           brightness == Brightness.light ? const Color(0xFF16A34A) : const Color(0xFF22C55E),
@@ -42,7 +41,7 @@ ShadColorScheme _scheme(Brightness brightness) {
 }
 
 /// Light/Dark shadcn 主题（ShadApp 直接消费）。
-/// 官方 zinc 底 + 仅三处许可定制：品牌蓝、圆角 10（0.625rem 档）、
+/// 官方 zinc 底 + 仅两处许可定制：圆角 10（0.625rem 档）、
 /// 移动端触控尺寸修正（shadcn web 默认 40 太矮）。
 ShadThemeData shadLightTheme() => ShadThemeData(
       brightness: Brightness.light,

@@ -35,55 +35,40 @@ class MoreActionsSheet extends ConsumerWidget {
     final session = sessions.value?.where((s) => s.sessionId == sessionId).firstOrNull;
     final canTerminate = session?.status.isAlive ?? false;
 
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(8, 0, 8, 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AppRow(
-              icon: LucideIcons.info,
-              label: l10n.sessionDetails,
-              onTap: () {
-                Navigator.of(context).pop();
-                SessionDetailsSheet.show(context, sessionId: sessionId);
-              },
-            ),
-            AppRow(
-              icon: LucideIcons.folder,
-              label: l10n.filesTitle,
-              onTap: () {
-                Navigator.of(context).pop();
-                context.push('/files/$sessionId');
-              },
-            ),
-            AppRow(
-              icon: LucideIcons.arrowLeftRight,
-              label: l10n.tunnelTitle,
-              onTap: () {
-                Navigator.of(context).pop();
-                PortForwardingSheet.show(context, sessionId: sessionId);
-              },
-            ),
-            Divider(color: scheme.border, indent: 16, endIndent: 16),
-            AppRow(
-              icon: LucideIcons.trash2,
-              label: l10n.terminateSession,
-              destructive: canTerminate,
-              onTap: canTerminate
-                  ? () {
-                      Navigator.of(context).pop();
-                      _terminate(context, ref);
-                    }
-                  : null,
-            ),
-          ],
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // 栈式 modal：子 sheet / 子页面压在本菜单之上，返回即回到菜单，
+        // 不先 pop 自己。
+        AppRow(
+          icon: LucideIcons.info,
+          label: l10n.sessionDetails,
+          onTap: () =>
+              SessionDetailsSheet.show(context, sessionId: sessionId),
         ),
-      ),
+        AppRow(
+          icon: LucideIcons.folder,
+          label: l10n.filesTitle,
+          onTap: () => context.push('/files/$sessionId'),
+        ),
+        AppRow(
+          icon: LucideIcons.arrowLeftRight,
+          label: l10n.tunnelTitle,
+          onTap: () => PortForwardingSheet.show(context, sessionId: sessionId),
+        ),
+        Divider(color: scheme.border, indent: 16, endIndent: 16),
+        AppRow(
+          icon: LucideIcons.trash2,
+          label: l10n.terminateSession,
+          destructive: canTerminate,
+          onTap: canTerminate ? () => _terminate(context, ref) : null,
+        ),
+      ],
     );
   }
 
   /// Terminate 必须确认（§28），且只在该动作明确点击后执行（§27）。
+  /// 确认框压在菜单上方；终止成功后连菜单一起关闭。
   Future<void> _terminate(BuildContext context, WidgetRef ref) async {
     final l10n = AppLocalizations.of(context)!;
     final sessions = ref.read(sessionsProvider).value ?? const [];
@@ -103,5 +88,7 @@ class MoreActionsSheet extends ConsumerWidget {
     if (context.mounted) {
       await ref.read(workspaceControllerProvider.notifier).closeTerminal(sessionId);
     }
+    // 会话已不存在，回到菜单没有意义——整个菜单一并关闭。
+    if (context.mounted) Navigator.of(context).pop();
   }
 }

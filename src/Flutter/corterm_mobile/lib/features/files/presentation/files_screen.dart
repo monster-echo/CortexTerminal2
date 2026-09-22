@@ -10,6 +10,7 @@ import '../../../core/models/session.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/app_bar.dart';
 import '../../../shared/widgets/list_group.dart';
+import '../../../shared/widgets/sheets_and_dialogs.dart';
 import '../../../shared/widgets/states.dart';
 import '../../sessions/data/sessions_providers.dart';
 import '../../workspace/workspace_controller.dart';
@@ -80,37 +81,35 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
     final l10n = AppLocalizations.of(context)!;
     final nameController = TextEditingController();
     final rootController = TextEditingController(text: '/');
-    final ok = await showShadDialog<bool>(
+    final ok = await showCortermSheetDialog<bool>(
       context: context,
-      builder: (context) => ShadDialog(
-        title: Text(l10n.workspaceCreateTitle),
-        actions: [
-          ShadButton.ghost(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(l10n.cancel),
+      title: l10n.workspaceCreateTitle,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ShadInputFormField(
+            controller: nameController,
+            label: Text(l10n.workspaceNameLabel),
+            placeholder: Text(l10n.workspaceNameHint),
           ),
-          ShadButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(l10n.create),
+          const SizedBox(height: 12),
+          ShadInputFormField(
+            controller: rootController,
+            label: Text(l10n.workspaceRootLabel),
+            placeholder: Text(l10n.workspaceRootHint),
           ),
         ],
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ShadInputFormField(
-              controller: nameController,
-              label: Text(l10n.workspaceNameLabel),
-              placeholder: Text(l10n.workspaceNameHint),
-            ),
-            const SizedBox(height: 12),
-            ShadInputFormField(
-              controller: rootController,
-              label: Text(l10n.workspaceRootLabel),
-              placeholder: Text(l10n.workspaceRootHint),
-            ),
-          ],
-        ),
       ),
+      actions: [
+        ShadButton.ghost(
+          onPressed: () => Navigator.pop(context, false),
+          child: Text(l10n.cancel),
+        ),
+        ShadButton(
+          onPressed: () => Navigator.pop(context, true),
+          child: Text(l10n.create),
+        ),
+      ],
     );
     if (ok != true) return;
     final name = nameController.text.trim();

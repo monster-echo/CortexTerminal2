@@ -8,9 +8,10 @@ import '../../l10n/app_localizations.dart';
 import 'app_bar.dart';
 
 /// 顶层壳（对齐 ArkTS ShellScaffold + SidebarContent）：
-/// 三大顶层页（首页/Worker/设置）共用 304 宽侧边栏 + 汉堡按钮；
+/// 三大顶层页（首页/Worker/我的）共用 304 宽侧边栏 + 汉堡按钮；
 /// 内容区结构：品牌行 → 导航项 → 活跃会话（≤5）→ 分割线 → 底部用户行。
-enum ShellTab { home, workers, settings }
+/// settings 保留为枚举值：设置页从「我的」进入，侧边栏不再有独立入口。
+enum ShellTab { home, workers, settings, me }
 
 class AppShellScaffold extends ConsumerWidget {
   const AppShellScaffold({
@@ -38,6 +39,9 @@ class AppShellScaffold extends ConsumerWidget {
       ),
       appBar: CortermAppBar(
         title: title,
+        // 与右侧 actions 对称：leading 区收紧为 44（ShadIconButton 宽度），
+        // 图标视觉缩进与右侧贴边动作钮一致。
+        leadingWidth: 44,
         // Builder 下沉 context：Scaffold.of 必须从 Scaffold 之下的树里查找。
         leading: Builder(
           builder: (innerContext) => ShadIconButton.ghost(
@@ -113,15 +117,17 @@ class _SidebarContent extends ConsumerWidget {
           onTap: () => _go(context, '/workers'),
         ),
         _NavItem(
-          icon: LucideIcons.settings,
-          label: l10n.settings,
-          selected: selected == ShellTab.settings,
-          onTap: () => _go(context, '/settings'),
+          icon: LucideIcons.scanLine,
+          label: l10n.activateTitle,
+          selected: false,
+          // 子页面用 push 压栈：页面返回键 pop 才有栈可弹（go 是替换，pop 会报
+          // GoError: There is nothing to pop）。
+          onTap: () => _push(context, '/activate'),
         ),
         const Spacer(),
-        // 底部用户行 → 设置。
+        // 底部用户行 → 我的（会员权益 / 评分 / 分享 / 设置入口）。
         InkWell(
-          onTap: () => _go(context, '/settings'),
+          onTap: () => _go(context, '/me'),
           child: Container(
             height: 60,
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -173,6 +179,12 @@ class _SidebarContent extends ConsumerWidget {
   void _go(BuildContext context, String location) {
     Navigator.of(context).pop(); // 收起抽屉
     context.go(location);
+  }
+
+  /// 子页面压栈进入（有返回栈）；同样先收起抽屉。
+  void _push(BuildContext context, String location) {
+    Navigator.of(context).pop(); // 收起抽屉
+    context.push(location);
   }
 }
 

@@ -13,6 +13,7 @@ class CortermAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.bottom,
     this.centerTitle = true,
     this.showLeading = true,
+    this.leadingWidth,
   });
 
   final String title;
@@ -24,6 +25,9 @@ class CortermAppBar extends StatelessWidget implements PreferredSizeWidget {
   final PreferredSizeWidget? bottom;
   final bool centerTitle;
   final bool showLeading;
+
+  /// 与右侧 actions 对称时指定（默认 AppBar 56）。
+  final double? leadingWidth;
 
   @override
   Size get preferredSize =>
@@ -40,6 +44,7 @@ class CortermAppBar extends StatelessWidget implements PreferredSizeWidget {
       centerTitle: centerTitle,
       automaticallyImplyLeading: showLeading,
       leading: leading,
+      leadingWidth: leadingWidth,
       title: titleWidget ??
           Text(
             title,

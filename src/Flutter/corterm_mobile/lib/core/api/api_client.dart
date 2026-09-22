@@ -79,41 +79,58 @@ class ApiClient {
     }
   }
 
+  // ---- 统一响应形状校验 ----
+  // dio 泛型（get<List<T>>) 在响应非 JSON 时会抛出晦涩的
+  // "type 'String' is not a subtype of type 'List<dynamic>?'"。改为统一
+  // 动态解析 + 显式校验，两端（Flutter/ArkTS）报同一句错误文案。
+
+  /// 网关响应不是有效 JSON 的统一文案（两端保持一致）。
+  static const String badJsonMessage = '网关响应不是有效 JSON（网关可能版本过旧）';
+
+  Never _throwBadJson(String method, String path) =>
+      throw ApiException(0, serverMessage: '$badJsonMessage：$method $path');
+
   /// GET 并解析 JSON 列表。
   Future<List<dynamic>> getList(String path) async {
-    final res = await _dio.get<List<dynamic>>(path);
-    return res.data ?? <dynamic>[];
+    final data = (await _dio.get<dynamic>(path)).data;
+    if (data is List<dynamic>) return data;
+    throw _throwBadJson('GET', path);
   }
 
   Future<Map<String, dynamic>> getMap(String path, {Map<String, dynamic>? query}) async {
-    final res = await _dio.get<Map<String, dynamic>>(path, queryParameters: query);
-    return res.data ?? const {};
+    final data = (await _dio.get<dynamic>(path, queryParameters: query)).data;
+    if (data is Map<String, dynamic>) return data;
+    throw _throwBadJson('GET', path);
   }
 
   Future<Map<String, dynamic>> postMap(String path, Object? body) async {
-    final res = await _dio.post<Map<String, dynamic>>(path, data: body);
-    return res.data ?? const {};
+    final data = (await _dio.post<dynamic>(path, data: body)).data;
+    if (data is Map<String, dynamic>) return data;
+    throw _throwBadJson('POST', path);
   }
 
   /// POST 纯文本 body（如头像 base64，MAUI 同款 text/plain）。
   Future<Map<String, dynamic>> postText(String path, String body) async {
-    final res = await _dio.post<Map<String, dynamic>>(path, data: body,
-        options: Options(headers: {'Content-Type': 'text/plain'}));
-    return res.data ?? const {};
+    final data = (await _dio.post<dynamic>(path, data: body,
+        options: Options(headers: {'Content-Type': 'text/plain'}))).data;
+    if (data is Map<String, dynamic>) return data;
+    throw _throwBadJson('POST', path);
   }
 
   Future<Map<String, dynamic>> putMap(String path, Object? body) async {
-    final res = await _dio.put<Map<String, dynamic>>(path, data: body);
-    return res.data ?? const {};
+    final data = (await _dio.put<dynamic>(path, data: body)).data;
+    if (data is Map<String, dynamic>) return data;
+    throw _throwBadJson('PUT', path);
   }
 
   Future<Map<String, dynamic>> patch(String path, Object? body) async {
-    final res = await _dio.patch<Map<String, dynamic>>(path, data: body);
-    return res.data ?? const {};
+    final data = (await _dio.patch<dynamic>(path, data: body)).data;
+    if (data is Map<String, dynamic>) return data;
+    throw _throwBadJson('PATCH', path);
   }
 
   Future<void> delete(String path) async {
-    await _dio.delete<void>(path);
+    await _dio.delete<dynamic>(path);
   }
 
   /// 把 DioException 归一为 [ApiException] / [RateLimitedException]，其余原样抛出。

@@ -22,6 +22,7 @@ import '../../../app/theme/app_theme.dart';
 import '../../legal/legal_screens.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/brand_logos.dart';
+import '../../../shared/widgets/sheets_and_dialogs.dart';
 import '../../../shared/widgets/states.dart';
 
 /// 登录页：密码 + 手机号（由 /api/auth/methods 决定显示）。
@@ -115,22 +116,28 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Future<bool> _ensureConsent() async {
     if (_consented) return true;
     final l10n = AppLocalizations.of(context)!;
-    final agreed = await showShadDialog<bool>(
+    final agreed = await showCortermSheetDialog<bool>(
       context: context,
-      builder: (context) => ShadDialog.alert(
-        title: Text(l10n.consentAlertTitle),
-        description: Text(l10n.consentAlertBody),
-        actions: [
-          ShadButton.outline(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text(l10n.disagree),
-          ),
-          ShadButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(l10n.agree),
-          ),
-        ],
+      title: l10n.consentAlertTitle,
+      child: Builder(
+        builder: (bodyContext) => Text(
+          l10n.consentAlertBody,
+          style: ShadTheme.of(bodyContext)
+              .textTheme
+              .muted
+              .copyWith(color: ShadTheme.of(bodyContext).colorScheme.mutedForeground),
+        ),
       ),
+      actions: [
+        ShadButton.outline(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: Text(l10n.disagree),
+        ),
+        ShadButton(
+          onPressed: () => Navigator.of(context).pop(true),
+          child: Text(l10n.agree),
+        ),
+      ],
     );
     if (agreed == true && mounted) {
       setState(() => _consented = true);
@@ -309,16 +316,24 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<String> _solveCaptcha() async {
+    final l10n = AppLocalizations.of(context)!;
     final repo = ref.read(authRepositoryProvider);
     final challenge = await repo.captchaChallenge();
     if (!mounted) throw StateError('no context for captcha');
-    final token = await showShadDialog<String>(
+    final token = await showCortermSheetDialog<String>(
       context: context,
-      builder: (_) => _CaptchaDialog(
+      title: l10n.captchaTitle,
+      child: _CaptchaDialog(
         initialChallenge: challenge,
         onVerify: (c, x) => repo.captchaVerify(id: c.id, x: x),
         onNewChallenge: () => repo.captchaChallenge(),
       ),
+      actions: [
+        ShadButton.ghost(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(l10n.cancel),
+        ),
+      ],
     );
     if (token == null || token.isEmpty) {
       throw ApiException(403, serverMessage: 'CAPTCHA_REQUIRED');
@@ -803,20 +818,10 @@ class _CaptchaDialogState extends State<_CaptchaDialog>
       _ => scheme.primary,
     };
 
-    return ShadDialog(
-      title: Text(l10n.captchaTitle),
-      actions: [
-        ShadButton.ghost(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(l10n.cancel),
-        ),
-      ],
-      child: SizedBox(
-        width: 320,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
             FutureBuilder<_CaptchaImages>(
               future: _images,
               builder: (context, snap) {
@@ -960,8 +965,6 @@ class _CaptchaDialogState extends State<_CaptchaDialog>
               ),
             ],
           ],
-        ),
-      ),
     );
   }
 }
