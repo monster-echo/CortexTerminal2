@@ -6,6 +6,8 @@ public sealed class SupportOptions
 
     public SupportGroupOptions TelegramGroup { get; set; } = new();
 
+    public SupportGroupOptions FeishuGroup { get; set; } = new();
+
     public string Email { get; set; } = "";
 }
 

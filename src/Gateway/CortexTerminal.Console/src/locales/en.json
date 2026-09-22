@@ -527,7 +527,7 @@
       "faqTitle": "FAQ",
       "faq1Q": "How to get started?",
       "faq1A1": "1. Install Corterm Worker on your remote server",
-      "faq1A2": "2. In the app, tap \"Activate Worker\" and enter the activation code shown on the terminal",
+      "faq1A2": "2. In the app, tap \"Scan to authorize\" and scan the QR shown on the terminal (or enter the code manually)",
       "faq1A3": "3. After successful activation, you can create terminal sessions and connect",
       "faq2Q": "Supported platforms",
       "faq2A": "Worker supports macOS, Linux, and Windows. Mobile app supports iOS and Android.",
@@ -598,3 +598,4 @@
     "mobileApkDirect": "Android APK"
   }
 }
+

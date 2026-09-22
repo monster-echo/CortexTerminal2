@@ -97,6 +97,42 @@ public record WsReplayCompletedFrame
     public required string SessionId { get; init; }
 }
 
+/// <summary>
+/// 增量重放开始（?since=N 声明了游标的客户端专用）。客户端**不重置**屏幕，
+/// 继续其已绘制的画面；随后为 replayDelta 帧序列。
+/// </summary>
+public record WsReplayDeltaStartedFrame
+{
+    [JsonPropertyName("type")]
+    public string Type => "replayDeltaStarted";
+    [JsonPropertyName("sessionId")]
+    public required string SessionId { get; init; }
+}
+
+public record WsReplayDeltaFrame
+{
+    [JsonPropertyName("type")]
+    public string Type => "replayDelta";
+    [JsonPropertyName("sessionId")]
+    public required string SessionId { get; init; }
+    [JsonPropertyName("stream")]
+    public required string Stream { get; init; }
+    [JsonPropertyName("payload")]
+    public required string Payload { get; init; } // base64
+    [JsonPropertyName("seq")]
+    public required long Seq { get; init; }
+}
+
+public record WsReplayDeltaCompletedFrame
+{
+    [JsonPropertyName("type")]
+    public string Type => "replayDeltaCompleted";
+    [JsonPropertyName("sessionId")]
+    public required string SessionId { get; init; }
+    [JsonPropertyName("lastSeq")]
+    public required long LastSeq { get; init; }
+}
+
 public record WsOutputFrame
 {
     [JsonPropertyName("type")]

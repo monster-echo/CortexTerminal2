@@ -211,20 +211,31 @@ static string BuildTunnelUrl(TunnelOptions options, RelayOptions relay, string k
 static string NormalizeVersion(string version)
     => System.Text.RegularExpressions.Regex.Replace(version, @"(\.0)+$", "");
 
-static object ToSessionSummaryResponse(SessionRecord session, string? workerName = null, string? workerHostname = null)
-    => new
+static object ToSessionSummaryResponse(SessionRecord session, bool workerOnline, string? workerName = null, string? workerHostname = null)
+{
+    // 生效状态：Worker 已知离线时，Attached / DetachedGracePeriod 的会话实际不可达
+    // （断开事件可能未被网关处理：断网杀进程 / 网关重启丢内存注册表）。
+    // 如实呈现为 Recovering，与「Worker 掉线 = Recovering」语义一致；Exited/Expired 不变。
+    var effective = !workerOnline &&
+                    session.AttachmentState is SessionAttachmentState.Attached
+                        or SessionAttachmentState.DetachedGracePeriod
+        ? SessionAttachmentState.Recovering
+        : session.AttachmentState;
+
+    return new
     {
         session.SessionId,
         session.Name,
         session.WorkerId,
         WorkerName = workerName,
         WorkerHostname = workerHostname,
-        Status = session.AttachmentState.ToString(),
+        WorkerOnline = workerOnline,
+        Status = effective.ToString(),
         CreatedAt = session.CreatedAtUtc,
         LastActivityAt = session.LastActivityAtUtc,
         session.CreatedAtUtc,
         session.LastActivityAtUtc,
-        session.AttachmentState,
+        AttachmentState = effective,
         session.ExitCode,
         session.ExitReason,
         session.AgentKind,
@@ -232,6 +243,7 @@ static object ToSessionSummaryResponse(SessionRecord session, string? workerName
         session.InferredTitle,
         session.WorkspaceId
     };
+}
 
 static object ToSessionDetailResponse(
     SessionRecord session,
@@ -244,17 +256,24 @@ static object ToSessionDetailResponse(
             ? "matched"
             : "stale";
 
+    // 生效状态（同列表接口）：Worker 离线时 Attached/DetachedGracePeriod 不可达 → Recovering。
+    var effectiveState = currentWorker is null &&
+                         session.AttachmentState is SessionAttachmentState.Attached
+                             or SessionAttachmentState.DetachedGracePeriod
+        ? SessionAttachmentState.Recovering
+        : session.AttachmentState;
+
     return new
     {
         session.SessionId,
         session.Name,
         session.WorkerId,
-        Status = session.AttachmentState.ToString(),
+        Status = effectiveState.ToString(),
         CreatedAt = session.CreatedAtUtc,
         LastActivityAt = session.LastActivityAtUtc,
         session.Columns,
         session.Rows,
-        AttachmentState = session.AttachmentState.ToString(),
+        AttachmentState = effectiveState.ToString(),
         session.AttachedClientConnectionId,
         session.ExitCode,
         session.ExitReason,
@@ -324,6 +343,16 @@ builder.Services
 
 builder.Services.AddAuthorization();
 builder.Services.AddControllers();
+// CORS：浏览器客户端（flutter web 预览/web 端）需要的来源白名单，逗号分隔。
+// 未配置则不加 CORS 中间件（纯移动端部署零开销）。
+// 配置示例：Cors__Origins=http://127.0.0.1:8090,http://localhost:8090
+var corsOrigins = (builder.Configuration["Cors:Origins"] ?? "")
+    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+if (corsOrigins.Length > 0)
+{
+    builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
+        policy.WithOrigins(corsOrigins).AllowAnyHeader().AllowAnyMethod()));
+}
 builder.Services.AddSignalR(options => options.MaximumReceiveMessageSize = 8 * 1024 * 1024).AddMessagePackProtocol();
 // Default IUserIdProvider looks for ClaimTypes.NameIdentifier, but with MapInboundClaims
 // disabled the sub claim stays literal. Hubs use Context.UserIdentifier for ownership
@@ -357,6 +386,9 @@ builder.Configuration.GetSection("Tts").Bind(ttsOptions);
 var supportOptions = new SupportOptions();
 builder.Configuration.GetSection("Support").Bind(supportOptions);
 builder.Services.AddSingleton(supportOptions);
+var announcementOptions = new List<CortexTerminal.Gateway.Announcements.AnnouncementOptions>();
+builder.Configuration.GetSection("Announcements").Bind(announcementOptions);
+builder.Services.AddSingleton(announcementOptions);
 
 var scrollbackSettings = new ScrollbackSettings();
 builder.Configuration.GetSection("Scrollback").Bind(scrollbackSettings);
@@ -443,6 +475,12 @@ var forwardedHeadersOptions = new ForwardedHeadersOptions
 forwardedHeadersOptions.KnownIPNetworks.Clear();
 forwardedHeadersOptions.KnownProxies.Clear();
 app.UseForwardedHeaders(forwardedHeadersOptions);
+
+// CORS 必须在鉴权之前；仅当配置了来源白名单时启用。
+if (corsOrigins.Length > 0)
+{
+    app.UseCors();
+}
 
 // Auto-migrate database schema (Postgres only — in-memory provider auto-creates).
 // Seed ALWAYS runs: production Postgres after migrate, AND InMemory (tests).
@@ -1354,7 +1392,23 @@ app.MapGet("/api/support/info", (SupportOptions opts, HttpContext httpCtx) =>
         qrCodeUrl = Abs(opts.TelegramGroup.QrCodeUrl),
     } : null;
 
-    return Results.Ok(new { qqGroup = qq, telegramGroup = tg, email = opts.Email });
+    object? feishu = opts.FeishuGroup.Enabled ? new
+    {
+        name = opts.FeishuGroup.Name,
+        url = opts.FeishuGroup.Url,
+        qrCodeUrl = Abs(opts.FeishuGroup.QrCodeUrl),
+    } : null;
+
+    return Results.Ok(new { qqGroup = qq, telegramGroup = tg, feishuGroup = feishu, email = opts.Email });
+}).AllowAnonymous();
+
+// --- Announcements ---
+
+app.MapGet("/api/announcements", (List<CortexTerminal.Gateway.Announcements.AnnouncementOptions> list) =>
+{
+    return Results.Ok(list
+        .Where(a => a.Enabled && !string.IsNullOrEmpty(a.Id))
+        .Select(a => new { id = a.Id, title = a.Title, body = a.Body, buttonLabel = a.ButtonLabel, url = a.Url }));
 }).AllowAnonymous();
 
 // --- Feedback Image Upload ---
@@ -1872,7 +1926,7 @@ app.MapGet("/api/me/sessions", async (ClaimsPrincipal user, ISessionCoordinator 
         .Select(session =>
         {
             workerById.TryGetValue(session.WorkerId, out var worker);
-            return ToSessionSummaryResponse(session, worker?.Name, worker?.Hostname);
+            return ToSessionSummaryResponse(session, worker?.IsOnline ?? false, worker?.Name, worker?.Hostname);
         })
         .ToArray();
 
@@ -2697,7 +2751,7 @@ app.MapGet("/api/me/workers/{workerId}", async (string workerId, ClaimsPrincipal
     var hostedSessions = (await sessions.GetSessionsForUser(userId))
         .Where(session => session.WorkerId == workerId)
         .OrderByDescending(session => session.LastActivityAtUtc)
-        .Select(session => ToSessionSummaryResponse(session, workerRecord.Name, workerRecord.Hostname))
+        .Select(session => ToSessionSummaryResponse(session, workerRecord.IsOnline, workerRecord.Name, workerRecord.Hostname))
         .ToArray();
 
     var metricsSnapshot = workers.GetMetrics(workerRecord.WorkerId);
@@ -3187,6 +3241,10 @@ app.MapGet("/api/sessions/{sessionId}/agent-events", async (
 
 // Fallback to index.html for client-side routing
 TtsEndpoints.Map(app, ttsOptions);
+// Flutter web app（/app/ 前缀，同源自托管）的深链回退；必须先于全捕获回退。
+// 注意：{*path} 本身就是贪婪 catch-all，不能再挂 `:path` 约束——`path` 不是已注册的
+// 约束类型，懒加载构建匹配器时会对所有请求抛 500。
+app.MapFallbackToFile("app/{*path}", "app/index.html");
 app.MapFallbackToFile("index.html");
 
 app.Run();

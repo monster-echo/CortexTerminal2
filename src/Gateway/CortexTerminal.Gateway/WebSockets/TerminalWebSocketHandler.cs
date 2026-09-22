@@ -58,8 +58,10 @@ public sealed class TerminalWebSocketHandler
     /// [capabilities] 是客户端在连接 query（?caps=a,b）里声明的可选能力集，
     /// 当前仅 displaced：声明者被同 session 新连接挤掉时会收到 displaced 帧再关闭；
     /// 未声明者维持旧行为（连接被静默关闭），保证旧客户端兼容。
+    /// [sinceSeq] 是客户端缓存的输出游标（?since=N，N>0 走增量重放；
+    /// Worker 不支持或游标越界时回退全量重放，旧客户端不带 since 行为不变）。
     /// </summary>
-    public async Task HandleAsync(WebSocket ws, string userId, string sessionId, string capabilities, CancellationToken cancellationToken)
+    public async Task HandleAsync(WebSocket ws, string userId, string sessionId, string capabilities, long sinceSeq, CancellationToken cancellationToken)
     {
         // Validate the session exists and belongs to this user
         if (!_sessions.TryGetSession(sessionId, out var session))
@@ -128,36 +130,83 @@ public sealed class TerminalWebSocketHandler
                 }
             }
 
-            // Send replay
-            await SendJsonAsync(ws, new WsReplayingFrame { SessionId = sessionId }, cancellationToken);
-
+            // Send replay.
+            // 增量重放（since>0）：向 Worker 请求游标之后的增量块，客户端无缝续屏
+            // （不发 replaying 重置帧）；Worker 不支持（旧版 RPC 抛错）或 Gap
+            // （游标早于保留窗口）时回退全量重放——对齐 TerminalHub 增量语义。
             _sessions.TryGetSession(sessionId, out var currentSession);
             var workerConnectionId = currentSession?.WorkerConnectionId;
 
-            IReadOnlyList<TerminalChunk> snapshot = Array.Empty<TerminalChunk>();
-            if (!string.IsNullOrEmpty(workerConnectionId))
+            ScrollbackDelta? delta = null;
+            if (sinceSeq > 0 && !string.IsNullOrEmpty(workerConnectionId))
             {
                 try
                 {
-                    snapshot = await _workerCommands.RequestScrollbackAsync(workerConnectionId, sessionId, cancellationToken);
+                    delta = await _workerCommands.RequestScrollbackSinceAsync(
+                        workerConnectionId, sessionId, sinceSeq, cancellationToken);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "RequestScrollback failed for WS session {SessionId}, sending empty replay.", sessionId);
+                    _logger.LogWarning(ex, "RequestScrollbackSince failed for WS session {SessionId}; falling back to full replay.", sessionId);
                 }
             }
 
-            foreach (var chunk in snapshot)
+            if (delta is not null && !delta.Gap)
             {
-                await SendJsonAsync(ws, new WsReplayFrame
+                // Incremental: the client continues its painted screen — no reset frame.
+                await SendJsonAsync(ws, new WsReplayDeltaStartedFrame { SessionId = sessionId }, cancellationToken);
+                foreach (var item in delta.Items)
                 {
-                    SessionId = chunk.SessionId,
-                    Stream = chunk.Stream,
-                    Payload = Convert.ToBase64String(chunk.Payload)
-                }, cancellationToken);
+                    await SendJsonAsync(ws, new WsReplayDeltaFrame
+                    {
+                        SessionId = item.Chunk.SessionId,
+                        Stream = item.Chunk.Stream,
+                        Payload = Convert.ToBase64String(item.Chunk.Payload),
+                        Seq = item.Seq
+                    }, cancellationToken);
+                }
+                await SendJsonAsync(ws, new WsReplayDeltaCompletedFrame { SessionId = sessionId, LastSeq = delta.LastSeq }, cancellationToken);
             }
+            else
+            {
+                // Legacy full replay. Gap=true 时用 Worker 返回的保留缓冲做重置重放
+                // （对齐 TerminalHub 回退语义）；否则按原路径整段拉取。
+                await SendJsonAsync(ws, new WsReplayingFrame { SessionId = sessionId }, cancellationToken);
 
-            await SendJsonAsync(ws, new WsReplayCompletedFrame { SessionId = sessionId }, cancellationToken);
+                IReadOnlyList<TerminalChunk> snapshot;
+                if (delta is not null)
+                {
+                    snapshot = delta.Items.Select(i => i.Chunk).ToArray();
+                }
+                else if (!string.IsNullOrEmpty(workerConnectionId))
+                {
+                    try
+                    {
+                        snapshot = await _workerCommands.RequestScrollbackAsync(workerConnectionId, sessionId, cancellationToken);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "RequestScrollback failed for WS session {SessionId}, sending empty replay.", sessionId);
+                        snapshot = Array.Empty<TerminalChunk>();
+                    }
+                }
+                else
+                {
+                    snapshot = Array.Empty<TerminalChunk>();
+                }
+
+                foreach (var chunk in snapshot)
+                {
+                    await SendJsonAsync(ws, new WsReplayFrame
+                    {
+                        SessionId = chunk.SessionId,
+                        Stream = chunk.Stream,
+                        Payload = Convert.ToBase64String(chunk.Payload)
+                    }, cancellationToken);
+                }
+
+                await SendJsonAsync(ws, new WsReplayCompletedFrame { SessionId = sessionId }, cancellationToken);
+            }
 
             await _replayCoordinator.FlushPendingAsync(
                 sessionId,

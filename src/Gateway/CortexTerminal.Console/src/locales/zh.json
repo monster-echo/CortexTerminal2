@@ -527,7 +527,7 @@
       "faqTitle": "常见问题",
       "faq1Q": "如何开始使用？",
       "faq1A1": "1. 在您的远程服务器上安装 Corterm Worker",
-      "faq1A2": "2. 在应用中点击「激活 Worker」，输入终端显示的激活码",
+      "faq1A2": "2. 在应用中点击「扫码授权」，扫描终端上的二维码（也可手动输入激活码）",
       "faq1A3": "3. 激活成功后即可创建终端会话并连接",
       "faq2Q": "支持的平台",
       "faq2A": "Worker 支持安装在 macOS、Linux 和 Windows 上。移动端支持 iOS 和 Android。",
@@ -598,3 +598,4 @@
     "mobileApkDirect": "安卓 APK 下载"
   }
 }
+

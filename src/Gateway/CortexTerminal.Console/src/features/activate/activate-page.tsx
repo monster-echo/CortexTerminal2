@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
+import { Route } from '@/routes/(auth)/activate'
 import { createConsoleApi } from '@/services/console-api'
 import { useAuthStore } from '@/stores/auth-store'
 import { Button } from '@/components/ui/button'
@@ -17,16 +18,29 @@ const consoleApi = createConsoleApi({
 })
 
 export function ActivatePage() {
-  const [userCode, setUserCode] = useState('')
+  // QR path: the desktop app encodes /activate?code=XXXX-YYYY — the code arrives
+  // in the search params and verification runs automatically once, on mount.
+  const search = Route.useSearch()
+  const [userCode, setUserCode] = useState(search.code.toUpperCase())
   const [loading, setLoading] = useState(false)
   const [confirmed, setConfirmed] = useState(false)
+  const [autoVerified, setAutoVerified] = useState(false)
   const navigate = useNavigate()
 
-  async function handleConfirm() {
-    if (!userCode.trim()) return
+  useEffect(() => {
+    if (search.code && !autoVerified) {
+      setAutoVerified(true)
+      void handleConfirm(search.code)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  async function handleConfirm(preset?: string) {
+    const code = (preset ?? userCode).trim()
+    if (!code) return
     setLoading(true)
     try {
-      await consoleApi.verifyDeviceCode(userCode.trim().toUpperCase())
+      await consoleApi.verifyDeviceCode(code.toUpperCase())
       setConfirmed(true)
       toast.success('Worker authorized successfully!')
     } catch (error) {
@@ -80,7 +94,7 @@ export function ActivatePage() {
               className="text-center text-2xl tracking-widest font-mono h-14"
               onKeyDown={(e) => e.key === 'Enter' && handleConfirm()}
             />
-            <Button onClick={handleConfirm} disabled={loading || !userCode.trim()} className="w-full">
+            <Button onClick={() => handleConfirm()} disabled={loading || !userCode.trim()} className="w-full">
               {loading ? 'Verifying...' : 'Authorize Worker'}
             </Button>
           </div>

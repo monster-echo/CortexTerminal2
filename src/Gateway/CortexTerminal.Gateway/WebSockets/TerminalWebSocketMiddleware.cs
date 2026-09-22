@@ -59,14 +59,23 @@ public class TerminalWebSocketMiddleware
         // 可选能力协商（?caps=displaced,...）；旧客户端不带此参数，行为不变。
         var caps = context.Request.Query["caps"].FirstOrDefault() ?? string.Empty;
 
-        _logger.LogInformation("WebSocket terminal connection: userId={UserId}, sessionId={SessionId}, caps={Caps}", userId, sessionId, caps);
+        // 增量重放游标（?since=<lastSeq>）：声明了 since 且 >0 的客户端走增量重放
+        // （Worker 只回游标之后的块）；未声明/为 0 → 维持全量重放，旧客户端兼容。
+        long since = 0;
+        var sinceRaw = context.Request.Query["since"].FirstOrDefault();
+        if (!string.IsNullOrEmpty(sinceRaw) && !long.TryParse(sinceRaw, out since))
+        {
+            since = 0;
+        }
+
+        _logger.LogInformation("WebSocket terminal connection: userId={UserId}, sessionId={SessionId}, caps={Caps}, since={Since}", userId, sessionId, caps, since);
 
         // Accept the WebSocket connection
         var ws = await context.WebSockets.AcceptWebSocketAsync();
 
         try
         {
-            await handler.HandleAsync(ws, userId, sessionId, caps, context.RequestAborted);
+            await handler.HandleAsync(ws, userId, sessionId, caps, since, context.RequestAborted);
         }
         catch (Exception ex)
         {
