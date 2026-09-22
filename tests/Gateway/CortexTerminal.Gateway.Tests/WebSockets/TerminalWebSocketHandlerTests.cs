@@ -27,7 +27,7 @@ public sealed class TerminalWebSocketHandlerTests
                 .Replace("SESSION", sessionId),
             closeAfterMessages: true);
 
-        await handler.HandleAsync(ws, "test-user", sessionId, capabilities: "", CancellationToken.None);
+        await handler.HandleAsync(ws, "test-user", sessionId, capabilities: "", sinceSeq: 0, cancellationToken: CancellationToken.None);
 
         ws.SentFrames.Select(ReadType).Should().ContainInOrder(
             "replaying",
@@ -47,7 +47,7 @@ public sealed class TerminalWebSocketHandlerTests
             """{"type":"detach","sessionId":"SESSION"}""".Replace("SESSION", sessionId),
             closeAfterMessages: false);
 
-        await handler.HandleAsync(ws, "test-user", sessionId, capabilities: "", CancellationToken.None);
+        await handler.HandleAsync(ws, "test-user", sessionId, capabilities: "", sinceSeq: 0, cancellationToken: CancellationToken.None);
 
         ws.SentFrames.Select(ReadType).Should().Contain("detached");
         ws.CloseStatus.Should().Be(WebSocketCloseStatus.NormalClosure);
@@ -63,7 +63,7 @@ public sealed class TerminalWebSocketHandlerTests
                 .Replace("SESSION", sessionId),
             closeAfterMessages: true);
 
-        await handler.HandleAsync(ws, "test-user", sessionId, capabilities: "", CancellationToken.None);
+        await handler.HandleAsync(ws, "test-user", sessionId, capabilities: "", sinceSeq: 0, cancellationToken: CancellationToken.None);
 
         var errorFrame = ReadFrame(ws.SentFrames.Last(ReadTypeIs("error")));
         errorFrame.GetProperty("code").GetString().Should().Be("invalid-frame");
