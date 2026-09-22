@@ -20,8 +20,9 @@ DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 PrivilegesRequired=lowest
 OutputDir=release
-; ASCII 文件名：中文在 gh release 上传时会丢字符（-0.1.0-setup.exe）
-OutputBaseFilename=corterm-ui-{#MyAppVersion}-setup
+; ASCII 文件名：中文在 gh release 上传时会丢字符；固定名不带版本号，
+; 自更新通过 releases/latest/download/<asset> 直达（对应 self_updater.dart）。
+OutputBaseFilename=corterm-ui-windows-setup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
@@ -47,4 +48,5 @@ Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#MyAppName}}"; Flags: nowait postinstall skipifsilent
+; 不带 skipifsilent：自更新的静默覆盖安装完成后也要把应用重新拉起。
+Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#MyAppName}}"; Flags: nowait postinstall

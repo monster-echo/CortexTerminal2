@@ -5,11 +5,13 @@ import '../core/corterm_service.dart';
 import '../core/models.dart';
 import '../l10n/app_strings.dart';
 import '../theme/app_theme.dart';
+import '../widgets/app_bar.dart';
 import '../widgets/error_banner.dart';
 import '../widgets/list_group.dart';
 import '../widgets/section_header.dart';
 import '../widgets/states.dart';
 import '../widgets/status_card.dart';
+import 'auth_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key, required this.service});
@@ -130,6 +132,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           const SizedBox(width: 8),
           Expanded(child: Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w500))),
+          // 未认证：直达登录页（进入即显示登录二维码，扫码即完成）
+          if (!s.authenticated)
+            ShadButton.outline(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => Scaffold(
+                    appBar: WorkerAppBar(title: t(context, 'nav.auth')),
+                    body: AuthScreen(service: widget.service),
+                  ),
+                ),
+              ),
+              child: Text(t(context, 'auth.login')),
+            ),
         ],
       ),
     );

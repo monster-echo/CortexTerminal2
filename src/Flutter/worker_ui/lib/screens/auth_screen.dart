@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
@@ -30,9 +29,9 @@ class _AuthScreenState extends State<AuthScreen> {
   String? _authExpiry;
   String? _error;
   bool _loggingIn = false;
+  bool _autoLoginStarted = false;
   LoginStageData? _code;
   String? _loginMessage;
-  String? _toast;
 
   @override
   void initState() {
@@ -54,6 +53,11 @@ class _AuthScreenState extends State<AuthScreen> {
         _authExpiry = s.authExpiry;
         _loading = false;
       });
+      // 未认证时自动发起登录：进入页面即显示二维码，不用再点一次「登录」。
+      if (!s.authenticated && !_autoLoginStarted) {
+        _autoLoginStarted = true;
+        await _login();
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -124,19 +128,9 @@ class _AuthScreenState extends State<AuthScreen> {
     }
   }
 
-  Future<void> _copyUri() async {
-    if (_code?.verificationUri == null) return;
-    await Clipboard.setData(ClipboardData(text: _code!.verificationUri!));
-    if (!mounted) return;
-    setState(() => _toast = AppStrings.t(context, 'auth.copied'));
-    await Future.delayed(const Duration(seconds: 2));
-    if (mounted) setState(() => _toast = null);
-  }
-
   @override
   Widget build(BuildContext context) {
     final t = AppStrings.t;
-    final scheme = ShadTheme.of(context).colorScheme;
     return SafeArea(
       child: ListView(
         padding: const EdgeInsets.all(16),
@@ -144,11 +138,6 @@ class _AuthScreenState extends State<AuthScreen> {
           SectionHeader(title: t(context, 'auth.title')),
           const SizedBox(height: 16),
           ErrorBanner(message: _error),
-          if (_toast != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(_toast!, style: TextStyle(color: scheme.tertiary)),
-            ),
           const SizedBox(height: 8),
           if (_loading)
             const Center(child: Padding(padding: EdgeInsets.all(24), child: SmallSpinner()))
@@ -205,42 +194,41 @@ class _AuthScreenState extends State<AuthScreen> {
   Widget _buildLogin(BuildContext context) {
     final t = AppStrings.t;
     final scheme = ShadTheme.of(context).colorScheme;
+    final failed = _loginMessage != null && _loginMessage != 'success';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        PrimaryButton(
-          label: t(context, 'auth.login'),
-          onPressed: _loggingIn ? null : _login,
-          icon: LucideIcons.logIn,
-          expanded: true,
-        ),
+        // 进入页面即自动发起登录显示二维码（见 _loadStatus）；这里只在
+        // 出错/过期后给一个重试入口。
+        if (failed)
+          PrimaryButton(
+            label: t(context, 'auth.retryQr'),
+            onPressed: _login,
+            icon: LucideIcons.refreshCw,
+            expanded: true,
+          ),
         if (_code != null) ...[
           const SizedBox(height: 24),
-          Text(t(context, 'auth.visit'), style: const TextStyle(fontSize: 14)),
-          const SizedBox(height: 8),
-          ShadButton.link(
-            onPressed: _copyUri,
-            child: Text(
-              _code!.verificationUri ?? '',
-              style: TextStyle(
-                color: scheme.link,
-                decoration: TextDecoration.underline,
-                fontSize: 14,
-              ),
-            ),
-          ),
+          Text(t(context, 'auth.scan'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
           const SizedBox(height: 16),
           Center(
             child: Column(
               children: [
-                if (_code!.verificationUri != null)
-                  QrImageView(data: _code!.verificationUri!, size: 180),
+                // verification_uri_complete：App 扫码提取 code 参数直接授权，
+                // 系统相机扫则落到网关 /activate?code= 自动确认页。
+                if (_code!.verificationUri != null && _code!.userCode != null)
+                  QrImageView(
+                    data:
+                        '${_code!.verificationUri!}?code=${_code!.userCode!}',
+                    size: 200,
+                    backgroundColor: Colors.white,
+                  ),
                 const SizedBox(height: 16),
                 Text(t(context, 'auth.enterCode'), style: TextStyle(color: scheme.mutedForeground, fontSize: 13)),
                 const SizedBox(height: 4),
                 Text(
                   _code!.userCode ?? '',
-                  style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 4),
+                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, letterSpacing: 3),
                 ),
                 const SizedBox(height: 16),
                 if (!_loggingIn && _loginMessage == null)

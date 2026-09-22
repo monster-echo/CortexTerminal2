@@ -44,9 +44,10 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
-  # 托盘菜单栏图标（macOS template）
+  # 托盘菜单栏图标（macOS template png / Windows .ico）
   assets:
     - assets/tray_icon.png
+    - assets/tray_icon.ico
     # 内置 worker 二进制（一体：装 App 即带 worker，首跑自动装到 ~/.corterm）。
     # 必须声明目录而不是逐个文件：Windows 构建时 CI 放进来的是 corterm.exe/
     # cortap.exe，逐文件声明会漏掉 .exe（ui-v0.1.0 的 Windows 包因此没带 worker，

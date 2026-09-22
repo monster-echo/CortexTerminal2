@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:launch_at_startup/launch_at_startup.dart';
@@ -8,10 +9,11 @@ import '../l10n/app_strings.dart';
 import 'binary_locator.dart';
 import 'corterm_service.dart';
 import 'models.dart';
+import 'self_updater.dart';
 import 'settings.dart';
 
 /// 托盘菜单动作（需要 UI 配合的动作由 App 监听处理）。
-enum TrayCommand { none, show, login, logout, quit }
+enum TrayCommand { none, show, login, logout, about, quit }
 
 /// 全局导航 key：托盘菜单「登录」需要 push 认证页。
 final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
@@ -31,7 +33,9 @@ class TrayController extends ChangeNotifier {
   Timer? _timer;
 
   Future<void> init() async {
-    await trayManager.setIcon('assets/tray_icon.png', isTemplate: true);
+    // Windows 托盘只认 .ico（png 会显示空白图标）；macOS 用 template png。
+    final icon = Platform.isWindows ? 'assets/tray_icon.ico' : 'assets/tray_icon.png';
+    await trayManager.setIcon(icon, isTemplate: !Platform.isWindows);
     trayManager.addListener(_TrayListener());
     await refresh();
     _timer = Timer.periodic(const Duration(seconds: 30), (_) => refresh());
@@ -88,10 +92,10 @@ class TrayController extends ChangeNotifier {
     final online = workers.where((w) => w.isOnline).length;
 
     final items = <MenuItem>[
-      // 登录状态（禁用行）
+      // 登录状态（禁用行）：已登录直接显示用户名
       MenuItem(
         key: 'auth',
-        label: loggedIn ? '${t('tray.loggedIn')} $user' : t('tray.notLoggedIn'),
+        label: loggedIn ? (user ?? t('tray.loggedIn')) : t('tray.notLoggedIn'),
         disabled: true,
       ),
       // worker 数量（禁用行）
@@ -107,16 +111,24 @@ class TrayController extends ChangeNotifier {
         checked: _launchAtStartup,
         onClick: (_) => _toggleLaunchAtStartup(),
       ),
-      // 底部：未登录 → 登录；已登录 → 登出
+      // 未登录才给登录入口；已登录给登出
       if (loggedIn)
         MenuItem(key: 'logout', label: t('tray.logout'), onClick: (_) => command.value = TrayCommand.logout)
       else
         MenuItem(key: 'login', label: t('tray.login'), onClick: (_) => command.value = TrayCommand.login),
+      // 关于（版本 / 版权 / worker 版本）
+      MenuItem(key: 'about', label: t('tray.about'), onClick: (_) => command.value = TrayCommand.about),
+      // 退出
+      MenuItem(
+        key: 'quit',
+        label: t('tray.quit'),
+        onClick: (_) => command.value = TrayCommand.quit,
+      ),
     ];
 
     await trayManager.setContextMenu(Menu(items: items));
     final statusText = loggedIn ? (user ?? '') : t('tray.notLoggedIn');
-    await trayManager.setToolTip('${t('appTitle')} · $statusText · $online/${workers.length}');
+    await trayManager.setToolTip('${t('appTitle')} v$appVersion · $statusText · $online/${workers.length}');
   }
 
   /// 托盘登出：直接跑 corterm logout --json，然后刷新菜单。

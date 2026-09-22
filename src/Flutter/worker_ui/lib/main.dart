@@ -9,6 +9,7 @@ import 'core/binary_locator.dart';
 import 'core/settings.dart';
 import 'core/tray_controller.dart';
 import 'l10n/app_strings.dart';
+import 'screens/about_screen.dart';
 import 'screens/auth_screen.dart';
 import 'widgets/app_bar.dart';
 
@@ -75,6 +76,9 @@ void _handleTrayCommand() {
       _openAuthScreen();
     case TrayCommand.logout:
       TrayController.instance.logoutFromTray();
+    case TrayCommand.about:
+      _showWindow();
+      _openAboutScreen();
     case TrayCommand.quit:
       exit(0);
     case TrayCommand.none:
@@ -97,6 +101,18 @@ void _openAuthScreen() {
       builder: (_) => Scaffold(
         appBar: WorkerAppBar(title: AppStrings.of(Settings.instance.locale, 'nav.auth')),
         body: AuthScreen(service: service),
+      ),
+    ),
+  );
+}
+
+/// 托盘「关于」→ 显示窗口并跳到关于页。
+void _openAboutScreen() {
+  appNavigatorKey.currentState?.push(
+    MaterialPageRoute(
+      builder: (_) => Scaffold(
+        appBar: WorkerAppBar(title: AppStrings.of(Settings.instance.locale, 'about.title')),
+        body: AboutScreen(workerVersion: TrayController.instance.status?.version),
       ),
     ),
   );

@@ -3,12 +3,14 @@ import 'package:launch_at_startup/launch_at_startup.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../core/corterm_service.dart';
+import '../core/self_updater.dart';
 import '../core/settings.dart';
 import '../l10n/app_strings.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_bar.dart';
 import '../widgets/list_group.dart';
 import '../widgets/section_header.dart';
+import 'about_screen.dart';
 import 'agent_tools_screen.dart';
 import 'auth_screen.dart';
 import 'doctor_screen.dart';
@@ -190,6 +192,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
               padding: const EdgeInsets.only(top: 8),
               child: Text(_startupError!, style: TextStyle(color: scheme.destructive, fontSize: 13)),
             ),
+          const SizedBox(height: 24),
+          // 关于：版本 / 版权 / worker 版本 / 主页
+          AppGroupCard(
+            children: [
+              AppRow(
+                icon: LucideIcons.info,
+                iconColor: scheme.link,
+                label: t(context, 'about.title'),
+                value: 'v$appVersion',
+                chevron: true,
+                onTap: () => _open(context, const AboutScreen(), t(context, 'about.title')),
+              ),
+            ],
+          ),
         ],
       ),
     );

@@ -37,25 +37,34 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
+      - name: Extract version
+        id: ver
+        shell: bash
+        run: echo "version=${GITHUB_REF#refs/tags/ui-v}" >> "$GITHUB_OUTPUT"
+
       - name: Build release
         working-directory: src/Flutter/worker_ui
+        env:
+          UI_VERSION: ${{ steps.ver.outputs.version }}
         run: |
           flutter pub get
-          flutter build macos --release
+          # --build-name 同时写进 macOS CFBundleShortVersionString 和 Windows exe 版本资源
+          flutter build macos --release --dart-define=UI_VERSION="$UI_VERSION" --build-name="$UI_VERSION"
 
       - name: Package .dmg
         run: |
           # 标准 macOS 拖拽安装包：.app + /Applications 快捷方式
+          # 固定文件名（不带版本号）：self_updater.dart 通过 releases/latest/download 直达
           mkdir -p /tmp/dmg-root
           cp -R src/Flutter/worker_ui/build/macos/Build/Products/Release/worker_ui.app /tmp/dmg-root/
           ln -s /Applications /tmp/dmg-root/Applications
           hdiutil create -volname "云枢终端" -srcfolder /tmp/dmg-root -ov \
-            -format UDZO /tmp/worker-ui-macos.dmg
+            -format UDZO /tmp/corterm-ui-macos.dmg
 
       - uses: actions/upload-artifact@v4
         with:
           name: worker-ui-macos
-          path: /tmp/worker-ui-macos.dmg
+          path: /tmp/corterm-ui-macos.dmg
 
   build-windows:
     name: Build Windows UI
@@ -86,19 +95,21 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
-      - name: Build release
-        working-directory: src/Flutter/worker_ui
-        run: |
-          flutter pub get
-          flutter build windows --release
-
-      - name: Install Inno Setup
-        run: choco install innosetup --no-progress -y
-
       - name: Extract version
         id: ver
         shell: bash
         run: echo "version=${GITHUB_REF#refs/tags/ui-v}" >> "$GITHUB_OUTPUT"
+
+      - name: Build release
+        working-directory: src/Flutter/worker_ui
+        env:
+          UI_VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          flutter pub get
+          flutter build windows --release --dart-define=UI_VERSION="$UI_VERSION" --build-name="$UI_VERSION"
+
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
 
       - name: Build installer (.exe)
         working-directory: src/Flutter/worker_ui
@@ -173,7 +184,7 @@ jobs:
         run: |
           tag="${GITHUB_REF#refs/tags/}"
           gh release create "$tag" \
-            /tmp/artifacts/worker-ui-macos/worker-ui-macos.dmg \
+            /tmp/artifacts/worker-ui-macos/corterm-ui-macos.dmg \
             /tmp/artifacts/worker-ui-windows/*.exe \
             /tmp/artifacts/worker-ui-linux/worker-ui-linux.tar.gz \
             --title "云枢终端 UI $tag" \

@@ -87,21 +87,22 @@ VS_VERSION_INFO VERSIONINFO
 BEGIN
     BLOCK "StringFileInfo"
     BEGIN
-        BLOCK "040904e4"
+        // 040904b0 = 简体中文 + Unicode(1200) 代码页，容纳中文产品名
+        BLOCK "040904b0"
         BEGIN
-            VALUE "CompanyName", "io.corterm" "\0"
-            VALUE "FileDescription", "worker_ui" "\0"
+            VALUE "CompanyName", "Corterm" "\0"
+            VALUE "FileDescription", "云枢终端 — Worker 桌面控制面板" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "worker_ui" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 io.corterm. All rights reserved." "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 Corterm. All rights reserved." "\0"
             VALUE "OriginalFilename", "worker_ui.exe" "\0"
-            VALUE "ProductName", "worker_ui" "\0"
+            VALUE "ProductName", "云枢终端" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END
     BLOCK "VarFileInfo"
     BEGIN
-        VALUE "Translation", 0x409, 1252
+        VALUE "Translation", 0x409, 1200
     END
 END
 
