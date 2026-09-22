@@ -5,7 +5,7 @@ import 'app_theme.dart';
 
 /// 终端主题：始终 Dark（§34，App Shell 可为 Light，Terminal 固定深色）。
 final cortermTerminalTheme = TerminalTheme(
-  cursor: AppColors.accent,
+  cursor: CortermBrand.light,
   selection: const Color(0x402563EB),
   foreground: const Color(0xFFF5F5F5),
   background: const Color(0xFF090909),

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
-import '../../../../app/theme/app_theme.dart';
 import '../../../../core/models/session.dart';
 import '../../../../shared/widgets/connection_status_dot.dart';
 import 'session_status.dart';
@@ -33,7 +32,7 @@ class SessionListItem extends StatelessWidget {
         child: Row(
           children: [
             ConnectionStatusDot(
-              color: sessionDotColor(session.status),
+              color: sessionDotColor(scheme, session.status),
               pulse: session.status == SessionStatus.recovering,
             ),
             const SizedBox(width: 12),
@@ -45,24 +44,26 @@ class SessionListItem extends StatelessWidget {
                     session.displayName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: scheme.foreground,
-                    ),
+                    style: ShadTheme.of(context)
+                        .textTheme
+                        .small
+                        .copyWith(fontWeight: FontWeight.w600, color: scheme.foreground),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     session.subtitle,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 13, color: scheme.mutedForeground),
+                    style: ShadTheme.of(context)
+                        .textTheme
+                        .muted
+                        .copyWith(color: scheme.mutedForeground),
                   ),
                 ],
               ),
             ),
             if (isCurrent)
-              const Icon(LucideIcons.check, size: 20, color: AppColors.accent),
+              Icon(LucideIcons.check, size: 20, color: scheme.primary),
           ],
         ),
       ),

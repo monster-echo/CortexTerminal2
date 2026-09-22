@@ -8,6 +8,7 @@
   "rename": "Rename",
   "copy": "Copy",
   "copied": "Copied",
+  "selectAll": "Select all",
   "paste": "Paste",
   "save": "Save",
   "unknown": "Unknown",
@@ -33,6 +34,8 @@
   "sendingCode": "Sending…",
   "slideToVerify": "Slide to verify",
   "verifying": "Verifying…",
+  "captchaTitle": "Security verification",
+  "loginMethodsUnavailable": "Unable to load sign-in methods",
   "phoneCodeResendIn": "Resend in {seconds}s",
   "@phoneCodeResendIn": {
     "placeholders": {
@@ -206,6 +209,31 @@
     }
   },
   "workerHostname": "Hostname",
+  "timeJustNow": "just now",
+  "timeMinutesAgo": "{n} min ago",
+  "@timeMinutesAgo": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "timeHoursAgo": "{n} h ago",
+  "@timeHoursAgo": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "timeDaysAgo": "{n} d ago",
+  "@timeDaysAgo": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "workerOs": "OS",
   "workerVersion": "Worker version",
   "upgrade": "Upgrade",
@@ -263,7 +291,11 @@
   "hasPassword": "Password set",
   "avatarUpdated": "Avatar updated",
   "activateTitle": "Device activation",
-  "activateIntro": "Enter the activation code shown by your device or CLI to authorize it with your account.",
+  "activateIntro": "Scan the QR code shown on your worker / desktop app to authorize it with your account. You can also enter the code manually.",
+  "activateScan": "Scan to authorize",
+  "activateScanInvalid": "Invalid QR code — scan the activation QR shown on the device",
+  "activateScanFailed": "Scan failed: {error}",
+  "activateManualEntry": "Enter code manually",
   "activateCodeLabel": "Activation code",
   "activateConfirm": "Authorize",
   "activateDone": "Device authorized",
@@ -273,6 +305,31 @@
   "terminalSize": "Terminal size",
   "supportTitle": "Contact Support",
   "supportEmail": "Email",
+  "feishuGroup": "Feishu Group",
+  "previewUnsupported": "Preview not supported for this type",
+  "download": "Download",
+  "workerCpu": "CPU",
+  "workerMemory": "Memory",
+  "upgradeConfirmTitle": "Upgrade {name}?",
+  "upgradeConfirmBody": "The upgrade command will be sent; the worker will download and restart.",
+  "upgradePageTitle": "Upgrade Worker",
+  "upgradeCurrentVersion": "Current version",
+  "upgradeTargetVersion": "Target version",
+  "upgradeStepDispatch": "Upgrade command sent",
+  "upgradeStepUpdate": "Worker downloading update",
+  "upgradeStepVerify": "Waiting for worker to come back online",
+  "upgradeDone": "Upgrade completed",
+  "upgradeTimeout": "No new version detected for a long time; check back later",
+  "upgradeDispatchFailed": "Failed to send upgrade command",
+  "workspaceCreateTitle": "Create workspace",
+  "workspaceNameLabel": "Workspace name",
+  "workspaceNameHint": "e.g. My server",
+  "workspaceRootLabel": "Root path",
+  "workspaceRootHint": "e.g. /home/user",
+  "workspaceNoneTitle": "No workspace yet",
+  "workspaceNoneHint": "Create a workspace for this worker to browse and manage files",
+  "jump": "Go",
+  "workspaceCwdOutside": "Outside workspace",
   "supportSaveQr": "Save QR",
   "feedbackTitle": "Feedback",
   "feedbackBug": "Bug report",
@@ -301,3 +358,5 @@
   "installActivateHint": "After install, run 'corterm activate' and confirm the code under Settings → Device access.",
   "installCopyCommand": "Copy command"
 }
+
+

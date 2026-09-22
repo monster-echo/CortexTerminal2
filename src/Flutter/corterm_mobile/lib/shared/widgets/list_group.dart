@@ -11,16 +11,14 @@ class AppGroupHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = ShadTheme.of(context).colorScheme;
+    final theme = ShadTheme.of(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(4, 20, 4, 6),
       child: Text(
         label,
-        style: TextStyle(
-          fontSize: 11,
-          color: scheme.mutedForeground,
+        style: theme.textTheme.small.copyWith(
+          color: theme.colorScheme.mutedForeground,
           fontWeight: FontWeight.w600,
-          letterSpacing: 0.8,
         ),
       ),
     );
@@ -79,7 +77,8 @@ class AppRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = ShadTheme.of(context).colorScheme;
+    final theme = ShadTheme.of(context);
+    final scheme = theme.colorScheme;
     final color = destructive ? scheme.destructive : null;
     final valueText = (value == null || value!.isEmpty)
         ? null
@@ -87,7 +86,8 @@ class AppRow extends StatelessWidget {
             value!,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontSize: 13, color: valueColor ?? scheme.mutedForeground),
+            style: theme.textTheme.muted
+                .copyWith(fontSize: 13, color: valueColor ?? scheme.mutedForeground),
           );
     // ListTile 的底色/水波纹画在最近的 Material 祖先上；AppGroupCard 的
     // DecoratedBox 会遮住它们，所以自带一层透明 Material。
@@ -99,7 +99,13 @@ class AppRow extends StatelessWidget {
         iconColor: color ?? scheme.mutedForeground,
         textColor: color,
         leading: leadingWidget ?? Icon(icon, size: 20),
-        title: Text(label, style: TextStyle(fontSize: 15, color: color ?? scheme.foreground)),
+        title: Text(
+          label,
+          style: theme.textTheme.small.copyWith(
+            fontWeight: FontWeight.w500,
+            color: color ?? scheme.foreground,
+          ),
+        ),
         subtitle: valueText,
         trailing: trailing ??
             (chevron

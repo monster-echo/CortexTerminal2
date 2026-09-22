@@ -34,6 +34,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get copied => '已复制';
 
   @override
+  String get selectAll => '全选';
+
+  @override
   String get paste => '粘贴';
 
   @override
@@ -88,6 +91,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get verifying => '验证中…';
+
+  @override
+  String get captchaTitle => '安全验证';
+
+  @override
+  String get loginMethodsUnavailable => '无法获取登录方式';
 
   @override
   String phoneCodeResendIn(int seconds) {
@@ -500,6 +509,24 @@ class AppLocalizationsZh extends AppLocalizations {
   String get workerHostname => '主机名';
 
   @override
+  String get timeJustNow => '刚刚';
+
+  @override
+  String timeMinutesAgo(int n) {
+    return '$n 分钟前';
+  }
+
+  @override
+  String timeHoursAgo(int n) {
+    return '$n 小时前';
+  }
+
+  @override
+  String timeDaysAgo(int n) {
+    return '$n 天前';
+  }
+
+  @override
   String get workerOs => '系统';
 
   @override
@@ -614,7 +641,21 @@ class AppLocalizationsZh extends AppLocalizations {
   String get activateTitle => '设备激活';
 
   @override
-  String get activateIntro => '输入设备或命令行上显示的激活码，将其授权绑定到你的账号。';
+  String get activateIntro => '扫描 worker / 桌面端显示的二维码，将其授权绑定到你的账号。也可以手动输入激活码。';
+
+  @override
+  String get activateScan => '扫码授权';
+
+  @override
+  String get activateScanInvalid => '二维码无效，请对准设备上显示的激活二维码';
+
+  @override
+  String activateScanFailed(Object error) {
+    return '扫码失败：$error';
+  }
+
+  @override
+  String get activateManualEntry => '手动输入激活码';
 
   @override
   String get activateCodeLabel => '激活码';
@@ -642,6 +683,83 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get supportEmail => '邮箱';
+
+  @override
+  String get feishuGroup => '飞书群';
+
+  @override
+  String get previewUnsupported => '该类型不支持预览';
+
+  @override
+  String get download => '下载';
+
+  @override
+  String get workerCpu => 'CPU';
+
+  @override
+  String get workerMemory => '内存';
+
+  @override
+  String upgradeConfirmTitle(Object name) {
+    return '升级 $name？';
+  }
+
+  @override
+  String get upgradeConfirmBody => '将下发升级指令，Worker 会自动下载并重启。';
+
+  @override
+  String get upgradePageTitle => '升级 Worker';
+
+  @override
+  String get upgradeCurrentVersion => '当前版本';
+
+  @override
+  String get upgradeTargetVersion => '目标版本';
+
+  @override
+  String get upgradeStepDispatch => '升级指令已下发';
+
+  @override
+  String get upgradeStepUpdate => 'Worker 下载更新中';
+
+  @override
+  String get upgradeStepVerify => '等待 Worker 上线并校验版本';
+
+  @override
+  String get upgradeDone => '升级完成';
+
+  @override
+  String get upgradeTimeout => '长时间未检测到新版本，可返回稍后再查看';
+
+  @override
+  String get upgradeDispatchFailed => '升级指令下发失败';
+
+  @override
+  String get workspaceCreateTitle => '创建工作区';
+
+  @override
+  String get workspaceNameLabel => '工作区名称';
+
+  @override
+  String get workspaceNameHint => '例如：我的服务器';
+
+  @override
+  String get workspaceRootLabel => '根路径';
+
+  @override
+  String get workspaceRootHint => '例如：/home/user';
+
+  @override
+  String get workspaceNoneTitle => '还没有工作区';
+
+  @override
+  String get workspaceNoneHint => '先为这台 Worker 创建一个工作区，即可浏览和管理文件';
+
+  @override
+  String get jump => '跳转';
+
+  @override
+  String get workspaceCwdOutside => '在工作区外';
 
   @override
   String get supportSaveQr => '保存二维码';

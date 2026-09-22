@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../../l10n/app_localizations.dart';
+import '../../../shared/utils/file_reader.dart';
 import '../../../shared/widgets/app_bar.dart';
 import '../../../shared/widgets/list_group.dart';
 import '../../../shared/widgets/sheets_and_dialogs.dart';
@@ -72,7 +73,7 @@ class ProfileScreen extends ConsumerWidget {
               label: l10n.username,
               value: user.username,
             ),
-            if (user.email != null && user.email!.isNotEmpty)
+            if (_isRealEmail(user.email))
               AppRow(
                 icon: LucideIcons.atSign,
                 label: l10n.email,
@@ -97,16 +98,26 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
+  /// 系统生成的临时邮箱（如 @corterm.dev）不属于用户真实资料，不展示。
+  bool _isRealEmail(String? email) {
+    if (email == null || email.isEmpty) return false;
+    return !email.endsWith('@corterm.dev');
+  }
+
   Future<void> _changeAvatar(
       BuildContext context, WidgetRef ref, UserProfile user) async {
     final l10n = AppLocalizations.of(context)!;
-    final picked = await FilePicker.pickFiles(type: FileType.image);
-    if (picked == null || picked.files.single.path == null) return;
+    // Web 端 file_picker 不产生文件路径，必须 withData 拿 bytes。
+    final picked =
+        await FilePicker.pickFiles(type: FileType.image, withData: kIsWeb);
+    if (picked == null) return;
+    final file = picked.files.single;
+    if (kIsWeb ? file.bytes == null : file.path == null) return;
     if (!context.mounted) return;
 
     final bytes = await showCortermSheet<Uint8List>(
       context: context,
-      builder: (_) => AvatarCropSheet(path: picked.files.single.path!),
+      builder: (_) => AvatarCropSheet(path: file.path, bytes: file.bytes),
     );
     if (bytes == null || bytes.isEmpty) return;
 
@@ -204,9 +215,13 @@ class _Avatar extends StatelessWidget {
 /// 圆形头像裁剪：固定圆形取景框，图片在框内平移/缩放，确认后按变换矩阵
 /// 映射回原图坐标，经 dart:ui 裁切导出 512×512 PNG。
 class AvatarCropSheet extends StatefulWidget {
-  const AvatarCropSheet({super.key, required this.path});
+  const AvatarCropSheet({super.key, this.path, this.bytes});
 
-  final String path;
+  /// 移动端文件路径；Web 端为 null，用 [bytes]。
+  final String? path;
+
+  /// Web 端 file_picker 直接给出的图片字节。
+  final Uint8List? bytes;
 
   @override
   State<AvatarCropSheet> createState() => _AvatarCropSheetState();
@@ -229,8 +244,15 @@ class _AvatarCropSheetState extends State<AvatarCropSheet> {
   }
 
   Future<ui.Image> _load() async {
-    final bytes = await DefaultAssetBundle.of(context).load(widget.path);
-    final codec = await ui.instantiateImageCodec(bytes.buffer.asUint8List());
+    final Uint8List bytes;
+    if (widget.bytes != null) {
+      bytes = widget.bytes!;
+    } else if (widget.path != null) {
+      bytes = await readFileBytes(widget.path!);
+    } else {
+      throw StateError('avatar crop: no image source');
+    }
+    final codec = await ui.instantiateImageCodec(bytes);
     return (await codec.getNextFrame()).image;
   }
 
@@ -290,6 +312,18 @@ class _AvatarCropSheetState extends State<AvatarCropSheet> {
                     builder: (context, box) => FutureBuilder<ui.Image>(
                       future: _image,
                       builder: (context, snap) {
+                        if (snap.hasError) {
+                          // 图片加载失败必须可见，绝不静默转圈。
+                          return Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Text(
+                              '${snap.error}',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                  color: scheme.destructive, fontSize: 13),
+                            ),
+                          );
+                        }
                         if (!snap.hasData) {
                           return const Center(
                             child: SizedBox(

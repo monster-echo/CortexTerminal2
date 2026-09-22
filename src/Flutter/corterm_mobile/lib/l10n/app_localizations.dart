@@ -146,6 +146,12 @@ abstract class AppLocalizations {
   /// **'Copied'**
   String get copied;
 
+  /// No description provided for @selectAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Select all'**
+  String get selectAll;
+
   /// No description provided for @paste.
   ///
   /// In en, this message translates to:
@@ -253,6 +259,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Verifying…'**
   String get verifying;
+
+  /// No description provided for @captchaTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Security verification'**
+  String get captchaTitle;
+
+  /// No description provided for @loginMethodsUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Unable to load sign-in methods'**
+  String get loginMethodsUnavailable;
 
   /// No description provided for @phoneCodeResendIn.
   ///
@@ -1040,6 +1058,30 @@ abstract class AppLocalizations {
   /// **'Hostname'**
   String get workerHostname;
 
+  /// No description provided for @timeJustNow.
+  ///
+  /// In en, this message translates to:
+  /// **'just now'**
+  String get timeJustNow;
+
+  /// No description provided for @timeMinutesAgo.
+  ///
+  /// In en, this message translates to:
+  /// **'{n} min ago'**
+  String timeMinutesAgo(int n);
+
+  /// No description provided for @timeHoursAgo.
+  ///
+  /// In en, this message translates to:
+  /// **'{n} h ago'**
+  String timeHoursAgo(int n);
+
+  /// No description provided for @timeDaysAgo.
+  ///
+  /// In en, this message translates to:
+  /// **'{n} d ago'**
+  String timeDaysAgo(int n);
+
   /// No description provided for @workerOs.
   ///
   /// In en, this message translates to:
@@ -1259,8 +1301,32 @@ abstract class AppLocalizations {
   /// No description provided for @activateIntro.
   ///
   /// In en, this message translates to:
-  /// **'Enter the activation code shown by your device or CLI to authorize it with your account.'**
+  /// **'Scan the QR code shown on your worker / desktop app to authorize it with your account. You can also enter the code manually.'**
   String get activateIntro;
+
+  /// No description provided for @activateScan.
+  ///
+  /// In en, this message translates to:
+  /// **'Scan to authorize'**
+  String get activateScan;
+
+  /// No description provided for @activateScanInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Invalid QR code — scan the activation QR shown on the device'**
+  String get activateScanInvalid;
+
+  /// No description provided for @activateScanFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Scan failed: {error}'**
+  String activateScanFailed(Object error);
+
+  /// No description provided for @activateManualEntry.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter code manually'**
+  String get activateManualEntry;
 
   /// No description provided for @activateCodeLabel.
   ///
@@ -1315,6 +1381,156 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Email'**
   String get supportEmail;
+
+  /// No description provided for @feishuGroup.
+  ///
+  /// In en, this message translates to:
+  /// **'Feishu Group'**
+  String get feishuGroup;
+
+  /// No description provided for @previewUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'Preview not supported for this type'**
+  String get previewUnsupported;
+
+  /// No description provided for @download.
+  ///
+  /// In en, this message translates to:
+  /// **'Download'**
+  String get download;
+
+  /// No description provided for @workerCpu.
+  ///
+  /// In en, this message translates to:
+  /// **'CPU'**
+  String get workerCpu;
+
+  /// No description provided for @workerMemory.
+  ///
+  /// In en, this message translates to:
+  /// **'Memory'**
+  String get workerMemory;
+
+  /// No description provided for @upgradeConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Upgrade {name}?'**
+  String upgradeConfirmTitle(Object name);
+
+  /// No description provided for @upgradeConfirmBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The upgrade command will be sent; the worker will download and restart.'**
+  String get upgradeConfirmBody;
+
+  /// No description provided for @upgradePageTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Upgrade Worker'**
+  String get upgradePageTitle;
+
+  /// No description provided for @upgradeCurrentVersion.
+  ///
+  /// In en, this message translates to:
+  /// **'Current version'**
+  String get upgradeCurrentVersion;
+
+  /// No description provided for @upgradeTargetVersion.
+  ///
+  /// In en, this message translates to:
+  /// **'Target version'**
+  String get upgradeTargetVersion;
+
+  /// No description provided for @upgradeStepDispatch.
+  ///
+  /// In en, this message translates to:
+  /// **'Upgrade command sent'**
+  String get upgradeStepDispatch;
+
+  /// No description provided for @upgradeStepUpdate.
+  ///
+  /// In en, this message translates to:
+  /// **'Worker downloading update'**
+  String get upgradeStepUpdate;
+
+  /// No description provided for @upgradeStepVerify.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for worker to come back online'**
+  String get upgradeStepVerify;
+
+  /// No description provided for @upgradeDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Upgrade completed'**
+  String get upgradeDone;
+
+  /// No description provided for @upgradeTimeout.
+  ///
+  /// In en, this message translates to:
+  /// **'No new version detected for a long time; check back later'**
+  String get upgradeTimeout;
+
+  /// No description provided for @upgradeDispatchFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to send upgrade command'**
+  String get upgradeDispatchFailed;
+
+  /// No description provided for @workspaceCreateTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Create workspace'**
+  String get workspaceCreateTitle;
+
+  /// No description provided for @workspaceNameLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Workspace name'**
+  String get workspaceNameLabel;
+
+  /// No description provided for @workspaceNameHint.
+  ///
+  /// In en, this message translates to:
+  /// **'e.g. My server'**
+  String get workspaceNameHint;
+
+  /// No description provided for @workspaceRootLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Root path'**
+  String get workspaceRootLabel;
+
+  /// No description provided for @workspaceRootHint.
+  ///
+  /// In en, this message translates to:
+  /// **'e.g. /home/user'**
+  String get workspaceRootHint;
+
+  /// No description provided for @workspaceNoneTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No workspace yet'**
+  String get workspaceNoneTitle;
+
+  /// No description provided for @workspaceNoneHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Create a workspace for this worker to browse and manage files'**
+  String get workspaceNoneHint;
+
+  /// No description provided for @jump.
+  ///
+  /// In en, this message translates to:
+  /// **'Go'**
+  String get jump;
+
+  /// No description provided for @workspaceCwdOutside.
+  ///
+  /// In en, this message translates to:
+  /// **'Outside workspace'**
+  String get workspaceCwdOutside;
 
   /// No description provided for @supportSaveQr.
   ///

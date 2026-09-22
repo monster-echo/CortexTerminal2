@@ -20,8 +20,9 @@ class TunnelSummary {
   final DateTime expiresAtUtc;
 
   factory TunnelSummary.fromJson(Map<String, dynamic> json) => TunnelSummary(
-        tunnelId: json['tunnelId'] as String,
-        port: (json['port'] as num).toInt(),
+        // 字段全兜底（对齐 ArkTS mapTunnel）：网关个别字段缺失时不应崩。
+        tunnelId: json['tunnelId'] as String? ?? '',
+        port: (json['port'] as num?)?.toInt() ?? 0,
         url: json['url'] as String? ?? '',
         secret: json['secret'] as String?,
         expiresAtUtc:

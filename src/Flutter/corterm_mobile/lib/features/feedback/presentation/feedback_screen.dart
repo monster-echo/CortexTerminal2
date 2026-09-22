@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
@@ -42,16 +41,17 @@ class _FeedbackScreenState extends ConsumerState<FeedbackScreen> {
   }
 
   Future<void> _pickImages() async {
+    // withData：web 无文件路径，统一让 picker 直接带字节（三端一致）。
     final picked = await FilePicker.pickFiles(
       type: FileType.image,
       allowMultiple: true,
+      withData: true,
     );
     if (picked == null) return;
     for (final f in picked.files) {
       if (_images.length >= _maxImages) break;
-      final path = f.path;
-      if (path == null) continue;
-      final bytes = await File(path).readAsBytes();
+      final bytes = f.bytes;
+      if (bytes == null) continue;
       if (mounted) {
         setState(() => _images.add(_PendingImage(name: f.name, bytes: bytes)));
       }
@@ -103,7 +103,8 @@ class _FeedbackScreenState extends ConsumerState<FeedbackScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final scheme = ShadTheme.of(context).colorScheme;
+    final theme = ShadTheme.of(context);
+    final scheme = theme.colorScheme;
 
     return Scaffold(
       backgroundColor: scheme.background,
@@ -149,7 +150,7 @@ class _FeedbackScreenState extends ConsumerState<FeedbackScreen> {
                   children: [
                     Text(
                       l10n.feedbackAttachments(_images.length, _maxImages),
-                      style: TextStyle(fontSize: 14, color: scheme.mutedForeground),
+                      style: theme.textTheme.small.copyWith(color: scheme.mutedForeground),
                     ),
                     const Spacer(),
                     ShadButton.outline(
@@ -196,7 +197,8 @@ class _FeedbackScreenState extends ConsumerState<FeedbackScreen> {
                 ],
                 if (_error != null) ...[
                   const SizedBox(height: 12),
-                  Text(_error!, style: TextStyle(color: scheme.destructive, fontSize: 14)),
+                  Text(_error!,
+                      style: theme.textTheme.small.copyWith(color: scheme.destructive)),
                 ],
                 const SizedBox(height: 24),
                 ShadButton(
@@ -225,7 +227,8 @@ class _DoneView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final scheme = ShadTheme.of(context).colorScheme;
+    final theme = ShadTheme.of(context);
+    final scheme = theme.colorScheme;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -235,14 +238,12 @@ class _DoneView extends StatelessWidget {
             Icon(LucideIcons.circleCheck, size: 56, color: scheme.primary),
             const SizedBox(height: 16),
             Text(l10n.feedbackDone,
-                style: TextStyle(
-                    fontSize: 16, fontWeight: FontWeight.w600, color: scheme.foreground)),
+                style: theme.textTheme.small.copyWith(
+                    fontWeight: FontWeight.w600, color: scheme.foreground)),
             const SizedBox(height: 8),
             Text('Ticket: $ticketId',
-                style: TextStyle(
-                    fontSize: 13,
-                    fontFamily: 'monospace',
-                    color: scheme.mutedForeground)),
+                style: theme.textTheme.muted.copyWith(
+                    fontFamily: 'monospace', color: scheme.mutedForeground)),
           ],
         ),
       ),

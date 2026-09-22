@@ -26,8 +26,10 @@ class LegalDocumentScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final scheme = ShadTheme.of(context).colorScheme;
-    final bodyMedium = TextStyle(fontSize: 14, height: 1.55, color: scheme.foreground);
+    final theme = ShadTheme.of(context);
+    final scheme = theme.colorScheme;
+    final bodyMedium =
+        theme.textTheme.small.copyWith(height: 1.55, color: scheme.foreground);
 
     return Scaffold(
       backgroundColor: scheme.background,
@@ -44,15 +46,14 @@ class LegalDocumentScreen extends StatelessWidget {
         children: [
           Text(
             l10n.legalVersionCaption(document.effectiveDate),
-            style: TextStyle(fontSize: 11, color: scheme.mutedForeground),
+            style: theme.textTheme.small.copyWith(color: scheme.mutedForeground),
           ),
           const SizedBox(height: 16),
           for (final section in document.sections) ...[
             if (section.title.isNotEmpty) ...[
               Text(
                 section.title,
-                style: TextStyle(
-                  fontSize: 15,
+                style: theme.textTheme.small.copyWith(
                   fontWeight: FontWeight.w700,
                   color: scheme.foreground,
                 ),
@@ -92,6 +93,7 @@ class LegalIndexScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
+    final theme = ShadTheme.of(context);
     final localeTag = ref.watch(localeProvider);
 
     return Scaffold(
@@ -109,10 +111,8 @@ class LegalIndexScreen extends ConsumerWidget {
         children: [
           Text(
             l10n.legalIndexIntro,
-            style: TextStyle(
-              fontSize: 13,
-              color: ShadTheme.of(context).colorScheme.mutedForeground,
-            ),
+            style: theme.textTheme.muted
+                .copyWith(color: ShadTheme.of(context).colorScheme.mutedForeground),
           ),
           const SizedBox(height: 12),
           AppGroupCard(children: [

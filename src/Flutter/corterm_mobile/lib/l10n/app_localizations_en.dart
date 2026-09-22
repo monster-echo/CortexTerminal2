@@ -34,6 +34,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get copied => 'Copied';
 
   @override
+  String get selectAll => 'Select all';
+
+  @override
   String get paste => 'Paste';
 
   @override
@@ -88,6 +91,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get verifying => 'Verifying…';
+
+  @override
+  String get captchaTitle => 'Security verification';
+
+  @override
+  String get loginMethodsUnavailable => 'Unable to load sign-in methods';
 
   @override
   String phoneCodeResendIn(int seconds) {
@@ -506,6 +515,24 @@ class AppLocalizationsEn extends AppLocalizations {
   String get workerHostname => 'Hostname';
 
   @override
+  String get timeJustNow => 'just now';
+
+  @override
+  String timeMinutesAgo(int n) {
+    return '$n min ago';
+  }
+
+  @override
+  String timeHoursAgo(int n) {
+    return '$n h ago';
+  }
+
+  @override
+  String timeDaysAgo(int n) {
+    return '$n d ago';
+  }
+
+  @override
   String get workerOs => 'OS';
 
   @override
@@ -621,7 +648,22 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get activateIntro =>
-      'Enter the activation code shown by your device or CLI to authorize it with your account.';
+      'Scan the QR code shown on your worker / desktop app to authorize it with your account. You can also enter the code manually.';
+
+  @override
+  String get activateScan => 'Scan to authorize';
+
+  @override
+  String get activateScanInvalid =>
+      'Invalid QR code — scan the activation QR shown on the device';
+
+  @override
+  String activateScanFailed(Object error) {
+    return 'Scan failed: $error';
+  }
+
+  @override
+  String get activateManualEntry => 'Enter code manually';
 
   @override
   String get activateCodeLabel => 'Activation code';
@@ -649,6 +691,86 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get supportEmail => 'Email';
+
+  @override
+  String get feishuGroup => 'Feishu Group';
+
+  @override
+  String get previewUnsupported => 'Preview not supported for this type';
+
+  @override
+  String get download => 'Download';
+
+  @override
+  String get workerCpu => 'CPU';
+
+  @override
+  String get workerMemory => 'Memory';
+
+  @override
+  String upgradeConfirmTitle(Object name) {
+    return 'Upgrade $name?';
+  }
+
+  @override
+  String get upgradeConfirmBody =>
+      'The upgrade command will be sent; the worker will download and restart.';
+
+  @override
+  String get upgradePageTitle => 'Upgrade Worker';
+
+  @override
+  String get upgradeCurrentVersion => 'Current version';
+
+  @override
+  String get upgradeTargetVersion => 'Target version';
+
+  @override
+  String get upgradeStepDispatch => 'Upgrade command sent';
+
+  @override
+  String get upgradeStepUpdate => 'Worker downloading update';
+
+  @override
+  String get upgradeStepVerify => 'Waiting for worker to come back online';
+
+  @override
+  String get upgradeDone => 'Upgrade completed';
+
+  @override
+  String get upgradeTimeout =>
+      'No new version detected for a long time; check back later';
+
+  @override
+  String get upgradeDispatchFailed => 'Failed to send upgrade command';
+
+  @override
+  String get workspaceCreateTitle => 'Create workspace';
+
+  @override
+  String get workspaceNameLabel => 'Workspace name';
+
+  @override
+  String get workspaceNameHint => 'e.g. My server';
+
+  @override
+  String get workspaceRootLabel => 'Root path';
+
+  @override
+  String get workspaceRootHint => 'e.g. /home/user';
+
+  @override
+  String get workspaceNoneTitle => 'No workspace yet';
+
+  @override
+  String get workspaceNoneHint =>
+      'Create a workspace for this worker to browse and manage files';
+
+  @override
+  String get jump => 'Go';
+
+  @override
+  String get workspaceCwdOutside => 'Outside workspace';
 
   @override
   String get supportSaveQr => 'Save QR';

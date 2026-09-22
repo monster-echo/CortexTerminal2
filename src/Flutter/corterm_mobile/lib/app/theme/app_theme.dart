@@ -1,93 +1,87 @@
-/// 设计 token（§35/36）+ shadcn 主题构建。
+/// 设计基座：官方 shadcn zinc 色板 + 品牌蓝（tailwind blue-600/500）。
 ///
-/// 唯一允许出现 hex 的地方（shadcn/ui 同规则）：色板集中在 [AppColors]，
-/// 组件一律从 `ShadTheme.of(context)` 取色。
+/// 唯一允许出现 hex 的地方。组件一律从 `ShadTheme.of(context)` 取色；
+/// 状态色（success/warning/idle）走官方 colorScheme.custom 槽，与品牌色分离。
+/// 字阶用包内置 Geist textTheme（h1Large..muted），页面禁止内联 fontSize。
 library;
 
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
-/// 色板（Light §35 / Dark §36，共享强调色）。
-class AppColors {
-  // Light（§35）
-  static const lightBackground = Color(0xFFFAFAFA);
-  static const lightSurface = Color(0xFFFFFFFF);
-  static const lightTextPrimary = Color(0xFF111111);
-  static const lightTextSecondary = Color(0xFF737373);
-  static const lightBorder = Color(0xFFE5E5E5);
-  // Dark（§36）
-  static const darkBackground = Color(0xFF090909);
-  static const darkSurface = Color(0xFF111111);
-  static const darkSurfaceSecondary = Color(0xFF171717);
-  static const darkTextPrimary = Color(0xFFF5F5F5);
-  static const darkTextSecondary = Color(0xFFA3A3A3);
-  static const darkBorder = Color(0xFF262626);
-  // 共享
-  static const accent = Color(0xFF2563EB);
-  static const success = Color(0xFF22C55E);
-  static const warning = Color(0xFFF59E0B);
-  static const danger = Color(0xFFEF4444);
-
-  /// Session 状态点（§13）：绿=运行，黄=等待/重连，红=错误，灰=断开/结束。
-  static const statusRunning = success;
-  static const statusWaiting = warning;
-  static const statusError = danger;
-  static const statusEnded = darkTextSecondary;
+/// 品牌蓝（无 context 场景专用：终端光标等）。页面代码不要引用。
+class CortermBrand {
+  static const light = Color(0xFF2563EB); // tailwind blue-600
+  static const dark = Color(0xFF3B82F6); // tailwind blue-500
 }
 
-ShadColorScheme _lightScheme() => const ShadColorScheme(
-      background: AppColors.lightBackground,
-      foreground: AppColors.lightTextPrimary,
-      card: AppColors.lightSurface,
-      cardForeground: AppColors.lightTextPrimary,
-      popover: AppColors.lightSurface,
-      popoverForeground: AppColors.lightTextPrimary,
-      primary: AppColors.accent,
-      primaryForeground: Colors.white,
-      secondary: AppColors.lightSurface,
-      secondaryForeground: AppColors.lightTextPrimary,
-      muted: Color(0xFFF0F0F0),
-      mutedForeground: AppColors.lightTextSecondary,
-      accent: Color(0xFFF0F0F0),
-      accentForeground: AppColors.lightTextPrimary,
-      destructive: AppColors.danger,
-      destructiveForeground: Colors.white,
-      border: AppColors.lightBorder,
-      input: AppColors.lightBorder,
-      ring: AppColors.accent,
-      selection: Color(0x402563EB),
-    );
+/// 状态色访问：`scheme.success` / `scheme.warning` / `scheme.idle`。
+/// 一个语义一个色：绿=Live/Success，琥珀=Waiting/Recovering，灰=Idle/Ended。
+extension CortermStatusColors on ShadColorScheme {
+  Color get success => custom['success']!;
+  Color get warning => custom['warning']!;
+  Color get idle => custom['idle']!;
+}
 
-ShadColorScheme _darkScheme() => const ShadColorScheme(
-      background: AppColors.darkBackground,
-      foreground: AppColors.darkTextPrimary,
-      card: AppColors.darkSurface,
-      cardForeground: AppColors.darkTextPrimary,
-      popover: AppColors.darkSurface,
-      popoverForeground: AppColors.darkTextPrimary,
-      primary: AppColors.accent,
-      primaryForeground: Colors.white,
-      secondary: AppColors.darkSurfaceSecondary,
-      secondaryForeground: AppColors.darkTextPrimary,
-      muted: AppColors.darkSurfaceSecondary,
-      mutedForeground: AppColors.darkTextSecondary,
-      accent: AppColors.darkSurfaceSecondary,
-      accentForeground: AppColors.darkTextPrimary,
-      destructive: AppColors.danger,
-      destructiveForeground: Colors.white,
-      border: AppColors.darkBorder,
-      input: AppColors.darkBorder,
-      ring: AppColors.accent,
-      selection: Color(0x402563EB),
-    );
+ShadColorScheme _scheme(Brightness brightness) {
+  final base = brightness == Brightness.light
+      ? const ShadZincColorScheme.light()
+      : const ShadZincColorScheme.dark();
+  return base.copyWith(
+    primary:
+        brightness == Brightness.light ? CortermBrand.light : CortermBrand.dark,
+    ring: brightness == Brightness.light ? CortermBrand.light : CortermBrand.dark,
+    custom: {
+      'success':
+          brightness == Brightness.light ? const Color(0xFF16A34A) : const Color(0xFF22C55E),
+      'warning':
+          brightness == Brightness.light ? const Color(0xFFD97706) : const Color(0xFFF59E0B),
+      'idle':
+          brightness == Brightness.light ? const Color(0xFF71717A) : const Color(0xFFA1A1AA),
+    },
+  );
+}
 
 /// Light/Dark shadcn 主题（ShadApp 直接消费）。
+/// 官方 zinc 底 + 仅三处许可定制：品牌蓝、圆角 10（0.625rem 档）、
+/// 移动端触控尺寸修正（shadcn web 默认 40 太矮）。
 ShadThemeData shadLightTheme() => ShadThemeData(
       brightness: Brightness.light,
-      colorScheme: _lightScheme(),
+      colorScheme: _scheme(Brightness.light),
+      radius: const BorderRadius.all(Radius.circular(10)),
+      buttonSizesTheme: const ShadButtonSizesTheme(
+        regular: ShadButtonSizeTheme(
+          height: 44,
+          padding: EdgeInsets.symmetric(horizontal: 16),
+        ),
+        sm: ShadButtonSizeTheme(
+          height: 40,
+          padding: EdgeInsets.symmetric(horizontal: 12),
+        ),
+        lg: ShadButtonSizeTheme(
+          height: 48,
+          padding: EdgeInsets.symmetric(horizontal: 20),
+        ),
+        icon: ShadButtonSizeTheme(height: 44, width: 44, padding: EdgeInsets.zero),
+      ),
     );
 
 ShadThemeData shadDarkTheme() => ShadThemeData(
       brightness: Brightness.dark,
-      colorScheme: _darkScheme(),
+      colorScheme: _scheme(Brightness.dark),
+      radius: const BorderRadius.all(Radius.circular(10)),
+      buttonSizesTheme: const ShadButtonSizesTheme(
+        regular: ShadButtonSizeTheme(
+          height: 44,
+          padding: EdgeInsets.symmetric(horizontal: 16),
+        ),
+        sm: ShadButtonSizeTheme(
+          height: 40,
+          padding: EdgeInsets.symmetric(horizontal: 12),
+        ),
+        lg: ShadButtonSizeTheme(
+          height: 48,
+          padding: EdgeInsets.symmetric(horizontal: 20),
+        ),
+        icon: ShadButtonSizeTheme(height: 44, width: 44, padding: EdgeInsets.zero),
+      ),
     );

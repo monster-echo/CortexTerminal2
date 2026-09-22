@@ -7,8 +7,24 @@ final sharedPreferencesProvider = Provider<SharedPreferences>(
   (ref) => throw UnimplementedError('Overridden in main() with the real instance'),
 );
 
+/// 终端 scrollback 快照存储（按 workerId 键）。
+/// WorkspaceController 只依赖此接口，测试可给内存实现。
+abstract interface class TerminalSnapshotStore {
+  String? terminalSnapshot(String key);
+  Future<void> setTerminalSnapshot(String key, String text);
+
+  /// 输出流缓存（TerminalCache 对等：按 session 缓存原始输出流，
+  /// 打开会话时先绘制缓存画面，随后由服务端全量重放权威覆盖）。
+  String? terminalStreamCache(String key);
+  Future<void> setTerminalStreamCache(String key, String text);
+
+  /// 输出游标（TerminalCache.loadLastSeq 对等：增量重放起点）。
+  int terminalSeq(String key);
+  Future<void> setTerminalSeq(String key, int seq);
+}
+
 /// 本地偏好持久化（§60）：主题、语言、最近会话、终端设置。
-class AppPreferences {
+class AppPreferences implements TerminalSnapshotStore {
   AppPreferences(this._prefs);
 
   final SharedPreferences _prefs;
@@ -18,6 +34,48 @@ class AppPreferences {
   static const _kLastSessionId = 'workspace.last_session_id';
   static const _kFontSize = 'terminal.font_size';
   static const _kKeepAwake = 'terminal.keep_awake';
+  static const _kDismissedAnnouncements = 'announcements.dismissed';
+  static const _kSnapshotPrefix = 'terminal.snapshot.';
+
+  /// 终端 scrollback 快照（App 冷启动后恢复上次输出；
+  /// 对齐 ArkTS TerminalCache 的按 Worker 持久化）。
+  @override
+  String? terminalSnapshot(String key) =>
+      _prefs.getString(_kSnapshotPrefix + key);
+
+  @override
+  Future<void> setTerminalSnapshot(String key, String text) =>
+      _prefs.setString(_kSnapshotPrefix + key, text);
+
+  static const _kStreamPrefix = 'terminal.stream.';
+  static const _kSeqPrefix = 'terminal.seq.';
+
+  @override
+  String? terminalStreamCache(String key) =>
+      _prefs.getString(_kStreamPrefix + key);
+
+  @override
+  Future<void> setTerminalStreamCache(String key, String text) =>
+      _prefs.setString(_kStreamPrefix + key, text);
+
+  @override
+  int terminalSeq(String key) => _prefs.getInt(_kSeqPrefix + key) ?? 0;
+
+  @override
+  Future<void> setTerminalSeq(String key, int seq) =>
+      _prefs.setInt(_kSeqPrefix + key, seq);
+
+  /// 已关闭的公告 id（对齐 ArkTS AnnouncementService 的按设备已读记录）。
+  List<String> get dismissedAnnouncementIds =>
+      _prefs.getStringList(_kDismissedAnnouncements) ?? const [];
+
+  Future<void> dismissAnnouncement(String id) async {
+    final dismissed = [...dismissedAnnouncementIds];
+    if (!dismissed.contains(id)) {
+      dismissed.add(id);
+      await _prefs.setStringList(_kDismissedAnnouncements, dismissed);
+    }
+  }
 
   ThemeMode get themeMode => switch (_prefs.getString(_kThemeMode)) {
         'light' => ThemeMode.light,

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../auth/token_store.dart';
@@ -126,6 +127,14 @@ class ApiClient {
       if (code == 429 && retryAfter is num) {
         throw RateLimitedException(retryAfter.toInt());
       }
+    }
+    // 请求根本没到服务器（无 HTTP 响应）：web 上最常见的是浏览器跨域拦截
+    // （网关未配置 CORS 允许当前来源），把根因讲清楚而不是只给 "Failed to fetch"。
+    if (code == null) {
+      final raw = e.message ?? e.error?.toString() ?? 'unknown';
+      serverMessage = kIsWeb
+          ? '请求未到达网关（浏览器跨域拦截或网络不可达）：$raw'
+          : '无法连接网关：$raw';
     }
     throw ApiException(code ?? 0, serverMessage: serverMessage);
   }

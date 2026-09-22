@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:corterm_mobile/core/storage/app_preferences.dart';
 import 'package:corterm_mobile/core/ws/terminal_socket.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:corterm_mobile/core/ws/ws_frames.dart';
 import 'package:corterm_mobile/features/sessions/data/session_repository.dart';
 import 'package:corterm_mobile/features/workspace/workspace_controller.dart';
@@ -77,6 +79,44 @@ class FakeRepo implements SessionRepository {
       throw UnimplementedError('${invocation.memberName}');
 }
 
+/// 测试用快照存储：内存 Map 实现（不依赖 SharedPreferences 异步初始化）。
+class _FakeSnapshotStore implements TerminalSnapshotStore {
+  final _store = <String, String>{};
+  final _streams = <String, String>{};
+  final _seqs = <String, int>{};
+
+  @override
+  String? terminalSnapshot(String key) => _store[key];
+
+  @override
+  Future<void> setTerminalSnapshot(String key, String text) async {
+    _store[key] = text;
+  }
+
+  @override
+  String? terminalStreamCache(String key) => _streams[key];
+
+  @override
+  Future<void> setTerminalStreamCache(String key, String text) async {
+    _streams[key] = text;
+  }
+
+  @override
+  int terminalSeq(String key) => _seqs[key] ?? 0;
+
+  @override
+  Future<void> setTerminalSeq(String key, int seq) async {
+    _seqs[key] = seq;
+  }
+}
+
+AppPreferences testPrefs() {
+  SharedPreferences.setMockInitialValues({});
+  late AppPreferences prefs;
+  SharedPreferences.getInstance().then((p) => prefs = AppPreferences(p));
+  return prefs;
+}
+
 /// 走完 attaching → replaying → live 全流程（走真实 _handleFrame 逻辑）。
 /// broadcast 流异步派发，调用方随后需 flushMicrotasks。
 void _goLive(FakeSocket socket) {
@@ -90,11 +130,11 @@ void main() {
   test('attach 成功后进入 live，静默超时触发 forceClose + 自动重连', () {
     fakeAsync((async) {
       final created = <FakeSocket>[];
-      final controller = WorkspaceController(FakeRepo(), ({required sessionId}) async {
+      final controller = WorkspaceController(FakeRepo(), ({required sessionId, sinceSeq = 0}) async {
         final s = FakeSocket(sessionId);
         created.add(s);
         return s;
-      });
+      }, _FakeSnapshotStore());
       addTearDown(controller.dispose);
 
       controller.open('s1');
@@ -118,11 +158,11 @@ void main() {
   test('有服务端帧活动时不判死', () {
     fakeAsync((async) {
       final created = <FakeSocket>[];
-      final controller = WorkspaceController(FakeRepo(), ({required sessionId}) async {
+      final controller = WorkspaceController(FakeRepo(), ({required sessionId, sinceSeq = 0}) async {
         final s = FakeSocket(sessionId);
         created.add(s);
         return s;
-      });
+      }, _FakeSnapshotStore());
       addTearDown(controller.dispose);
 
       controller.open('s1');
@@ -144,11 +184,11 @@ void main() {
   test('displaced 帧置终态错误，且不自动重连', () {
     fakeAsync((async) {
       final created = <FakeSocket>[];
-      final controller = WorkspaceController(FakeRepo(), ({required sessionId}) async {
+      final controller = WorkspaceController(FakeRepo(), ({required sessionId, sinceSeq = 0}) async {
         final s = FakeSocket(sessionId);
         created.add(s);
         return s;
-      });
+      }, _FakeSnapshotStore());
       addTearDown(controller.dispose);
 
       controller.open('s1');
@@ -171,11 +211,11 @@ void main() {
   test('退后台断开所有活动连接，回前台立即重连', () {
     fakeAsync((async) {
       final created = <FakeSocket>[];
-      final controller = WorkspaceController(FakeRepo(), ({required sessionId}) async {
+      final controller = WorkspaceController(FakeRepo(), ({required sessionId, sinceSeq = 0}) async {
         final s = FakeSocket(sessionId);
         created.add(s);
         return s;
-      });
+      }, _FakeSnapshotStore());
       addTearDown(controller.dispose);
 
       controller.open('s1');
@@ -195,3 +235,4 @@ void main() {
     });
   });
 }
+

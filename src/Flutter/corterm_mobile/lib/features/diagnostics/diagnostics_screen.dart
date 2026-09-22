@@ -1,11 +1,10 @@
-import 'dart:io';
-
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+import '../../core/platform/sysinfo.dart';
 import '../../shared/widgets/app_bar.dart';
 import '../../shared/widgets/list_group.dart';
 
@@ -104,7 +103,7 @@ class _DiagnosticsScreenState extends ConsumerState<DiagnosticsScreen> {
             AppRow(
               icon: LucideIcons.smartphone,
               label: l10n.platform,
-              value: '${Platform.operatingSystem} ${Platform.operatingSystemVersion}',
+              value: platformLabel(),
             ),
           ]),
           ShadButton.ghost(
@@ -123,8 +122,8 @@ class _DiagnosticsScreenState extends ConsumerState<DiagnosticsScreen> {
               for (final (id, entry) in opened)
                 AppRow(
                   leadingWidget: ConnectionStatusDot(
-                    color: connDotStyle(entry!.connState).$1,
-                    pulse: connDotStyle(entry.connState).$2,
+                    color: connDotStyle(ShadTheme.of(context).colorScheme, entry!.connState).$1,
+                    pulse: connDotStyle(ShadTheme.of(context).colorScheme, entry.connState).$2,
                   ),
                   label:
                       sessions.value?.where((s) => s.sessionId == id).firstOrNull?.displayName ??

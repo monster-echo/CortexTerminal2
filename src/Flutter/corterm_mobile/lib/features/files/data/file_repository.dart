@@ -1,29 +1,67 @@
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../core/api/api_client.dart';
 import '../../../core/api/api_exception.dart';
 
-/// 远程文件（Gateway RemoteFiles：列目录 + 预签名 S3 上传/下载，单笔 ≤50MB）。
+/// 远程文件 v2（对齐 ArkTS FilesService / Gateway /api/workspaces*）：
+/// 文件管理以【工作区】为边界；上传/下载经 Relay（或直连端点）流式直传，
+/// PUT/GET 响应即终态，无轮询。端点按优先序逐个尝试（LAN 直连 → 公网直连 → Relay）。
 class FileRepository {
   FileRepository(this._client, this._bareDio);
 
   final ApiClient _client;
 
-  /// 预签名 S3 URL 的直传/直取**不能带** Authorization 头，用独立 Dio。
+  /// 端点直传不能带 Authorization 头，用独立 Dio。
   final Dio _bareDio;
 
-  static const maxTransferBytes = 50 * 1024 * 1024;
+  // ---- 工作区 ----
 
-  Future<FileListing> list({required String sessionId, required String path}) async {
+  Future<List<Workspace>> listWorkspaces() async {
+    List<Map<String, dynamic>> raw;
+    try {
+      final list = await _client.getList('/api/workspaces');
+      raw = list.cast<Map<String, dynamic>>();
+    } on DioException catch (e) {
+      ApiClient.throwFor(e);
+    }
+    return raw.map(Workspace.fromJson).toList();
+  }
+
+  Future<Workspace> createWorkspace({
+    required String workerId,
+    required String name,
+    required String rootPath,
+  }) async {
+    Map<String, dynamic> json;
+    try {
+      json = await _client.postMap('/api/workspaces', {
+        'workerId': workerId,
+        'name': name,
+        'rootPath': rootPath,
+      });
+    } on DioException catch (e) {
+      ApiClient.throwFor(e);
+    }
+    return Workspace.fromJson(json);
+  }
+
+  // ---- 浏览 ----
+
+  /// 列目录（v2：path '' = 工作区根）。
+  Future<FileListing> list({
+    required String workspaceId,
+    required String path,
+  }) async {
     Map<String, dynamic> json;
     try {
       json = await _client.getMap(
-        '/api/sessions/$sessionId/files',
+        '/api/workspaces/$workspaceId/files',
         query: {'path': path},
       );
     } on DioException catch (e) {
@@ -32,119 +70,150 @@ class FileRepository {
     return FileListing.fromJson(json);
   }
 
-  /// 上传：申请预签名 URL → PUT 到 S3 → complete。返回最终 imageUrl 式路径（供日志）。
-  /// [onProgress] 已传字节（0..total）。
+  // ---- 上传 ----
+
+  /// 上传：注册 transfer → 端点协商 PUT（响应即终态）。
   Future<void> upload({
-    required String sessionId,
+    required String workspaceId,
     required String dirPath,
     required String filename,
     required Uint8List bytes,
-    void Function(int sent, int total)? onProgress,
   }) async {
-    if (bytes.length > maxTransferBytes) {
-      throw ApiException(0, serverMessage: 'file exceeds 50 MB limit');
-    }
-    final sha256 = _sha256of(bytes);
     Map<String, dynamic> grant;
     try {
-      grant = await _client.postMap('/api/sessions/$sessionId/files/uploads', {
-        'dirPath': dirPath,
-        'filename': filename,
-        'sizeBytes': bytes.length,
-        'sha256': sha256,
-      });
-    } on DioException catch (e) {
-      ApiClient.throwFor(e);
-    }
-    final uploadUrl = grant['uploadUrl'] as String?;
-    final requestId = grant['requestId'] as String?;
-    if (uploadUrl == null || requestId == null) {
-      throw ApiException(0, serverMessage: 'upload grant missing fields');
-    }
-    try {
-      final res = await _bareDio.put<void>(
-        uploadUrl,
-        data: Stream.fromIterable([bytes]),
-        options: Options(
-          headers: {'Content-Length': bytes.length},
-          // 显式空 Content-Type 由 S3 预签名的签名决定，不额外添加头。
-        ),
-        onSendProgress: onProgress,
-      );
-      if (res.statusCode != 200) {
-        throw ApiException(res.statusCode ?? 0, serverMessage: 'S3 upload failed');
-      }
-    } on DioException catch (e) {
-      throw ApiException(0, serverMessage: 'S3 upload failed: ${e.message}');
-    }
-    try {
-      await _client.postMap(
-        '/api/sessions/$sessionId/files/uploads/$requestId/complete',
-        null,
+      grant = await _client.postMap(
+        '/api/workspaces/$workspaceId/files/uploads',
+        {
+          'dirPath': dirPath,
+          'filename': filename,
+          'sizeBytes': bytes.length,
+          'sha256': _sha256of(bytes),
+        },
       );
     } on DioException catch (e) {
       ApiClient.throwFor(e);
     }
+    final endpoints = _readEndpoints(grant);
+    if (endpoints.isEmpty) {
+      throw ApiException(0, serverMessage: 'no transfer endpoints');
+    }
+    await _putViaEndpoints(endpoints, bytes);
   }
 
-  /// 下载：创建请求 → 轮询 ready → 拉取字节 → 写入临时文件并返回。
-  Future<File> download({
-    required String sessionId,
+  // ---- 下载 ----
+
+  /// 下载为可分享文件（内存 XFile，三端一致，不落盘）。
+  Future<XFile> download({
+    required String workspaceId,
     required String path,
     required String filename,
-    void Function(int received, int? total)? onProgress,
   }) async {
-    Map<String, dynamic> created;
+    final bytes = await downloadBytes(workspaceId: workspaceId, path: path);
+    return XFile.fromData(bytes, name: filename);
+  }
+
+  /// 下载：校验并取端点 → 端点协商 GET 字节。
+  Future<Uint8List> downloadBytes({
+    required String workspaceId,
+    required String path,
+  }) async {
+    Map<String, dynamic> init;
     try {
-      created = await _client.postMap('/api/sessions/$sessionId/files/downloads', {
-        'path': path,
-      });
+      init = await _client.postMap(
+        '/api/workspaces/$workspaceId/files/downloads',
+        {'path': path},
+      );
     } on DioException catch (e) {
       ApiClient.throwFor(e);
     }
-    final requestId = created['requestId'] as String?;
-    if (requestId == null || requestId.isEmpty) {
-      throw ApiException(0, serverMessage: 'download request missing requestId');
+    final endpoints = _readEndpoints(init);
+    if (endpoints.isEmpty) {
+      throw ApiException(0, serverMessage: 'no transfer endpoints');
     }
-    String? downloadUrl;
-    final deadline = DateTime.now().add(const Duration(minutes: 2));
-    while (DateTime.now().isBefore(deadline)) {
-      Map<String, dynamic> status;
+    return _getViaEndpoints(endpoints);
+  }
+
+  // ---- 内部 ----
+
+  List<String> _readEndpoints(Map<String, dynamic> response) {
+    final raw = response['endpoints'] as List<dynamic>? ?? const <dynamic>[];
+    return raw
+        .whereType<Map<String, dynamic>>()
+        .map((e) => e['url'] as String? ?? '')
+        .where((u) => u.isNotEmpty)
+        .toList();
+  }
+
+  /// 端点协商上传：逐个尝试 PUT，任一成功即返回；全部失败抛最后一次错误。
+  /// Web 端不能用流式请求体（浏览器 XHR 不支持），必须整包 bytes 直传，
+  /// 且 Content-Length 是浏览器禁用头，不能手动设置。
+  Future<void> _putViaEndpoints(List<String> endpoints, Uint8List bytes) async {
+    Object? lastError;
+    for (final url in endpoints) {
       try {
-        status = await _client.getMap(
-          '/api/sessions/$sessionId/files/downloads/$requestId',
+        final res = await _bareDio.put<void>(
+          url,
+          data: kIsWeb ? bytes : Stream.fromIterable([bytes]),
+          options: Options(
+            headers: kIsWeb ? null : {'Content-Length': bytes.length},
+            contentType: 'application/octet-stream',
+          ),
         );
+        if (res.statusCode != null && res.statusCode! < 300) return;
+        lastError = 'transfer failed (${res.statusCode})';
       } on DioException catch (e) {
-        ApiClient.throwFor(e);
+        lastError = e.message ?? e.error ?? e;
       }
-      final state = status['status'] as String?;
-      switch (state) {
-        case 'ready':
-          downloadUrl = status['downloadUrl'] as String?;
-        case 'failed':
-          throw ApiException(0, serverMessage: (status['error'] as String?) ?? 'download failed');
-        case 'pending':
-          await Future<void>.delayed(const Duration(milliseconds: 1500));
-        default:
-          throw ApiException(0, serverMessage: 'unknown download status: $state');
+    }
+    throw ApiException(0, serverMessage: 'Transfer failed: $lastError');
+  }
+
+  /// 端点协商下载：逐个尝试 GET，任一成功即返回。
+  Future<Uint8List> _getViaEndpoints(List<String> endpoints) async {
+    Object? lastError;
+    for (final url in endpoints) {
+      try {
+        final res = await _bareDio.get<List<int>>(
+          url,
+          options: Options(responseType: ResponseType.bytes),
+        );
+        if (res.statusCode != null && res.statusCode! < 300) {
+          return Uint8List.fromList(res.data ?? const <int>[]);
+        }
+        lastError = 'transfer failed (${res.statusCode})';
+      } on DioException catch (e) {
+        lastError = e.message ?? e.error ?? e;
       }
-      if (downloadUrl != null) break;
     }
-    if (downloadUrl == null) {
-      throw ApiException(0, serverMessage: 'download timed out');
-    }
-    final res = await _bareDio.get<List<int>>(
-      downloadUrl,
-      options: Options(responseType: ResponseType.bytes),
-      onReceiveProgress: onProgress,
-    );
-    final dir = await Directory.systemTemp.createTemp('corterm_dl');
-    final file = File('${dir.path}/$filename');
-    await file.writeAsBytes(res.data ?? const <int>[], flush: true);
-    return file;
+    throw ApiException(0, serverMessage: 'Transfer failed: $lastError');
   }
 
   String _sha256of(Uint8List bytes) => sha256.convert(bytes).toString();
+}
+
+/// 工作区（文件管理的边界：绑定一个 Worker + 一个根路径）。
+class Workspace {
+  const Workspace({
+    required this.workspaceId,
+    required this.workerId,
+    required this.name,
+    this.rootPath,
+  });
+
+  final String workspaceId;
+  final String workerId;
+  final String name;
+  final String? rootPath;
+
+  String get displayName => name.isNotEmpty ? name : (rootPath ?? workspaceId);
+
+  factory Workspace.fromJson(Map<String, dynamic> json) => Workspace(
+        workspaceId:
+            (json['workspaceId'] ?? json['id']) as String? ?? '',
+        workerId: json['workerId'] as String? ?? '',
+        name: json['name'] as String? ?? '',
+        rootPath: json['rootPath'] as String?,
+      );
 }
 
 class FileEntry {
@@ -161,25 +230,26 @@ class FileEntry {
   final DateTime? modifiedUtc;
 
   factory FileEntry.fromJson(Map<String, dynamic> json) => FileEntry(
-        name: json['name'] as String,
+        name: json['name'] as String? ?? '',
         isDirectory: json['isDirectory'] as bool? ?? false,
         sizeBytes: (json['sizeBytes'] as num?)?.toInt() ?? 0,
         modifiedUtc: (json['modifiedUtc'] as String?) != null
-            ? DateTime.parse(json['modifiedUtc'] as String)
+            ? DateTime.tryParse(json['modifiedUtc'] as String)
             : null,
       );
 }
 
 class FileListing {
-  const FileListing({required this.path, required this.entries, required this.truncated});
+  const FileListing({
+    required this.entries,
+    required this.truncated,
+  });
 
-  final String path;
   final List<FileEntry> entries;
   final bool truncated;
 
   factory FileListing.fromJson(Map<String, dynamic> json) => FileListing(
-        path: json['path'] as String? ?? '/',
-        entries: ((json['entries'] as List<dynamic>?) ?? const [])
+        entries: ((json['entries'] as List<dynamic>?) ?? const <dynamic>[])
             .cast<Map<String, dynamic>>()
             .map(FileEntry.fromJson)
             .toList(),
@@ -188,8 +258,5 @@ class FileListing {
 }
 
 final fileRepositoryProvider = Provider<FileRepository>((ref) {
-  return FileRepository(
-    ref.watch(apiClientProvider),
-    Dio(),
-  );
+  return FileRepository(ref.watch(apiClientProvider), Dio());
 });

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Session 状态小圆点（§13）：green/yellow/red/gray，不做文字。
+/// Session 状态小圆点（§13）：颜色一律由调用方从主题状态色取（scheme.success 等）。
 class ConnectionStatusDot extends StatelessWidget {
   const ConnectionStatusDot({
     super.key,
@@ -9,9 +9,6 @@ class ConnectionStatusDot extends StatelessWidget {
     this.pulse = false,
   });
 
-  /// Green Running / Yellow Waiting·Reconnecting / Red Error / Gray Ended。
-  const ConnectionStatusDot.running({super.key, this.size = 9, this.pulse = false})
-      : color = const Color(0xFF22C55E);
   final Color color;
   final double size;
   final bool pulse;

@@ -29,6 +29,32 @@ class UpgradeWorkerResult {
   final String? targetVersion;
 }
 
+/// 网关公告（字段对齐 ArkTS AnnouncementInfo）。
+class GatewayAnnouncement {
+  const GatewayAnnouncement({
+    required this.id,
+    required this.title,
+    required this.body,
+    required this.buttonLabel,
+    required this.url,
+  });
+
+  final String id;
+  final String title;
+  final String body;
+  final String buttonLabel;
+  final String url;
+
+  factory GatewayAnnouncement.fromJson(Map<String, dynamic> json) =>
+      GatewayAnnouncement(
+        id: json['id'] as String? ?? '',
+        title: json['title'] as String? ?? '',
+        body: json['body'] as String? ?? '',
+        buttonLabel: json['buttonLabel'] as String? ?? '',
+        url: json['url'] as String? ?? '',
+      );
+}
+
 /// Session 数据源（对齐 Gateway `/api/sessions` 与 `/api/me/sessions*`）。
 class SessionRepository {
   SessionRepository(this._client, this._prefs);
@@ -39,6 +65,12 @@ class SessionRepository {
   Future<List<SessionSummary>> list() async {
     final raw = await _client.getList('/api/me/sessions');
     return raw.cast<Map<String, dynamic>>().map(SessionSummary.fromJson).toList();
+  }
+
+  /// 网关公告（对齐 ArkTS GET /api/announcements，首页弹窗用）。
+  Future<List<GatewayAnnouncement>> announcements() async {
+    final raw = await _client.getList('/api/announcements');
+    return raw.cast<Map<String, dynamic>>().map(GatewayAnnouncement.fromJson).toList();
   }
 
   Future<List<WorkerSummary>> workers() async {
@@ -96,7 +128,8 @@ class SessionRepository {
 
   Future<void> rename({required String sessionId, required String name}) async {
     try {
-      await _client.patch('/api/me/sessions/$sessionId', {'name': name});
+      // 网关只实现了 PUT（对齐 ArkTS renameSession），PATCH 会 405。
+      await _client.putMap('/api/me/sessions/$sessionId', {'name': name});
     } on ApiException {
       rethrow;
     }

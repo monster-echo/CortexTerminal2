@@ -35,19 +35,20 @@ class TerminalToolbar extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     final scheme = ShadTheme.of(context).colorScheme;
     final border = scheme.border;
-    final keyStyle = TextStyle(
-      fontSize: 13,
-      fontWeight: FontWeight.w600,
-      color: enabled ? scheme.foreground : scheme.mutedForeground.withValues(alpha: 0.5),
-    );
+    final keyStyle = ShadTheme.of(context)
+        .textTheme
+        .small
+        .copyWith(color: scheme.foreground);
 
-    Widget key(String label, VoidCallback onTap, {bool active = false}) => Padding(
+    Widget key(String label, VoidCallback onTap, {bool active = false}) =>
+        Padding(
           padding: const EdgeInsets.symmetric(horizontal: 3),
           child: Material(
+            // 键帽：次级表面底 + 8 圆角；粘滞激活态用品牌色 16% 底 + 品牌字。
             color: active
-                ? scheme.primary.withValues(alpha: 0.18)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(6),
+                ? scheme.primary.withValues(alpha: 0.16)
+                : scheme.secondary,
+            borderRadius: BorderRadius.circular(8),
             child: InkWell(
               onTap: enabled
                   ? () {
@@ -55,13 +56,17 @@ class TerminalToolbar extends StatelessWidget {
                       onTap();
                     }
                   : null,
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(8),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                height: 36,
+                alignment: Alignment.center,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: Text(
                   label,
                   style: keyStyle.copyWith(
-                    color: active ? scheme.primary : keyStyle.color,
+                    color: enabled
+                        ? (active ? scheme.primary : keyStyle.color)
+                        : scheme.mutedForeground.withValues(alpha: 0.5),
                   ),
                 ),
               ),
@@ -71,7 +76,10 @@ class TerminalToolbar extends StatelessWidget {
 
     return Container(
       height: height,
-      decoration: BoxDecoration(border: Border(top: BorderSide(color: border))),
+      decoration: BoxDecoration(
+        color: scheme.background,
+        border: Border(top: BorderSide(color: border)),
+      ),
       child: Row(
         children: [
           Expanded(
@@ -101,7 +109,27 @@ class TerminalToolbar extends StatelessWidget {
               ),
             ),
           ),
-          key('⌨', () => FocusManager.instance.primaryFocus?.unfocus()),
+          // 收起键盘：viewInsets 归零 → 工具栏随 _CollapsibleToolbar 动画收回。
+          Padding(
+            padding: const EdgeInsets.only(right: 6),
+            child: Material(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(8),
+              child: InkWell(
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  FocusManager.instance.primaryFocus?.unfocus();
+                },
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  height: 36,
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  child: Icon(LucideIcons.chevronDown,
+                      size: 18, color: scheme.mutedForeground),
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );

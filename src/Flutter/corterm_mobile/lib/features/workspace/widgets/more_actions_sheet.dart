@@ -65,22 +65,6 @@ class MoreActionsSheet extends ConsumerWidget {
                 PortForwardingSheet.show(context, sessionId: sessionId);
               },
             ),
-            AppRow(
-              icon: LucideIcons.layoutGrid,
-              label: l10n.allSessions,
-              onTap: () {
-                Navigator.of(context).pop();
-                context.go('/sessions');
-              },
-            ),
-            AppRow(
-              icon: LucideIcons.settings,
-              label: l10n.settings,
-              onTap: () {
-                Navigator.of(context).pop();
-                context.go('/settings');
-              },
-            ),
             Divider(color: scheme.border, indent: 16, endIndent: 16),
             AppRow(
               icon: LucideIcons.trash2,

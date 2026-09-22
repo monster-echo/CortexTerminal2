@@ -26,6 +26,8 @@ class SessionSelectorSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
+    final theme = ShadTheme.of(context);
+    final scheme = theme.colorScheme;
     final groups = ref.watch(sessionGroupsProvider);
     final controller = ref.read(workspaceControllerProvider.notifier);
 
@@ -40,11 +42,7 @@ class SessionSelectorSheet extends ConsumerWidget {
                 Expanded(
                   child: Text(
                     l10n.sessions,
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: ShadTheme.of(context).colorScheme.foreground,
-                    ),
+                    style: theme.textTheme.large.copyWith(color: scheme.foreground),
                   ),
                 ),
                 ShadIconButton(
@@ -96,28 +94,15 @@ class SessionSelectorSheet extends ConsumerWidget {
                     child: Center(
                       child: Text(
                         l10n.noSessions,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: ShadTheme.of(context).colorScheme.mutedForeground,
-                        ),
+                        style: theme.textTheme.small
+                            .copyWith(color: scheme.mutedForeground),
                       ),
                     ),
                   ),
               ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
-            child: ShadButton.outline(
-              leading: const Icon(LucideIcons.plus, size: 18),
-              onPressed: () {
-                Navigator.of(context).pop();
-                showNewSessionSheet(context, onCreated: controller.open);
-              },
-              child: Text(l10n.newSession),
-            ),
-          ),
-        ],
+             ),
+           ),
+         ],
       ),
     );
   }

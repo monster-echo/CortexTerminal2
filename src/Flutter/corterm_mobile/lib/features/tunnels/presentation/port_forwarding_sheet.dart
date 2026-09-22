@@ -117,7 +117,8 @@ class _PortForwardingSheetState extends ConsumerState<PortForwardingSheet> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final scheme = ShadTheme.of(context).colorScheme;
+    final theme = ShadTheme.of(context);
+    final scheme = theme.colorScheme;
 
     return SafeArea(
       child: SingleChildScrollView(
@@ -128,7 +129,7 @@ class _PortForwardingSheetState extends ConsumerState<PortForwardingSheet> {
           children: [
             Text(
               l10n.tunnelTitle,
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: scheme.foreground),
+              style: theme.textTheme.large.copyWith(color: scheme.foreground),
             ),
             const SizedBox(height: 16),
             if (_error != null)
@@ -136,7 +137,7 @@ class _PortForwardingSheetState extends ConsumerState<PortForwardingSheet> {
                 padding: const EdgeInsets.only(bottom: 12),
                 child: Text(
                   _error!,
-                  style: TextStyle(color: scheme.destructive, fontSize: 14),
+                  style: theme.textTheme.small.copyWith(color: scheme.destructive),
                 ),
               ),
             Row(
@@ -179,7 +180,7 @@ class _PortForwardingSheetState extends ConsumerState<PortForwardingSheet> {
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 child: Text(
                   l10n.tunnelEmpty,
-                  style: TextStyle(fontSize: 14, color: scheme.mutedForeground),
+                  style: theme.textTheme.small.copyWith(color: scheme.mutedForeground),
                 ),
               )
             else
@@ -197,8 +198,7 @@ class _PortForwardingSheetState extends ConsumerState<PortForwardingSheet> {
                       children: [
                         Text(
                           '${l10n.tunnelPortLabel}: ${tunnel.port}',
-                          style: TextStyle(
-                            fontSize: 15,
+                          style: theme.textTheme.small.copyWith(
                             fontWeight: FontWeight.w600,
                             color: scheme.foreground,
                           ),
@@ -206,7 +206,8 @@ class _PortForwardingSheetState extends ConsumerState<PortForwardingSheet> {
                         const SizedBox(height: 2),
                         Text(
                           l10n.tunnelExpires(_fmt(tunnel.expiresAtUtc)),
-                          style: TextStyle(fontSize: 12, color: scheme.mutedForeground),
+                          style: theme.textTheme.muted
+                              .copyWith(color: scheme.mutedForeground),
                         ),
                         const SizedBox(height: 8),
                         Row(

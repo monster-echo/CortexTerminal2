@@ -45,11 +45,10 @@ class CortermAppBar extends StatelessWidget implements PreferredSizeWidget {
             title,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: scheme.foreground,
-            ),
+            style: ShadTheme.of(context).textTheme.large.copyWith(
+                  color: scheme.foreground,
+                  fontSize: 17,
+                ),
           ),
       actions: actions,
       bottom: bottom,

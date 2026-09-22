@@ -34,6 +34,8 @@ Future<void> showNewSessionSheet(
   if (!context.mounted) return;
   return showCortermSheet(
     context: context,
+    minHeightFactor: 2 / 3, // 固定 2/3 屏（上限同值）：与 Material sheet 惯例一致。
+    maxHeightFactor: 2 / 3,
     builder: (_) => NewSessionSheet(onCreated: onCreated),
   );
 }
@@ -54,7 +56,8 @@ class _NewSessionSheetState extends ConsumerState<NewSessionSheet> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final scheme = ShadTheme.of(context).colorScheme;
+    final theme = ShadTheme.of(context);
+    final scheme = theme.colorScheme;
     final workersAsync = ref.watch(workersProvider);
     final online =
         (workersAsync.value ?? const []).where((w) => w.isOnline).toList();
@@ -79,8 +82,7 @@ class _NewSessionSheetState extends ConsumerState<NewSessionSheet> {
                 child: Text(
                   l10n.createSession,
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 16,
+                  style: theme.textTheme.small.copyWith(
                     fontWeight: FontWeight.w600,
                     color: scheme.foreground,
                   ),
@@ -95,7 +97,8 @@ class _NewSessionSheetState extends ConsumerState<NewSessionSheet> {
             ],
           ),
           const SizedBox(height: 8),
-          SheetSectionHeader(label: l10n.selectWorker),
+          // Worker 不再让用户挑（默认第一个在线，用户无需理解选择成本）。
+          // 仅在线 worker 列表为空时给出不可创建的原因。
           workersAsync.when(
             loading: () => const Padding(
               padding: EdgeInsets.all(16),
@@ -105,7 +108,7 @@ class _NewSessionSheetState extends ConsumerState<NewSessionSheet> {
               padding: const EdgeInsets.all(16),
               child: Text(
                 l10n.noWorkers,
-                style: TextStyle(fontSize: 14, color: scheme.destructive),
+                style: theme.textTheme.small.copyWith(color: scheme.destructive),
               ),
             ),
             data: (list) {
@@ -114,27 +117,11 @@ class _NewSessionSheetState extends ConsumerState<NewSessionSheet> {
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   child: Text(
                     l10n.noWorkers,
-                    style: TextStyle(fontSize: 14, color: scheme.foreground),
+                    style: theme.textTheme.small.copyWith(color: scheme.foreground),
                   ),
                 );
               }
-              return Column(
-                children: [
-                  for (final w in online)
-                    _WorkerRadioRow(
-                      workerId: w.workerId,
-                      groupValue: _selectedWorkerId,
-                      onChanged: _creating
-                          ? null
-                          : (v) => setState(() => _selectedWorkerId = v),
-                      name: w.displayName,
-                      subtitle: [w.hostname, w.operatingSystem]
-                          .whereType<String>()
-                          .where((s) => s.isNotEmpty)
-                          .join(' · '),
-                    ),
-                ],
-              );
+              return const SizedBox.shrink();
             },
           ),
           const SizedBox(height: 12),
@@ -174,82 +161,3 @@ class _NewSessionSheetState extends ConsumerState<NewSessionSheet> {
   }
 }
 
-/// 单选行：图标（在线=绿）+ name + hostname · OS + 右侧 radio（对齐 MAUI CreateSessionModal）。
-class _WorkerRadioRow extends StatelessWidget {
-  const _WorkerRadioRow({
-    required this.workerId,
-    required this.groupValue,
-    required this.onChanged,
-    required this.name,
-    required this.subtitle,
-  });
-
-  final String workerId;
-  final String? groupValue;
-  final ValueChanged<String?>? onChanged;
-  final String name;
-  final String subtitle;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = ShadTheme.of(context).colorScheme;
-    final selected = groupValue == workerId;
-    return InkWell(
-      onTap: onChanged == null ? null : () => onChanged!(workerId),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        child: Row(
-          children: [
-            const Icon(LucideIcons.monitor,
-                size: 18, color: Color(0xFF22C55E)),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    name,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w500,
-                      color: scheme.foreground,
-                    ),
-                  ),
-                  if (subtitle.isNotEmpty)
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: scheme.mutedForeground,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            // radio 圆环（shadcn 视觉）：选中 = 主色实心点。
-            Container(
-              width: 20,
-              height: 20,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: selected ? scheme.primary : scheme.border,
-                  width: 2,
-                ),
-              ),
-              padding: const EdgeInsets.all(3),
-              child: selected
-                  ? Container(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: scheme.primary,
-                      ),
-                    )
-                  : null,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}

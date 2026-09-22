@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
@@ -8,10 +7,9 @@ import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/sheets_and_dialogs.dart';
 import '../../../shared/widgets/states.dart';
 import '../../sessions/data/sessions_providers.dart';
-import '../../sessions/data/session_repository.dart';
 import '../workspace_controller.dart';
 
-/// Session Details（§54/§23）：完整元信息，含 sessionId（可复制）与重命名入口。
+/// Session Details（§54/§23）：会话元信息速览（不含 sessionId 与重命名入口）。
 class SessionDetailsSheet extends ConsumerStatefulWidget {
   const SessionDetailsSheet({super.key, required this.sessionId});
 
@@ -29,12 +27,11 @@ class SessionDetailsSheet extends ConsumerStatefulWidget {
 }
 
 class _SessionDetailsSheetState extends ConsumerState<SessionDetailsSheet> {
-  bool _renaming = false;
-
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final scheme = ShadTheme.of(context).colorScheme;
+    final theme = ShadTheme.of(context);
+    final scheme = theme.colorScheme;
     final session = ref.watch(sessionsProvider).value
         ?.where((s) => s.sessionId == widget.sessionId)
         .firstOrNull;
@@ -76,50 +73,12 @@ class _SessionDetailsSheetState extends ConsumerState<SessionDetailsSheet> {
                 Expanded(
                   child: Text(
                     session.displayName,
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: scheme.foreground,
-                    ),
+                    style: theme.textTheme.large.copyWith(color: scheme.foreground),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                ShadIconButton(
-                  icon: const Icon(LucideIcons.squarePen, size: 20),
-                  onPressed: _renaming ? null : _rename,
-                ),
               ],
-            ),
-            const SizedBox(height: 8),
-            // Session ID 只在这里出现（§8）：点击复制。
-            InkWell(
-              onTap: () {
-                Clipboard.setData(ClipboardData(text: session.sessionId));
-                showAppToast(context, l10n.copied);
-              },
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: 96,
-                      child: Text(
-                        l10n.sessionId,
-                        style: TextStyle(fontSize: 14, color: scheme.mutedForeground),
-                      ),
-                    ),
-                    Expanded(
-                      child: Text(
-                        session.sessionId,
-                        style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Icon(LucideIcons.copy, size: 15, color: scheme.mutedForeground),
-                  ],
-                ),
-              ),
             ),
             Divider(height: 20, color: scheme.border),
             for (final (label, value) in rows)
@@ -132,14 +91,14 @@ class _SessionDetailsSheetState extends ConsumerState<SessionDetailsSheet> {
                       width: 96,
                       child: Text(
                         label,
-                        style: TextStyle(fontSize: 14, color: scheme.mutedForeground),
+                        style: theme.textTheme.small
+                            .copyWith(color: scheme.mutedForeground),
                       ),
                     ),
                     Expanded(
                       child: Text(
                         value,
-                        style: TextStyle(
-                          fontSize: 14,
+                        style: theme.textTheme.small.copyWith(
                           fontWeight: FontWeight.w500,
                           color: scheme.foreground,
                         ),
@@ -152,40 +111,6 @@ class _SessionDetailsSheetState extends ConsumerState<SessionDetailsSheet> {
         ),
       ),
     );
-  }
-
-  Future<void> _rename() async {
-    final l10n = AppLocalizations.of(context)!;
-    final session = ref
-        .read(sessionsProvider)
-        .value!
-        .where((s) => s.sessionId == widget.sessionId)
-        .first;
-    final controller = TextEditingController(text: session.name);
-    final name = await showShadDialog<String>(
-      context: context,
-      builder: (context) => ShadDialog(
-        title: Text(l10n.sessionRenameTitle),
-        actions: [
-          ShadButton.outline(
-            onPressed: () => Navigator.pop(context),
-            child: Text(l10n.cancel),
-          ),
-          ShadButton(
-            onPressed: () => Navigator.pop(context, controller.text.trim()),
-            child: Text(l10n.save),
-          ),
-        ],
-      ),
-    );
-    if (name == null) return;
-    setState(() => _renaming = true);
-    try {
-      await ref.read(sessionRepositoryProvider).rename(sessionId: widget.sessionId, name: name);
-      ref.invalidate(sessionsProvider);
-    } finally {
-      if (mounted) setState(() => _renaming = false);
-    }
   }
 
   String _fmt(DateTime t) {

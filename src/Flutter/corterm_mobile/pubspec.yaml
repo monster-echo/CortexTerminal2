@@ -46,9 +46,9 @@ dependencies:
   flutter_secure_storage: ^9.2.2
   # 本地偏好（主题/最近会话/工具栏配置）
   shared_preferences: ^2.3.2
-  # 终端渲染（§30）— vendored fork（terminal_module/vendor/xterm，3.x 布局 + snapshot/zmodem/长按选择增强）
+  # 终端渲染（§30）— vendored fork（vendor/xterm，3.x 布局 + snapshot/zmodem/长按选择增强）
   xterm:
-    path: ../terminal_module/vendor/xterm
+    path: vendor/xterm
   # l10n 工具链
   intl: any
   package_info_plus: ^9.0.1
@@ -59,6 +59,10 @@ dependencies:
   app_links: ^7.2.1
   wakelock_plus: ^1.5.2
   shadcn_ui: ^0.56.3
+  # 会话卡左滑操作（重命名/删除，对齐 ArkTS swipeAction）
+  flutter_slidable: ^3.1.0
+  # 设备激活扫码（扫 worker/桌面端显示的 activation QR）
+  mobile_scanner: ^7.0.1
   connectivity_plus: ^7.3.1
   clock: ^1.1.3
   sign_in_with_apple: ^8.2.0
@@ -91,6 +95,9 @@ flutter:
   # the material Icons class.
   uses-material-design: true
   generate: true
+
+  assets:
+    - assets/branding/icon.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:

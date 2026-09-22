@@ -14,7 +14,8 @@ class EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = ShadTheme.of(context).colorScheme;
+    final theme = ShadTheme.of(context);
+    final scheme = theme.colorScheme;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -24,8 +25,7 @@ class EmptyState extends StatelessWidget {
             Text(
               title,
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 16,
+              style: theme.textTheme.p.copyWith(
                 fontWeight: FontWeight.w600,
                 color: scheme.foreground,
               ),
@@ -35,7 +35,7 @@ class EmptyState extends StatelessWidget {
               Text(
                 hint!,
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 13, color: scheme.mutedForeground),
+                style: theme.textTheme.muted.copyWith(color: scheme.mutedForeground),
               ),
             ],
             if (actionLabel != null) ...[
@@ -59,7 +59,7 @@ class ErrorState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final scheme = ShadTheme.of(context).colorScheme;
+    final theme = ShadTheme.of(context);
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -69,7 +69,7 @@ class ErrorState extends StatelessWidget {
             Text(
               message,
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14, color: scheme.foreground),
+              style: theme.textTheme.muted.copyWith(color: theme.colorScheme.foreground),
             ),
             if (onRetry != null) ...[
               const SizedBox(height: 16),
@@ -102,11 +102,7 @@ class SmallSpinner extends StatelessWidget {
 void showAppToast(BuildContext context, String message, {bool destructive = false}) {
   ShadToaster.of(context).show(
     destructive
-        ? ShadToast.destructive(
-            title: Text(message, style: const TextStyle(fontSize: 14)),
-          )
-        : ShadToast(
-            title: Text(message, style: const TextStyle(fontSize: 14)),
-          ),
+        ? ShadToast.destructive(title: Text(message))
+        : ShadToast(title: Text(message)),
   );
 }

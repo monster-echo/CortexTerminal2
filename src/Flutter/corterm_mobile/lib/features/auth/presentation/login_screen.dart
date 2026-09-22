@@ -1,10 +1,11 @@
 import 'dart:convert';
-import 'dart:io' show Platform;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -16,15 +17,15 @@ import '../../../core/auth/auth_controller.dart';
 import '../../../core/auth/auth_repository.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/storage/app_preferences.dart';
-import '../../../core/legal/legal_documents.dart';
-import '../../legal/legal_screens.dart';
 import '../../../core/models/auth_models.dart';
+import '../../../app/theme/app_theme.dart';
+import '../../legal/legal_screens.dart';
 import '../../../l10n/app_localizations.dart';
-import '../../../shared/widgets/sheets_and_dialogs.dart';
+import '../../../shared/widgets/brand_logos.dart';
 import '../../../shared/widgets/states.dart';
 
 /// 登录页：密码 + 手机号（由 /api/auth/methods 决定显示）。
-/// 403 CAPTCHA_REQUIRED → 弹滑块验证码后自动重试（Gateway 防爆破约定）。
+/// 403 CAPTCHA_REQUIRED → 弹滑块验证码（拖到位松手即校验）后自动重试。
 /// github/google 走系统浏览器 + corterm.mobile://auth 深链回跳；
 /// Apple 走原生 ASAuthorization（authorizationCode → /api/auth/apple/native 换 JWT）。
 class LoginScreen extends ConsumerStatefulWidget {
@@ -40,10 +41,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _phone = TextEditingController();
   final _code = TextEditingController();
 
+  final _userFocus = FocusNode();
+  final _passwordFocus = FocusNode();
+  final _phoneFocus = FocusNode();
+  final _codeFocus = FocusNode();
+
   bool _passwordMode = true;
+  bool _obscure = true;
   bool _consented = false;
   bool _busy = false;
   bool _methodsLoaded = false;
+  bool _methodsFailed = false;
+  String? _methodsErrorDetail;
   String? _error;
   int _resendIn = 0;
 
@@ -73,16 +82,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         _oauthProviders.addAll(
           methods.methods.where((m) => _supportedOauth.contains(m)),
         );
-        // 平台能力判断（非降级）：Apple 原生流仅 iOS 提供按钮。
-        _hasApple = methods.methods.contains('apple') && Platform.isIOS;
+        // 平台能力判断（非降级）：Apple 原生流仅 iOS 提供（web 不提供）。
+        _hasApple = methods.methods.contains('apple') &&
+            !kIsWeb &&
+            defaultTargetPlatform == TargetPlatform.iOS;
         _methodsLoaded = true;
+        _methodsFailed = false;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        // methods 拉取失败不阻塞登录（默认展示密码登录），但给出提示。
+        // methods 拉取失败不阻塞登录（默认展示密码登录），但如实提示原始错误 + 重试。
         _methodsLoaded = true;
-        _error = e.toString();
+        _methodsFailed = true;
+        _methodsErrorDetail = e.toString();
       });
     }
   }
@@ -91,6 +104,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   void dispose() {
     for (final c in [_user, _password, _phone, _code]) {
       c.dispose();
+    }
+    for (final f in [_userFocus, _passwordFocus, _phoneFocus, _codeFocus]) {
+      f.dispose();
     }
     super.dispose();
   }
@@ -123,17 +139,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     return false;
   }
 
-  /// 勾选行内的《文档》链接：导航到全文页。
-  TextSpan _docLink(BuildContext context, String label, LegalDocument doc) {
+  /// 勾选行内的《文档》链接：导航到全文页（路由名显式传入，LegalDocument 无值相等语义）。
+  TextSpan _docLink(BuildContext context, String label, String route) {
     final scheme = ShadTheme.of(context).colorScheme;
     return TextSpan(
       text: '《$label》',
       style: TextStyle(color: scheme.primary, fontWeight: FontWeight.w600),
       recognizer: TapGestureRecognizer()
         ..onTap = () {
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => LegalDocumentScreen(document: doc)),
-          );
+          context.push('/legal/$route');
         },
     );
   }
@@ -141,6 +155,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Future<void> _login() async {
     final l10n = AppLocalizations.of(context)!;
     if (!await _ensureConsent()) return;
+    _userFocus.unfocus();
+    _passwordFocus.unfocus();
+    _phoneFocus.unfocus();
+    _codeFocus.unfocus();
     setState(() {
       _error = null;
       _busy = true;
@@ -294,12 +312,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final repo = ref.read(authRepositoryProvider);
     final challenge = await repo.captchaChallenge();
     if (!mounted) throw StateError('no context for captcha');
-    final token = await showCortermSheet<String>(
+    final token = await showShadDialog<String>(
       context: context,
-      isScrollControlled: false,
-      builder: (_) => _CaptchaSheet(
-        challenge: challenge,
-        onVerify: (x) => repo.captchaVerify(id: challenge.id, x: x),
+      builder: (_) => _CaptchaDialog(
+        initialChallenge: challenge,
+        onVerify: (c, x) => repo.captchaVerify(id: c.id, x: x),
+        onNewChallenge: () => repo.captchaChallenge(),
       ),
     );
     if (token == null || token.isEmpty) {
@@ -321,6 +339,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (_error != null) setState(() => _error = null);
   }
 
+  /// 切换 primary 登录方式（密码 ⇄ 手机）：主表单与次行入口位置互换。
+  void _switchPrimary() {
+    HapticFeedback.selectionClick();
+    setState(() {
+      _passwordMode = !_passwordMode;
+      _error = null;
+    });
+  }
+
+  /// 输入即重建：登录按钮的 enabled 依赖 [_inputValid]，
+  /// 只清错误不清状态会导致「打了字按钮永远不亮」。
+  void _onInputChanged(String v) {
+    _clearError(v);
+    setState(() {});
+  }
+
   bool get _inputValid {
     if (_passwordMode) {
       return _user.text.trim().isNotEmpty && _password.text.isNotEmpty;
@@ -328,13 +362,50 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     return _phone.text.trim().isNotEmpty && _code.text.trim().isNotEmpty;
   }
 
+  String? _required(String v) => v.trim().isEmpty ? ' ' : null;
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final scheme = ShadTheme.of(context).colorScheme;
+    final theme = ShadTheme.of(context);
     final localeTag = ref.watch(localeProvider);
     final privacyDoc = privacyPolicyOf(localeTag);
     final termsDoc = termsOfServiceOf(localeTag);
+
+    // 次行入口：非 primary 的登录方式 + OAuth，横排一行。
+    // 默认密码为 primary → 次行 = 手机登录 + GitHub/Google(/Apple)；
+    // 切换成手机为主后，次行 = 密码登录 + OAuth。
+    final secondaryEntries = <Widget>[
+      if (!_passwordMode && _hasPassword)
+        ShadButton.outline(
+          enabled: !_busy,
+          onPressed: _switchPrimary,
+          leading: const Icon(LucideIcons.keyRound, size: 16),
+          child: Text(l10n.passwordLogin),
+        ),
+      if (_passwordMode && _hasPhone)
+        ShadButton.outline(
+          enabled: !_busy,
+          onPressed: _switchPrimary,
+          leading: const Icon(LucideIcons.smartphone, size: 16),
+          child: Text(l10n.phoneLogin),
+        ),
+      for (final p in _oauthProviders)
+        ShadButton.outline(
+          enabled: !_busy,
+          onPressed: () => _startOauth(p),
+          leading: p == 'github' ? const GithubMark() : const GoogleG(),
+          child: Text(p == 'github' ? 'GitHub' : 'Google'),
+        ),
+      if (_hasApple)
+        ShadButton.outline(
+          enabled: !_busy,
+          onPressed: _appleLogin,
+          leading: const Icon(LucideIcons.apple, size: 16),
+          child: const Text('Apple'),
+        ),
+    ];
 
     return Scaffold(
       body: SafeArea(
@@ -346,76 +417,103 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const SizedBox(height: 48),
+                  const SizedBox(height: 32),
+                  // 品牌区：logo + 名称 + tagline。
+                  Center(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(18),
+                      child: Image.asset(
+                        'assets/branding/icon.png',
+                        width: 72,
+                        height: 72,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
                   Text(
                     l10n.appName,
                     textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 30,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: -0.5,
-                      color: scheme.foreground,
-                    ),
+                    style: theme.textTheme.h2.copyWith(color: scheme.foreground),
                   ),
-                  const SizedBox(height: 40),
-                  if (_hasPassword && _hasPhone)
-                    ShadTabs<bool>(
-                      value: _passwordMode,
-                      onChanged: (v) => setState(() => _passwordMode = v),
-                      tabs: [
-                        ShadTab(
-                          value: true,
-                          child: Text(l10n.passwordLogin),
-                        ),
-                        ShadTab(
-                          value: false,
-                          child: Text(l10n.phoneLogin),
-                        ),
-                      ],
-                    ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 6),
+                  Text(
+                    l10n.aboutTagline,
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.muted.copyWith(color: scheme.mutedForeground),
+                  ),
+                  const SizedBox(height: 32),
                   if (_passwordMode) ...[
                     ShadInputFormField(
                       controller: _user,
+                      focusNode: _userFocus,
                       label: Text(l10n.username),
                       placeholder: Text(l10n.username),
                       autofillHints: const [AutofillHints.username],
-                      onChanged: _clearError,
+                      textInputAction: TextInputAction.next,
+                      onSubmitted: (_) => _passwordFocus.requestFocus(),
+                      enabled: !_busy,
+                      validator: _required,
+                      autovalidateMode: AutovalidateMode.onUserInteraction,
+                      onChanged: _onInputChanged,
                     ),
                     const SizedBox(height: 16),
                     ShadInputFormField(
                       controller: _password,
+                      focusNode: _passwordFocus,
                       label: Text(l10n.password),
                       placeholder: Text(l10n.password),
-                      obscureText: true,
+                      obscureText: _obscure,
                       autofillHints: const [AutofillHints.password],
-                      onChanged: _clearError,
+                      textInputAction: TextInputAction.done,
+                      onSubmitted: (_) => _login(),
+                      enabled: !_busy,
+                      validator: _required,
+                      autovalidateMode: AutovalidateMode.onUserInteraction,
+                      onChanged: _onInputChanged,
+                      trailing: _EyeButton(
+                        obscure: _obscure,
+                        onToggle: () => setState(() => _obscure = !_obscure),
+                      ),
                     ),
                   ] else ...[
                     ShadInputFormField(
                       controller: _phone,
+                      focusNode: _phoneFocus,
                       label: Text(l10n.phoneNumber),
                       placeholder: Text(l10n.phoneNumber),
                       keyboardType: TextInputType.phone,
                       autofillHints: const [AutofillHints.telephoneNumber],
-                      onChanged: _clearError,
+                      textInputAction: TextInputAction.next,
+                      onSubmitted: (_) => _codeFocus.requestFocus(),
+                      enabled: !_busy,
+                      validator: _required,
+                      autovalidateMode: AutovalidateMode.onUserInteraction,
+                      onChanged: _onInputChanged,
                     ),
                     const SizedBox(height: 16),
                     Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         Expanded(
                           child: ShadInputFormField(
                             controller: _code,
+                            focusNode: _codeFocus,
                             label: Text(l10n.verificationCode),
                             placeholder: Text(l10n.verificationCode),
                             keyboardType: TextInputType.number,
-                            onChanged: _clearError,
+                            textInputAction: TextInputAction.done,
+                            onSubmitted: (_) => _login(),
+                            enabled: !_busy,
+                            validator: _required,
+                            autovalidateMode: AutovalidateMode.onUserInteraction,
+                            onChanged: _onInputChanged,
                           ),
                         ),
                         const SizedBox(width: 8),
-                        ShadButton.outline(
-                          enabled: _resendIn <= 0,
+                        // 高度与输入框对齐（sm = 40）。
+                        ShadButton(
+                          size: ShadButtonSize.sm,
+                          enabled: _resendIn <= 0 && _phone.text.trim().isNotEmpty && !_busy,
                           onPressed: _sendCode,
                           child: Text(
                             _resendIn > 0
@@ -426,21 +524,31 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ],
                     ),
                   ],
+                  // 登录失败（服务器/网络）——独立于 methods 加载失败。
                   if (_error != null) ...[
                     const SizedBox(height: 16),
-                    Text(
-                      _error!,
-                      style: TextStyle(color: scheme.destructive, fontSize: 14),
+                    ShadAlert.destructive(
+                      icon: const Icon(LucideIcons.circleAlert),
+                      title: Text(l10n.loginFailed),
+                      description: Text(_error!),
                     ),
                   ],
                   const SizedBox(height: 24),
                   ShadButton(
+                    size: ShadButtonSize.lg,
                     enabled: !_busy && _methodsLoaded && _inputValid,
                     onPressed: _login,
+                    leading: _busy
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: ShadProgress(value: null),
+                          )
+                        : null,
                     child: Text(_busy ? l10n.signingIn : l10n.signIn),
                   ),
-                  if (_oauthProviders.isNotEmpty || _hasApple) ...[
-                    const SizedBox(height: 20),
+                  if (secondaryEntries.isNotEmpty) ...[
+                    const SizedBox(height: 24),
                     Row(
                       children: [
                         const Expanded(child: Divider()),
@@ -448,8 +556,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           padding: const EdgeInsets.symmetric(horizontal: 12),
                           child: Text(
                             l10n.otherLoginMethods,
-                            style: TextStyle(
-                              fontSize: 11,
+                            style: theme.textTheme.muted.copyWith(
                               color: scheme.mutedForeground,
                             ),
                           ),
@@ -457,67 +564,69 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         const Expanded(child: Divider()),
                       ],
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 16),
+                    // 次行一行排开：非 primary 的登录方式 + OAuth（等宽）。
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        for (final p in _oauthProviders)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 6),
-                            child: ShadButton.outline(
-                              leading: Icon(
-                                p == 'github'
-                                    ? LucideIcons.code
-                                    : LucideIcons.globe,
-                                size: 18,
-                              ),
-                              enabled: !_busy,
-                              onPressed: () => _startOauth(p),
-                              child: Text(p == 'github' ? 'GitHub' : 'Google'),
-                            ),
-                          ),
-                        if (_hasApple)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 6),
-                            child: ShadButton.outline(
-                              leading: const Icon(LucideIcons.apple, size: 18),
-                              enabled: !_busy,
-                              onPressed: _appleLogin,
-                              child: const Text('Apple'),
-                            ),
-                          ),
+                        for (final (i, entry) in secondaryEntries.indexed) ...[
+                          if (i > 0) const SizedBox(width: 8),
+                          Expanded(child: entry),
+                        ],
                       ],
                     ),
                   ],
-                  const SizedBox(height: 16),
-                  // 国内商店合规勾选行：内联链接直达全文页（不阻塞提交，见 _ensureConsent）。
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      ShadCheckbox(
-                        value: _consented,
-                        onChanged: (v) => setState(() => _consented = v),
+                  if (_methodsFailed) ...[
+                    const SizedBox(height: 8),
+                    ShadAlert(
+                      icon: const Icon(LucideIcons.wifiOff),
+                      title: Text(l10n.loginMethodsUnavailable),
+                      description: Text(_methodsErrorDetail ?? ''),
+                    ),
+                    Center(
+                      child: ShadButton.link(
+                        onPressed: _loadMethods,
+                        child: Text(l10n.retry),
                       ),
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.only(top: 6),
-                          child: Text.rich(
-                            TextSpan(
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: scheme.mutedForeground,
-                              ),
-                              children: [
-                                TextSpan(text: l10n.consentPrefix),
-                                _docLink(context, termsDoc.title, termsDoc),
-                                TextSpan(text: l10n.consentAnd),
-                                _docLink(context, privacyDoc.title, privacyDoc),
-                              ],
+                    ),
+                  ],
+                  const SizedBox(height: 24),
+                  // 国内商店合规勾选行：页面最底部；整行可点；
+                  // 未勾选直接点登录 → 弹「同意并继续」对话框（见 _ensureConsent）。
+                  InkWell(
+                    borderRadius: BorderRadius.circular(8),
+                    onTap: () => setState(() => _consented = !_consented),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SizedBox(
+                            height: 20,
+                            child: ShadCheckbox(
+                              value: _consented,
+                              onChanged: (v) => setState(() => _consented = v),
                             ),
                           ),
-                        ),
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.only(left: 8),
+                              child: Text.rich(
+                                TextSpan(
+                                  style: theme.textTheme.muted
+                                      .copyWith(color: scheme.mutedForeground),
+                                  children: [
+                                    TextSpan(text: l10n.consentPrefix),
+                                    _docLink(context, termsDoc.title, 'terms'),
+                                    TextSpan(text: l10n.consentAnd),
+                                    _docLink(context, privacyDoc.title, 'privacy'),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                   const SizedBox(height: 24),
                 ],
@@ -530,17 +639,50 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 }
 
-/// 滑块验证码：Gateway 生成 300×H 原始图，验证坐标为**原始像素位移**
-/// （CaptchaService.Verify: userX vs targetX-initialPieceX），显示时按宽度缩放、提交时换算回原始 px。
-class _CaptchaSheet extends StatefulWidget {
-  const _CaptchaSheet({required this.challenge, required this.onVerify});
+/// 密码可见性切换（紧凑 28×28，不撑高输入框）。
+class _EyeButton extends StatelessWidget {
+  const _EyeButton({required this.obscure, required this.onToggle});
 
-  final CaptchaChallenge challenge;
-  final Future<String> Function(double naturalX) onVerify;
+  final bool obscure;
+  final VoidCallback onToggle;
 
   @override
-  State<_CaptchaSheet> createState() => _CaptchaSheetState();
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(6),
+      onTap: onToggle,
+      child: SizedBox(
+        width: 28,
+        height: 28,
+        child: Icon(
+          obscure ? LucideIcons.eye : LucideIcons.eyeOff,
+          size: 16,
+          color: ShadTheme.of(context).colorScheme.mutedForeground,
+        ),
+      ),
+    );
+  }
 }
+
+/// 滑块验证码（居中 Dialog）：
+/// 拖动滑块带动拼图块，**松手即校验**——成功（绿 ✓）500ms 后自动关闭返回 token；
+/// 失败：抖动 + 滑块回位 + 自动换题。坐标校验空间为 300px 原图（显示按宽度缩放）。
+class _CaptchaDialog extends StatefulWidget {
+  const _CaptchaDialog({
+    required this.initialChallenge,
+    required this.onVerify,
+    required this.onNewChallenge,
+  });
+
+  final CaptchaChallenge initialChallenge;
+  final Future<String> Function(CaptchaChallenge c, double naturalX) onVerify;
+  final Future<CaptchaChallenge> Function() onNewChallenge;
+
+  @override
+  State<_CaptchaDialog> createState() => _CaptchaDialogState();
+}
+
+enum _CaptchaPhase { idle, verifying, success, failed }
 
 class _CaptchaImages {
   _CaptchaImages({required this.background, required this.slider});
@@ -549,16 +691,31 @@ class _CaptchaImages {
   final ui.Image slider;
 }
 
-class _CaptchaSheetState extends State<_CaptchaSheet> {
+class _CaptchaDialogState extends State<_CaptchaDialog>
+    with SingleTickerProviderStateMixin {
+  late CaptchaChallenge _challenge;
   double _dx = 0; // 显示像素位移
   double _scale = 1; // 显示宽 / 原始宽（build 时更新）
-  bool _verifying = false;
+  double _maxDx = 1;
+  _CaptchaPhase _phase = _CaptchaPhase.idle;
   String? _error;
-  late final Future<_CaptchaImages> _images = _loadImages();
+  late final _shake = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 350),
+  );
+  late Future<_CaptchaImages> _images = _loadImages(_challenge);
 
-  Future<_CaptchaImages> _loadImages() async {
-    final bg = await _decode(widget.challenge.backgroundImage);
-    final slider = await _decode(widget.challenge.sliderImage);
+  @override
+  void initState() {
+    super.initState();
+    _challenge = widget.initialChallenge;
+    // 失败抖动：左右衰减位移序列。
+    _shake.addListener(() => setState(() {}));
+  }
+
+  Future<_CaptchaImages> _loadImages(CaptchaChallenge c) async {
+    final bg = await _decode(c.backgroundImage);
+    final slider = await _decode(c.sliderImage);
     return _CaptchaImages(background: bg, slider: slider);
   }
 
@@ -570,13 +727,92 @@ class _CaptchaSheetState extends State<_CaptchaSheet> {
     return frame.image;
   }
 
+  Uint8List _bytesOf(String data) {
+    final raw = data.startsWith('data:') ? data.split(',').last : data;
+    return base64Decode(raw);
+  }
+
+  double get _shakeDx {
+    final t = _shake.value; // 0..1
+    if (t == 0 || t == 1) return 0;
+    final wave = (t * 3 * 3.14159265).abs();
+    return -_shake.value * 10 * (wave % 2 < 1 ? 1 : -1) * (1 - t);
+  }
+
+  Future<void> _onDragEnd(DragEndDetails _) async {
+    if (_phase != _CaptchaPhase.idle) return;
+    if (_dx <= 4) {
+      setState(() => _dx = 0); // 位移过小视为误触，回位不校验。
+      return;
+    }
+    await _verify();
+  }
+
+  Future<void> _verify() async {
+    setState(() => _phase = _CaptchaPhase.verifying);
+    try {
+      // 显示位移 → 原始像素位移（Gateway 校验空间为原图坐标）。
+      final token = await widget.onVerify(_challenge, _dx / _scale);
+      if (!mounted) return;
+      setState(() => _phase = _CaptchaPhase.success);
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      if (mounted) Navigator.of(context).pop(token);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _phase = _CaptchaPhase.failed;
+        _error = e.toString();
+      });
+      HapticFeedback.heavyImpact();
+      _shake.forward(from: 0);
+      await Future<void>.delayed(const Duration(milliseconds: 700));
+      if (!mounted) return;
+      // 自动换题：拉新挑战、滑块回位、重载图。
+      final next = await widget.onNewChallenge();
+      if (!mounted) return;
+      setState(() {
+        _challenge = next;
+        _dx = 0;
+        _phase = _CaptchaPhase.idle;
+        _images = _loadImages(next);
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _shake.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    final theme = ShadTheme.of(context);
+    final scheme = theme.colorScheme;
 
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+    final fillColor = switch (_phase) {
+      _CaptchaPhase.idle => scheme.secondary,
+      _CaptchaPhase.verifying => scheme.primary.withValues(alpha: 0.25),
+      _CaptchaPhase.success => scheme.success.withValues(alpha: 0.25),
+      _CaptchaPhase.failed => scheme.destructive.withValues(alpha: 0.15),
+    };
+    final thumbColor = switch (_phase) {
+      _CaptchaPhase.success => scheme.success,
+      _CaptchaPhase.failed => scheme.destructive,
+      _ => scheme.primary,
+    };
+
+    return ShadDialog(
+      title: Text(l10n.captchaTitle),
+      actions: [
+        ShadButton.ghost(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(l10n.cancel),
+        ),
+      ],
+      child: SizedBox(
+        width: 320,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -585,7 +821,9 @@ class _CaptchaSheetState extends State<_CaptchaSheet> {
               future: _images,
               builder: (context, snap) {
                 if (snap.hasError) {
-                  return Text('${snap.error}', style: const TextStyle(fontSize: 13));
+                  return Text('${snap.error}',
+                      style: theme.textTheme.muted
+                          .copyWith(color: scheme.mutedForeground));
                 }
                 if (!snap.hasData) {
                   return const Center(
@@ -605,29 +843,25 @@ class _CaptchaSheetState extends State<_CaptchaSheet> {
                   borderRadius: BorderRadius.circular(10),
                   child: LayoutBuilder(
                     builder: (context, box) {
-                      final scale = box.maxWidth / bg.width;
-                      _scale = scale;
-                      final maxDx = box.maxWidth - slider.width * scale;
-                      return GestureDetector(
-                        onHorizontalDragUpdate: _verifying
-                            ? null
-                            : (d) => setState(() {
-                                  _dx = (_dx + d.delta.dx).clamp(0, maxDx < 0 ? 0 : maxDx);
-                                }),
+                      _scale = box.maxWidth / bg.width;
+                      _maxDx = (box.maxWidth - slider.width * _scale)
+                          .clamp(0, double.infinity);
+                      return Transform.translate(
+                        offset: Offset(_shakeDx, 0),
                         child: Stack(
                           children: [
                             Image.memory(
-                              _bytesOf(widget.challenge.backgroundImage),
+                              _bytesOf(_challenge.backgroundImage),
                               fit: BoxFit.fill,
                               width: box.maxWidth,
                             ),
                             Positioned(
                               left: _dx,
-                              top: widget.challenge.y * scale,
+                              top: _challenge.y * _scale,
                               child: RawImage(
                                 image: slider,
-                                width: slider.width * scale,
-                                height: slider.height * scale,
+                                width: slider.width * _scale,
+                                height: slider.height * _scale,
                               ),
                             ),
                           ],
@@ -639,49 +873,95 @@ class _CaptchaSheetState extends State<_CaptchaSheet> {
               },
             ),
             const SizedBox(height: 16),
-            ShadButton(
-              enabled: !_verifying,
-              onPressed: _submit,
-              child: Text(_verifying ? l10n.verifying : l10n.slideToVerify),
+            // 拖轨：thumb 跟手，松手即校验。
+            LayoutBuilder(
+              builder: (context, box) {
+                const thumbSize = 44.0;
+                final travel = (box.maxWidth - thumbSize).clamp(0.0, double.infinity);
+                final fraction = _maxDx <= 0 ? 0.0 : (_dx / _maxDx).clamp(0.0, 1.0);
+                final thumbLeft = fraction * travel;
+                return GestureDetector(
+                  onHorizontalDragUpdate: _phase == _CaptchaPhase.idle
+                      ? (d) => setState(() {
+                            _dx = (_dx + d.delta.dx).clamp(0, _maxDx);
+                          })
+                      : null,
+                  onHorizontalDragEnd: _phase == _CaptchaPhase.idle ? _onDragEnd : null,
+                  child: Container(
+                    height: thumbSize,
+                    decoration: BoxDecoration(
+                      color: scheme.muted,
+                      borderRadius: BorderRadius.circular(22),
+                    ),
+                    child: Stack(
+                      alignment: Alignment.centerLeft,
+                      children: [
+                        // 填充条
+                        Positioned(
+                          left: 0,
+                          top: 0,
+                          bottom: 0,
+                          width: thumbLeft + thumbSize,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: fillColor,
+                              borderRadius: BorderRadius.circular(22),
+                            ),
+                          ),
+                        ),
+                        // 居中提示文字（拖动后淡出）
+                        if (fraction < 0.15 && _phase == _CaptchaPhase.idle)
+                          Center(
+                            child: Text(
+                              l10n.slideToVerify,
+                              style: theme.textTheme.muted
+                                  .copyWith(color: scheme.mutedForeground),
+                            ),
+                          ),
+                        // Thumb
+                        Positioned(
+                          left: thumbLeft,
+                          top: 0,
+                          child: Container(
+                            width: thumbSize,
+                            height: thumbSize,
+                            decoration: BoxDecoration(
+                              color: scheme.card,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: thumbColor, width: 1.5),
+                            ),
+                            child: switch (_phase) {
+                              _CaptchaPhase.success => Icon(LucideIcons.check,
+                                  size: 20, color: scheme.success),
+                              _CaptchaPhase.failed => Icon(LucideIcons.x,
+                                  size: 20, color: scheme.destructive),
+                              _CaptchaPhase.verifying => const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: ShadProgress(value: null),
+                                ),
+                              _CaptchaPhase.idle => Icon(LucideIcons.arrowRight,
+                                  size: 20, color: thumbColor),
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
             ),
-            if (_error != null) ...[
+            if (_error != null && _phase == _CaptchaPhase.failed) ...[
               const SizedBox(height: 8),
               Text(
                 _error!,
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: ShadTheme.of(context).colorScheme.destructive,
-                  fontSize: 13,
-                ),
+                style: theme.textTheme.muted.copyWith(color: scheme.destructive),
               ),
             ],
           ],
         ),
       ),
     );
-  }
-
-  Uint8List _bytesOf(String data) {
-    final raw = data.startsWith('data:') ? data.split(',').last : data;
-    return base64Decode(raw);
-  }
-
-  Future<void> _submit() async {
-    setState(() {
-      _verifying = true;
-      _error = null;
-    });
-    try {
-      // 显示位移 → 原始像素位移（Gateway 校验空间为 300px 原图）。
-      final naturalDx = _dx / _scale;
-      final token = await widget.onVerify(naturalDx);
-      if (mounted) Navigator.of(context).pop(token);
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _verifying = false;
-        _error = e.toString();
-      });
-    }
   }
 }

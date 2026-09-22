@@ -27,6 +27,28 @@ class ReplayCompletedFrame extends ServerFrame {
   const ReplayCompletedFrame();
 }
 
+/// 增量重放开始（?since=N 声明了游标的客户端）：**不重置**已绘制画面，
+/// 后续 replayDelta 帧无缝续写。
+class ReplayDeltaStartedFrame extends ServerFrame {
+  const ReplayDeltaStartedFrame();
+}
+
+/// 增量重放块：带 Worker 分配的 per-session 序列号。
+class ReplayDeltaFrame extends ServerFrame {
+  const ReplayDeltaFrame({required this.bytes, required this.stream, required this.seq});
+
+  final List<int> bytes;
+  final String stream;
+  final int seq;
+}
+
+/// 增量重放完成：lastSeq = 本会话流的最新序列号（客户端游标推进到此处）。
+class ReplayDeltaCompletedFrame extends ServerFrame {
+  const ReplayDeltaCompletedFrame({required this.lastSeq});
+
+  final int lastSeq;
+}
+
 class OutputFrame extends ServerFrame {
   const OutputFrame({required this.bytes, required this.stream});
 
@@ -102,6 +124,18 @@ class WsFrames {
         );
       case 'replayCompleted':
         return const ReplayCompletedFrame();
+      case 'replayDeltaStarted':
+        return const ReplayDeltaStartedFrame();
+      case 'replayDelta':
+        return ReplayDeltaFrame(
+          bytes: _decodePayload(decoded['payload']),
+          stream: (decoded['stream'] as String?) ?? 'stdout',
+          seq: (decoded['seq'] as num?)?.toInt() ?? 0,
+        );
+      case 'replayDeltaCompleted':
+        return ReplayDeltaCompletedFrame(
+          lastSeq: (decoded['lastSeq'] as num?)?.toInt() ?? 0,
+        );
       case 'output':
         return OutputFrame(
           bytes: _decodePayload(decoded['payload']),
@@ -167,10 +201,16 @@ class WsFrames {
         'clientTime': clientTime,
       });
 
-  /// WS URL：`wss://host/ws/terminal?token=<jwt>&sessionId=<id>&caps=displaced`。
+  /// WS URL：`wss://host/ws/terminal?token=<jwt>&sessionId=<id>&caps=displaced[&since=<seq>]`。
   /// caps 声明本客户端支持的扩展能力；gateway 只向声明者发 displaced 帧
   /// （旧客户端不声明 → 维持纯关闭行为）。
-  static Uri buildUri({required String gatewayBaseUrl, required String token, required String sessionId}) {
+  /// since = 客户端缓存的输出游标（>0 走增量重放；0/缺省 = 全量重放）。
+  static Uri buildUri({
+    required String gatewayBaseUrl,
+    required String token,
+    required String sessionId,
+    int sinceSeq = 0,
+  }) {
     final http = Uri.parse(gatewayBaseUrl);
     final isSecure = http.scheme == 'https';
     return Uri(
@@ -178,7 +218,12 @@ class WsFrames {
       host: http.host,
       port: http.port,
       path: '/ws/terminal',
-      queryParameters: {'token': token, 'sessionId': sessionId, 'caps': 'displaced'},
+      queryParameters: {
+        'token': token,
+        'sessionId': sessionId,
+        'caps': 'displaced',
+        if (sinceSeq > 0) 'since': '$sinceSeq',
+      },
     );
   }
 }

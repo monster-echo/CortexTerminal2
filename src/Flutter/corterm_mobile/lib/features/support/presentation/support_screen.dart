@@ -1,6 +1,6 @@
-import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -76,6 +76,28 @@ class SupportScreen extends ConsumerWidget {
                         Uri.parse(data.telegramGroup!.url!),
                         mode: LaunchMode.externalApplication),
               ),
+            if (data.feishuGroup != null)
+              _GroupCard(
+                icon: LucideIcons.messageCircle,
+                title: data.feishuGroup!.name.isNotEmpty
+                    ? data.feishuGroup!.name
+                    : l10n.feishuGroup,
+                subtitle: data.feishuGroup!.url ?? '',
+                qrCodeUrl: data.feishuGroup!.qrCodeUrl,
+                onCopy: data.feishuGroup!.url == null ||
+                        data.feishuGroup!.url!.isEmpty
+                    ? null
+                    : () {
+                        Clipboard.setData(ClipboardData(text: data.feishuGroup!.url!));
+                        showAppToast(context, l10n.copied);
+                      },
+                onOpen: data.feishuGroup!.url == null ||
+                        data.feishuGroup!.url!.isEmpty
+                    ? null
+                    : () => launchUrl(
+                        Uri.parse(data.feishuGroup!.url!),
+                        mode: LaunchMode.externalApplication),
+              ),
             if (data.email.isNotEmpty)
               _GroupCard(
                 icon: LucideIcons.mail,
@@ -123,7 +145,8 @@ class _GroupCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final scheme = ShadTheme.of(context).colorScheme;
+    final theme = ShadTheme.of(context);
+    final scheme = theme.colorScheme;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -144,14 +167,14 @@ class _GroupCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     title,
-                    style: TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w600, color: scheme.foreground),
+                    style: theme.textTheme.small.copyWith(
+                        fontWeight: FontWeight.w600, color: scheme.foreground),
                   ),
                 ),
                 if (subtitle.isNotEmpty)
                   Text(
                     subtitle,
-                    style: TextStyle(fontSize: 13, color: scheme.mutedForeground),
+                    style: theme.textTheme.muted.copyWith(color: scheme.mutedForeground),
                   ),
               ],
             ),
@@ -217,6 +240,8 @@ class _GroupCard extends StatelessWidget {
 
   void _previewQr(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    final theme = ShadTheme.of(context);
+    final scheme = theme.colorScheme;
     showCortermSheet(
       context: context,
       builder: (_) => SafeArea(
@@ -240,10 +265,10 @@ class _GroupCard extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               Text(title,
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                  style: theme.textTheme.small
+                      .copyWith(fontWeight: FontWeight.w600, color: scheme.foreground)),
               Text(subtitle,
-                  style:
-                      TextStyle(fontSize: 13, color: ShadTheme.of(context).colorScheme.mutedForeground)),
+                  style: theme.textTheme.muted.copyWith(color: scheme.mutedForeground)),
               const SizedBox(height: 12),
               ShadButton.outline(
                 onPressed: () => Navigator.of(context).pop(),
@@ -257,25 +282,27 @@ class _GroupCard extends StatelessWidget {
   }
 
   Future<void> _shareQr(BuildContext context) async {
-    // 下载二维码 → 临时文件 → 系统分享面板（含"存储图像"，MAUI 同款）。
-    final http = HttpClient();
+    // 下载二维码到内存 → 系统分享面板（XFile.fromData，web 同样可用；MAUI 同款）。
+    final dio = Dio();
     try {
-      final request = await http.getUrl(Uri.parse(qrCodeUrl));
-      final response = await request.close();
-      if (response.statusCode != 200) {
-        throw StateError('QR download failed: HTTP ${response.statusCode}');
+      final res = await dio.get<List<int>>(
+        qrCodeUrl,
+        options: Options(responseType: ResponseType.bytes),
+      );
+      if (res.statusCode != 200 || res.data == null) {
+        throw StateError('QR download failed: HTTP ${res.statusCode}');
       }
-      final bytes = await response.fold<BytesBuilder>(
-          BytesBuilder(), (b, chunk) => b..add(chunk));
-      final data = bytes.takeBytes();
-      final dir = await Directory.systemTemp.createTemp('corterm_qr');
-      final file = File('${dir.path}/qr.png');
-      await file.writeAsBytes(data, flush: true);
       await SharePlus.instance.share(
-        ShareParams(files: [XFile(file.path, name: title, mimeType: 'image/png')]),
+        ShareParams(files: [
+          XFile.fromData(
+            Uint8List.fromList(res.data!),
+            name: title,
+            mimeType: 'image/png',
+          ),
+        ]),
       );
     } finally {
-      http.close();
+      dio.close();
     }
   }
 }

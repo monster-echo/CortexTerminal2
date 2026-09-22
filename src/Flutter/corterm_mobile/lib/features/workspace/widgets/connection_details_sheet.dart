@@ -32,7 +32,8 @@ class _ConnectionDetailsSheetState extends ConsumerState<ConnectionDetailsSheet>
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final scheme = ShadTheme.of(context).colorScheme;
+    final theme = ShadTheme.of(context);
+    final scheme = theme.colorScheme;
     final ws = ref.watch(workspaceControllerProvider);
     final sessions = ref.watch(sessionsProvider);
     final entry = ws.entryOf(widget.sessionId);
@@ -40,7 +41,7 @@ class _ConnectionDetailsSheetState extends ConsumerState<ConnectionDetailsSheet>
 
     final (dotColor, pulse) = entry == null
         ? (scheme.mutedForeground, false)
-        : connDotStyle(entry.connState);
+        : connDotStyle(scheme, entry.connState);
 
     final stateText = switch (entry?.connState) {
       TerminalConnState.live => l10n.connLive,
@@ -71,11 +72,7 @@ class _ConnectionDetailsSheetState extends ConsumerState<ConnectionDetailsSheet>
           children: [
             Text(
               l10n.connection,
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: scheme.foreground,
-              ),
+              style: theme.textTheme.large.copyWith(color: scheme.foreground),
             ),
             const SizedBox(height: 16),
             Row(
@@ -84,7 +81,7 @@ class _ConnectionDetailsSheetState extends ConsumerState<ConnectionDetailsSheet>
                 const SizedBox(width: 10),
                 Text(
                   stateText,
-                  style: TextStyle(fontSize: 15, color: scheme.foreground),
+                  style: theme.textTheme.small.copyWith(color: scheme.foreground),
                 ),
               ],
             ),
@@ -99,14 +96,14 @@ class _ConnectionDetailsSheetState extends ConsumerState<ConnectionDetailsSheet>
                       width: 96,
                       child: Text(
                         label,
-                        style: TextStyle(fontSize: 14, color: scheme.mutedForeground),
+                        style: theme.textTheme.small
+                            .copyWith(color: scheme.mutedForeground),
                       ),
                     ),
                     Expanded(
                       child: Text(
                         value,
-                        style: TextStyle(
-                          fontSize: 14,
+                        style: theme.textTheme.small.copyWith(
                           fontWeight: FontWeight.w500,
                           color: scheme.foreground,
                         ),

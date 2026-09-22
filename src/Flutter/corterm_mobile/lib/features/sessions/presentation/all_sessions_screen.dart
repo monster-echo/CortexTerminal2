@@ -251,15 +251,14 @@ class _GroupHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = ShadTheme.of(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
       child: Text(
         label,
-        style: TextStyle(
-          fontSize: 11,
-          color: ShadTheme.of(context).colorScheme.mutedForeground,
+        style: theme.textTheme.small.copyWith(
+          color: theme.colorScheme.mutedForeground,
           fontWeight: FontWeight.w600,
-          letterSpacing: 0.8,
         ),
       ),
     );

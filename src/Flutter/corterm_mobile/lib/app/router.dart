@@ -8,7 +8,9 @@ import '../core/storage/app_preferences.dart';
 import '../features/auth/presentation/login_screen.dart';
 import '../features/diagnostics/diagnostics_screen.dart';
 import '../features/files/presentation/files_screen.dart';
+import '../features/files/presentation/file_preview_screen.dart';
 import '../features/workers/presentation/workers_screen.dart';
+import '../features/workers/presentation/worker_upgrade_screen.dart';
 import '../features/legal/legal_screens.dart';
 import '../features/home/home_screen.dart';
 import '../features/activate/activate_screen.dart';
@@ -17,6 +19,9 @@ import '../features/sessions/presentation/all_sessions_screen.dart';
 import '../features/support/presentation/support_screen.dart';
 import '../features/feedback/presentation/feedback_screen.dart';
 import '../features/settings/settings_screen.dart';
+import '../features/settings/about_screen.dart';
+import '../features/settings/preferences_screen.dart';
+import '../features/settings/security_screen.dart';
 import '../features/workspace/workspace_screen.dart';
 
 /// 路由（§49）：/login /home /workspace /sessions /settings。
@@ -49,13 +54,32 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/settings/profile', builder: (_, _) => const ProfileScreen()),
       GoRoute(path: '/settings/support', builder: (_, _) => const SupportScreen()),
       GoRoute(path: '/settings/feedback', builder: (_, _) => const FeedbackScreen()),
+      GoRoute(path: '/settings/about', builder: (_, _) => const AboutScreen()),
+      GoRoute(path: '/settings/preferences', builder: (_, _) => const PreferencesScreen()),
+      GoRoute(path: '/settings/security', builder: (_, _) => const SecurityScreen()),
       GoRoute(path: '/activate', builder: (_, _) => const ActivateScreen()),
       GoRoute(path: '/workers', builder: (_, _) => const WorkersScreen()),
       GoRoute(path: '/diagnostics', builder: (_, _) => const DiagnosticsScreen()),
       GoRoute(
+        path: '/workers/:workerId/upgrade',
+        builder: (context, state) => WorkerUpgradeScreen(
+          workerId: state.pathParameters['workerId']!,
+          name: state.uri.queryParameters['name'] ?? '',
+        ),
+      ),
+      GoRoute(
         path: '/files/:sessionId',
         builder: (context, state) => FilesScreen(
           sessionId: state.pathParameters['sessionId']!,
+        ),
+      ),
+      GoRoute(
+        path: '/files/:sessionId/preview',
+        builder: (context, state) => FilePreviewScreen(
+          workspaceId: state.uri.queryParameters['workspaceId'] ?? '',
+          path: state.uri.queryParameters['path'] ?? '/',
+          name: state.uri.queryParameters['name'] ?? '',
+          sizeBytes: int.tryParse(state.uri.queryParameters['size'] ?? '') ?? 0,
         ),
       ),
       // 法律文档（登录合规勾选 + Settings 双入口）。法律页无认证门槛。

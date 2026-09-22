@@ -33,6 +33,9 @@ class SessionTerminalState {
     this.errorMessage,
     this.rttMs,
     this.exitReason,
+    this.remoteTitle,
+    this.remoteCwd,
+    this.workerId,
     this.pendingColumns,
     this.pendingRows,
   });
@@ -45,6 +48,15 @@ class SessionTerminalState {
   String? errorMessage;
   int? rttMs;
   String? exitReason;
+
+  /// 远端 shell OSC 0/2 标题（实时更新 AppBar 显示；对齐 ArkTS 动态标题）。
+  String? remoteTitle;
+
+  /// OSC 7 上报的当前工作目录（终端↔文件管理联动的数据源）。
+  String? remoteCwd;
+
+  /// Worker 绑定（快照按 Worker 键恢复：同机新会话可见上次历史）。
+  String? workerId;
 
   /// live 前收到的目标尺寸，附着成功后补发。
   int? pendingColumns;

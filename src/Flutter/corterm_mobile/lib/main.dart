@@ -14,14 +14,18 @@ import 'core/storage/app_preferences.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
+  // web 构建：本项目未配置 Firebase web 端（google-services 等价物缺失），
+  // Firebase/Crashlytics 是原生平台能力，web 上跳过（web 崩溃走默认控制台上报）。
+  if (!kIsWeb) {
+    await Firebase.initializeApp();
 
-  // 崩溃上报：只记录，不改变控制流。Flutter 框架异常 + 平台派发异常。
-  FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
-  PlatformDispatcher.instance.onError = (error, stack) {
-    FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
-    return true;
-  };
+    // 崩溃上报：只记录，不改变控制流。Flutter 框架异常 + 平台派发异常。
+    FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
+    PlatformDispatcher.instance.onError = (error, stack) {
+      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+      return true;
+    };
+  }
 
   final prefs = await SharedPreferences.getInstance();
 

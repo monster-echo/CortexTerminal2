@@ -19,10 +19,16 @@ class SupportGroup {
 
 /// 客服信息（对齐 Gateway GET /api/support/info，AllowAnonymous）。
 class SupportInfo {
-  SupportInfo({this.qqGroup, this.telegramGroup, required this.email});
+  SupportInfo({
+    this.qqGroup,
+    this.telegramGroup,
+    this.feishuGroup,
+    required this.email,
+  });
 
   final SupportGroup? qqGroup;
   final SupportGroup? telegramGroup;
+  final SupportGroup? feishuGroup;
   final String email;
 }
 
@@ -36,6 +42,7 @@ class SupportRepository {
     return SupportInfo(
       qqGroup: _parseGroup(json['qqGroup']),
       telegramGroup: _parseGroup(json['telegramGroup']),
+      feishuGroup: _parseGroup(json['feishuGroup']),
       email: json['email'] as String? ?? '',
     );
   }
