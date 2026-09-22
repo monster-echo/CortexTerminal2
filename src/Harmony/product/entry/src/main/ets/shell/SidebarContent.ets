@@ -2,20 +2,14 @@
  * @file SidebarContent.ets
  * @brief Navigation sidebar extracted from Index.ets.
  */
-import { ApiService, I18n, AuthState, SessionInfo, RouteName, TerminalNavParam, lightHaptic } from '@rwecho/core'
+import { I18n, AuthState, RouteName, lightHaptic } from '@rwecho/core'
 
 @Component
 export struct SidebarContent {
   activeRoute: string = RouteName.SESSION_HOME
   onNavigate?: (() => void) | null = null
   @Consume('pageStack') pageStack: NavPathStack
-  @State recentSessions: SessionInfo[] = []
-  @State sessionError: string = ''
   @StorageLink('userInfo') userInfoSig: string = ''
-
-  aboutToAppear() {
-    this.loadRecentSessions()
-  }
 
   build() {
     Column() {
@@ -50,29 +44,6 @@ export struct SidebarContent {
       this.NavItem('⌘', I18n.get('sidebar.sessions'), RouteName.SESSION_HOME,
         this.activeRoute === RouteName.SESSION_HOME || this.activeRoute === RouteName.TERMINAL_SESSION)
 
-      // Recent sessions
-      Column() {
-        Text(I18n.get('session.home.tab_active'))
-          .fontSize(12)
-          .fontColor($r('app.color.terminal_on_surface_variant'))
-          .width('100%')
-          .margin({ top: 14, bottom: 8 })
-
-        if (this.recentSessions.length === 0) {
-          Text(this.sessionError.length > 0 ? I18n.get('common.error') : I18n.get('session.home.tab_history'))
-            .fontSize(12)
-            .fontColor($r('app.color.terminal_on_surface_variant'))
-            .width('100%')
-            .padding({ top: 8, bottom: 8 })
-        } else {
-          ForEach(this.recentSessions.slice(0, 5), (session: SessionInfo) => {
-            this.RecentSessionItem(session)
-          }, (session: SessionInfo) => session.id)
-        }
-      }
-      .width('100%')
-      .padding({ left: 16, right: 16 })
-
       Divider()
         .color($r('app.color.terminal_outline_variant'))
         .margin({ left: 16, right: 16, top: 10, bottom: 10 })
@@ -81,9 +52,10 @@ export struct SidebarContent {
       this.NavItem('▦', I18n.get('sidebar.workers'), RouteName.WORKER_LIST,
         this.activeRoute === RouteName.WORKER_LIST || this.activeRoute === RouteName.WORKER_DETAIL)
 
-      // Nav: Settings
-      this.NavItem('⚙', I18n.get('sidebar.settings'), RouteName.SETTINGS,
-        this.activeRoute === RouteName.SETTINGS)
+      // Nav: 扫码激活（对齐 Flutter app_shell：scanLine → /activate，push 压栈）
+      this.NavItem('⌖', I18n.get('auth.activate.title'), RouteName.ACTIVATE_WORKER,
+        this.activeRoute === RouteName.ACTIVATE_WORKER || this.activeRoute === RouteName.ACTIVATE_CODE,
+        true)
 
       Blank()
 
@@ -141,7 +113,7 @@ export struct SidebarContent {
   }
 
   @Builder
-  NavItem(icon: string, label: string, route: string, selected: boolean) {
+  NavItem(icon: string, label: string, route: string, selected: boolean, push: boolean = false) {
     Row() {
       Text(icon)
         .fontSize(16)
@@ -166,46 +138,15 @@ export struct SidebarContent {
     .alignItems(VerticalAlign.Center)
     .onClick(() => {
       lightHaptic()
-      this.navigate(route)
-    })
-  }
-
-  @Builder
-  RecentSessionItem(session: SessionInfo) {
-    Row() {
-      Circle()
-        .width(7)
-        .height(7)
-        .fill(this.sessionStatusColor(session.status))
-
-      Column() {
-        Text(session.name || `session ${session.id.substring(0, 8)}`)
-          .fontSize(13)
-          .fontColor($r('app.color.terminal_primary'))
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-
-        Text(session.status.length > 0 ? session.status : 'idle')
-          .fontSize(11)
-          .fontColor($r('app.color.terminal_on_surface_variant'))
-          .margin({ top: 2 })
+      // 扫码页是子页面：push 压栈，返回键才有栈可弹（对齐 Flutter _push）。
+      if (push) {
+        if (this.onNavigate) {
+          this.onNavigate()
+        }
+        this.pageStack.pushPath({ name: route })
+        return
       }
-      .alignItems(HorizontalAlign.Start)
-      .layoutWeight(1)
-      .margin({ left: 8 })
-    }
-    .width('100%')
-    .height(44)
-    .padding({ left: 8, right: 8 })
-    .borderRadius(8)
-    .alignItems(VerticalAlign.Center)
-    .onClick(() => {
-      lightHaptic()
-      const param = new TerminalNavParam()
-      param.sessionId = session.id
-      param.sessionName = session.name || 'Terminal'
-      param.workerId = session.workerId
-      this.navigate(RouteName.TERMINAL_SESSION, param)
+      this.navigate(route)
     })
   }
 
@@ -214,34 +155,5 @@ export struct SidebarContent {
       this.onNavigate()
     }
     this.pageStack.replacePath({ name: route, param: param })
-  }
-
-  private async loadRecentSessions() {
-    this.sessionError = ''
-    try {
-      const sessions = await ApiService.listSessions()
-      this.recentSessions = sessions.filter(s => {
-        const status = s.status.toLowerCase()
-        return status === 'running' || status === 'idle' || status === 'live' || status === 'connected'
-      }).slice(0, 5)
-    } catch (e) {
-      this.sessionError = (e as Error).message
-      this.recentSessions = []
-    }
-  }
-
-  private sessionStatusColor(status: string): ResourceColor {
-    switch (status.toLowerCase()) {
-      case 'live':
-      case 'connected':
-      case 'running':
-        return $r('app.color.terminal_tertiary')
-      case 'expired':
-      case 'failed':
-      case 'error':
-        return $r('app.color.terminal_error')
-      default:
-        return $r('app.color.terminal_outline')
-    }
   }
 }

@@ -11,7 +11,7 @@ import { common } from '@kit.AbilityKit'
 import { window } from '@kit.ArkUI'
 import { webview } from '@kit.ArkWeb'
 import { pasteboard } from '@kit.BasicServicesKit'
-import { ApiService, TerminalNavParam, RouteName, I18n, AnalyticsService, lightHaptic, clickHaptic, showToast, PageMenuItem, OverflowMenuButton } from '@rwecho/core'
+import { ApiService, SessionInfo, TerminalNavParam, RouteName, I18n, AnalyticsService, lightHaptic, clickHaptic, showToast, PageMenuItem, OverflowMenuButton } from '@rwecho/core'
 import { TerminalCache, TerminalCacheEntry } from '../service/TerminalCache'
 import { SnapshotStore } from '../service/SnapshotStore'
 import { TerminalStateManager } from '../service/TerminalStateManager'
@@ -21,6 +21,7 @@ import { TerminalState } from '../model/TerminalState'
 import { XtermWebview } from './XtermWebview'
 import { VirtualKeyBar } from './VirtualKeyBar'
 import { TunnelPanel } from './TunnelPanel'
+import { SessionSwitcherSheet } from './SessionSwitcherSheet'
 
 class TerminalSize { cols: number = 0; rows: number = 0 }
 
@@ -149,6 +150,7 @@ export struct TerminalPage {
   @State ctrlActive: boolean = false
   @State altActive: boolean = false
   @State showTunnelSheet: boolean = false
+  @State showSessionSheet: boolean = false
   private detailDialog: CustomDialogController = new CustomDialogController({
     builder: SessionDetailDialog({ status: '', cols: 0, rows: 0, latencyMs: -1 }),
     autoCancel: true,
@@ -303,14 +305,35 @@ export struct TerminalPage {
           this.handleBack()
         })
 
-        Text(this.sessionName)
-          .fontSize(17)
-          .fontWeight(FontWeight.Medium)
-          .fontColor($r('app.color.terminal_on_surface'))
-          .layoutWeight(1)
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-          .margin({ left: 8 })
+        // Title = Session Switcher（对齐 Flutter workspace_screen）：可点击 +
+        // 下拉指示，点击弹出快速切换会话面板。
+        Row() {
+          Text(this.sessionName)
+            .fontSize(17)
+            .fontWeight(FontWeight.Medium)
+            .fontColor($r('app.color.terminal_on_surface'))
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+
+          SymbolGlyph($r('sys.symbol.chevron_down'))
+            .fontSize(14)
+            .fontColor([$r('app.color.terminal_on_surface_variant')])
+            .margin({ left: 4 })
+        }
+        .layoutWeight(1)
+        .margin({ left: 8 })
+        .alignItems(VerticalAlign.Center)
+        .onClick(() => {
+          lightHaptic()
+          this.showSessionSheet = true
+        })
+        .bindSheet($$this.showSessionSheet, this.SessionSheetContent(), {
+          detents: [SheetSize.MEDIUM, SheetSize.LARGE],
+          preferType: SheetType.BOTTOM,
+          showClose: true,
+          backgroundColor: $r('app.color.terminal_surface'),
+          onDisappear: () => { this.showSessionSheet = false }
+        })
 
         // Latency badge + status indicator
         Row() {
@@ -504,6 +527,25 @@ export struct TerminalPage {
       showClose: true,
       backgroundColor: $r('app.color.terminal_surface'),
       onDisappear: () => { this.showTunnelSheet = false }
+    })
+  }
+
+  @Builder
+  SessionSheetContent() {
+    SessionSwitcherSheet({
+      currentSessionId: this.sessionId,
+      onPick: (session: SessionInfo) => {
+        this.showSessionSheet = false
+        if (session.id !== this.sessionId) {
+          this.captureSnapshot()
+          this.transport.sendDetach()
+          const param = new TerminalNavParam()
+          param.sessionId = session.id
+          param.sessionName = session.name || 'Terminal'
+          param.workerId = session.workerId
+          this.pageStack.replacePath({ name: RouteName.TERMINAL_SESSION, param })
+        }
+      }
     })
   }
 
