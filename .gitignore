@@ -43,3 +43,6 @@ src/Flutter/**/.dart_tool/
 src/Flutter/**/build/
 src/Flutter/**/.flutter-plugins-dependencies
 *.csproj.user
+
+# Harmony hvigor 本地单测/构建产物
+.test/
