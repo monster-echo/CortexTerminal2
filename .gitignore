@@ -34,3 +34,12 @@ src/Harmony/signing/
 ohos-*.tgz
 .deepseek/
 .claude
+
+# Flutter module ephemeral / generated files
+src/Flutter/**/.android/
+src/Flutter/**/.ios/
+src/Flutter/**/.ohos/
+src/Flutter/**/.dart_tool/
+src/Flutter/**/build/
+src/Flutter/**/.flutter-plugins-dependencies
+*.csproj.user
