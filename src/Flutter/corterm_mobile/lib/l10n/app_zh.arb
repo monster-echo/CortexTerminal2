@@ -120,6 +120,25 @@
   "appearanceSystem": "跟随系统",
   "appearanceLight": "浅色",
   "appearanceDark": "深色",
+  "terminalTheme": "终端主题",
+  "terminalThemeSystem": "跟随应用",
+  "terminalThemeDark": "深色",
+  "terminalThemeLight": "浅色",
+  "terminalThemeBuiltinSection": "内置",
+  "terminalThemeCustomSection": "自定义",
+  "terminalThemeCustomNew": "新建主题",
+  "terminalThemeCustomEmpty": "还没有自定义主题",
+  "terminalThemeEdit": "编辑主题",
+  "terminalThemeDeleteConfirmTitle": "删除该主题？",
+  "terminalThemeDeleteConfirmBody": "删除后不可恢复。",
+  "terminalThemeNameLabel": "主题名称",
+  "terminalThemeNameRequired": "名称不能为空",
+  "terminalThemeInvalidColor": "无效的颜色值",
+  "terminalThemeDefaultDark": "默认深色",
+  "terminalThemeDefaultLight": "默认浅色",
+  "terminalThemeSolarizedDark": "Solarized 深色",
+  "terminalThemeSolarizedLight": "Solarized 浅色",
+  "terminalThemeNord": "Nord",
   "terminalFontSize": "字体大小",
   "languageSystem": "跟随系统",
   "languageEnglish": "English",
@@ -212,6 +231,8 @@
   "activateScanInvalid": "二维码无效，请对准设备上显示的激活二维码",
   "activateScanFailed": "扫码失败：{error}",
   "activateManualEntry": "手动输入激活码",
+  "activateScanHint": "对准设备上显示的激活二维码",
+  "activateCodeNavTitle": "输入激活码",
   "activateCodeLabel": "激活码",
   "activateConfirm": "确认授权",
   "activateDone": "设备已授权",
@@ -293,5 +314,34 @@
   "applyInviteSuccess": "邀请码绑定成功！",
   "share": "分享",
   "rateUs": "给个好评",
-  "rateFailed": "无法打开应用商店"
+  "rateFailed": "无法打开应用商店",
+  "installCopyCommand": "复制命令",
+  "meTitle": "我的",
+  "benefitsTitle": "会员权益",
+  "membershipFree": "免费版",
+  "membershipExpires": "有效期至",
+  "membershipNoExpiry": "长期有效",
+  "quotaWorkers": "Worker 数上限",
+  "quotaScrollback": "回滚区上限",
+  "redeemCodeLabel": "兑换码",
+  "redeemAction": "兑换",
+  "redeemSuccess": "兑换成功，会员已更新。",
+  "rateUs": "给我们评分",
+  "rateFailed": "无法打开应用市场：{msg}",
+  "@rateFailed": {
+    "placeholders": {
+      "msg": {
+        "type": "String"
+      }
+    }
+  },
+  "shareApp": "分享应用",
+  "shareAppText": "CortexTerminal —— 你的机器，一个终端直达。{url}",
+  "@shareAppText": {
+    "placeholders": {
+      "url": {
+        "type": "String"
+      }
+    }
+  }
 }

@@ -1,6 +1,10 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../models/terminal_color_scheme.dart';
 
 /// SharedPreferences 实例，main() 启动时 override 注入。
 final sharedPreferencesProvider = Provider<SharedPreferences>(
@@ -30,6 +34,9 @@ class AppPreferences implements TerminalSnapshotStore {
   final SharedPreferences _prefs;
 
   static const _kThemeMode = 'ui.theme_mode';
+  static const _kTerminalThemeMode = 'terminal.theme_mode';
+  static const _kTerminalThemeSelection = 'terminal.theme_selection';
+  static const _kTerminalCustomThemes = 'terminal.custom_themes';
   static const _kLocale = 'ui.locale';
   static const _kLastSessionId = 'workspace.last_session_id';
   static const _kFontSize = 'terminal.font_size';
@@ -85,6 +92,39 @@ class AppPreferences implements TerminalSnapshotStore {
 
   Future<void> setThemeMode(ThemeMode mode) =>
       _prefs.setString(_kThemeMode, mode.name);
+
+  /// 终端配色模式（§52 扩展）：'system'（跟随 App）/ 'dark' / 'light'，默认 system。
+  String get terminalThemeMode =>
+      switch (_prefs.getString(_kTerminalThemeMode)) {
+        'dark' => 'dark',
+        'light' => 'light',
+        _ => 'system',
+      };
+
+  Future<void> setTerminalThemeMode(String mode) =>
+      _prefs.setString(_kTerminalThemeMode, mode);
+
+  /// 终端主题选择：'followApp'（跟随 App 深浅）或主题档案 id（内置/自定义）。
+  /// 迁移：旧 terminalThemeMode('system'/'dark'/'light') 映射到新语义。
+  String get terminalThemeSelection {
+    final v = _prefs.getString(_kTerminalThemeSelection);
+    if (v != null && v.isNotEmpty) return v;
+    return switch (_prefs.getString(_kTerminalThemeMode)) {
+      'dark' => 'default-dark',
+      'light' => 'default-light',
+      _ => followAppTerminalTheme,
+    };
+  }
+
+  Future<void> setTerminalThemeSelection(String selection) =>
+      _prefs.setString(_kTerminalThemeSelection, selection);
+
+  /// 自定义终端主题（JSON 列表）。解析交给上层（provider），非法条目直接抛错。
+  List<String> get customTerminalThemeJsons =>
+      _prefs.getStringList(_kTerminalCustomThemes) ?? const [];
+
+  Future<void> setCustomTerminalThemeJsons(List<String> jsons) =>
+      _prefs.setStringList(_kTerminalCustomThemes, jsons);
 
   /// null = 跟随系统；'en' / 'zh'。历史脏数据（''）按未设置处理。
   String? get localeTag {
@@ -172,6 +212,68 @@ class ThemeModeController extends StateNotifier<ThemeMode> {
 final themeModeProvider = StateNotifierProvider<ThemeModeController, ThemeMode>(
   (ref) => ThemeModeController(ref.watch(appPreferencesProvider)),
 );
+
+/// 终端主题选择：'followApp' 或主题档案 id。
+class TerminalThemeSelectionController extends StateNotifier<String> {
+  TerminalThemeSelectionController(this._prefs)
+      : super(_prefs.terminalThemeSelection);
+
+  final AppPreferences _prefs;
+
+  Future<void> set(String selection) async {
+    await _prefs.setTerminalThemeSelection(selection);
+    state = selection;
+  }
+}
+
+final terminalThemeSelectionProvider =
+    StateNotifierProvider<TerminalThemeSelectionController, String>(
+  (ref) =>
+      TerminalThemeSelectionController(ref.watch(appPreferencesProvider)),
+);
+
+/// 自定义终端主题列表（已反序列化；非法 JSON 直接抛错暴露问题）。
+final customTerminalThemesProvider =
+    StateNotifierProvider<CustomTerminalThemesController, List<TerminalColorScheme>>(
+  (ref) => CustomTerminalThemesController(ref.watch(appPreferencesProvider)),
+);
+
+class CustomTerminalThemesController
+    extends StateNotifier<List<TerminalColorScheme>> {
+  CustomTerminalThemesController(this._prefs)
+      : super([
+          for (final json in _prefs.customTerminalThemeJsons)
+            TerminalColorScheme.fromJson(
+              jsonDecode(json) as Map<String, Object>,
+            ),
+        ]);
+
+  final AppPreferences _prefs;
+
+  Future<void> _persist() => _prefs.setCustomTerminalThemeJsons([
+        for (final s in state) jsonEncode(s.toJson()),
+      ]);
+
+  /// 新增或按 id 覆盖保存，并使其生效（返回 id）。
+  Future<String> save(TerminalColorScheme scheme) async {
+    final next = [
+      for (final s in state)
+        if (s.id != scheme.id) s,
+      scheme,
+    ];
+    state = next;
+    await _persist();
+    return scheme.id;
+  }
+
+  Future<void> delete(String id) async {
+    state = [
+      for (final s in state)
+        if (s.id != id) s,
+    ];
+    await _persist();
+  }
+}
 
 /// 语言（§72）：null = 跟随系统，'en' / 'zh'。
 class LocaleController extends StateNotifier<String?> {

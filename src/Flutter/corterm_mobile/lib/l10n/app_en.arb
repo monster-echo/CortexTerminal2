@@ -148,6 +148,25 @@
   "appearanceSystem": "System",
   "appearanceLight": "Light",
   "appearanceDark": "Dark",
+  "terminalTheme": "Terminal theme",
+  "terminalThemeSystem": "Follow app",
+  "terminalThemeDark": "Dark",
+  "terminalThemeLight": "Light",
+  "terminalThemeBuiltinSection": "Built-in",
+  "terminalThemeCustomSection": "Custom",
+  "terminalThemeCustomNew": "New theme",
+  "terminalThemeCustomEmpty": "No custom themes yet",
+  "terminalThemeEdit": "Edit theme",
+  "terminalThemeDeleteConfirmTitle": "Delete this theme?",
+  "terminalThemeDeleteConfirmBody": "This cannot be undone.",
+  "terminalThemeNameLabel": "Theme name",
+  "terminalThemeNameRequired": "Name is required",
+  "terminalThemeInvalidColor": "Invalid hex color",
+  "terminalThemeDefaultDark": "Default Dark",
+  "terminalThemeDefaultLight": "Default Light",
+  "terminalThemeSolarizedDark": "Solarized Dark",
+  "terminalThemeSolarizedLight": "Solarized Light",
+  "terminalThemeNord": "Nord",
   "terminalFontSize": "Font size",
   "languageSystem": "System",
   "languageEnglish": "English",
@@ -296,6 +315,8 @@
   "activateScanInvalid": "Invalid QR code — scan the activation QR shown on the device",
   "activateScanFailed": "Scan failed: {error}",
   "activateManualEntry": "Enter code manually",
+  "activateScanHint": "Point the camera at the activation QR code shown on the device",
+  "activateCodeNavTitle": "Enter activation code",
   "activateCodeLabel": "Activation code",
   "activateConfirm": "Authorize",
   "activateDone": "Device authorized",
@@ -377,5 +398,34 @@
   "applyInviteSuccess": "Invite code applied!",
   "share": "Share",
   "rateUs": "Rate Us",
-  "rateFailed": "Could not open the store"
+  "rateFailed": "Could not open the store",
+  "installCopyCommand": "Copy command",
+  "meTitle": "Me",
+  "benefitsTitle": "Membership",
+  "membershipFree": "Free",
+  "membershipExpires": "Valid until",
+  "membershipNoExpiry": "No expiry",
+  "quotaWorkers": "Worker limit",
+  "quotaScrollback": "Scrollback limit",
+  "redeemCodeLabel": "Redeem code",
+  "redeemAction": "Redeem",
+  "redeemSuccess": "Redeemed. Membership updated.",
+  "rateUs": "Rate us",
+  "rateFailed": "Could not open the store: {msg}",
+  "@rateFailed": {
+    "placeholders": {
+      "msg": {
+        "type": "String"
+      }
+    }
+  },
+  "shareApp": "Share app",
+  "shareAppText": "CortexTerminal — your machines, one terminal away. {url}",
+  "@shareAppText": {
+    "placeholders": {
+      "url": {
+        "type": "String"
+      }
+    }
+  }
 }

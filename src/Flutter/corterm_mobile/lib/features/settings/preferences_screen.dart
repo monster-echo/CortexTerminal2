@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
@@ -7,6 +8,7 @@ import '../../l10n/app_localizations.dart';
 import '../../shared/widgets/list_group.dart';
 import '../../shared/widgets/states.dart';
 import 'data/preferences_repository.dart';
+import 'terminal_themes_screen.dart';
 
 /// 通用偏好（设置二级页）：外观主题 / 语言 / 屏幕常亮 / 终端字号 / 回滚配额。
 class PreferencesScreen extends ConsumerWidget {
@@ -16,6 +18,8 @@ class PreferencesScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final themeMode = ref.watch(themeModeProvider);
+    final terminalThemeSelection = ref.watch(terminalThemeSelectionProvider);
+    final customThemes = ref.watch(customTerminalThemesProvider);
     final localeTag = ref.watch(localeProvider);
     final fontSize = ref.watch(fontSizeProvider);
 
@@ -43,6 +47,14 @@ class PreferencesScreen extends ConsumerWidget {
                 onChanged: (v) =>
                     v == null ? null : ref.read(themeModeProvider.notifier).set(v),
               ),
+            ),
+            AppRow(
+              icon: LucideIcons.terminal,
+              label: l10n.terminalTheme,
+              value: terminalThemeSelectionLabel(
+                terminalThemeSelection, customThemes, l10n),
+              chevron: true,
+              onTap: () => context.push('/settings/terminal-themes'),
             ),
             AppRow(
               icon: LucideIcons.globe,

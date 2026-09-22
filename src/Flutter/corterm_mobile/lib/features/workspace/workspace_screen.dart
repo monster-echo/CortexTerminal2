@@ -95,26 +95,33 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> {
     // web 没有软键盘概念（viewInsets 恒为 0，输入靠物理键盘）→ 工具栏常驻，
     // 作为 ESC/方向键/粘贴的快捷条（桌面终端同形态）。
     final keyboardOpen =
-        !kIsWeb && MediaQuery.of(context).viewInsets.bottom > 0;
+        kIsWeb || MediaQuery.of(context).viewInsets.bottom > 0;
 
     return Scaffold(
       appBar: _buildAppBar(context, ref, ws, currentId),
+      // 工具栏必须放在 body 内：Scaffold 的 bottomNavigationBar 定位在屏幕物理底部
+      // （键盘只压缩 body，不推 bottomNavigationBar），放那里会被键盘完全遮住。
+      // body 已被 viewInsets 压缩，Column 末尾即键盘上方。
       body: entry == null
           ? const _EmptyWorkspace()
-          : _TerminalArea(sessionId: currentId!, entry: entry),
-      bottomNavigationBar: entry == null
-          ? null
-          : _CollapsibleToolbar(
-              visible: keyboardOpen,
-              child: TerminalToolbar(
-                enabled: entry.canInput,
-                ctrlArmed: ws.ctrlArmed,
-                altArmed: ws.altArmed,
-                onKey: controller.sendKey,
-                onCtrlToggle: controller.setCtrlArmed,
-                onAltToggle: controller.setAltArmed,
-                onPaste: controller.sendInputRaw,
-              ),
+          : Column(
+              children: [
+                Expanded(
+                  child: _TerminalArea(sessionId: currentId!, entry: entry),
+                ),
+                _CollapsibleToolbar(
+                  visible: keyboardOpen,
+                  child: TerminalToolbar(
+                    enabled: entry.canInput,
+                    ctrlArmed: ws.ctrlArmed,
+                    altArmed: ws.altArmed,
+                    onKey: controller.sendKey,
+                    onCtrlToggle: controller.setCtrlArmed,
+                    onAltToggle: controller.setAltArmed,
+                    onPaste: controller.sendInputRaw,
+                  ),
+                ),
+              ],
             ),
     );
   }
@@ -191,7 +198,6 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> {
             icon: Icon(LucideIcons.ellipsis, size: 22),
             onPressed: () => MoreActionsSheet.show(context, sessionId: currentId),
           ),
-          const SizedBox(width: 4),
         ],
       ],
     );
@@ -492,6 +498,12 @@ class _TerminalAreaState extends ConsumerState<_TerminalArea> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
+        // 终端配色：followApp 跟随 App 深浅；具体主题按档案解析。
+        final terminalTheme = resolveTerminalTheme(
+          selection: ref.watch(terminalThemeSelectionProvider),
+          brightness: Theme.of(context).brightness,
+          customThemes: ref.watch(customTerminalThemesProvider),
+        );
         // 屏幕坐标 → 终端区局部坐标（菜单锚点）。
         Offset? menuAnchorLocal;
         final box = context.findRenderObject();
@@ -507,7 +519,7 @@ class _TerminalAreaState extends ConsumerState<_TerminalArea> {
                 key: ValueKey('term-$sessionId-${entry.epoch}'),
                 entry.terminal,
                 controller: _terminalController,
-                theme: cortermTerminalTheme,
+                theme: terminalTheme,
                 // 显式等宽字体：web（CanvasKit）没有系统 monospace 可回退，
                 // 默认 'monospace' 会掉到非等宽字体导致字符网格错位。
                 // GeistMono 随 shadcn_ui 包内置，三端一致。

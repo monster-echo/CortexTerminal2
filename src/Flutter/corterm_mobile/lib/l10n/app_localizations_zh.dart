@@ -383,6 +383,63 @@ class AppLocalizationsZh extends AppLocalizations {
   String get appearanceDark => '深色';
 
   @override
+  String get terminalTheme => '终端主题';
+
+  @override
+  String get terminalThemeSystem => '跟随应用';
+
+  @override
+  String get terminalThemeDark => '深色';
+
+  @override
+  String get terminalThemeLight => '浅色';
+
+  @override
+  String get terminalThemeBuiltinSection => '内置';
+
+  @override
+  String get terminalThemeCustomSection => '自定义';
+
+  @override
+  String get terminalThemeCustomNew => '新建主题';
+
+  @override
+  String get terminalThemeCustomEmpty => '还没有自定义主题';
+
+  @override
+  String get terminalThemeEdit => '编辑主题';
+
+  @override
+  String get terminalThemeDeleteConfirmTitle => '删除该主题？';
+
+  @override
+  String get terminalThemeDeleteConfirmBody => '删除后不可恢复。';
+
+  @override
+  String get terminalThemeNameLabel => '主题名称';
+
+  @override
+  String get terminalThemeNameRequired => '名称不能为空';
+
+  @override
+  String get terminalThemeInvalidColor => '无效的颜色值';
+
+  @override
+  String get terminalThemeDefaultDark => '默认深色';
+
+  @override
+  String get terminalThemeDefaultLight => '默认浅色';
+
+  @override
+  String get terminalThemeSolarizedDark => 'Solarized 深色';
+
+  @override
+  String get terminalThemeSolarizedLight => 'Solarized 浅色';
+
+  @override
+  String get terminalThemeNord => 'Nord';
+
+  @override
   String get terminalFontSize => '字体大小';
 
   @override
@@ -658,6 +715,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get activateManualEntry => '手动输入激活码';
 
   @override
+  String get activateScanHint => '对准设备上显示的激活二维码';
+
+  @override
+  String get activateCodeNavTitle => '输入激活码';
+
+  @override
   String get activateCodeLabel => '激活码';
 
   @override
@@ -853,4 +916,50 @@ class AppLocalizationsZh extends AppLocalizations {
   String get rateUs => '给个好评';
   @override
   String get rateFailed => '无法打开应用商店';
+
+  @override
+  String get meTitle => '我的';
+
+  @override
+  String get benefitsTitle => '会员权益';
+
+  @override
+  String get membershipFree => '免费版';
+
+  @override
+  String get membershipExpires => '有效期至';
+
+  @override
+  String get membershipNoExpiry => '长期有效';
+
+  @override
+  String get quotaWorkers => 'Worker 数上限';
+
+  @override
+  String get quotaScrollback => '回滚区上限';
+
+  @override
+  String get redeemCodeLabel => '兑换码';
+
+  @override
+  String get redeemAction => '兑换';
+
+  @override
+  String get redeemSuccess => '兑换成功，会员已更新。';
+
+  @override
+  String get rateUs => '给我们评分';
+
+  @override
+  String rateFailed(String msg) {
+    return '无法打开应用市场：$msg';
+  }
+
+  @override
+  String get shareApp => '分享应用';
+
+  @override
+  String shareAppText(String url) {
+    return 'CortexTerminal —— 你的机器，一个终端直达。$url';
+  }
 }

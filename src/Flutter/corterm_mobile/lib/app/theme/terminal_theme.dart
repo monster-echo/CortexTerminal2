@@ -1,31 +1,60 @@
 import 'package:flutter/material.dart';
 import 'package:xterm/xterm.dart';
 
-import 'app_theme.dart';
+import '../../core/models/terminal_color_scheme.dart';
 
-/// 终端主题：始终 Dark（§34，App Shell 可为 Light，Terminal 固定深色）。
-final cortermTerminalTheme = TerminalTheme(
-  cursor: CortermBrand.light,
-  selection: const Color(0x402563EB),
-  foreground: const Color(0xFFF5F5F5),
-  background: const Color(0xFF090909),
-  black: const Color(0xFF090909),
-  red: const Color(0xFFEF4444),
-  green: const Color(0xFF22C55E),
-  yellow: const Color(0xFFF59E0B),
-  blue: const Color(0xFF3B82F6),
-  magenta: const Color(0xFFD946EF),
-  cyan: const Color(0xFF06B6D4),
-  white: const Color(0xFFF5F5F5),
-  brightBlack: const Color(0xFF737373),
-  brightRed: const Color(0xFFF87171),
-  brightGreen: const Color(0xFF4ADE80),
-  brightYellow: const Color(0xFFFBBF24),
-  brightBlue: const Color(0xFF60A5FA),
-  brightMagenta: const Color(0xFFE879F9),
-  brightCyan: const Color(0xFF22D3EE),
-  brightWhite: const Color(0xFFFFFFFF),
-  searchHitBackground: const Color(0x40F59E0B),
-  searchHitBackgroundCurrent: const Color(0xFFF59E0B),
-  searchHitForeground: const Color(0xFF090909),
-);
+/// 内置深/浅预设对应的 xterm TerminalTheme（测试与 followApp 快速路径使用）。
+final cortermTerminalDarkTheme =
+    _toXtermTheme(builtinTerminalColorSchemes[0]);
+final cortermTerminalLightTheme =
+    _toXtermTheme(builtinTerminalColorSchemes[1]);
+
+/// 按 selection 解析终端配色：
+/// - 'followApp' → 按 App 当前 brightness 落到默认深/浅预设；
+/// - 具体档案 id → 在内置 + 自定义里查找，找不到直接抛错（配置错误要显式暴露）。
+TerminalTheme resolveTerminalTheme({
+  required String selection,
+  required Brightness brightness,
+  required List<TerminalColorScheme> customThemes,
+}) {
+  if (selection == followAppTerminalTheme) {
+    return brightness == Brightness.dark
+        ? cortermTerminalDarkTheme
+        : cortermTerminalLightTheme;
+  }
+  for (final scheme in [...builtinTerminalColorSchemes, ...customThemes]) {
+    if (scheme.id == selection) return _toXtermTheme(scheme);
+  }
+  throw StateError('Unknown terminal theme selection: $selection');
+}
+
+/// 档案 → xterm TerminalTheme。searchHit 三色从黄色系/背景派生，不单独建模。
+TerminalTheme _toXtermTheme(TerminalColorScheme s) {
+  Color hex(String v) => TerminalColorScheme.parseHex(v);
+  return TerminalTheme(
+    cursor: hex(s.cursor),
+    // 档案里 selection 是 6 位 hex；xterm 渲染层统一套 25% 透明度。
+    selection: hex(s.selection).withValues(alpha: 0.25),
+    foreground: hex(s.foreground),
+    background: hex(s.background),
+    black: hex(s.black),
+    red: hex(s.red),
+    green: hex(s.green),
+    yellow: hex(s.yellow),
+    blue: hex(s.blue),
+    magenta: hex(s.magenta),
+    cyan: hex(s.cyan),
+    white: hex(s.white),
+    brightBlack: hex(s.brightBlack),
+    brightRed: hex(s.brightRed),
+    brightGreen: hex(s.brightGreen),
+    brightYellow: hex(s.brightYellow),
+    brightBlue: hex(s.brightBlue),
+    brightMagenta: hex(s.brightMagenta),
+    brightCyan: hex(s.brightCyan),
+    brightWhite: hex(s.brightWhite),
+    searchHitBackground: hex(s.yellow).withValues(alpha: 0.25),
+    searchHitBackgroundCurrent: hex(s.yellow),
+    searchHitForeground: hex(s.background),
+  );
+}

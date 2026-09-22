@@ -385,6 +385,63 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appearanceDark => 'Dark';
 
   @override
+  String get terminalTheme => 'Terminal theme';
+
+  @override
+  String get terminalThemeSystem => 'Follow app';
+
+  @override
+  String get terminalThemeDark => 'Dark';
+
+  @override
+  String get terminalThemeLight => 'Light';
+
+  @override
+  String get terminalThemeBuiltinSection => 'Built-in';
+
+  @override
+  String get terminalThemeCustomSection => 'Custom';
+
+  @override
+  String get terminalThemeCustomNew => 'New theme';
+
+  @override
+  String get terminalThemeCustomEmpty => 'No custom themes yet';
+
+  @override
+  String get terminalThemeEdit => 'Edit theme';
+
+  @override
+  String get terminalThemeDeleteConfirmTitle => 'Delete this theme?';
+
+  @override
+  String get terminalThemeDeleteConfirmBody => 'This cannot be undone.';
+
+  @override
+  String get terminalThemeNameLabel => 'Theme name';
+
+  @override
+  String get terminalThemeNameRequired => 'Name is required';
+
+  @override
+  String get terminalThemeInvalidColor => 'Invalid hex color';
+
+  @override
+  String get terminalThemeDefaultDark => 'Default Dark';
+
+  @override
+  String get terminalThemeDefaultLight => 'Default Light';
+
+  @override
+  String get terminalThemeSolarizedDark => 'Solarized Dark';
+
+  @override
+  String get terminalThemeSolarizedLight => 'Solarized Light';
+
+  @override
+  String get terminalThemeNord => 'Nord';
+
+  @override
   String get terminalFontSize => 'Font size';
 
   @override
@@ -666,6 +723,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get activateManualEntry => 'Enter code manually';
 
   @override
+  String get activateScanHint =>
+      'Point the camera at the activation QR code shown on the device';
+
+  @override
+  String get activateCodeNavTitle => 'Enter activation code';
+
+  @override
   String get activateCodeLabel => 'Activation code';
 
   @override
@@ -866,4 +930,50 @@ class AppLocalizationsEn extends AppLocalizations {
   String get rateUs => 'Rate Us';
   @override
   String get rateFailed => 'Could not open the store';
+
+  @override
+  String get meTitle => 'Me';
+
+  @override
+  String get benefitsTitle => 'Membership';
+
+  @override
+  String get membershipFree => 'Free';
+
+  @override
+  String get membershipExpires => 'Valid until';
+
+  @override
+  String get membershipNoExpiry => 'No expiry';
+
+  @override
+  String get quotaWorkers => 'Worker limit';
+
+  @override
+  String get quotaScrollback => 'Scrollback limit';
+
+  @override
+  String get redeemCodeLabel => 'Redeem code';
+
+  @override
+  String get redeemAction => 'Redeem';
+
+  @override
+  String get redeemSuccess => 'Redeemed. Membership updated.';
+
+  @override
+  String get rateUs => 'Rate us';
+
+  @override
+  String rateFailed(String msg) {
+    return 'Could not open the store: $msg';
+  }
+
+  @override
+  String get shareApp => 'Share app';
+
+  @override
+  String shareAppText(String url) {
+    return 'CortexTerminal — your machines, one terminal away. $url';
+  }
 }

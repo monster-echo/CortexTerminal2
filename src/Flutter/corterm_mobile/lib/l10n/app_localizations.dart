@@ -818,6 +818,120 @@ abstract class AppLocalizations {
   /// **'Dark'**
   String get appearanceDark;
 
+  /// No description provided for @terminalTheme.
+  ///
+  /// In en, this message translates to:
+  /// **'Terminal theme'**
+  String get terminalTheme;
+
+  /// No description provided for @terminalThemeSystem.
+  ///
+  /// In en, this message translates to:
+  /// **'Follow app'**
+  String get terminalThemeSystem;
+
+  /// No description provided for @terminalThemeDark.
+  ///
+  /// In en, this message translates to:
+  /// **'Dark'**
+  String get terminalThemeDark;
+
+  /// No description provided for @terminalThemeLight.
+  ///
+  /// In en, this message translates to:
+  /// **'Light'**
+  String get terminalThemeLight;
+
+  /// No description provided for @terminalThemeBuiltinSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Built-in'**
+  String get terminalThemeBuiltinSection;
+
+  /// No description provided for @terminalThemeCustomSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom'**
+  String get terminalThemeCustomSection;
+
+  /// No description provided for @terminalThemeCustomNew.
+  ///
+  /// In en, this message translates to:
+  /// **'New theme'**
+  String get terminalThemeCustomNew;
+
+  /// No description provided for @terminalThemeCustomEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No custom themes yet'**
+  String get terminalThemeCustomEmpty;
+
+  /// No description provided for @terminalThemeEdit.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit theme'**
+  String get terminalThemeEdit;
+
+  /// No description provided for @terminalThemeDeleteConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete this theme?'**
+  String get terminalThemeDeleteConfirmTitle;
+
+  /// No description provided for @terminalThemeDeleteConfirmBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This cannot be undone.'**
+  String get terminalThemeDeleteConfirmBody;
+
+  /// No description provided for @terminalThemeNameLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Theme name'**
+  String get terminalThemeNameLabel;
+
+  /// No description provided for @terminalThemeNameRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Name is required'**
+  String get terminalThemeNameRequired;
+
+  /// No description provided for @terminalThemeInvalidColor.
+  ///
+  /// In en, this message translates to:
+  /// **'Invalid hex color'**
+  String get terminalThemeInvalidColor;
+
+  /// No description provided for @terminalThemeDefaultDark.
+  ///
+  /// In en, this message translates to:
+  /// **'Default Dark'**
+  String get terminalThemeDefaultDark;
+
+  /// No description provided for @terminalThemeDefaultLight.
+  ///
+  /// In en, this message translates to:
+  /// **'Default Light'**
+  String get terminalThemeDefaultLight;
+
+  /// No description provided for @terminalThemeSolarizedDark.
+  ///
+  /// In en, this message translates to:
+  /// **'Solarized Dark'**
+  String get terminalThemeSolarizedDark;
+
+  /// No description provided for @terminalThemeSolarizedLight.
+  ///
+  /// In en, this message translates to:
+  /// **'Solarized Light'**
+  String get terminalThemeSolarizedLight;
+
+  /// No description provided for @terminalThemeNord.
+  ///
+  /// In en, this message translates to:
+  /// **'Nord'**
+  String get terminalThemeNord;
+
   /// No description provided for @terminalFontSize.
   ///
   /// In en, this message translates to:
@@ -1328,6 +1442,18 @@ abstract class AppLocalizations {
   /// **'Enter code manually'**
   String get activateManualEntry;
 
+  /// No description provided for @activateScanHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Point the camera at the activation QR code shown on the device'**
+  String get activateScanHint;
+
+  /// No description provided for @activateCodeNavTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter activation code'**
+  String get activateCodeNavTitle;
+
   /// No description provided for @activateCodeLabel.
   ///
   /// In en, this message translates to:
@@ -1653,6 +1779,90 @@ abstract class AppLocalizations {
   String get share;
   String get rateUs;
   String get rateFailed;
+
+  /// No description provided for @meTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Me'**
+  String get meTitle;
+
+  /// No description provided for @benefitsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Membership'**
+  String get benefitsTitle;
+
+  /// No description provided for @membershipFree.
+  ///
+  /// In en, this message translates to:
+  /// **'Free'**
+  String get membershipFree;
+
+  /// No description provided for @membershipExpires.
+  ///
+  /// In en, this message translates to:
+  /// **'Valid until'**
+  String get membershipExpires;
+
+  /// No description provided for @membershipNoExpiry.
+  ///
+  /// In en, this message translates to:
+  /// **'No expiry'**
+  String get membershipNoExpiry;
+
+  /// No description provided for @quotaWorkers.
+  ///
+  /// In en, this message translates to:
+  /// **'Worker limit'**
+  String get quotaWorkers;
+
+  /// No description provided for @quotaScrollback.
+  ///
+  /// In en, this message translates to:
+  /// **'Scrollback limit'**
+  String get quotaScrollback;
+
+  /// No description provided for @redeemCodeLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Redeem code'**
+  String get redeemCodeLabel;
+
+  /// No description provided for @redeemAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Redeem'**
+  String get redeemAction;
+
+  /// No description provided for @redeemSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Redeemed. Membership updated.'**
+  String get redeemSuccess;
+
+  /// No description provided for @rateUs.
+  ///
+  /// In en, this message translates to:
+  /// **'Rate us'**
+  String get rateUs;
+
+  /// No description provided for @rateFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not open the store: {msg}'**
+  String rateFailed(String msg);
+
+  /// No description provided for @shareApp.
+  ///
+  /// In en, this message translates to:
+  /// **'Share app'**
+  String get shareApp;
+
+  /// No description provided for @shareAppText.
+  ///
+  /// In en, this message translates to:
+  /// **'CortexTerminal — your machines, one terminal away. {url}'**
+  String shareAppText(String url);
 }
 
 class _AppLocalizationsDelegate
