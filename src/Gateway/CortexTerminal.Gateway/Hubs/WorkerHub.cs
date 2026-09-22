@@ -174,6 +174,13 @@ public sealed class WorkerHub(
                 foreach (var session in transitionedSessions)
                 {
                     replayCoordinator.AbortReplay(session.SessionId);
+                    // 通知附着在该 session 上的终端客户端：worker 链路已断。
+                    // 之前只改库不推送，客户端（客户端 WS 到网关仍活着）会一直显示
+                    // 「已连接」的死链。客户端收到后进入 reconnecting 退避重连。
+                    _ = TerminalWebSocketConnectionRegistry.SendToSessionAsync(
+                        session.SessionId,
+                        new { type = "error", code = "worker-offline", sessionId = session.SessionId, message = "Worker link is down." },
+                        CancellationToken.None);
                 }
             }
         }

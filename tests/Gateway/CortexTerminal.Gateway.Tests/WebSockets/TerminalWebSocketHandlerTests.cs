@@ -90,12 +90,53 @@ public sealed class TerminalWebSocketHandlerTests
             new ReplayCoordinator(),
             dispatcher,
             launcher,
+            workers,
             new FixedTimeProvider(DateTimeOffset.UnixEpoch.AddSeconds(1)),
             new NoOpStatsService(),
             new TestHubContext<TerminalHub>(new Dictionary<string, IClientProxy>()),
             NullLogger<TerminalWebSocketHandler>.Instance);
 
         return (handler, created.Response!.SessionId);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenWorkerOffline_RejectsWithWorkerOfflineError()
+    {
+        // P50-win bug 回归：worker 离线时 attach 必须被拒绝，
+        // 而不是「空重放 + live」让客户端显示已连接死链。
+        var workers = TestSessionFactory.CreateWorkerRegistry();
+        workers.Register("worker-ws-off", "worker-connection-off");
+        var sessions = TestSessionFactory.CreateCoordinator(workers, timeProvider: new FixedTimeProvider(DateTimeOffset.UnixEpoch));
+        var dispatcher = new NoOpWorkerCommandDispatcher();
+        var launcher = new SessionLaunchCoordinator(sessions, dispatcher, new ScrollbackSettings(), TestSessionFactory.CreatePreferenceService(), TestSessionFactory.CreateWorkspaceRegistry());
+        var created = await launcher.CreateSessionAsync(
+            "test-user",
+            new CreateSessionRequest("shell", 120, 40),
+            clientConnectionId: null,
+            CancellationToken.None);
+        created.IsSuccess.Should().BeTrue();
+
+        // 会话创建后 worker 掉线（网关注销 = 离线，与 WorkerHub.OnDisconnectedAsync 同语义）。
+        workers.Unregister("worker-ws-off");
+
+        var handler = new TerminalWebSocketHandler(
+            sessions,
+            new ReplayCoordinator(),
+            dispatcher,
+            launcher,
+            workers,
+            new FixedTimeProvider(DateTimeOffset.UnixEpoch.AddSeconds(1)),
+            new NoOpStatsService(),
+            new TestHubContext<TerminalHub>(new Dictionary<string, IClientProxy>()),
+            NullLogger<TerminalWebSocketHandler>.Instance);
+
+        var ws = new ScriptedWebSocket("{}", closeAfterMessages: false);
+        await handler.HandleAsync(ws, "test-user", created.Response!.SessionId, capabilities: "", sinceSeq: 0, cancellationToken: CancellationToken.None);
+
+        ws.SentFrames.Should().Contain(frame => ReadTypeIs("error")(frame));
+        var errorFrame = ReadFrame(ws.SentFrames.Last(ReadTypeIs("error")));
+        errorFrame.GetProperty("code").GetString().Should().Be("worker-offline");
+        ws.SentFrames.Select(ReadType).Should().NotContain("live");
     }
 
     private static string ReadType(string json)

@@ -3245,6 +3245,10 @@ TtsEndpoints.Map(app, ttsOptions);
 // 注意：{*path} 本身就是贪婪 catch-all，不能再挂 `:path` 约束——`path` 不是已注册的
 // 约束类型，懒加载构建匹配器时会对所有请求抛 500。
 app.MapFallbackToFile("app/{*path}", "app/index.html");
+// API 路径绝不回退到 SPA：未知接口必须 404。否则网关版本落后时，
+// 客户端会收到 200 + index.html，把 HTML 当 JSON 解析报出难以排查的
+// "type 'String' is not a subtype of type 'List<dynamic>?'"。
+app.Map("/api/{**path}", () => Results.NotFound());
 app.MapFallbackToFile("index.html");
 
 app.Run();

@@ -21,6 +21,7 @@ public sealed class TerminalWebSocketHandler
     private readonly ISessionCoordinator _sessions;
     private readonly ReplayCoordinator _replayCoordinator;
     private readonly IWorkerCommandDispatcher _workerCommands;
+    private readonly IWorkerRegistry _workers;
     private readonly TimeProvider _timeProvider;
     private readonly IGatewayStatsService _stats;
     private readonly IHubContext<TerminalHub> _hubContext;
@@ -37,6 +38,7 @@ public sealed class TerminalWebSocketHandler
         ReplayCoordinator replayCoordinator,
         IWorkerCommandDispatcher workerCommands,
         ISessionLaunchCoordinator sessionLaunchCoordinator,
+        IWorkerRegistry workers,
         TimeProvider timeProvider,
         IGatewayStatsService stats,
         IHubContext<TerminalHub> hubContext,
@@ -45,6 +47,7 @@ public sealed class TerminalWebSocketHandler
         _sessions = sessions;
         _replayCoordinator = replayCoordinator;
         _workerCommands = workerCommands;
+        _workers = workers;
         _ = sessionLaunchCoordinator;
         _timeProvider = timeProvider;
         _stats = stats;
@@ -73,6 +76,17 @@ public sealed class TerminalWebSocketHandler
         if (session.UserId != userId)
         {
             await SendErrorAsync(ws, sessionId, "forbidden", "Session belongs to another user.", cancellationToken);
+            return;
+        }
+
+        // Worker 离线时 session 不可达：重放、输入、shell 重启全部要经过 worker 链路。
+        // 不做状态迁移、不发 live —— 如实拒绝，客户端进入重连退避，直到 worker 回来。
+        // 之前缺失此校验会导致：离线 worker 的 session 仍以「空重放 + live」应答，
+        // 客户端显示已连接但实际死链（P50-win bug）。
+        if (!_workers.TryGetWorker(session.WorkerId, out _))
+        {
+            _logger.LogInformation("Attach rejected: worker {WorkerId} offline for session {SessionId}.", session.WorkerId, sessionId);
+            await SendErrorAsync(ws, sessionId, "worker-offline", "Worker is offline.", cancellationToken);
             return;
         }
 
