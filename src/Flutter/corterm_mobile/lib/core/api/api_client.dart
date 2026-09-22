@@ -122,7 +122,7 @@ class ApiClient {
     final data = e.response?.data;
     String? serverMessage;
     if (data is Map<String, dynamic>) {
-      serverMessage = data['error'] as String? ?? data['detail'] as String?;
+      serverMessage = data['error'] as String? ?? data['detail'] as String? ?? data['message'] as String?;
       final retryAfter = data['retryAfter'];
       if (code == 429 && retryAfter is num) {
         throw RateLimitedException(retryAfter.toInt());

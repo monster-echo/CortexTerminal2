@@ -1633,6 +1633,26 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Copy command'**
   String get installCopyCommand;
+  String get redeemCode;
+  String get redeemPlaceholder;
+  String get redeemButton;
+  String get redeemSuccess;
+  String get redeemFailed;
+  String get referral;
+  String get referralSubtitle;
+  String get referralShareText;
+  String get myInviteCode;
+  String get friendsInvited;
+  String get daysEarned;
+  String get rewardPerInvite;
+  String get rewardHistory;
+  String get rewardsEmpty;
+  String get haveFriendsCode;
+  String get applyInvite;
+  String get applyInviteSuccess;
+  String get share;
+  String get rateUs;
+  String get rateFailed;
 }
 
 class _AppLocalizationsDelegate

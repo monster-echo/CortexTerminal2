@@ -357,6 +357,25 @@
   "installWorkerIntro": "Run the installer on your machine to connect it as a worker, then activate it with the command shown there.",
   "installActivateHint": "After install, run 'corterm activate' and confirm the code under Settings → Device access.",
   "installCopyCommand": "Copy command"
+,
+  "redeemCode": "Redeem Code",
+  "redeemPlaceholder": "Enter redeem code",
+  "redeemButton": "Redeem",
+  "redeemSuccess": "Redeemed! Pro is now active.",
+  "redeemFailed": "Redeem failed",
+  "referral": "Invite & Earn",
+  "referralSubtitle": "Share your invite code — when a friend activates membership, you earn extra Pro days.",
+  "referralShareText": "Try CortexTerminal — the mobile AI agent workspace. Use my invite code and we both win!",
+  "myInviteCode": "My invite code",
+  "friendsInvited": "Friends invited",
+  "daysEarned": "Days earned",
+  "rewardPerInvite": "Pro days per activation",
+  "rewardHistory": "Reward history",
+  "rewardsEmpty": "No rewards yet — invite a friend!",
+  "haveFriendsCode": "Have a friend's code?",
+  "applyInvite": "Apply",
+  "applyInviteSuccess": "Invite code applied!",
+  "share": "Share",
+  "rateUs": "Rate Us",
+  "rateFailed": "Could not open the store"
 }
-
-

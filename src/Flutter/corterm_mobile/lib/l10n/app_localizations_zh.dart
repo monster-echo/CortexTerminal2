@@ -814,4 +814,43 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get installCopyCommand => '复制命令';
+  @override
+  String get redeemCode => '兑换码';
+  @override
+  String get redeemPlaceholder => '输入兑换码';
+  @override
+  String get redeemButton => '兑换';
+  @override
+  String get redeemSuccess => '兑换成功，Pro 已生效！';
+  @override
+  String get redeemFailed => '兑换失败';
+  @override
+  String get referral => '分享赚收益';
+  @override
+  String get referralSubtitle => '分享你的邀请码，好友开通会员后你将获得 Pro 天数奖励。';
+  @override
+  String get referralShareText => '试试 CortexTerminal —— 移动端 AI Agent 工作台。用我的邀请码，你我都有奖励！';
+  @override
+  String get myInviteCode => '我的邀请码';
+  @override
+  String get friendsInvited => '已邀请好友';
+  @override
+  String get daysEarned => '累计获得天数';
+  @override
+  String get rewardPerInvite => '每次开通奖励 Pro 天数';
+  @override
+  String get rewardHistory => '收益记录';
+  @override
+  String get rewardsEmpty => '还没有收益，快去邀请好友吧！';
+  @override
+  String get haveFriendsCode => '有好友的邀请码？';
+  @override
+  String get applyInvite => '提交';
+  @override
+  String get applyInviteSuccess => '邀请码绑定成功！';
+  @override
+  String get share => '分享';
+  String get rateUs => '给个好评';
+  @override
+  String get rateFailed => '无法打开应用商店';
 }

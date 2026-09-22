@@ -12,6 +12,8 @@ import '../features/files/presentation/file_preview_screen.dart';
 import '../features/workers/presentation/workers_screen.dart';
 import '../features/workers/presentation/worker_upgrade_screen.dart';
 import '../features/legal/legal_screens.dart';
+import '../features/membership/presentation/redeem_screen.dart';
+import '../features/membership/presentation/referral_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/activate/activate_screen.dart';
 import '../features/profile/presentation/profile_screen.dart';
@@ -57,6 +59,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/settings/about', builder: (_, _) => const AboutScreen()),
       GoRoute(path: '/settings/preferences', builder: (_, _) => const PreferencesScreen()),
       GoRoute(path: '/settings/security', builder: (_, _) => const SecurityScreen()),
+GoRoute(path: '/settings/redeem', builder: (_, _) => const RedeemScreen()),
+GoRoute(path: '/settings/referral', builder: (_, _) => const ReferralScreen()),
       GoRoute(path: '/activate', builder: (_, _) => const ActivateScreen()),
       GoRoute(path: '/workers', builder: (_, _) => const WorkersScreen()),
       GoRoute(path: '/diagnostics', builder: (_, _) => const DiagnosticsScreen()),

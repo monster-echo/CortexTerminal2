@@ -827,4 +827,43 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get installCopyCommand => 'Copy command';
+  @override
+  String get redeemCode => 'Redeem Code';
+  @override
+  String get redeemPlaceholder => 'Enter redeem code';
+  @override
+  String get redeemButton => 'Redeem';
+  @override
+  String get redeemSuccess => 'Redeemed! Pro is now active.';
+  @override
+  String get redeemFailed => 'Redeem failed';
+  @override
+  String get referral => 'Invite & Earn';
+  @override
+  String get referralSubtitle => 'Share your invite code — when a friend activates membership, you earn extra Pro days.';
+  @override
+  String get referralShareText => 'Try CortexTerminal — the mobile AI agent workspace. Use my invite code and we both win!';
+  @override
+  String get myInviteCode => 'My invite code';
+  @override
+  String get friendsInvited => 'Friends invited';
+  @override
+  String get daysEarned => 'Days earned';
+  @override
+  String get rewardPerInvite => 'Pro days per activation';
+  @override
+  String get rewardHistory => 'Reward history';
+  @override
+  String get rewardsEmpty => 'No rewards yet — invite a friend!';
+  @override
+  String get haveFriendsCode => 'Have a friend\'s code?';
+  @override
+  String get applyInvite => 'Apply';
+  @override
+  String get applyInviteSuccess => 'Invite code applied!';
+  @override
+  String get share => 'Share';
+  String get rateUs => 'Rate Us';
+  @override
+  String get rateFailed => 'Could not open the store';
 }

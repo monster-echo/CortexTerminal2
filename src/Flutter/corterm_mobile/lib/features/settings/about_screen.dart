@@ -1,8 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../features/sessions/data/sessions_providers.dart';
@@ -79,6 +81,12 @@ class AboutScreen extends ConsumerWidget {
           AppGroupHeader(l10n.diagnostics),
           AppGroupCard(children: [
             AppRow(
+              icon: LucideIcons.star,
+              label: l10n.rateUs,
+              chevron: true,
+              onTap: () => _rateApp(context),
+            ),
+            AppRow(
               icon: LucideIcons.cloud,
               label: l10n.gatewayVersion,
               value: gatewayInfo.valueOrNull?.version ?? '—',
@@ -101,5 +109,28 @@ class AboutScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  /// 跳转应用商店评分页：Android → Google Play，iOS → App Store 搜索，
+  /// 其余平台 → Play 商店网页版。打不开时 toast 明确报错。
+  Future<void> _rateApp(BuildContext context) async {
+    final l10n = AppLocalizations.of(context)!;
+    final info = await PackageInfo.fromPlatform();
+    final Uri uri;
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      uri = Uri.parse('https://apps.apple.com/search?term=cortexterminal');
+    } else {
+      uri = Uri.parse(
+          'https://play.google.com/store/apps/details?id=${info.packageName}');
+    }
+    try {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(l10n.rateFailed)),
+        );
+      }
+    }
   }
 }
