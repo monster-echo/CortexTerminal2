@@ -6,8 +6,9 @@
  * the QR encodes the activation URL whose ?code= param is the user code), or
  * type the XXXX-XXXX code manually.
  */
-import { scanBarcode } from '@kit.ScanKit'
-import { common, abilityAccessCtrl, Permissions, BusinessError } from '@kit.AbilityKit'
+import { scanBarcode, scanCore } from '@kit.ScanKit'
+import { common, abilityAccessCtrl, Permissions } from '@kit.AbilityKit'
+import { BusinessError } from '@kit.BasicServicesKit'
 import { AuthService, I18n, PageLayout, showI18nToast, AnalyticsService, AnalyticsEvent } from '@rwecho/core'
 
 @Component
@@ -179,8 +180,9 @@ export struct ActivateWorkerPage {
       const manager = abilityAccessCtrl.createAtManager()
       await manager.requestPermissionsFromUser(context, ['ohos.permission.CAMERA'] as Array<Permissions>)
 
-      const options = new scanBarcode.ScanOptions()
-      options.scanTypes = [scanBarcode.ScanType.QR_CODE]
+      const options: scanBarcode.ScanOptions = {
+        scanTypes: [scanCore.ScanType.QR_CODE]
+      }
       const result = await scanBarcode.startScanForResult(context, options)
       const code = this.extractUserCode(result.originalValue)
       if (code.length === 0) {

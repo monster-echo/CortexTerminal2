@@ -6,7 +6,7 @@ import { common, Want } from '@kit.AbilityKit'
 
 export class MarketLauncher {
   static async openAppDetail(context: common.UIAbilityContext): Promise<void> {
-    const bundleName = context.applicationInfo.bundleName
+    const bundleName = context.abilityInfo.bundleName
     const want: Want = {
       uri: `store://appgallery.huawei.com/app/detail?id=${bundleName}`
     }

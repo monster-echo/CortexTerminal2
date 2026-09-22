@@ -6,7 +6,7 @@
  * Manages the terminal session lifecycle via TerminalStateManager.
  * Handles background/foreground session recovery and keyboard resize.
  */
-import { buffer } from '@kit.ArkTS'
+import { buffer, util } from '@kit.ArkTS'
 import { common } from '@kit.AbilityKit'
 import { window } from '@kit.ArkUI'
 import { webview } from '@kit.ArkWeb'

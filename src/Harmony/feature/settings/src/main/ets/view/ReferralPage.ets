@@ -9,7 +9,7 @@ import { ApiService, I18n, PageLayout, showI18nToast, showToast, clickHaptic, li
 import { pasteboard } from '@kit.BasicServicesKit'
 import { common } from '@kit.AbilityKit'
 import { systemShare } from '@kit.ShareKit'
-import { udmf } from '@kit.ArkData'
+import { uniformTypeDescriptor } from '@kit.ArkData'
 
 /** One row of the reward history list (parsed from /api/referral/me rewards[]). */
 class RewardItem {
@@ -78,13 +78,13 @@ export struct ReferralPage {
     const text = I18n.getWithArgs('referral.share_text', { 'code': this.code })
     const context = getContext(this) as common.UIAbilityContext
     const data: systemShare.SharedData = new systemShare.SharedData({
-      utd: udmf.UniformDataType.TEXT,
+      utd: uniformTypeDescriptor.UniformDataType.TEXT,
       content: text
     })
     const controller: systemShare.ShareController = new systemShare.ShareController(data)
     await controller.show(context, {
       selectionMode: systemShare.SelectionMode.SINGLE,
-      previewMode: systemShare.SharePreview.DETAIL
+      previewMode: systemShare.SharePreviewMode.DETAIL
     })
   }
 

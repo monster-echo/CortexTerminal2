@@ -33,10 +33,9 @@
         "name": "default",
         "bundleName": "top.rwecho.cortexterminal",
         "signingConfig": "default",
-        "compileSdkVersion": "6.1.0(23)",
+        "compileSdkVersion": "6.0.1(21)",
         "compatibleSdkVersion": "5.0.0(12)",
-        "runtimeOS": "HarmonyOS",
-        "targetSdkVersion": "6.1.0(23)"
+        "runtimeOS": "HarmonyOS"
       },
       {
         "name": "release",

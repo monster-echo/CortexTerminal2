@@ -15,6 +15,10 @@
     { "name": "terminal_outline", "value": "#7a8590" },
     { "name": "terminal_outline_variant", "value": "#e0e0e0" },
     { "name": "terminal_inverse_surface", "value": "#1a1a1a" },
-    { "name": "terminal_inverse_on_surface", "value": "#f5f5f5" }
+    { "name": "terminal_inverse_on_surface", "value": "#f5f5f5" },
+    { "name": "terminal_primary_container", "value": "#e8f3fc" },
+    { "name": "terminal_on_primary", "value": "#ffffff" },
+    { "name": "terminal_on_primary_container", "value": "#075a9a" },
+    { "name": "terminal_text_tertiary", "value": "#8a96a6" }
   ]
 }
