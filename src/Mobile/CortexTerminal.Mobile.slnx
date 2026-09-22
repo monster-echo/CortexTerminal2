@@ -1,6 +1,0 @@
-<Solution>
-  <Folder Name="/src/">
-    <Project Path="src/CortexTerminal.Mobile.App/CortexTerminal.Mobile.App.csproj" />
-    <Project Path="src/CortexTerminal.Mobile.Core/CortexTerminal.Mobile.Core.csproj" />
-  </Folder>
-</Solution>

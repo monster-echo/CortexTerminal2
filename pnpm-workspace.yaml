@@ -1,4 +1,3 @@
 packages:
   - "src/Gateway/CortexTerminal.Console"
-  - "src/Mobile/src/CortexTerminal.Mobile.Web"
   - ".local/*"
