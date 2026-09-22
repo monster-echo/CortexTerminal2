@@ -165,6 +165,31 @@
         }
       });
 
+      // === OSC 扩展（对齐 Flutter 端 onPrivateOSC）===
+      // 52 远程剪贴板 / 9,777 远程通知 / 7 当前目录。
+      // xterm 解析到对应序列即抛给 ArkTS（粘贴板写入 / Toast / AppStorage）；
+      // 返回 true 表示序列已消费，不作为屏幕内容渲染。
+      term.parser.registerOscHandler(52, function(data) {
+        // data = "c;<base64>"（目标选择器可省略，只取 base64 载荷）
+        var payload = data;
+        var idx = data.indexOf(';');
+        if (idx >= 0) payload = data.substring(idx + 1);
+        sendToHost({ type: 'osc', code: '52', data: payload });
+        return true;
+      });
+      term.parser.registerOscHandler(9, function(data) {
+        sendToHost({ type: 'osc', code: '9', data: data });
+        return true;
+      });
+      term.parser.registerOscHandler(777, function(data) {
+        sendToHost({ type: 'osc', code: '777', data: data });
+        return true;
+      });
+      term.parser.registerOscHandler(7, function(data) {
+        sendToHost({ type: 'osc', code: '7', data: data });
+        return true;
+      });
+
       // === Renderer: WebGL (user-controlled via settings) ===
       // ArkWeb API20+ emulators have a GPU regression where WebGL canvas
       // renders pure black. Users can disable GPU acceleration in Settings

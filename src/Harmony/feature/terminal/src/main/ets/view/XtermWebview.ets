@@ -15,6 +15,8 @@ type OnInputCallback = (data: string) => void
 type OnResizeCallback = (cols: number, rows: number) => void
 type OnSnapshotCapturedCallback = (content: string) => void
 type OnSnapshotFailedCallback = (message: string) => void
+type OnTitleCallback = (title: string) => void
+type OnOscCallback = (code: string, data: string) => void
 
 @Component
 export struct XtermWebview {
@@ -26,6 +28,10 @@ export struct XtermWebview {
   /** Full serialized buffer, delivered on snapshotEnd after chunk reassembly. */
   onSnapshotCaptured: OnSnapshotCapturedCallback = (_content: string) => {}
   onSnapshotFailed: OnSnapshotFailedCallback = (_message: string) => {}
+  /** Remote shell title (OSC 0/2 forwarded from xterm.js). */
+  onTitleChange: OnTitleCallback = (_title: string) => {}
+  /** OSC 扩展事件：52 远程剪贴板 / 9,777 通知 / 7 当前目录（对齐 Flutter onPrivateOSC）。 */
+  onOscEvent: OnOscCallback = (_code: string, _data: string) => {}
   @StorageLink('gatewayUrl') gatewayUrl: string = ''
   @StorageLink('terminalCols') terminalCols: number = 80
   @StorageLink('terminalRows') terminalRows: number = 24
@@ -122,6 +128,10 @@ export struct XtermWebview {
               this.snapshotChunks = []
               this.snapshotExpectedTotal = -1
               this.onSnapshotFailed((msg['message'] as string) ?? 'serialize failed')
+            } else if (type === 'title') {
+              this.onTitleChange((msg['title'] as string) ?? '')
+            } else if (type === 'osc') {
+              this.onOscEvent((msg['code'] as string) ?? '', (msg['data'] as string) ?? '')
             }
           } catch (e) {
             console.warn('[XtermWebview] onInput handler error: ' + (e as Error).message)

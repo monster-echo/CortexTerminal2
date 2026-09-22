@@ -16,6 +16,7 @@ export { AuthState } from './src/main/ets/service/AuthState'
 export { AuthError, AuthErrorKind } from './src/main/ets/service/AuthError'
 export { AnalyticsService, AnalyticsEvent } from './src/main/ets/service/AnalyticsService'
 export { CrashService } from './src/main/ets/service/CrashService'
+export { AnnouncementService } from './src/main/ets/service/AnnouncementService'
 
 // i18n
 export { I18n } from './src/main/ets/i18n/I18n'
@@ -28,6 +29,7 @@ export { AppBar } from './src/main/ets/components/AppBar'
 export { PageLayout } from './src/main/ets/components/PageLayout'
 export { PageMenuItem } from './src/main/ets/components/PageLayout'
 export { OverflowMenuButton } from './src/main/ets/components/OverflowMenuButton'
+export { AnnouncementDialog } from './src/main/ets/components/AnnouncementDialog'
 
 // Utils
 export { Logger } from './src/main/ets/utils/Logger'
@@ -44,6 +46,7 @@ export {
   GatewayInfo,
   SupportGroupInfo,
   SupportInfo,
+  AnnouncementInfo,
   TunnelInfo
 } from './src/main/ets/model/SharedModels'
 

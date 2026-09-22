@@ -105,7 +105,20 @@ export class SupportGroupInfo {
 export class SupportInfo {
   qqGroup: SupportGroupInfo | null = null
   telegramGroup: SupportGroupInfo | null = null
+  feishuGroup: SupportGroupInfo | null = null
   email: string = ''
+}
+
+/**
+ * 一条服务端下发的公告（版本通知 / 运营通知），来自 /api/announcements。
+ */
+@Observed
+export class AnnouncementInfo {
+  id: string = ''
+  title: string = ''
+  body: string = ''
+  buttonLabel: string = ''
+  url: string = ''
 }
 
 /**

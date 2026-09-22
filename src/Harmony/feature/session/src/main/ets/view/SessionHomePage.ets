@@ -1,8 +1,9 @@
-import { SessionInfo, WorkerInfo, I18n, RouteName, TerminalNavParam, showI18nToast, showToast, AnalyticsService, AnalyticsEvent, lightHaptic, clickHaptic, AppConstants } from '@rwecho/core'
+import { SessionInfo, WorkerInfo, I18n, RouteName, TerminalNavParam, showI18nToast, showToast, AnalyticsService, AnalyticsEvent, lightHaptic, clickHaptic, AppConstants, AnnouncementService, AnnouncementDialog, AnnouncementInfo } from '@rwecho/core'
 import { SessionCard } from './SessionCard'
 import { CreateSessionSheet } from './CreateSessionSheet'
 import { SessionService } from '../service/SessionService'
 import { pasteboard } from '@kit.BasicServicesKit'
+import { common, Want } from '@kit.AbilityKit'
 
 class TerminalLine {
   type: string = ''
@@ -100,6 +101,49 @@ export struct SessionHomePage {
   aboutToAppear() {
     AnalyticsService.onPageStart('session/Home')
     this.loadData()
+    this.loadAnnouncement()
+  }
+
+  /** 拉取网关公告，有未关闭的公告则弹窗（每条公告每台设备只弹一次）。 */
+  private async loadAnnouncement() {
+    const ctx = this.getUIContext()?.getHostContext() as common.UIAbilityContext
+    try {
+      const pending = await AnnouncementService.pending(ctx)
+      if (pending === null) {
+        return
+      }
+      const dialog = new CustomDialogController({
+        builder: AnnouncementDialog({
+          announcement: pending,
+          onJoin: (url: string) => {
+            this.openExternalUrl(url)
+          },
+          onDismiss: () => {
+            AnnouncementService.dismiss(ctx, pending.id)
+          }
+        }),
+        autoCancel: true,
+        alignment: DialogAlignment.Center,
+        customStyle: true
+      })
+      dialog.open()
+    } catch (e) {
+      showToast((e as Error).message || I18n.get('announcement.load_failed'))
+    }
+  }
+
+  /** applink 优先拉起目标 App，未安装时由系统落到浏览器/网页版。 */
+  private async openExternalUrl(url: string) {
+    const ctx = this.getUIContext()?.getHostContext() as common.UIAbilityContext
+    const want: Want = {
+      action: 'ohos.want.action.viewData',
+      uri: url
+    }
+    try {
+      await ctx.startAbility(want)
+    } catch (e) {
+      showToast(I18n.get('common.link_open_failed'))
+    }
   }
 
   build() {
@@ -209,7 +253,8 @@ export struct SessionHomePage {
     .layoutWeight(1)
     .backgroundColor($r('app.color.terminal_surface'))
     .bindSheet($$this.showCreateSheet, this.CreateSheetContent(), {
-      height: SheetSize.LARGE,
+      detents: ['66%', SheetSize.MEDIUM],
+      preferType: SheetType.BOTTOM,
       showClose: true,
       onDisappear: () => { this.showCreateSheet = false }
     })
@@ -400,7 +445,8 @@ export struct SessionHomePage {
 
       this.TerminalBlock(I18n.get('session.home.guide.step2_activate'), [
         new TerminalLine('comment', I18n.get('session.home.guide.auto_activate')),
-        new TerminalLine('link', I18n.get('session.home.guide.visit'))
+        new TerminalLine('success', I18n.get('session.home.guide.scan')),
+        new TerminalLine('comment', I18n.get('session.home.guide.visit'))
       ])
 
       // Activate button

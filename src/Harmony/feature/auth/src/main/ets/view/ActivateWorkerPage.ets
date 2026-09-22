@@ -1,7 +1,13 @@
 /**
  * @file ActivateWorkerPage.ets
  * @brief Worker activation page with card layout and success state.
+ *
+ * Two entry paths: scan the QR shown by the desktop app (ScanKit, preferred —
+ * the QR encodes the activation URL whose ?code= param is the user code), or
+ * type the XXXX-XXXX code manually.
  */
+import { scanBarcode } from '@kit.ScanKit'
+import { common, abilityAccessCtrl, Permissions, BusinessError } from '@kit.AbilityKit'
 import { AuthService, I18n, PageLayout, showI18nToast, AnalyticsService, AnalyticsEvent } from '@rwecho/core'
 
 @Component
@@ -10,6 +16,7 @@ export struct ActivateWorkerPage {
   @State isLoading: boolean = false
   @State errorMessage: string = ''
   @State successMessage: string = ''
+  @State isScanning: boolean = false
   @Consume('pageStack') pageStack: NavPathStack
 
   aboutToAppear() {
@@ -98,6 +105,29 @@ export struct ActivateWorkerPage {
               }
 
               Button() {
+                if (this.isScanning) {
+                  LoadingProgress()
+                    .width(20)
+                    .height(20)
+                    .color($r('app.color.terminal_on_secondary_container'))
+                } else {
+                  Text(I18n.get('auth.activate.scan'))
+                    .fontSize(16)
+                    .fontWeight(FontWeight.Medium)
+                    .fontColor($r('app.color.terminal_on_secondary_container'))
+                }
+              }
+              .width('100%')
+              .height(48)
+              .borderRadius(8)
+              .backgroundColor($r('app.color.terminal_secondary_container'))
+              .margin({ top: 12 })
+              .enabled(!this.isScanning && !this.isLoading)
+              .onClick(() => {
+                this.startScan()
+              })
+
+              Button() {
                 if (this.isLoading) {
                   LoadingProgress()
                     .width(20)
@@ -130,6 +160,66 @@ export struct ActivateWorkerPage {
         .width('100%')
         .padding({ left: 24, right: 24 })
       }
+  }
+
+  /**
+   * Scan the QR displayed by the desktop app. The QR payload is the activation
+   * URL (`<gateway>/activate?code=XXXX-XXXX`); extract the code param. A bare
+   * user code is accepted too. Camera permission is requested inline — the
+   * scan page cannot open without it.
+   */
+  private async startScan() {
+    if (this.isScanning) {
+      return
+    }
+    this.isScanning = true
+    this.errorMessage = ''
+    try {
+      const context = getContext(this) as common.UIAbilityContext
+      const manager = abilityAccessCtrl.createAtManager()
+      await manager.requestPermissionsFromUser(context, ['ohos.permission.CAMERA'] as Array<Permissions>)
+
+      const options = new scanBarcode.ScanOptions()
+      options.scanTypes = [scanBarcode.ScanType.QR_CODE]
+      const result = await scanBarcode.startScanForResult(context, options)
+      const code = this.extractUserCode(result.originalValue)
+      if (code.length === 0) {
+        this.errorMessage = I18n.get('auth.activate.scan_invalid')
+        return
+      }
+      this.activationCode = this.formatCode(code)
+      this.activate()
+    } catch (e) {
+      const err = e as BusinessError
+      // 用户取消扫码（result code 1001）不算错误，静默返回
+      if (err.code !== 1001) {
+        this.errorMessage = err.message || I18n.get('auth.activate.scan_failed')
+      }
+    } finally {
+      this.isScanning = false
+    }
+  }
+
+  /** Extract the user code from a URL's `code` query param, or accept a raw code. */
+  private extractUserCode(raw: string): string {
+    if (!raw) {
+      return ''
+    }
+    const match = raw.match(/[?&]code=([A-Za-z0-9-]+)/)
+    const candidate = match !== null ? match[1] : raw.trim()
+    const cleaned = candidate.toUpperCase().replace(/[^A-Z0-9]/g, '')
+    return cleaned.length >= 4 ? cleaned.substring(0, 8) : ''
+  }
+
+  private formatCode(cleaned: string): string {
+    let formatted = ''
+    for (let i = 0; i < cleaned.length && i < 8; i++) {
+      if (i > 0 && i % 4 === 0) {
+        formatted += '-'
+      }
+      formatted += cleaned[i]
+    }
+    return formatted
   }
 
   private activate() {

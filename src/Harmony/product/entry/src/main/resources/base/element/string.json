@@ -61,6 +61,7 @@
     { "name": "time_days_ago", "value": "%dd ago" },
 
     { "name": "pasteboard_reason", "value": "Used to paste text from clipboard into the terminal" },
+    { "name": "camera_reason", "value": "Used to scan Corterm device authorization QR codes" },
 
     { "name": "login_tagline", "value": "Your Cloud Terminal, Always Connected" },
     { "name": "login_other_method", "value": "Other login methods" },

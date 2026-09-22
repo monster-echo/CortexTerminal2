@@ -73,7 +73,7 @@ export struct AccountSecurityPage {
         .width('100%')
         .padding({ left: 24, right: 24, top: 8 })
         .bindSheet(this.showDeleteSheet, this.DeleteSheetContent(), {
-          height: SheetSize.FIT_CONTENT,
+          height: SheetSize.MEDIUM,
           showClose: true,
           backgroundColor: $r('app.color.terminal_surface'),
           onDisappear: () => { this.showDeleteSheet = false }

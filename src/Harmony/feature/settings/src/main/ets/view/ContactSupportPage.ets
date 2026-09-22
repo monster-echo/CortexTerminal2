@@ -113,6 +113,9 @@ export struct ContactSupportPage {
         if (this.supportInfo!.telegramGroup !== null) {
           this.GroupCard(this.supportInfo!.telegramGroup as SupportGroupInfo, true)
         }
+        if (this.supportInfo!.feishuGroup !== null) {
+          this.FeishuCard(this.supportInfo!.feishuGroup as SupportGroupInfo)
+        }
         if (this.supportInfo!.email.length > 0) {
           this.EmailCard(this.supportInfo!.email)
         }
@@ -200,6 +203,62 @@ export struct ContactSupportPage {
   }
 
   @Builder
+  FeishuCard(group: SupportGroupInfo) {
+    Column() {
+      Row() {
+        SymbolGlyph($r('sys.symbol.person_2'))
+          .fontSize(20)
+          .fontColor([$r('app.color.terminal_secondary')])
+        Text(I18n.get('support.feishuGroupName'))
+          .fontSize(16)
+          .fontWeight(FontWeight.Medium)
+          .fontColor($r('app.color.terminal_primary'))
+          .margin({ left: 8 })
+          .layoutWeight(1)
+      }
+      .width('100%')
+
+      Column({ space: 8 }) {
+        Image(group.qrCodeUrl)
+          .width(160)
+          .height(160)
+          .borderRadius(12)
+          .backgroundColor($r('app.color.terminal_surface_container_high'))
+          .objectRepeat(ImageRepeat.NoRepeat)
+          .hitTestBehavior(HitTestMode.Transparent)
+        Text(I18n.get('support.scan_to_join'))
+          .fontSize(12)
+          .fontColor($r('app.color.terminal_on_surface_variant'))
+      }
+      .width('100%')
+      .alignItems(HorizontalAlign.Center)
+      .margin({ top: 16 })
+      .onClick(() => {
+        clickHaptic()
+        const param: Record<string, string> = { 'url': group.qrCodeUrl }
+        this.pageStack.pushPath({ name: RouteName.IMAGE_PREVIEW, param: param })
+      })
+
+      Button(I18n.get('support.join_feishu'))
+        .type(ButtonType.Capsule)
+        .width('100%')
+        .height(40)
+        .backgroundColor($r('app.color.terminal_secondary_container'))
+        .fontColor($r('app.color.terminal_on_secondary_container'))
+        .margin({ top: 12 })
+        .onClick(() => {
+          clickHaptic()
+          this.openLink(group.url)
+        })
+    }
+    .width('100%')
+    .padding(16)
+    .borderRadius(12)
+    .backgroundColor($r('app.color.terminal_surface_container'))
+    .margin({ bottom: 12 })
+  }
+
+  @Builder
   EmailCard(email: string) {
     Row() {
       SymbolGlyph($r('sys.symbol.envelope'))
@@ -257,5 +316,19 @@ export struct ContactSupportPage {
   private openExternal(url: string) {
     const navParam: Record<string, string> = { 'url': url }
     this.pageStack.pushPath({ name: RouteName.WEB_PAGE, param: navParam })
+  }
+
+  /** applink 优先拉起飞书 App，未安装时由系统落到浏览器。 */
+  private async openLink(url: string) {
+    try {
+      const ctx = this.getUIContext()?.getHostContext() as common.UIAbilityContext
+      const want: Want = {
+        action: 'ohos.want.action.viewData',
+        uri: url
+      }
+      await ctx.startAbility(want)
+    } catch (e) {
+      showToast(I18n.get('common.link_open_failed'))
+    }
   }
 }

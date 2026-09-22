@@ -7,7 +7,7 @@
  */
 import { http } from '@kit.NetworkKit'
 import { SessionInfo, SessionCreateRequest, SessionCreateResponse } from '../model/SessionModels'
-import { WorkerInfo, GatewayInfo, SupportInfo, SupportGroupInfo, TunnelInfo } from '../model/SharedModels'
+import { WorkerInfo, GatewayInfo, SupportInfo, SupportGroupInfo, TunnelInfo, AnnouncementInfo } from '../model/SharedModels'
 import { AuthError, AuthErrorKind } from './AuthError'
 
 export interface FeedbackUploadResult {
@@ -194,8 +194,23 @@ export class ApiService {
     const info = new SupportInfo()
     info.qqGroup = ApiService.mapSupportGroup(response['qqGroup'])
     info.telegramGroup = ApiService.mapSupportGroup(response['telegramGroup'])
+    info.feishuGroup = ApiService.mapSupportGroup(response['feishuGroup'])
     info.email = (response['email'] as string) ?? ''
     return info
+  }
+
+  static async listAnnouncements(): Promise<AnnouncementInfo[]> {
+    const response = await ApiService.get('/api/announcements', false) as Object[]
+    return response.map((item: Object) => {
+      const data = item as Record<string, Object>
+      const announcement = new AnnouncementInfo()
+      announcement.id = (data['id'] as string) ?? ''
+      announcement.title = (data['title'] as string) ?? ''
+      announcement.body = (data['body'] as string) ?? ''
+      announcement.buttonLabel = (data['buttonLabel'] as string) ?? ''
+      announcement.url = (data['url'] as string) ?? ''
+      return announcement
+    })
   }
 
   private static mapSupportGroup(raw: Object | undefined): SupportGroupInfo | null {

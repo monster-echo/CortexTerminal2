@@ -61,6 +61,7 @@
     { "name": "time_days_ago", "value": "%d天前" },
 
     { "name": "pasteboard_reason", "value": "用于从剪贴板粘贴文本到终端" },
+    { "name": "camera_reason", "value": "用于扫描云枢终端设备授权二维码" },
 
     { "name": "login_tagline", "value": "随时连接你的云端终端" },
     { "name": "login_other_method", "value": "其他方式登录" },

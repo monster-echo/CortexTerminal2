@@ -422,6 +422,9 @@ export struct TerminalPage {
             }
             this.sessionName = title
             this.maybeAutoRename(title)
+          },
+          onOscEvent: (code: string, data: string) => {
+            this.handleOsc(code, data)
           }
         })
 
@@ -494,7 +497,8 @@ export struct TerminalPage {
     .height('100%')
     .backgroundColor($r('app.color.terminal_surface'))
     .bindSheet($$this.showTunnelSheet, this.TunnelSheetContent(), {
-      height: SheetSize.LARGE,
+      detents: ['66%', SheetSize.MEDIUM],
+      preferType: SheetType.BOTTOM,
       showClose: true,
       backgroundColor: $r('app.color.terminal_surface'),
       onDisappear: () => { this.showTunnelSheet = false }
@@ -831,12 +835,65 @@ export struct TerminalPage {
       })
   }
 
+  /**
+   * OSC 扩展事件（对齐 Flutter 端 onPrivateOSC）：
+   * 52 → 远端写本地剪贴板（vim yank / tmux copy 直达手机）；
+   * 9 / 777 → 远程通知（长任务完成提醒）；
+   * 7 → 当前目录上报，存 AppStorage 供后续终端↔文件联动。
+   */
+  private handleOsc(code: string, data: string) {
+    if (code === '52') {
+      try {
+        const bytes = new util.Base64Helper().decodeSync(data)
+        const text = util.TextDecoder.create('utf-8').decodeWithStream(bytes)
+        if (text.length === 0) {
+          return
+        }
+        const pasteData = pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, text)
+        pasteboard.getSystemPasteboard().setData(pasteData)
+        showToast(I18n.get('session.home.guide.copied'))
+      } catch (_e) {
+        // 远端实现不规范（非 base64）：忽略本次，不影响终端。
+      }
+      return
+    }
+    if (code === '9') {
+      // iTerm2: `9;<msg>`；Windows Terminal: `9;1;<msg>`（首段为纯数字序列号时剥掉）。
+      const parts = data.split(';')
+      const message = parts.length > 1 && /^\d+$/.test(parts[0]) ? parts.slice(1).join(';') : data
+      if (message.length > 0) {
+        showToast(message)
+      }
+      return
+    }
+    if (code === '777') {
+      // rxvt 约定：`777;notify;标题;正文`。
+      const parts = data.split(';')
+      const message = parts[0] === 'notify' && parts.length > 1 ? parts.slice(1).join(' · ') : data
+      if (message.length > 0) {
+        showToast(message)
+      }
+      return
+    }
+    if (code === '7') {
+      // `7;file://host/path` → 剥离 host 保留绝对路径，供后续终端↔文件联动。
+      if (!data.startsWith('file://')) {
+        return
+      }
+      const rest = data.substring('file://'.length)
+      const slash = rest.indexOf('/')
+      const path = slash < 0 ? '/' : rest.substring(slash)
+      AppStorage.setOrCreate('terminalCwd', path)
+    }
+  }
+
   /** True while the session still wears the auto-generated placeholder name. */
   private isDefaultSessionName(name: string): boolean {
     if (name.length === 0 || name === 'Terminal') {
       return true
     }
-    return /^session \S{1,12}$/.test(name)
+    // 网关占位名两种形态：`session 2e1a4f5b`（空格）/ `session_2e1a4f5b`（下划线）。
+    return /^session[_\s-]?[0-9a-f]{4,}$/i.test(name)
   }
 
   /**

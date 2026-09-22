@@ -142,7 +142,7 @@ export struct WorkerListPage {
     .layoutWeight(1)
     .backgroundColor($r('app.color.terminal_surface'))
     .bindSheet($$this.showWorkerSheet, this.WorkerSheetContent(), {
-      height: SheetSize.FIT_CONTENT,
+      height: SheetSize.MEDIUM,
       showClose: true,
       onDisappear: () => { this.showWorkerSheet = false }
     })

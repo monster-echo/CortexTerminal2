@@ -157,6 +157,8 @@ export struct WorkerDetailPage {
     .layoutWeight(1)
     .backgroundColor($r('app.color.terminal_surface'))
     .bindSheet(this.showCreateWorkspace, this.CreateWorkspaceSheet(), {
+      detents: ['66%', SheetSize.MEDIUM],
+      preferType: SheetType.BOTTOM,
       backgroundColor: $r('app.color.terminal_surface'),
       onDisappear: () => { this.showCreateWorkspace = false }
     })
