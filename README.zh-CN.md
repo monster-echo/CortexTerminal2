@@ -118,7 +118,7 @@ powershell -Command "irm https://corterm.rwecho.top/install.ps1 | iex"
 
 ## 技术栈
 
-.NET 10 (Gateway / Worker) · React 19 + xterm.js (Console) · .NET MAUI + Ionic (Mobile) · SignalR + MessagePack
+.NET 10 (Gateway / Worker) · React 19 + xterm.js (Console) · Flutter (Mobile · Worker UI) · ArkTS (HarmonyOS) · SignalR + MessagePack
 
 ## 运行测试
 

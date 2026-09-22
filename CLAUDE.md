@@ -18,45 +18,67 @@
 - 大文字（≥18sp）/图标/可交互元素边框 ≥ **3:1**
 - 深色 + 浅色双模式必查
 
-> 关键：按钮蓝用 Twitter hover 色 `#1a8cd8`（白字 3.63:1，超 3:1 线 0.63），浅色链接/次要文字用更深的 `#0a6fc2`（4.74:1，满足正文 4.5:1）——per-token 差异化兼顾品牌识别与合规。
+> 关键：Primary 就是品牌蓝（Light `#1689E6` / Dark `#2498F3`），状态色（Green/Red/Amber/灰）与品牌色彻底分开。注意浅色正文中品牌蓝 `#1689E6` 对白底约 3.3:1，**不满足正文 4.5:1**——正文里的链接/可读次要文字用 `terminal_on_primary_container`（`#075A9A`，4.7:1），按钮文字只要求 3:1 所以可以直接用 Primary。
 
 ### 颜色系统（Dark Theme · 深色）
 
 | Token | 色值 | 用途 |
 |-------|------|------|
-| `terminal_surface` | `#0f1419` | 页面主背景 |
-| `terminal_surface_container` | `#1a1f2e` | 卡片/表单容器背景 |
-| `terminal_surface_container_high` | `#232a3b` | 输入框背景 |
-| `terminal_surface_container_highest` | `#2d3548` | 对话框背景 |
-| `terminal_primary` | `#e7e9ea` | 主文字/高强调内容 |
-| `terminal_secondary` | `#7cacf8` | 次要文字/链接 |
-| `terminal_secondary_container` | `#1a8cd8` | 主操作按钮背景（Twitter hover） |
-| `terminal_tertiary` | `#00ba7c` | 成功/在线状态 |
-| `terminal_error` | `#ff5c5c` | 错误/失败状态 |
-| `terminal_on_surface` | `#e7e9ea` | 表面上的文字 |
-| `terminal_on_surface_variant` | `#9aa4b0` | 次要/提示文字 |
-| `terminal_on_secondary_container` | `#ffffff` | 按钮上的文字 |
-| `terminal_outline` | `#6b7785` | 边框/图标/分割线 |
-| `terminal_outline_variant` | `#2f3336` | 弱边框/装饰分割线 |
+| `terminal_surface` | `#0B0F14` | 页面主背景 |
+| `terminal_surface_container` | `#121820` | 卡片/表单容器背景 |
+| `terminal_surface_container_high` | `#18212B` | 输入框背景 |
+| `terminal_surface_container_highest` | `#202B37` | 对话框背景 |
+| `terminal_primary` | `#2498F3` | 品牌主色/主操作/选中态 |
+| `terminal_primary_container` | `#103A5C` | 品牌色弱容器背景 |
+| `terminal_on_primary` | `#FFFFFF` | Primary 上的文字/图标 |
+| `terminal_on_primary_container` | `#B8DEFC` | Primary container 上的文字/正文链接 |
+| `terminal_secondary` | `#8FBCE8` | 次要强调色 |
+| `terminal_secondary_container` | `#26384A` | 次要容器背景 |
+| `terminal_on_secondary` | `#0B0F14` | Secondary 上的文字 |
+| `terminal_on_secondary_container` | `#D6E9FA` | Secondary container 上的文字 |
+| `terminal_tertiary` | `#20C997` | 成功/Live 状态 |
+| `terminal_error` | `#FF5A66` | 错误/Failed 状态 |
+| `terminal_warning` | `#F4B740` | 警告状态 |
+| `terminal_on_surface` | `#F0F3F7` | 主文字 |
+| `terminal_on_surface_variant` | `#98A4B3` | 次要/提示文字 |
+| `terminal_text_tertiary` | `#6F7C8B` | 三级文字（时间戳等） |
+| `terminal_text_disabled` | `#4E5967` | 禁用文字 |
+| `terminal_outline` | `#607083` | 边框/图标/分割线 |
+| `terminal_outline_variant` | `#27313D` | 弱边框/装饰分割线 |
+| `terminal_inverse_surface` | `#F2F5F8` | 反色表面（toast 等） |
+| `terminal_inverse_on_surface` | `#111820` | 反色表面上的文字 |
+| `terminal_status_idle` | `#667386` | Idle 状态点 |
 
 ### 颜色系统（Light Theme · 浅色）
 
 | Token | 色值 | 用途 |
 |-------|------|------|
-| `terminal_surface` | `#f5f5f5` | 页面主背景 |
-| `terminal_surface_container` | `#ffffff` | 卡片/表单容器背景 |
-| `terminal_surface_container_high` | `#f0f0f0` | 输入框背景 |
-| `terminal_surface_container_highest` | `#e8e8e8` | 对话框背景 |
-| `terminal_primary` | `#1a1a1a` | 主文字/高强调内容 |
-| `terminal_secondary` | `#0a6fc2` | 次要文字/链接（正文，4.74:1） |
-| `terminal_secondary_container` | `#1a8cd8` | 主操作按钮背景（Twitter hover） |
-| `terminal_tertiary` | `#00824f` | 成功/在线状态 |
-| `terminal_error` | `#c81823` | 错误/失败状态 |
-| `terminal_on_surface` | `#1a1a1a` | 表面上的文字 |
-| `terminal_on_surface_variant` | `#536471` | 次要/提示文字 |
-| `terminal_on_secondary_container` | `#ffffff` | 按钮上的文字 |
-| `terminal_outline` | `#7a8590` | 边框/图标/分割线 |
-| `terminal_outline_variant` | `#e0e0e0` | 弱边框/装饰分割线 |
+| `terminal_surface` | `#F6F8FA` | 页面主背景 |
+| `terminal_surface_container` | `#FFFFFF` | 卡片/表单容器背景 |
+| `terminal_surface_container_high` | `#F1F4F8` | 输入框背景 |
+| `terminal_surface_container_highest` | `#E8EDF3` | 对话框背景 |
+| `terminal_primary` | `#1689E6` | 品牌主色/主操作/选中态 |
+| `terminal_primary_container` | `#E8F3FC` | 品牌色弱容器背景 |
+| `terminal_on_primary` | `#FFFFFF` | Primary 上的文字/图标 |
+| `terminal_on_primary_container` | `#075A9A` | Primary container 上的文字/正文链接（4.7:1） |
+| `terminal_secondary` | `#4E6F91` | 次要强调色 |
+| `terminal_secondary_container` | `#EAF0F6` | 次要容器背景 |
+| `terminal_on_secondary` | `#FFFFFF` | Secondary 上的文字 |
+| `terminal_on_secondary_container` | `#294661` | Secondary container 上的文字 |
+| `terminal_tertiary` | `#0F9F6E` | 成功/Live 状态 |
+| `terminal_error` | `#D92D3A` | 错误/Failed 状态 |
+| `terminal_warning` | `#C87800` | 警告状态 |
+| `terminal_on_surface` | `#17202B` | 主文字 |
+| `terminal_on_surface_variant` | `#627083` | 次要/提示文字 |
+| `terminal_text_tertiary` | `#8A96A6` | 三级文字（时间戳等） |
+| `terminal_text_disabled` | `#AEB7C2` | 禁用文字 |
+| `terminal_outline` | `#9AA7B5` | 边框/图标/分割线 |
+| `terminal_outline_variant` | `#DCE3EA` | 弱边框/装饰分割线 |
+| `terminal_inverse_surface` | `#161B22` | 反色表面（toast 等） |
+| `terminal_inverse_on_surface` | `#F5F7FA` | 反色表面上的文字 |
+| `terminal_status_idle` | `#758195` | Idle 状态点 |
+
+> 语义原则：一个 token 一个职责，不 fallback、不混用。蓝=品牌/交互，绿=Live/Success，红=Failed/Error，黄=Warning，灰=Idle（用 `terminal_status_idle`，不要拿 `terminal_outline` 充当）。状态色与品牌色彻底分开。
 
 资源引用方式：`$r('app.color.terminal_surface')`
 
@@ -107,15 +129,15 @@
 - 高度：48dp
 - 背景：`terminal_surface_container_high`
 - 圆角：8dp
-- 文字颜色：`terminal_primary`
+- 文字颜色：`terminal_on_surface`
 - 占位符颜色：`terminal_on_surface_variant`
 - 标签：14fp，`terminal_on_surface_variant`，底部间距 8dp
 - 输入框间距（垂直）：16dp
 
 #### 主操作按钮
 - 高度：48dp
-- 背景：`terminal_secondary_container`（`#1a8cd8`，深+浅一致）
-- 文字：16fp Medium，`terminal_on_secondary_container`（`#ffffff`，对比度 3.63:1 ≥ 按钮文字 3:1）
+- 背景：`terminal_primary`（品牌蓝，Light `#1689E6` / Dark `#2498F3`）
+- 文字：16fp Medium，`terminal_on_primary`（`#ffffff`，对比度 ≥ 按钮文字 3:1）
 - 圆角：24dp（胶囊形）
 - 宽度：100%（受 maxWidth 400dp 约束）
 - 禁用状态：opacity 0.5
@@ -124,7 +146,7 @@
 - 高度：48dp
 - 背景：透明
 - 边框：1dp `terminal_outline_variant`
-- 文字：14fp Medium，`terminal_primary`
+- 文字：14fp Medium，`terminal_on_surface`
 - 圆角：8dp
 
 #### 错误提示条

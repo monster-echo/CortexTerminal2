@@ -118,7 +118,7 @@ Navigate to `http://localhost:5045`, log in, and start a terminal session.
 
 ## Tech Stack
 
-.NET 10 (Gateway / Worker) · React 19 + xterm.js (Console) · .NET MAUI + Ionic (Mobile) · SignalR + MessagePack
+.NET 10 (Gateway / Worker) · React 19 + xterm.js (Console) · Flutter (Mobile · Worker UI) · ArkTS (HarmonyOS) · SignalR + MessagePack
 
 ## Running Tests
 
