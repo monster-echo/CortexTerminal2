@@ -1,46 +1,20 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
-import 'package:url_launcher/url_launcher.dart';
 
-import '../../../core/api/api_exception.dart';
 import '../../../core/auth/auth_controller.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/app_shell.dart';
+import '../../../shared/widgets/connection_status_dot.dart';
 import '../../../shared/widgets/list_group.dart';
-import '../../../shared/widgets/sheets_and_dialogs.dart';
 import '../../../shared/widgets/states.dart';
-import '../data/membership_repository.dart';
+import '../../sessions/data/sessions_providers.dart';
+import '../../workspace/widgets/session_status.dart';
 
-/// 商店详情页（评分、分享共用），与 docs/producthunt-launch.md 公布的一致：
-/// - iOS:    https://apps.apple.com/us/app/corterm/id6767838640
-/// - Android: https://play.google.com/store/apps/details?id=top.rwecho.cortexterminal
-const kAppleAppStoreUrl = 'https://apps.apple.com/us/app/corterm/id6767838640';
-const kGooglePlayUrl =
-    'https://play.google.com/store/apps/details?id=top.rwecho.cortexterminal';
-
-/// 按当前平台返回对应商店页；web/未知平台给 Play 链接（分享文案里最通用）。
-final storeUrlProvider = Provider<String>((ref) {
-  if (kIsWeb) return kGooglePlayUrl;
-  if (defaultTargetPlatform == TargetPlatform.iOS) return kAppleAppStoreUrl;
-  return kGooglePlayUrl;
-});
-
-/// 「评分」直达链接：iOS 用 write-review 深链，点开直接弹 App Store 的
-/// 评分页（不用再找评分按钮）；Android 的 Play 商店没有等价深链，
-/// 只能到详情页（详情页里有「 write review 」入口）。
-final reviewUrlProvider = Provider<String>((ref) {
-  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
-    return 'itms-apps://itunes.apple.com/app/id6767838640?action=write-review';
-  }
-  return ref.read(storeUrlProvider);
-});
-
-/// 我的（§50 对齐 ArkTS SettingsPage 用户区）：用户头 → 会员权益（订阅 + 兑换）
-/// → 评分 / 分享 → 设置入口。侧边栏底部用户行直达此页。
+/// 我的：上面强调会员权益（hero 卡：权益说明 + 兑换 / 邀请返利入口），
+/// 下面是 Worker 概况与统计（压栈进入，可返回）；右上角齿轮进设置。
+/// 侧边栏底部用户行直达此页。
 class MeScreen extends ConsumerWidget {
   const MeScreen({super.key});
 
@@ -48,11 +22,20 @@ class MeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final auth = ref.watch(authProvider);
-    final subscription = ref.watch(subscriptionProvider);
 
     return AppShellScaffold(
       tab: ShellTab.me,
       title: l10n.meTitle,
+      actions: [
+        // 右上角设置入口：压栈进入，设置页带返回键。
+        Builder(
+          builder: (innerContext) => ShadIconButton.ghost(
+            foregroundColor: ShadTheme.of(innerContext).colorScheme.foreground,
+            icon: const Icon(LucideIcons.settings, size: 20),
+            onPressed: () => context.push('/settings'),
+          ),
+        ),
+      ],
       body: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         children: [
@@ -67,194 +50,218 @@ class MeScreen extends ConsumerWidget {
             ),
           ]),
 
-          // ---- 会员权益 ----
-          AppGroupHeader(l10n.benefitsTitle),
-          AppGroupCard(children: [
-            AppRow(
-              icon: LucideIcons.crown,
-              label: l10n.benefitsTitle,
-              value: subscription.valueOrNull?._tierLabel(l10n) ?? '…',
-              chevron: true,
-              onTap: () => _showBenefits(context, ref),
-            ),
-            AppRow(
-              icon: LucideIcons.ticket,
-              label: l10n.redeemCodeLabel,
-              chevron: true,
-              onTap: () => _redeem(context, ref),
-            ),
-          ]),
+          // ---- 会员权益 hero 卡：整块强调 ----
+          const _BenefitsHero(),
 
-          // ---- 评分 / 分享 ----
-          AppGroupHeader(l10n.shareApp),
-          AppGroupCard(children: [
-            AppRow(
-              icon: LucideIcons.star,
-              label: l10n.rateUs,
-              chevron: true,
-              onTap: () => _rate(context, ref),
-            ),
-            AppRow(
-              icon: LucideIcons.share2,
-              label: l10n.shareApp,
-              chevron: true,
-              onTap: () => _share(context, ref),
-            ),
-          ]),
-
-          // ---- 设置 ----
-          AppGroupHeader(l10n.settings),
-          AppGroupCard(children: [
-            AppRow(
-              icon: LucideIcons.settings,
-              label: l10n.settings,
-              chevron: true,
-              onTap: () => context.push('/settings'),
-            ),
-          ]),
+          // ---- Worker 概况与统计（?from=me：Workers 页显示返回键）----
+          AppGroupHeader(l10n.meStatsTitle),
+          const _WorkerStatsCard(),
         ],
       ),
     );
   }
+}
 
-  Future<void> _showBenefits(BuildContext context, WidgetRef ref) async {
+/// 会员权益 hero 卡：品牌色强调底 + 权益提示 + 兑换码 / 邀请返利两个入口。
+class _BenefitsHero extends StatelessWidget {
+  const _BenefitsHero();
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final subscription = await ref.read(subscriptionProvider.future);
-    if (!context.mounted) return;
-    await showCortermSheet<void>(
-      context: context,
-      builder: (sheetContext) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(l10n.benefitsTitle,
-                    style: ShadTheme.of(sheetContext).textTheme.large),
-                const SizedBox(height: 16),
-                _BenefitRow(
-                    label: l10n.benefitsTitle,
-                    value: subscription._tierLabel(l10n)),
-                _BenefitRow(
-                  label: l10n.membershipExpires,
-                  value: subscription.expiresAtUtc == null
-                      ? l10n.membershipNoExpiry
-                      : _fmt(subscription.expiresAtUtc!),
-                ),
-                if (subscription.maxWorkers != null)
-                  _BenefitRow(
-                      label: l10n.quotaWorkers,
-                      value: '${subscription.maxWorkers}'),
-                if (subscription.maxScrollbackMegabytes != null)
-                  _BenefitRow(
-                      label: l10n.quotaScrollback,
-                      value: '${subscription.maxScrollbackMegabytes} MB'),
-                const SizedBox(height: 8),
-                ShadButton.outline(
-                  onPressed: () => Navigator.of(sheetContext).pop(),
-                  child: Text(AppLocalizations.of(sheetContext)!.cancel),
-                ),
-              ],
-            ),
+    final theme = ShadTheme.of(context);
+    final scheme = theme.colorScheme;
+
+    return Container(
+      margin: const EdgeInsets.only(top: 16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: scheme.primary,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(LucideIcons.crown,
+                  size: 20, color: scheme.primaryForeground),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(l10n.benefitsTitle,
+                    style: theme.textTheme.large.copyWith(
+                      color: scheme.primaryForeground,
+                      fontWeight: FontWeight.w700,
+                    )),
+              ),
+            ],
           ),
-        );
+          const SizedBox(height: 6),
+          Text(
+            l10n.meBenefitsHint,
+            style: theme.textTheme.muted.copyWith(
+                color: scheme.primaryForeground.withValues(alpha: 0.85)),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: ShadButton(
+                  backgroundColor: scheme.primaryForeground,
+                  foregroundColor: scheme.primary,
+                  onPressed: () => context.push('/settings/redeem'),
+                  child: Text(l10n.redeemCode),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: ShadButton.outline(
+                  foregroundColor: scheme.primaryForeground,
+                  decoration: ShadDecoration(
+                    border: ShadBorder.all(
+                      color: scheme.primaryForeground.withValues(alpha: 0.5),
+                      radius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  onPressed: () => context.push('/settings/referral'),
+                  child: Text(l10n.referral),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Worker 概况卡：在线数 / 会话总数 / 平均 CPU / 平均内存 2×2 统计格
+/// + Worker 状态行 + 查看全部（全部压栈进入，可返回）。
+class _WorkerStatsCard extends ConsumerWidget {
+  const _WorkerStatsCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final scheme = ShadTheme.of(context).colorScheme;
+    final workers = ref.watch(workersProvider);
+
+    return workers.when(
+      loading: () => const Padding(
+        padding: EdgeInsets.symmetric(vertical: 24),
+        child: Center(child: SmallSpinner()),
+      ),
+      error: (e, _) => ErrorState(
+        message: '$e',
+        onRetry: () => ref.invalidate(workersProvider),
+      ),
+      data: (list) {
+        final online = list.where((w) => w.isOnline).length;
+        final sessions = list.fold<int>(0, (sum, w) => sum + w.sessionCount);
+        final cpuList = list.where((w) => w.cpuUsagePercent != null).toList();
+        final avgCpu = cpuList.isEmpty
+            ? null
+            : cpuList.map((w) => w.cpuUsagePercent!).reduce((a, b) => a + b) /
+                cpuList.length;
+        final memList =
+            list.where((w) => w.memoryUsagePercent != null).toList();
+        final avgMem = memList.isEmpty
+            ? null
+            : memList.map((w) => w.memoryUsagePercent!).reduce((a, b) => a + b) /
+                memList.length;
+
+        return AppGroupCard(children: [
+          if (list.isEmpty)
+            AppRow(
+              icon: LucideIcons.server,
+              label: l10n.meNoWorkers,
+              value: l10n.workersTitle,
+              chevron: true,
+              onTap: () => context.push('/workers?from=me'),
+            )
+          else ...[
+            // 2×2 统计格：宽间距 + 上下分割，避免四格挤在一行。
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                          child: _Stat(
+                              label: '$online/${list.length}',
+                              caption: l10n.workersTitle)),
+                      Expanded(
+                          child: _Stat(
+                              label: '$sessions', caption: l10n.meStatSessions)),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                          child: _Stat(
+                              label: avgCpu == null ? '—' : '${avgCpu.toStringAsFixed(0)}%',
+                              caption: l10n.meStatCpu)),
+                      Expanded(
+                          child: _Stat(
+                              label: avgMem == null ? '—' : '${avgMem.toStringAsFixed(0)}%',
+                              caption: l10n.meStatMemory)),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            for (final w in list.take(3))
+              AppRow(
+                leadingWidget: ConnectionStatusDot(
+                  color: workerDotColor(scheme, w),
+                ),
+                label: w.displayName,
+                value: w.isOnline ? l10n.workerOnline : l10n.workerOffline,
+                onTap: () => context.push('/workers?from=me'),
+              ),
+            AppRow(
+              label: l10n.meViewAllWorkers,
+              value: l10n.workersTitle,
+              chevron: true,
+              onTap: () => context.push('/workers?from=me'),
+            ),
+          ],
+        ]);
       },
     );
   }
-
-  String _fmt(DateTime utc) {
-    final local = utc.toLocal();
-    return '${local.year}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')}';
-  }
-
-  Future<void> _redeem(BuildContext context, WidgetRef ref) async {
-    final l10n = AppLocalizations.of(context)!;
-    final controller = TextEditingController();
-    final code = await showCortermSheetDialog<String>(
-      context: context,
-      title: l10n.redeemCodeLabel,
-      child: ShadInputFormField(
-        controller: controller,
-        placeholder: Text(l10n.redeemCodeLabel),
-      ),
-      actions: [
-        ShadButton.outline(
-          onPressed: () => Navigator.pop(context),
-          child: Text(l10n.cancel),
-        ),
-        ShadButton(
-          onPressed: () => Navigator.pop(context, controller.text.trim()),
-          child: Text(l10n.redeemAction),
-        ),
-      ],
-    );
-    if (code == null || code.isEmpty) return;
-    try {
-      await ref.read(membershipRepositoryProvider).redeem(code);
-      ref.invalidate(subscriptionProvider);
-      if (context.mounted) showAppToast(context, l10n.redeemSuccess);
-    } on ApiException catch (e) {
-      if (context.mounted) {
-        showAppToast(context, e.serverMessage ?? '$e', destructive: true);
-      }
-    }
-  }
-
-  /// iOS 直达写评论（write-review 深链）；深链打不开时退回商店详情页。
-  /// 对齐 ArkTS 的失败 toast（rate_failed）。
-  Future<void> _rate(BuildContext context, WidgetRef ref) async {
-    final l10n = AppLocalizations.of(context)!;
-    Future<bool> open(String url) => launchUrl(
-          Uri.parse(url),
-          mode: LaunchMode.externalApplication,
-        );
-    try {
-      if (await open(ref.read(reviewUrlProvider))) return;
-      if (await open(ref.read(storeUrlProvider))) return;
-      throw StateError('launchUrl returned false');
-    } catch (e) {
-      if (context.mounted) {
-        showAppToast(context, l10n.rateFailed('$e'), destructive: true);
-      }
-    }
-  }
-
-  Future<void> _share(BuildContext context, WidgetRef ref) async {
-    final l10n = AppLocalizations.of(context)!;
-    await SharePlus.instance.share(
-      ShareParams(text: l10n.shareAppText(ref.read(storeUrlProvider))),
-    );
-  }
 }
 
-extension _SubscriptionLabel on BillingSubscription {
-  String _tierLabel(AppLocalizations l10n) {
-    if (tier.toLowerCase() == 'free' || !isActive) return l10n.membershipFree;
-    return planCode?.isNotEmpty ?? false ? planCode! : tier;
-  }
-}
-
-class _BenefitRow extends StatelessWidget {
-  const _BenefitRow({required this.label, required this.value});
+/// 单个统计块：大数字在上 + 小标签在下，居中，留足呼吸感。
+class _Stat extends StatelessWidget {
+  const _Stat({required this.label, required this.caption});
 
   final String label;
-  final String value;
+  final String caption;
 
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        children: [
-          Expanded(child: Text(label, style: theme.textTheme.small)),
-          Text(value,
-              style: theme.textTheme.small
-                  .copyWith(fontWeight: FontWeight.w500)),
-        ],
-      ),
+    final scheme = theme.colorScheme;
+    return Column(
+      children: [
+        Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.large.copyWith(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          caption,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style:
+              theme.textTheme.muted.copyWith(color: scheme.mutedForeground),
+        ),
+      ],
     );
   }
 }

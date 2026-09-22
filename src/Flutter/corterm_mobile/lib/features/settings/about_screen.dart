@@ -125,10 +125,10 @@ class AboutScreen extends ConsumerWidget {
     }
     try {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } catch (_) {
+    } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.rateFailed)),
+          SnackBar(content: Text(l10n.rateFailed('$e'))),
         );
       }
     }

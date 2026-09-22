@@ -27,10 +27,14 @@ class WorkersScreen extends ConsumerWidget {
     final theme = ShadTheme.of(context);
     final scheme = theme.colorScheme;
     final workers = ref.watch(workersProvider);
+    // 从「我的」统计卡带 ?from=me 压栈进入：显示返回键而非汉堡按钮。
+    final showBack =
+        GoRouterState.of(context).uri.queryParameters['from'] == 'me';
 
     return AppShellScaffold(
       tab: ShellTab.workers,
       title: l10n.workersTitle,
+      showBack: showBack,
       body: workers.when(
         loading: () => const SmallSpinner(),
         error: (e, _) => ErrorState(message: '$e', onRetry: () => ref.invalidate(workersProvider)),

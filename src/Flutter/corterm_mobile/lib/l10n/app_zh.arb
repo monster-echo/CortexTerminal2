@@ -293,12 +293,11 @@
   "installWorkerTitle": "安装 Worker",
   "installWorkerIntro": "在你的机器上运行安装脚本，将其接入为 Worker，然后按提示激活。",
   "installActivateHint": "安装后运行 'corterm activate'，再到 设置 → 设备接入 确认激活码。",
-  "installCopyCommand": "复制命令"
-,
+  "installCopyCommand": "复制命令",
   "redeemCode": "兑换码",
   "redeemPlaceholder": "输入兑换码",
   "redeemButton": "兑换",
-  "redeemSuccess": "兑换成功，Pro 已生效！",
+  "redeemSuccess": "兑换成功，会员已更新。",
   "redeemFailed": "兑换失败",
   "referral": "分享赚收益",
   "referralSubtitle": "分享你的邀请码，好友开通会员后你将获得 Pro 天数奖励。",
@@ -313,9 +312,8 @@
   "applyInvite": "提交",
   "applyInviteSuccess": "邀请码绑定成功！",
   "share": "分享",
-  "rateUs": "给个好评",
-  "rateFailed": "无法打开应用商店",
-  "installCopyCommand": "复制命令",
+  "rateUs": "给我们评分",
+  "rateFailed": "无法打开应用市场：{msg}",
   "meTitle": "我的",
   "benefitsTitle": "会员权益",
   "membershipFree": "免费版",
@@ -325,9 +323,6 @@
   "quotaScrollback": "回滚区上限",
   "redeemCodeLabel": "兑换码",
   "redeemAction": "兑换",
-  "redeemSuccess": "兑换成功，会员已更新。",
-  "rateUs": "给我们评分",
-  "rateFailed": "无法打开应用市场：{msg}",
   "@rateFailed": {
     "placeholders": {
       "msg": {
@@ -343,5 +338,24 @@
         "type": "String"
       }
     }
-  }
+  },
+  "meStatsTitle": "Worker 与统计",
+  "meOnlineCount": "{online}/{total} 台在线",
+  "@meOnlineCount": {
+    "placeholders": {
+      "online": {
+        "type": "String"
+      },
+      "total": {
+        "type": "String"
+      }
+    }
+  },
+  "meStatSessions": "会话数",
+  "meStatCpu": "平均 CPU",
+  "meStatMemory": "平均内存",
+  "meViewAllWorkers": "查看全部",
+  "meNoWorkers": "暂无 Worker",
+  "meBenefitsHint": "升级解锁更高权益",
+  "meBenefitsAction": "查看权益"
 }

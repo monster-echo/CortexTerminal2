@@ -20,12 +20,15 @@ class AppShellScaffold extends ConsumerWidget {
     required this.title,
     required this.body,
     this.actions = const [],
+    // 从「我的」等页面压栈进入时为 true：leading 变返回键而不是汉堡按钮。
+    this.showBack = false,
   });
 
   final ShellTab tab;
   final String title;
   final Widget body;
   final List<Widget> actions;
+  final bool showBack;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -43,13 +46,19 @@ class AppShellScaffold extends ConsumerWidget {
         // 图标视觉缩进与右侧贴边动作钮一致。
         leadingWidth: 44,
         // Builder 下沉 context：Scaffold.of 必须从 Scaffold 之下的树里查找。
-        leading: Builder(
-          builder: (innerContext) => ShadIconButton.ghost(
-            foregroundColor: scheme.foreground,
-            icon: const Icon(LucideIcons.menu, size: 22),
-            onPressed: () => Scaffold.of(innerContext).openDrawer(),
-          ),
-        ),
+        leading: showBack
+            ? ShadIconButton.ghost(
+                foregroundColor: scheme.foreground,
+                icon: const Icon(LucideIcons.arrowLeft, size: 20),
+                onPressed: () => context.pop(),
+              )
+            : Builder(
+                builder: (innerContext) => ShadIconButton.ghost(
+                  foregroundColor: scheme.foreground,
+                  icon: const Icon(LucideIcons.menu, size: 22),
+                  onPressed: () => Scaffold.of(innerContext).openDrawer(),
+                ),
+              ),
         actions: actions,
       ),
       body: body,

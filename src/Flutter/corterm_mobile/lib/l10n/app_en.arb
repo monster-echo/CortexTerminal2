@@ -377,12 +377,11 @@
   "installWorkerTitle": "Install a worker",
   "installWorkerIntro": "Run the installer on your machine to connect it as a worker, then activate it with the command shown there.",
   "installActivateHint": "After install, run 'corterm activate' and confirm the code under Settings → Device access.",
-  "installCopyCommand": "Copy command"
-,
+  "installCopyCommand": "Copy command",
   "redeemCode": "Redeem Code",
   "redeemPlaceholder": "Enter redeem code",
   "redeemButton": "Redeem",
-  "redeemSuccess": "Redeemed! Pro is now active.",
+  "redeemSuccess": "Redeemed. Membership updated.",
   "redeemFailed": "Redeem failed",
   "referral": "Invite & Earn",
   "referralSubtitle": "Share your invite code — when a friend activates membership, you earn extra Pro days.",
@@ -397,9 +396,8 @@
   "applyInvite": "Apply",
   "applyInviteSuccess": "Invite code applied!",
   "share": "Share",
-  "rateUs": "Rate Us",
-  "rateFailed": "Could not open the store",
-  "installCopyCommand": "Copy command",
+  "rateUs": "Rate us",
+  "rateFailed": "Could not open the store: {msg}",
   "meTitle": "Me",
   "benefitsTitle": "Membership",
   "membershipFree": "Free",
@@ -409,9 +407,6 @@
   "quotaScrollback": "Scrollback limit",
   "redeemCodeLabel": "Redeem code",
   "redeemAction": "Redeem",
-  "redeemSuccess": "Redeemed. Membership updated.",
-  "rateUs": "Rate us",
-  "rateFailed": "Could not open the store: {msg}",
   "@rateFailed": {
     "placeholders": {
       "msg": {
@@ -427,5 +422,24 @@
         "type": "String"
       }
     }
-  }
+  },
+  "meStatsTitle": "Workers & stats",
+  "meOnlineCount": "{online}/{total} online",
+  "@meOnlineCount": {
+    "placeholders": {
+      "online": {
+        "type": "String"
+      },
+      "total": {
+        "type": "String"
+      }
+    }
+  },
+  "meStatSessions": "Sessions",
+  "meStatCpu": "Avg CPU",
+  "meStatMemory": "Avg memory",
+  "meViewAllWorkers": "View all",
+  "meNoWorkers": "No workers yet",
+  "meBenefitsHint": "Upgrade to unlock higher quotas",
+  "meBenefitsAction": "View benefits"
 }

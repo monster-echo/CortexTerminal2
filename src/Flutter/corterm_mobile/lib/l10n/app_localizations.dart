@@ -1759,26 +1759,126 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Copy command'**
   String get installCopyCommand;
+
+  /// No description provided for @redeemCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Redeem Code'**
   String get redeemCode;
+
+  /// No description provided for @redeemPlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter redeem code'**
   String get redeemPlaceholder;
+
+  /// No description provided for @redeemButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Redeem'**
   String get redeemButton;
+
+  /// No description provided for @redeemSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Redeemed. Membership updated.'**
   String get redeemSuccess;
+
+  /// No description provided for @redeemFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Redeem failed'**
   String get redeemFailed;
+
+  /// No description provided for @referral.
+  ///
+  /// In en, this message translates to:
+  /// **'Invite & Earn'**
   String get referral;
+
+  /// No description provided for @referralSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Share your invite code — when a friend activates membership, you earn extra Pro days.'**
   String get referralSubtitle;
+
+  /// No description provided for @referralShareText.
+  ///
+  /// In en, this message translates to:
+  /// **'Try CortexTerminal — the mobile AI agent workspace. Use my invite code and we both win!'**
   String get referralShareText;
+
+  /// No description provided for @myInviteCode.
+  ///
+  /// In en, this message translates to:
+  /// **'My invite code'**
   String get myInviteCode;
+
+  /// No description provided for @friendsInvited.
+  ///
+  /// In en, this message translates to:
+  /// **'Friends invited'**
   String get friendsInvited;
+
+  /// No description provided for @daysEarned.
+  ///
+  /// In en, this message translates to:
+  /// **'Days earned'**
   String get daysEarned;
+
+  /// No description provided for @rewardPerInvite.
+  ///
+  /// In en, this message translates to:
+  /// **'Pro days per activation'**
   String get rewardPerInvite;
+
+  /// No description provided for @rewardHistory.
+  ///
+  /// In en, this message translates to:
+  /// **'Reward history'**
   String get rewardHistory;
+
+  /// No description provided for @rewardsEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No rewards yet — invite a friend!'**
   String get rewardsEmpty;
+
+  /// No description provided for @haveFriendsCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Have a friend\'s code?'**
   String get haveFriendsCode;
+
+  /// No description provided for @applyInvite.
+  ///
+  /// In en, this message translates to:
+  /// **'Apply'**
   String get applyInvite;
+
+  /// No description provided for @applyInviteSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Invite code applied!'**
   String get applyInviteSuccess;
+
+  /// No description provided for @share.
+  ///
+  /// In en, this message translates to:
+  /// **'Share'**
   String get share;
+
+  /// No description provided for @rateUs.
+  ///
+  /// In en, this message translates to:
+  /// **'Rate us'**
   String get rateUs;
-  String get rateFailed;
+
+  /// No description provided for @rateFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not open the store: {msg}'**
+  String rateFailed(String msg);
 
   /// No description provided for @meTitle.
   ///
@@ -1834,24 +1934,6 @@ abstract class AppLocalizations {
   /// **'Redeem'**
   String get redeemAction;
 
-  /// No description provided for @redeemSuccess.
-  ///
-  /// In en, this message translates to:
-  /// **'Redeemed. Membership updated.'**
-  String get redeemSuccess;
-
-  /// No description provided for @rateUs.
-  ///
-  /// In en, this message translates to:
-  /// **'Rate us'**
-  String get rateUs;
-
-  /// No description provided for @rateFailed.
-  ///
-  /// In en, this message translates to:
-  /// **'Could not open the store: {msg}'**
-  String rateFailed(String msg);
-
   /// No description provided for @shareApp.
   ///
   /// In en, this message translates to:
@@ -1863,6 +1945,60 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'CortexTerminal — your machines, one terminal away. {url}'**
   String shareAppText(String url);
+
+  /// No description provided for @meStatsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Workers & stats'**
+  String get meStatsTitle;
+
+  /// No description provided for @meOnlineCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{online}/{total} online'**
+  String meOnlineCount(String online, String total);
+
+  /// No description provided for @meStatSessions.
+  ///
+  /// In en, this message translates to:
+  /// **'Sessions'**
+  String get meStatSessions;
+
+  /// No description provided for @meStatCpu.
+  ///
+  /// In en, this message translates to:
+  /// **'Avg CPU'**
+  String get meStatCpu;
+
+  /// No description provided for @meStatMemory.
+  ///
+  /// In en, this message translates to:
+  /// **'Avg memory'**
+  String get meStatMemory;
+
+  /// No description provided for @meViewAllWorkers.
+  ///
+  /// In en, this message translates to:
+  /// **'View all'**
+  String get meViewAllWorkers;
+
+  /// No description provided for @meNoWorkers.
+  ///
+  /// In en, this message translates to:
+  /// **'No workers yet'**
+  String get meNoWorkers;
+
+  /// No description provided for @meBenefitsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Upgrade to unlock higher quotas'**
+  String get meBenefitsHint;
+
+  /// No description provided for @meBenefitsAction.
+  ///
+  /// In en, this message translates to:
+  /// **'View benefits'**
+  String get meBenefitsAction;
 }
 
 class _AppLocalizationsDelegate

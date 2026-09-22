@@ -891,45 +891,70 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get installCopyCommand => 'Copy command';
+
   @override
   String get redeemCode => 'Redeem Code';
+
   @override
   String get redeemPlaceholder => 'Enter redeem code';
+
   @override
   String get redeemButton => 'Redeem';
+
   @override
-  String get redeemSuccess => 'Redeemed! Pro is now active.';
+  String get redeemSuccess => 'Redeemed. Membership updated.';
+
   @override
   String get redeemFailed => 'Redeem failed';
+
   @override
   String get referral => 'Invite & Earn';
+
   @override
-  String get referralSubtitle => 'Share your invite code — when a friend activates membership, you earn extra Pro days.';
+  String get referralSubtitle =>
+      'Share your invite code — when a friend activates membership, you earn extra Pro days.';
+
   @override
-  String get referralShareText => 'Try CortexTerminal — the mobile AI agent workspace. Use my invite code and we both win!';
+  String get referralShareText =>
+      'Try CortexTerminal — the mobile AI agent workspace. Use my invite code and we both win!';
+
   @override
   String get myInviteCode => 'My invite code';
+
   @override
   String get friendsInvited => 'Friends invited';
+
   @override
   String get daysEarned => 'Days earned';
+
   @override
   String get rewardPerInvite => 'Pro days per activation';
+
   @override
   String get rewardHistory => 'Reward history';
+
   @override
   String get rewardsEmpty => 'No rewards yet — invite a friend!';
+
   @override
   String get haveFriendsCode => 'Have a friend\'s code?';
+
   @override
   String get applyInvite => 'Apply';
+
   @override
   String get applyInviteSuccess => 'Invite code applied!';
+
   @override
   String get share => 'Share';
-  String get rateUs => 'Rate Us';
+
   @override
-  String get rateFailed => 'Could not open the store';
+  String get rateUs => 'Rate us';
+
+  @override
+  String rateFailed(String msg) {
+    return 'Could not open the store: $msg';
+  }
 
   @override
   String get meTitle => 'Me';
@@ -959,21 +984,39 @@ class AppLocalizationsEn extends AppLocalizations {
   String get redeemAction => 'Redeem';
 
   @override
-  String get redeemSuccess => 'Redeemed. Membership updated.';
-
-  @override
-  String get rateUs => 'Rate us';
-
-  @override
-  String rateFailed(String msg) {
-    return 'Could not open the store: $msg';
-  }
-
-  @override
   String get shareApp => 'Share app';
 
   @override
   String shareAppText(String url) {
     return 'CortexTerminal — your machines, one terminal away. $url';
   }
+
+  @override
+  String get meStatsTitle => 'Workers & stats';
+
+  @override
+  String meOnlineCount(String online, String total) {
+    return '$online/$total online';
+  }
+
+  @override
+  String get meStatSessions => 'Sessions';
+
+  @override
+  String get meStatCpu => 'Avg CPU';
+
+  @override
+  String get meStatMemory => 'Avg memory';
+
+  @override
+  String get meViewAllWorkers => 'View all';
+
+  @override
+  String get meNoWorkers => 'No workers yet';
+
+  @override
+  String get meBenefitsHint => 'Upgrade to unlock higher quotas';
+
+  @override
+  String get meBenefitsAction => 'View benefits';
 }
