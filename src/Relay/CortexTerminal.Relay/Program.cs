@@ -32,7 +32,15 @@ var relayConfig = builder.Configuration
     .Get<RelayOptions>() ?? new RelayOptions();
 builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = relayConfig.MaxTransferBytes);
 
+// 传输端点 CORS：签名 token 即凭据，任意来源均可直传（Web 端预检/直传必需）。
+builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
+    policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader()));
+
 var app = builder.Build();
+
+// 传输端点的授权完全依赖 URL 里的签名 token（无 cookie/凭据），
+// 浏览器客户端（flutter web）跨域直传必须放行任意来源；预检 OPTIONS 在此终结。
+app.UseCors();
 
 app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(30) });
 app.UseMiddleware<TunnelEntryMiddleware>();

@@ -54,11 +54,18 @@ public sealed class DeviceFlowLoginService
         }
         else
         {
+            // QR-first flow: encode verification_uri_complete so a scan by the Corterm
+            // app (or any camera hitting the gateway's auto-confirm page) authorizes
+            // without typing. The user code and URL stay as manual fallbacks.
+            var completeUri = $"{start.VerificationUri}?code={start.UserCode}";
             Console.WriteLine();
-            Console.WriteLine("  To authenticate this worker, visit:");
-            Console.WriteLine($"    {start.VerificationUri}");
+            Console.WriteLine("  用云枢终端 App 扫描二维码完成授权");
+            Console.WriteLine("  Or scan with the Corterm app to authorize this worker:");
             Console.WriteLine();
-            Console.WriteLine($"  Enter code: {start.UserCode}");
+            PrintAsciiQr(completeUri);
+            Console.WriteLine();
+            Console.WriteLine($"  Or enter code manually: {start.UserCode}");
+            Console.WriteLine($"  ({start.VerificationUri})");
             Console.WriteLine();
             Console.WriteLine("  Waiting for authorization...");
         }
@@ -135,6 +142,34 @@ public sealed class DeviceFlowLoginService
         else
         {
             Console.WriteLine("  Timed out waiting for authorization.");
+        }
+    }
+
+    /// <summary>
+    /// Renders the payload as a scannable ASCII QR (half-block chars, 4-module quiet
+    /// zone). Uses white-on-default via two chars per module so the modules stay square
+    /// in typical monospace terminal fonts.
+    /// </summary>
+    private static void PrintAsciiQr(string payload)
+    {
+        using var generator = new QRCoder.QRCodeGenerator();
+        var data = generator.CreateQrCode(payload, QRCoder.QRCodeGenerator.ECCLevel.L);
+        var matrix = data.ModuleMatrix;
+        var quiet = 4;
+        const string dark = "██";
+        const string light = "  ";
+        for (var row = 0; row < matrix.Count + quiet * 2; row++)
+        {
+            var line = string.Empty;
+            for (var col = 0; col < matrix.Count + quiet * 2; col++)
+            {
+                var module = row >= quiet && col >= quiet &&
+                             row < matrix.Count + quiet && col < matrix.Count + quiet &&
+                             matrix[row - quiet][col - quiet];
+                line += module ? dark : light;
+            }
+
+            Console.WriteLine("  " + line);
         }
     }
 

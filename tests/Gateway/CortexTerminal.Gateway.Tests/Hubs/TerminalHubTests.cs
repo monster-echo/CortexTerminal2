@@ -99,5 +99,7 @@ public sealed class TerminalHubTests
             new NoOpWorkerCommandDispatcher(),
             new SessionLaunchCoordinator(sessions, new NoOpWorkerCommandDispatcher(), new ScrollbackSettings(), TestSessionFactory.CreatePreferenceService(), TestSessionFactory.CreateWorkspaceRegistry()),
             new NoOpStatsService(),
+            TestSessionFactory.CreateWorkerRegistry(),
+            new ScrollbackSettings(),
             NullLogger<TerminalHub>.Instance)!;
 }

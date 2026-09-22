@@ -158,6 +158,8 @@ public sealed class TerminalHubReconnectTests
             dispatcher,
             new SessionLaunchCoordinator(sessions, dispatcher, new ScrollbackSettings(), TestSessionFactory.CreatePreferenceService(), TestSessionFactory.CreateWorkspaceRegistry()),
             new NoOpStatsService(),
+            TestSessionFactory.CreateWorkerRegistry(),
+            new ScrollbackSettings(),
             NullLogger<TerminalHub>.Instance)!;
 
     private static WorkerHub CreateWorkerHub(

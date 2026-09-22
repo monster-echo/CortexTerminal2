@@ -61,8 +61,16 @@ public sealed class LocalTransferListener : BackgroundService
             {
                 serverOptions.Listen(IPAddress.Any, _listenPort);
             });
+            // 传输端点 CORS：签名 token 即凭据，任意来源均可直传（Web 端必需）。
+            builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
+                policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader()));
 
             var app = builder.Build();
+
+            // Web 客户端跨域直传（token 已在 URL 中签名校验，无 cookie 凭据）：
+            // 放行任意来源，预检 OPTIONS 由 CORS 中间件直接终结。
+            app.UseCors();
+
             app.MapPut("/transfer/{transferId}", async (string transferId, HttpContext ctx) =>
             {
                 var token = ReadToken(ctx);
