@@ -1,10 +1,21 @@
-import { common, ConfigurationConstant } from '@kit.AbilityKit'
-import { ApiService, AuthService, AuthState, I18n, RouteName, showI18nToast, showToast, AnalyticsService, AnalyticsEvent, lightHaptic, clickHaptic, heavyHaptic } from '@rwecho/core'
+import { ApiService, AuthService, AuthState, I18n, RouteName, showI18nToast, showToast, AnalyticsService, lightHaptic, clickHaptic, heavyHaptic } from '@rwecho/core'
+import { common } from '@kit.AbilityKit'
 import { AvatarPicker } from '../service/AvatarPicker'
+import { MarketLauncher } from '../service/MarketLauncher'
 
+/** 导航行数据（图标 + i18n key + 点击动作），供分组卡片 ForEach 使用 */
+class NavItem {
+  icon: Resource | null = null
+  labelKey: string = ''
+  action: () => void = () => {}
+}
+
+/**
+ * Settings 根页：用页面深度做减法 —— 根页只留导航入口（头像/账户/通用/支持/关于），
+ * 细项全部下沉二级页（PreferencesPage / AboutPage），底部保留危险区与版本水印。
+ */
 @Component
 export struct SettingsPage {
-  @StorageLink('themeMode') currentTheme: string = 'system'
   @StorageLink('language') currentLanguage: string = 'en'
   @State displayName: string = ''
   @State avatarDisplayUrl: string = ''
@@ -13,64 +24,76 @@ export struct SettingsPage {
   @State editError: string = ''
   @State isSaving: boolean = false
   @State isUploadingAvatar: boolean = false
-  @State scrollbackBytes: number = 524288
-  @State scrollbackSaving: boolean = false
-  @State devTapCount: number = 0
-  @State showDevOptions: boolean = false
-  @StorageLink('webglEnabled') webglEnabled: boolean = true
   @Consume('pageStack') pageStack: NavPathStack
-  @StorageLink('appVersion') appVersion: string = '1.0.0'
 
   aboutToAppear() {
     AnalyticsService.onPageStart('settings/Page')
     this.loadProfile()
-    this.loadScrollback()
-    this.showDevOptions = AppStorage.get<boolean>('showDevOptions') ?? false
   }
 
-  private async loadScrollback() {
-    try {
-      this.scrollbackBytes = await ApiService.getScrollbackMaxBytes()
-    } catch (e) {
-      console.warn('[Settings] loadScrollback failed: ' + (e as Error).message)
-    }
-  }
-
-  private async saveScrollback(bytes: number, label: string) {
-    if (this.scrollbackSaving || bytes === this.scrollbackBytes) {
-      return
-    }
-    this.scrollbackSaving = true
-    const previous = this.scrollbackBytes
-    this.scrollbackBytes = bytes
-    try {
-      await ApiService.updateScrollbackMaxBytes(bytes)
-      showToast(I18n.get('settings.scrollback_changed').replace('{v}', label))
-    } catch (e) {
-      this.scrollbackBytes = previous
-      showToast((e as Error).message || I18n.get('common.error'))
-    } finally {
-      this.scrollbackSaving = false
-    }
-  }
-
-  private isActiveScrollback(value: number): boolean {
-    const v = this.scrollbackBytes
-    if (v >= 5242880) {
-      return value === 5242880
-    }
-    if (v >= 2097152) {
-      return value === 2097152
-    }
-    if (v >= 1048576) {
-      return value === 1048576
-    }
-    return value === 524288
-  }
-
-  /** 响应式 i18n：引用 currentLanguage 让 Text/Button 订阅 language，切语言时自动刷新 */
+  /** 响应式 i18n：引用 currentLanguage 让 Text 订阅 language，切语言时自动刷新 */
   private tr(key: string): string {
     return I18n.get(key) + (this.currentLanguage ? '' : '')
+  }
+
+  private accountItems(): NavItem[] {
+    const items: NavItem[] = []
+    const membership: NavItem = new NavItem()
+    membership.icon = $r('sys.symbol.checkmark_circle')
+    membership.labelKey = 'settings.membership'
+    membership.action = (): void => {
+      this.pageStack.pushPath({ name: RouteName.MEMBERSHIP })
+    }
+    items.push(membership)
+    const redeem: NavItem = new NavItem()
+    redeem.icon = $r('sys.symbol.gift')
+    redeem.labelKey = 'settings.redeem_code_nav'
+    redeem.action = (): void => {
+      this.pageStack.pushPath({ name: RouteName.REDEEM })
+    }
+    items.push(redeem)
+    const referral: NavItem = new NavItem()
+    referral.icon = $r('sys.symbol.share')
+    referral.labelKey = 'settings.referral'
+    referral.action = (): void => {
+      this.pageStack.pushPath({ name: RouteName.REFERRAL })
+    }
+    items.push(referral)
+    const security: NavItem = new NavItem()
+    security.icon = $r('sys.symbol.person_2')
+    security.labelKey = 'settings.account_security'
+    security.action = (): void => {
+      this.pageStack.pushPath({ name: RouteName.ACCOUNT_SECURITY })
+    }
+    items.push(security)
+    const worker: NavItem = new NavItem()
+    worker.icon = $r('sys.symbol.link')
+    worker.labelKey = 'settings.activate_worker'
+    worker.action = (): void => {
+      this.pageStack.pushPath({ name: RouteName.ACTIVATE_WORKER })
+    }
+    items.push(worker)
+    return items
+  }
+
+  private supportItems(): NavItem[] {
+    const items: NavItem[] = []
+    const support: NavItem = new NavItem()
+    support.icon = $r('sys.symbol.envelope')
+    support.labelKey = 'settings.contact_support'
+    support.action = (): void => {
+      this.pageStack.pushPath({ name: RouteName.CONTACT_SUPPORT })
+    }
+    items.push(support)
+    const feedback: NavItem = new NavItem()
+    feedback.icon = $r('sys.symbol.paperplane')
+    feedback.labelKey = 'settings.feedback'
+    feedback.action = (): void => {
+      const param: Record<string, string> = { 'type': 'feedback' }
+      this.pageStack.pushPath({ name: RouteName.FEEDBACK, param: param })
+    }
+    items.push(feedback)
+    return items
   }
 
   build() {
@@ -98,8 +121,13 @@ export struct SettingsPage {
           Text(this.displayName || this.tr('settings.profile'))
             .fontSize(18)
             .fontWeight(FontWeight.Bold)
-            .fontColor($r('app.color.terminal_primary'))
+            .fontColor($r('app.color.terminal_on_surface'))
             .margin({ top: 12 })
+
+          Text(this.tr('settings.profile'))
+            .fontSize(13)
+            .fontColor($r('app.color.terminal_on_surface_variant'))
+            .margin({ top: 2 })
         }
         .width('100%')
         .alignItems(HorizontalAlign.Center)
@@ -109,183 +137,56 @@ export struct SettingsPage {
           this.openEditProfile()
         })
 
-        this.SectionHeader('settings.appearance')
-
-        Row() {
-          Text(this.tr('settings.theme'))
-            .fontSize(14)
-            .fontColor($r('app.color.terminal_primary'))
-            .layoutWeight(1)
-
-          Row() {
-            this.ThemeOption('settings.theme_light', 'light')
-            this.ThemeOption('settings.theme_dark', 'dark')
-            this.ThemeOption('settings.theme_system', 'system')
-          }
-        }
-        .width('calc(100% - 40vp)')
-        .padding(14)
-        .borderRadius(12)
-        .backgroundColor($r('app.color.terminal_surface_container'))
-        .margin({ bottom: 8 })
-
-        Row() {
-          Text(this.tr('settings.language'))
-            .fontSize(14)
-            .fontColor($r('app.color.terminal_primary'))
-            .layoutWeight(1)
-
-          Row() {
-            this.LanguageOption('settings.language_zh', 'zh')
-            this.LanguageOption('settings.language_en', 'en')
-          }
-        }
-        .width('calc(100% - 40vp)')
-        .padding(14)
-        .borderRadius(12)
-        .backgroundColor($r('app.color.terminal_surface_container'))
-        .margin({ bottom: 8 })
-
-        this.SectionHeader('settings.terminal')
-
-        Column() {
-          Row() {
-            Text(this.tr('settings.scrollback'))
-              .fontSize(14)
-              .fontColor($r('app.color.terminal_primary'))
-              .layoutWeight(1)
-
-            Row() {
-              this.ScrollbackOption('512K', 524288)
-              this.ScrollbackOption('1M', 1048576)
-              this.ScrollbackOption('2M', 2097152)
-              this.ScrollbackOption('5M', 5242880)
-            }
-          }
-          .width('100%')
-
-          Text(this.tr('settings.scrollback_desc'))
-            .width('100%')
-            .maxLines(2)
-            .fontSize(12)
-            .fontColor($r('app.color.terminal_on_surface_variant'))
-            .margin({ top: 4 })
-        }
-        .width('calc(100% - 40vp)')
-        .padding(14)
-        .borderRadius(12)
-        .backgroundColor($r('app.color.terminal_surface_container'))
-        .margin({ bottom: 8 })
-
-        if (this.showDevOptions) {
-          this.SectionHeader('Developer Options')
-
-          Row() {
-            Text('GPU Acceleration (WebGL)')
-              .fontSize(14)
-              .fontColor($r('app.color.terminal_primary'))
-              .layoutWeight(1)
-
-            Checkbox()
-              .width(20)
-              .height(20)
-              .select(this.webglEnabled)
-              .onChange((value: boolean) => {
-                this.webglEnabled = value
-                AppStorage.setOrCreate('webglEnabled', value)
-              })
-          }
-          .width('calc(100% - 40vp)')
-          .padding(14)
-          .borderRadius(12)
-          .backgroundColor($r('app.color.terminal_surface_container'))
-          .margin({ bottom: 8 })
-        }
-
         this.SectionHeader('settings.account')
 
-        this.NavRow('settings.membership', () => {
-          this.pageStack.pushPath({ name: RouteName.MEMBERSHIP })
-        })
+        this.NavCard(this.accountItems())
 
-        this.NavRow('settings.account_security', () => {
-          this.pageStack.pushPath({ name: RouteName.ACCOUNT_SECURITY })
-        })
+        this.SectionHeader('settings.general')
 
-        this.NavRow('settings.activate_worker', () => {
-          this.pageStack.pushPath({ name: RouteName.ACTIVATE_WORKER })
-        })
+        this.NavCard(this.generalItems())
 
         this.SectionHeader('settings.support')
 
-        this.NavRow('settings.contact_support', () => {
-          this.pageStack.pushPath({ name: RouteName.CONTACT_SUPPORT })
-        })
+        this.NavCard(this.supportItems())
 
-        this.NavRow('settings.feedback', () => {
-          const param: Record<string, string> = { 'type': 'feedback' }
-          this.pageStack.pushPath({ name: RouteName.FEEDBACK, param: param })
-        })
+        this.SectionHeader('settings.about')
 
-        Button(this.tr('settings.logout'))
-          .width('calc(100% - 40vp)')
-          .height(48)
-          .borderRadius(12)
-          .backgroundColor($r('app.color.terminal_error'))
-          .fontColor(Color.White)
-          .fontSize(16)
-          .fontWeight(FontWeight.Medium)
-          .margin({ top: 24 })
+        this.NavCard(this.aboutItems())
+
+        // 危险区：对齐 Flutter 端的分组行样式（error 色行，而非突兀的大红按钮）
+        Blank().height(16)
+        Column() {
+          Row() {
+            SymbolGlyph($r('sys.symbol.trash'))
+              .fontSize(20)
+              .fontColor([$r('app.color.terminal_error')])
+
+            Text(this.tr('settings.logout'))
+              .fontSize(16)
+              .fontColor($r('app.color.terminal_error'))
+              .margin({ left: 12 })
+              .layoutWeight(1)
+          }
+          .width('100%')
+          .height(52)
           .onClick(() => {
             heavyHaptic()
             this.confirmLogout()
           })
+        }
+        .cardStyle()
 
         // Watermark footer
-        Column() {
-          Row() {
-            Text(this.tr('settings.footer_terms'))
-              .fontSize(13)
-              .fontColor($r('app.color.terminal_secondary'))
-              .onClick(() => {
-                lightHaptic()
-                const url = (this.getUIContext()?.getHostContext() as common.UIAbilityContext)
-                  .resourceManager.getStringByNameSync('terms_of_service_url')
-                this.openExternal(url)
-              })
-
-            Text(' | ')
-              .fontSize(13)
-              .fontColor($r('app.color.terminal_on_surface_variant'))
-
-            Text(this.tr('settings.footer_privacy'))
-              .fontSize(13)
-              .fontColor($r('app.color.terminal_secondary'))
-              .onClick(() => {
-                lightHaptic()
-                const url = (this.getUIContext()?.getHostContext() as common.UIAbilityContext)
-                  .resourceManager.getStringByNameSync('privacy_policy_url')
-                this.openExternal(url)
-              })
-          }
-
-          Text(`v${this.appVersion} · CortexTerminal`)
-            .fontSize(11)
-            .fontColor($r('app.color.terminal_on_surface_variant'))
-            .margin({ top: 6 })
-            .onClick(() => {
-              this.handleDevTap()
-            })
-        }
-        .width('100%')
-        .alignItems(HorizontalAlign.Center)
-        .margin({ top: 32, bottom: 24 })
+        Text(`v${this.appVersion()} · CortexTerminal`)
+          .fontSize(11)
+          .fontColor($r('app.color.terminal_text_tertiary'))
+          .margin({ top: 32, bottom: 24 })
 
         Blank().height(40)
       }
       .width('100%')
       .bindSheet(this.showEditProfile, this.EditProfileSheet(), {
-        height: SheetSize.FIT_CONTENT,
+        height: SheetSize.MEDIUM,
         showClose: true,
         backgroundColor: $r('app.color.terminal_surface'),
         onDisappear: () => { this.showEditProfile = false }
@@ -294,6 +195,86 @@ export struct SettingsPage {
     .width('100%')
     .layoutWeight(1)
     .backgroundColor($r('app.color.terminal_surface'))
+    .align(Alignment.Top)
+  }
+
+  private generalItems(): NavItem[] {
+    const items: NavItem[] = []
+    const general: NavItem = new NavItem()
+    general.icon = $r('sys.symbol.pencil_line_1')
+    general.labelKey = 'settings.general'
+    general.action = (): void => {
+      this.pageStack.pushPath({ name: RouteName.PREFERENCES })
+    }
+    items.push(general)
+    return items
+  }
+
+  private aboutItems(): NavItem[] {
+    const items: NavItem[] = []
+    const rate: NavItem = new NavItem()
+    rate.icon = $r('sys.symbol.star')
+    rate.labelKey = 'settings.rate_us'
+    rate.action = (): void => {
+      const context = getContext(this) as common.UIAbilityContext
+      MarketLauncher.openAppDetail(context).catch((e: Error) => {
+        showToast(I18n.getWithArgs('settings.rate_failed', { 'msg': e.message }))
+      })
+    }
+    items.push(rate)
+    const about: NavItem = new NavItem()
+    about.icon = $r('sys.symbol.exclamationmark_circle')
+    about.labelKey = 'settings.about'
+    about.action = (): void => {
+      this.pageStack.pushPath({ name: RouteName.ABOUT })
+    }
+    items.push(about)
+    return items
+  }
+
+  private appVersion(): string {
+    return AppStorage.get<string>('appVersion') ?? '1.0.0'
+  }
+
+  /** 分组导航卡片：圆角卡片容器 + 行间分割线（对齐 Flutter AppGroupCard） */
+  @Builder
+  NavCard(items: NavItem[]) {
+    Column() {
+      ForEach(items, (item: NavItem, index: number) => {
+        Column() {
+          if (index > 0) {
+            Divider()
+              .color($r('app.color.terminal_outline_variant'))
+              .margin({ left: 48 })
+          }
+          Row() {
+            if (item.icon !== null) {
+              SymbolGlyph(item.icon)
+                .fontSize(20)
+                .fontColor([$r('app.color.terminal_on_surface_variant')])
+            }
+
+            Text(this.tr(item.labelKey))
+              .fontSize(16)
+              .fontColor($r('app.color.terminal_on_surface'))
+              .margin({ left: item.icon !== null ? 12 : 0 })
+              .layoutWeight(1)
+
+            SymbolGlyph($r('sys.symbol.chevron_right'))
+              .fontSize(16)
+              .fontColor([$r('app.color.terminal_text_tertiary')])
+          }
+          .width('100%')
+          .height(52)
+          .onClick(() => {
+            lightHaptic()
+            item.action()
+          })
+        }
+        .width('100%')
+      }, (item: NavItem, index: number) => `${item.labelKey}_${index}`)
+    }
+    .cardStyle()
   }
 
   @Builder
@@ -301,109 +282,11 @@ export struct SettingsPage {
     Text(this.tr(key))
       .fontSize(13)
       .fontWeight(FontWeight.Medium)
-      .fontColor($r('app.color.terminal_secondary'))
+      .fontColor($r('app.color.terminal_on_surface_variant'))
       .textCase(TextCase.UpperCase)
-      .width('calc(100% - 40vp)')
+      .width('calc(100% - 32vp)')
+      .padding({ left: 16 })
       .margin({ top: 20, bottom: 8 })
-  }
-
-  @Builder
-  ThemeOption(key: string, value: string) {
-    Text(this.tr(key))
-      .fontSize(13)
-      .fontWeight(this.currentTheme === value ? FontWeight.Medium : FontWeight.Normal)
-      .fontColor(this.currentTheme === value ?
-        $r('app.color.terminal_on_secondary_container') :
-        $r('app.color.terminal_on_surface_variant'))
-      .padding({ left: 12, right: 12, top: 6, bottom: 6 })
-      .borderRadius(8)
-      .backgroundColor(this.currentTheme === value ?
-        $r('app.color.terminal_secondary_container') :
-        Color.Transparent)
-      .onClick(() => {
-        clickHaptic()
-        this.currentTheme = value
-        this.applyTheme(this.currentTheme)
-        AnalyticsService.onEvent(AnalyticsEvent.THEME_CHANGE)
-        showToast(I18n.get('settings.theme_changed').replace('{v}', I18n.get(`settings.theme_${value}`)))
-      })
-  }
-
-  @Builder
-  LanguageOption(key: string, code: string) {
-    Text(this.tr(key))
-      .fontSize(13)
-      .fontWeight(this.currentLanguage === code ? FontWeight.Medium : FontWeight.Normal)
-      .fontColor(this.currentLanguage === code ?
-        $r('app.color.terminal_on_secondary_container') :
-        $r('app.color.terminal_on_surface_variant'))
-      .padding({ left: 12, right: 12, top: 6, bottom: 6 })
-      .borderRadius(8)
-      .backgroundColor(this.currentLanguage === code ?
-        $r('app.color.terminal_secondary_container') :
-        Color.Transparent)
-      .onClick(() => {
-        clickHaptic()
-        this.currentLanguage = code
-        AnalyticsService.onEvent(AnalyticsEvent.LANGUAGE_CHANGE)
-        showToast(I18n.get('settings.language_changed').replace('{v}', I18n.get(`settings.language_${code}`)))
-      })
-  }
-
-  @Builder
-  ScrollbackOption(label: string, value: number) {
-    Text(label)
-      .fontSize(13)
-      .fontWeight(this.isActiveScrollback(value) ? FontWeight.Medium : FontWeight.Normal)
-      .fontColor(this.isActiveScrollback(value) ?
-        $r('app.color.terminal_on_secondary_container') :
-        $r('app.color.terminal_on_surface_variant'))
-      .padding({ left: 10, right: 10, top: 6, bottom: 6 })
-      .borderRadius(8)
-      .backgroundColor(this.isActiveScrollback(value) ?
-        $r('app.color.terminal_secondary_container') :
-        Color.Transparent)
-      .onClick(() => {
-        clickHaptic()
-        this.saveScrollback(value, label)
-      })
-  }
-
-  @Builder
-  NavRow(key: string, action: () => void) {
-    Row() {
-      Text(this.tr(key))
-        .fontSize(14)
-        .fontColor($r('app.color.terminal_primary'))
-        .layoutWeight(1)
-
-      SymbolGlyph($r('sys.symbol.chevron_right'))
-        .fontSize(16)
-        .fontColor([$r('app.color.terminal_on_surface_variant')])
-    }
-    .width('calc(100% - 40vp)')
-    .padding(14)
-    .borderRadius(12)
-    .backgroundColor($r('app.color.terminal_surface_container'))
-    .margin({ bottom: 8 })
-    .onClick(() => {
-      lightHaptic()
-      action()
-    })
-  }
-
-  private applyTheme(theme: string) {
-    const context = this.getUIContext()?.getHostContext() as common.UIAbilityContext
-    try {
-      if (theme === 'system') {
-        context.getApplicationContext().setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET)
-      } else {
-        const colorMode = theme === 'dark'
-          ? ConfigurationConstant.ColorMode.COLOR_MODE_DARK
-          : ConfigurationConstant.ColorMode.COLOR_MODE_LIGHT
-        context.getApplicationContext().setColorMode(colorMode)
-      }
-    } catch (_e) {}
   }
 
   private async loadProfile() {
@@ -503,7 +386,7 @@ export struct SettingsPage {
         Text(this.tr('security.edit_profile'))
           .fontSize(18)
           .fontWeight(FontWeight.Bold)
-          .fontColor($r('app.color.terminal_primary'))
+          .fontColor($r('app.color.terminal_on_surface'))
           .width('100%')
           .margin({ bottom: 16 })
 
@@ -534,7 +417,7 @@ export struct SettingsPage {
 
         Text(this.tr('security.change_avatar'))
           .fontSize(13)
-          .fontColor($r('app.color.terminal_secondary'))
+          .fontColor($r('app.color.terminal_on_primary_container'))
           .margin({ top: 8, bottom: 20 })
 
         Text(this.tr('security.display_name'))
@@ -548,7 +431,7 @@ export struct SettingsPage {
           .height(44)
           .borderRadius(8)
           .backgroundColor($r('app.color.terminal_surface_container_high'))
-          .fontColor($r('app.color.terminal_primary'))
+          .fontColor($r('app.color.terminal_on_surface'))
           .placeholderColor($r('app.color.terminal_on_surface_variant'))
           .onChange((value: string) => {
             this.editDisplayName = value
@@ -569,13 +452,13 @@ export struct SettingsPage {
             Text(this.tr('common.save'))
               .fontSize(16)
               .fontWeight(FontWeight.Medium)
-              .fontColor($r('app.color.terminal_on_secondary_container'))
+              .fontColor($r('app.color.terminal_on_primary'))
           }
         }
         .width('100%')
         .height(48)
-        .borderRadius(12)
-        .backgroundColor($r('app.color.terminal_secondary_container'))
+        .borderRadius(24)
+        .backgroundColor($r('app.color.terminal_primary'))
         .margin({ top: 20 })
         .enabled(!this.isSaving)
         .onClick(() => {
@@ -590,26 +473,14 @@ export struct SettingsPage {
     .padding({ top: 16, bottom: 24 })
     .backgroundColor($r('app.color.terminal_surface'))
   }
+}
 
-  private handleDevTap() {
-    this.devTapCount++
-    if (this.devTapCount >= 7) {
-      this.devTapCount = 0
-      this.showDevOptions = !this.showDevOptions
-      AppStorage.setOrCreate('showDevOptions', this.showDevOptions)
-      const msg = this.showDevOptions ? 'Developer options enabled' : 'Developer options disabled'
-      showToast(msg + (this.currentLanguage ? '' : ''))
-    }
-    // Reset counter after 3s of inactivity
-    setTimeout(() => {
-      if (this.devTapCount > 0 && this.devTapCount < 7) {
-        this.devTapCount = 0
-      }
-    }, 3000)
-  }
-
-  private openExternal(url: string) {
-    const navParam: Record<string, string> = { 'url': url }
-    this.pageStack.pushPath({ name: RouteName.WEB_PAGE, param: navParam })
-  }
+/** 分组卡片容器样式：surface_container 背景 + 12dp 圆角 + 16dp 水平内边距 */
+@Extend(Column)
+function cardStyle() {
+  .width('calc(100% - 32vp)')
+  .padding({ left: 16, right: 16, top: 4, bottom: 4 })
+  .borderRadius(12)
+  .backgroundColor($r('app.color.terminal_surface_container'))
+  .margin({ bottom: 8 })
 }
