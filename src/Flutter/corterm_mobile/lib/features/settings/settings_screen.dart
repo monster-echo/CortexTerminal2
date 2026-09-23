@@ -49,12 +49,6 @@ class SettingsScreen extends ConsumerWidget {
               chevron: true,
               onTap: () => context.push('/settings/redeem'),
             ),
-            AppRow(
-              icon: LucideIcons.share2,
-              label: l10n.referral,
-              chevron: true,
-              onTap: () => context.push('/settings/referral'),
-            ),
           ]),
 
           // ---- 通用 / 安全 / 设备 ----

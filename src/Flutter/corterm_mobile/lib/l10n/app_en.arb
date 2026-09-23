@@ -441,5 +441,23 @@
   "meViewAllWorkers": "View all",
   "meNoWorkers": "No workers yet",
   "meBenefitsHint": "Upgrade to unlock higher quotas",
-  "meBenefitsAction": "View benefits"
+  "meBenefitsAction": "View benefits",
+  "meOpenMembership": "Manage membership",
+  "tunnelPortNotListening": "No service is listening on port {port} on the worker. Start the service, then create the tunnel again.",
+  "@tunnelPortNotListening": {
+    "placeholders": {
+      "port": {
+        "type": "String"
+      }
+    }
+  },
+  "apiErrorFallback": "Request failed ({code}). Please try again later.",
+  "@apiErrorFallback": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  },
+  "tunnelPortPending": "Port not listening yet — the tunnel will work as soon as the service is up."
 }

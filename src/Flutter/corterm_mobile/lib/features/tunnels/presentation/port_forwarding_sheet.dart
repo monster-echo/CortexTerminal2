@@ -5,6 +5,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../l10n/app_localizations.dart';
+import '../../../shared/utils/error_text.dart';
 import '../../../shared/widgets/sheets_and_dialogs.dart';
 import '../../../shared/widgets/states.dart';
 import '../data/tunnel_repository.dart';
@@ -57,7 +58,7 @@ class _PortForwardingSheetState extends ConsumerState<PortForwardingSheet> {
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() => _error = '$e');
+      setState(() => _error = errorText(e, AppLocalizations.of(context)!));
     }
   }
 
@@ -82,11 +83,15 @@ class _PortForwardingSheetState extends ConsumerState<PortForwardingSheet> {
       await Clipboard.setData(ClipboardData(text: tunnel.url));
       if (!mounted) return;
       setState(() => _creating = false);
-      showAppToast(context, l10n.copied);
+      // 端口未监听也允许创建：worker 侧会等端口就绪，这里提示用户先起服务。
+      showAppToast(
+        context,
+        tunnel.portOpen ? l10n.copied : l10n.tunnelPortPending,
+      );
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = '$e';
+        _error = errorText(e, l10n);
         _creating = false;
       });
     }
@@ -103,7 +108,7 @@ class _PortForwardingSheetState extends ConsumerState<PortForwardingSheet> {
       await _refresh();
     } catch (e) {
       if (!mounted) return;
-      setState(() => _error = '$e');
+      setState(() => _error = errorText(e, AppLocalizations.of(context)!));
     } finally {
       if (mounted) {
         setState(() {
@@ -187,7 +192,25 @@ class _PortForwardingSheetState extends ConsumerState<PortForwardingSheet> {
               for (final tunnel in _tunnels!)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 10),
-                  child: Container(
+                  // 左滑删除：露出红色删除区，松手触发撤销（与 Revoke 按钮同流程）。
+                  child: Dismissible(
+                    key: ValueKey(tunnel.tunnelId),
+                    direction: DismissDirection.endToStart,
+                    background: Container(
+                      alignment: Alignment.centerRight,
+                      padding: const EdgeInsets.only(right: 20),
+                      decoration: BoxDecoration(
+                        color: scheme.destructive,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(LucideIcons.trash2,
+                          color: scheme.destructiveForeground),
+                    ),
+                    confirmDismiss: (_) async {
+                      await _revoke(tunnel);
+                      return false; // 行的移除由 _refresh 按服务端状态驱动
+                    },
+                    child: Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(10),
@@ -245,6 +268,7 @@ class _PortForwardingSheetState extends ConsumerState<PortForwardingSheet> {
                         ),
                       ],
                     ),
+                  ),
                   ),
                 ),
           ],

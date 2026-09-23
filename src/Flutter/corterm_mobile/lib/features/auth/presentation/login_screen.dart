@@ -580,14 +580,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ],
                     ),
                     const SizedBox(height: 16),
-                    // 次行一行排开：非 primary 的登录方式 + OAuth（等宽）。
-                    Row(
-                      children: [
-                        for (final (i, entry) in secondaryEntries.indexed) ...[
-                          if (i > 0) const SizedBox(width: 8),
-                          Expanded(child: entry),
-                        ],
-                      ],
+                    // 次行入口：非 primary 的登录方式 + OAuth。
+                    // Wrap 而非 Row+Expanded：条目多/文案长时按钮保持自然宽度并换行，
+                    // 不会被压缩到内部 Row 溢出（等宽压缩正是 overflow 的来源）。
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [for (final entry in secondaryEntries) entry],
                     ),
                   ],
                   if (_methodsFailed) ...[

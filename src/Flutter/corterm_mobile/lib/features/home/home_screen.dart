@@ -200,7 +200,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         // 新建会话：仅图标（移动端标题栏惯例），长按 tooltip 提供语义。
         Tooltip(
           message: l10n.newSession,
-          child: ShadIconButton(
+          child: ShadIconButton.ghost(
+            foregroundColor: scheme.foreground,
             icon: const Icon(LucideIcons.plus),
             onPressed: () => showNewSessionSheet(
               context,

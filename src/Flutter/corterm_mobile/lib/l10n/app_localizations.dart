@@ -1999,6 +1999,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'View benefits'**
   String get meBenefitsAction;
+
+  /// No description provided for @meOpenMembership.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage membership'**
+  String get meOpenMembership;
+
+  /// No description provided for @tunnelPortNotListening.
+  ///
+  /// In en, this message translates to:
+  /// **'No service is listening on port {port} on the worker. Start the service, then create the tunnel again.'**
+  String tunnelPortNotListening(String port);
+
+  /// No description provided for @apiErrorFallback.
+  ///
+  /// In en, this message translates to:
+  /// **'Request failed ({code}). Please try again later.'**
+  String apiErrorFallback(String code);
+
+  /// No description provided for @tunnelPortPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Port not listening yet — the tunnel will work as soon as the service is up.'**
+  String get tunnelPortPending;
 }
 
 class _AppLocalizationsDelegate

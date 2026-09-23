@@ -1004,4 +1004,20 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get meBenefitsAction => '查看权益';
+
+  @override
+  String get meOpenMembership => '管理会员';
+
+  @override
+  String tunnelPortNotListening(String port) {
+    return 'Worker 上未检测到端口 $port 的服务，请先在 worker 上启动该服务，再重新创建隧道。';
+  }
+
+  @override
+  String apiErrorFallback(String code) {
+    return '请求失败（$code），请稍后重试。';
+  }
+
+  @override
+  String get tunnelPortPending => '端口暂未监听，服务启动后隧道即自动生效。';
 }

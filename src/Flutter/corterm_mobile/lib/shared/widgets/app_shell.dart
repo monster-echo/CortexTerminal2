@@ -42,23 +42,26 @@ class AppShellScaffold extends ConsumerWidget {
       ),
       appBar: CortermAppBar(
         title: title,
-        // 与右侧 actions 对称：leading 区收紧为 44（ShadIconButton 宽度），
-        // 图标视觉缩进与右侧贴边动作钮一致。
-        leadingWidth: 44,
+        // 与右侧 actions 对称：leading 区 48 = 8 缩进 + 40（ShadIconButton），
+        // 图标视觉缩进 8+9=17 ≈ 16（与内容区 edgePadding 对齐）。
+        leadingWidth: 48,
         // Builder 下沉 context：Scaffold.of 必须从 Scaffold 之下的树里查找。
-        leading: showBack
-            ? ShadIconButton.ghost(
-                foregroundColor: scheme.foreground,
-                icon: const Icon(LucideIcons.arrowLeft, size: 20),
-                onPressed: () => context.pop(),
-              )
-            : Builder(
-                builder: (innerContext) => ShadIconButton.ghost(
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 8),
+          child: showBack
+              ? ShadIconButton.ghost(
                   foregroundColor: scheme.foreground,
-                  icon: const Icon(LucideIcons.menu, size: 22),
-                  onPressed: () => Scaffold.of(innerContext).openDrawer(),
+                  icon: const Icon(LucideIcons.arrowLeft, size: 20),
+                  onPressed: () => context.pop(),
+                )
+              : Builder(
+                  builder: (innerContext) => ShadIconButton.ghost(
+                    foregroundColor: scheme.foreground,
+                    icon: const Icon(LucideIcons.menu, size: 22),
+                    onPressed: () => Scaffold.of(innerContext).openDrawer(),
+                  ),
                 ),
-              ),
+        ),
         actions: actions,
       ),
       body: body,

@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/auth/auth_controller.dart';
+import '../../../core/config/app_config.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/app_shell.dart';
 import '../../../shared/widgets/connection_status_dot.dart';
@@ -63,11 +65,19 @@ class MeScreen extends ConsumerWidget {
 }
 
 /// 会员权益 hero 卡：品牌色强调底 + 权益提示 + 兑换码 / 邀请返利两个入口。
-class _BenefitsHero extends StatelessWidget {
+class _BenefitsHero extends ConsumerWidget {
   const _BenefitsHero();
 
+  /// 打开网关 web 控制台定价页（购买在 web 完成，对齐 Harmony MembershipPage）。
+  Future<void> _openPricing(BuildContext context, WidgetRef ref) async {
+    final base = ref.read(appConfigProvider).replaceAll(RegExp(r'/+$'), '');
+    final url = '$base/pricing';
+    final ok = await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    if (!ok) throw StateError('launchUrl returned false for $url');
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final theme = ShadTheme.of(context);
     final scheme = theme.colorScheme;
@@ -103,29 +113,29 @@ class _BenefitsHero extends StatelessWidget {
                 color: scheme.primaryForeground.withValues(alpha: 0.85)),
           ),
           const SizedBox(height: 16),
-          Row(
+          // Wrap 而非 Row+Expanded：按钮保持自然宽度并换行，
+          // 长文案（如 Manage membership）不会被压缩到内部 Row 溢出。
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
             children: [
-              Expanded(
-                child: ShadButton(
-                  backgroundColor: scheme.primaryForeground,
-                  foregroundColor: scheme.primary,
-                  onPressed: () => context.push('/settings/redeem'),
-                  child: Text(l10n.redeemCode),
-                ),
+              ShadButton(
+                backgroundColor: scheme.primaryForeground,
+                foregroundColor: scheme.primary,
+                // IAP / 会员购买：购买在 web 控制台完成，打开网关定价页。
+                onPressed: () => _openPricing(context, ref),
+                child: Text(l10n.meOpenMembership),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: ShadButton.outline(
-                  foregroundColor: scheme.primaryForeground,
-                  decoration: ShadDecoration(
-                    border: ShadBorder.all(
-                      color: scheme.primaryForeground.withValues(alpha: 0.5),
-                      radius: BorderRadius.circular(8),
-                    ),
+              ShadButton.outline(
+                foregroundColor: scheme.primaryForeground,
+                decoration: ShadDecoration(
+                  border: ShadBorder.all(
+                    color: scheme.primaryForeground.withValues(alpha: 0.5),
+                    radius: BorderRadius.circular(8),
                   ),
-                  onPressed: () => context.push('/settings/referral'),
-                  child: Text(l10n.referral),
                 ),
+                onPressed: () => context.push('/settings/redeem'),
+                child: Text(l10n.redeemCode),
               ),
             ],
           ),

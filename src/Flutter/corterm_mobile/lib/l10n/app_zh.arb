@@ -357,5 +357,23 @@
   "meViewAllWorkers": "查看全部",
   "meNoWorkers": "暂无 Worker",
   "meBenefitsHint": "升级解锁更高权益",
-  "meBenefitsAction": "查看权益"
+  "meBenefitsAction": "查看权益",
+  "meOpenMembership": "管理会员",
+  "tunnelPortNotListening": "Worker 上未检测到端口 {port} 的服务，请先在 worker 上启动该服务，再重新创建隧道。",
+  "@tunnelPortNotListening": {
+    "placeholders": {
+      "port": {
+        "type": "String"
+      }
+    }
+  },
+  "apiErrorFallback": "请求失败（{code}），请稍后重试。",
+  "@apiErrorFallback": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  },
+  "tunnelPortPending": "端口暂未监听，服务启动后隧道即自动生效。"
 }

@@ -11,6 +11,7 @@ class TunnelSummary {
     required this.url,
     required this.expiresAtUtc,
     this.secret,
+    this.portOpen = true,
   });
 
   final String tunnelId;
@@ -18,6 +19,9 @@ class TunnelSummary {
   final String url;
   final String? secret;
   final DateTime expiresAtUtc;
+
+  /// 创建响应带回：端口当前是否在 worker 上监听（false = 服务未启动，等它就绪即生效）。
+  final bool portOpen;
 
   factory TunnelSummary.fromJson(Map<String, dynamic> json) => TunnelSummary(
         // 字段全兜底（对齐 ArkTS mapTunnel）：网关个别字段缺失时不应崩。
@@ -28,6 +32,7 @@ class TunnelSummary {
         expiresAtUtc:
             DateTime.tryParse(json['expiresAtUtc'] as String? ?? '')?.toUtc() ??
                 DateTime.fromMillisecondsSinceEpoch(0),
+        portOpen: json['portOpen'] as bool? ?? true,
       );
 }
 

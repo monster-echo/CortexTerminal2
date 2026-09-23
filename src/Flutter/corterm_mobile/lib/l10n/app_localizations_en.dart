@@ -1019,4 +1019,21 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get meBenefitsAction => 'View benefits';
+
+  @override
+  String get meOpenMembership => 'Manage membership';
+
+  @override
+  String tunnelPortNotListening(String port) {
+    return 'No service is listening on port $port on the worker. Start the service, then create the tunnel again.';
+  }
+
+  @override
+  String apiErrorFallback(String code) {
+    return 'Request failed ($code). Please try again later.';
+  }
+
+  @override
+  String get tunnelPortPending =>
+      'Port not listening yet — the tunnel will work as soon as the service is up.';
 }

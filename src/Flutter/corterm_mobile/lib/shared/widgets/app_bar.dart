@@ -56,6 +56,9 @@ class CortermAppBar extends StatelessWidget implements PreferredSizeWidget {
                 ),
           ),
       actions: actions,
+      // M3 默认 actionsPadding 为 0（贴屏边）；补 8 让图标视觉边距 = 8+8=16，
+      // 与内容区 16 缩进对齐（Material 上游 TODO 也计划改为 end: 8）。
+      actionsPadding: const EdgeInsetsDirectional.only(end: 8),
       bottom: bottom,
     );
   }
