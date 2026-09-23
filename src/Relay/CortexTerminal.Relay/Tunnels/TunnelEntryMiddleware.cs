@@ -6,7 +6,7 @@ using Microsoft.Extensions.Options;
 namespace CortexTerminal.Relay.Tunnels;
 
 /// <summary>
-/// 隧道访客 HTTP 入口：拦截 /t/&lt;key&gt;/... 与 &lt;key&gt;.&lt;RootDomain&gt; 子域名，
+/// 隧道访客 HTTP 入口：拦截 /t/&lt;key&gt;/... 与 t-&lt;key&gt;.&lt;RootDomain&gt; 子域名，
 /// 校验访客 secret，经 Worker 持久 WS 流式转发到 localhost:&lt;port&gt;。不缓冲整包。
 /// </summary>
 public sealed class TunnelEntryMiddleware(RequestDelegate next, ILogger<TunnelEntryMiddleware> logger)
@@ -29,15 +29,30 @@ public sealed class TunnelEntryMiddleware(RequestDelegate next, ILogger<TunnelEn
         var key = string.Empty;
         var subPath = string.Empty;
 
-        // 子域名模式：Host == "<key>.<RootDomain>"
+        // 子域名模式：Host == "<prefix><key>.<RootDomain>"（默认前缀 "t-"，
+        // 配合 DNS 泛解析 *.<RootDomain>；带前缀可避免劫持同域名下其它子域）。
         if (!string.IsNullOrEmpty(opts.RootDomain) && !string.IsNullOrEmpty(host)
             && host.EndsWith("." + opts.RootDomain, StringComparison.OrdinalIgnoreCase))
         {
             var sub = host.Substring(0, host.Length - opts.RootDomain.Length - 1);
             if (!string.IsNullOrEmpty(sub) && sub.IndexOf('.') < 0)
             {
-                key = sub;
-                subPath = context.Request.Path.Value ?? "/";
+                var prefix = opts.SubdomainPrefix;
+                if (prefix.Length > 0)
+                {
+                    // 带前缀模式：只接受 "<prefix><key>"，其余子域名放行走正常管线。
+                    if (sub.StartsWith(prefix, StringComparison.Ordinal))
+                    {
+                        key = sub.Substring(prefix.Length);
+                        subPath = context.Request.Path.Value ?? "/";
+                    }
+                }
+                else
+                {
+                    // 旧配置（无前缀）：整个子域名即 key。
+                    key = sub;
+                    subPath = context.Request.Path.Value ?? "/";
+                }
             }
         }
 
@@ -106,8 +121,8 @@ public sealed class TunnelEntryMiddleware(RequestDelegate next, ILogger<TunnelEn
         var worker = workers.Find(route.WorkerId);
         if (worker is null)
         {
-            await WriteErrorAsync(context, StatusCodes.Status502BadGateway,
-                "Worker is offline. Start the worker and reattach the session.");
+            await WriteWaitingPageAsync(context,
+                "The worker machine is offline. Once it is back online, this page will enter automatically.");
             return;
         }
 
@@ -144,7 +159,21 @@ public sealed class TunnelEntryMiddleware(RequestDelegate next, ILogger<TunnelEn
         TunnelResponseHeadFrame head;
         try
         {
-            head = await call.Head.Task.WaitAsync(cts.Token);
+            // 响应头与 end 帧同时等：worker 在发出头之前就带错误结束（端口不可达、
+            // 等待端口就绪超时等）时，立刻给访客明确的 502，而不是干等 ForwardTimeout。
+            var headAwaited = call.Head.Task.WaitAsync(cts.Token);
+            var finished = await Task.WhenAny(headAwaited, call.End.Task);
+            if (finished != headAwaited)
+            {
+                var earlyEnd = call.End.Task.Result;
+                await WriteWaitingPageAsync(context,
+                    earlyEnd.Error is not null
+                        ? $"The service on port {route.Port} is not reachable on the worker right now."
+                        : "The tunnel closed before a response was produced.");
+                return;
+            }
+
+            head = await headAwaited;
         }
         catch (OperationCanceledException)
         {
@@ -208,6 +237,54 @@ public sealed class TunnelEntryMiddleware(RequestDelegate next, ILogger<TunnelEn
             result[key] = value.ToArray()!;
         }
         return result;
+    }
+
+    /// <summary>
+    /// 「等待服务就绪」页：503 + 每 5 秒自动刷新（meta refresh），服务一起来自动进入。
+    /// 仅对 GET/HEAD 渲染 HTML 页（浏览器场景）；其它方法返回纯文本 503，避免重复提交。
+    /// </summary>
+    private static async Task WriteWaitingPageAsync(HttpContext context, string message)
+    {
+        context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+        context.Response.Headers.RetryAfter = "5";
+        var isBrowseable = HttpMethods.IsGet(context.Request.Method) || HttpMethods.IsHead(context.Request.Method);
+        if (!isBrowseable)
+        {
+            context.Response.ContentType = "text/plain; charset=utf-8";
+            await context.Response.Body.WriteAsync(
+                Encoding.UTF8.GetBytes(message + " Retrying automatically."), context.RequestAborted);
+            return;
+        }
+
+        context.Response.ContentType = "text/html; charset=utf-8";
+        var html = $@"<!doctype html>
+<html lang=""en"">
+<head>
+<meta charset=""utf-8"">
+<meta name=""viewport"" content=""width=device-width, initial-scale=1"">
+<meta http-equiv=""refresh"" content=""5"">
+<title>CortexTerminal — waiting for service</title>
+<style>
+  body {{ font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; background:#0b0f14; color:#f0f3f7;
+         display:flex; align-items:center; justify-content:center; min-height:100vh; margin:0; }}
+  .card {{ max-width:30rem; padding:2.5rem; text-align:center; }}
+  .dot {{ width:10px; height:10px; border-radius:50%; background:#20c997; display:inline-block;
+          margin-right:8px; animation:p 1.2s ease-in-out infinite; }}
+  @keyframes p {{ 0%,100% {{ opacity:.25; }} 50% {{ opacity:1; }} }}
+  h1 {{ font-size:1.25rem; margin:0 0 .75rem; }}
+  p {{ color:#98a4b3; line-height:1.6; margin:0 0 1.25rem; }}
+  a {{ color:#2498f3; }}
+</style>
+</head>
+<body>
+<div class=""card"">
+  <h1><span class=""dot""></span>Waiting for service…</h1>
+  <p>{System.Net.WebUtility.HtmlEncode(message)}<br>This page refreshes automatically every 5 seconds.</p>
+  <p><a href="""">Retry now</a></p>
+</div>
+</body>
+</html>";
+        await context.Response.Body.WriteAsync(Encoding.UTF8.GetBytes(html), context.RequestAborted);
     }
 
     private static async Task WriteErrorAsync(HttpContext context, int status, string message)

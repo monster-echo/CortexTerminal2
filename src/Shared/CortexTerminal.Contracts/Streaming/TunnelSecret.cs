@@ -16,9 +16,26 @@ public static class TunnelSecret
     public static string GenerateSecret()
         => ToUrlSafeBase64(RandomNumberGenerator.GetBytes(SecretByteLength));
 
-    /// <summary>5 字节随机数编码为 10 位小写 hex(40 bit 熵),仅含 0-9a-f,满足 DNS 子域名规范。用于 &lt;key&gt;.tunnel.&lt;RootDomain&gt;/ 子域名标识。</summary>
+    private const string Base36Alphabet = "0123456789abcdefghijklmnopqrstuvwxyz";
+
+    /// <summary>5 字节随机数(40 bit 熵)编码为 8 位 base36 小写(0-9a-z),满足 DNS 子域名规范。用于 t-&lt;key&gt;.&lt;RootDomain&gt; 子域名标识。访问凭据由 secret 承担,key 熵要求较低。</summary>
     public static string GenerateTunnelKey()
-        => Convert.ToHexString(RandomNumberGenerator.GetBytes(KeyByteLength)).ToLowerInvariant();
+    {
+        var bytes = RandomNumberGenerator.GetBytes(KeyByteLength);
+        // 大端序整数 -> base36。
+        var buf = new char[8];
+        ulong n = 0;
+        for (var i = 0; i < bytes.Length; i++)
+        {
+            n = (n << 8) | bytes[i];
+        }
+        for (var i = buf.Length - 1; i >= 0; i--)
+        {
+            buf[i] = Base36Alphabet[(int)(n % 36)];
+            n /= 36;
+        }
+        return new string(buf);
+    }
 
     /// <summary>SHA-256(secret) 的小写十六进制。明文 secret 永不入库。</summary>
     public static string Hash(string secret)

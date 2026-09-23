@@ -7,8 +7,11 @@ public sealed class TunnelOptions
     /// <summary>路径式入口前缀(M1)。M2 改泛域名后此字段废弃。</summary>
     public string RoutePrefix { get; set; } = "/t/";
 
-    /// <summary>子域名模式的根域名,如 "tunnel.corterm.rwecho.top"。为空则仅用路径式 RoutePrefix。</summary>
+    /// <summary>子域名模式的根域名,如 "corterm.rwecho.top"。为空则仅用路径式 RoutePrefix。</summary>
     public string? RootDomain { get; set; }
+
+    /// <summary>子域名前缀:访客 URL 形如 https://t-&lt;key&gt;.&lt;RootDomain&gt;/。与 Relay 的 SubdomainPrefix 保持一致。</summary>
+    public string SubdomainPrefix { get; set; } = "t-";
 
     /// <summary>tunnel 默认寿命。</summary>
     public TimeSpan DefaultTtl { get; set; } = TimeSpan.FromHours(24);

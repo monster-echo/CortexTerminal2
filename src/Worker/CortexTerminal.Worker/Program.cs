@@ -608,7 +608,10 @@ rootCommand.SetAction(async (ParseResult parseResult, CancellationToken cancella
 
     // Relay 数据面：隧道持久 WS 反代 + 文件传输执行器 + LAN 直连监听器（端点协商）。
     builder.Services.AddSingleton<RelayLink>(sp => new RelayLink(
-        workerId, sp.GetRequiredService<ILogger<RelayLink>>()));
+        workerId,
+        sp.GetRequiredService<ILogger<RelayLink>>(),
+        waitPortTimeout: TimeSpan.FromSeconds(
+            sp.GetRequiredService<IConfiguration>().GetValue("Tunnels:WaitPortSeconds", 15))));
     builder.Services.AddSingleton(sp => new RelayTransferService(
         50L * 1024 * 1024,
         sp.GetRequiredService<ILogger<RelayTransferService>>()));

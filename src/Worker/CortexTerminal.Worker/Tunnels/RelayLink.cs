@@ -14,8 +14,11 @@ namespace CortexTerminal.Worker.Tunnels;
 /// Relay 的 /worker WS；访客请求经 treq 控制帧到达，本端用共享 HttpClient 流式反代到
 /// localhost:&lt;port&gt;，响应头/体/终态分别经 tres / 二进制帧 / tend 回传。无整包缓冲。
 /// </summary>
-public sealed class RelayLink(string workerId, ILogger<RelayLink> logger) : IAsyncDisposable
+public sealed class RelayLink(string workerId, ILogger<RelayLink> logger, TimeSpan? waitPortTimeout = null) : IAsyncDisposable
 {
+    /// <summary>访客请求到达时端口未监听的最长等待时间；超时后按 unreachable 返回。</summary>
+    private readonly TimeSpan _waitPortTimeout = waitPortTimeout ?? TimeSpan.FromSeconds(15);
+
     private readonly SemaphoreSlim _stateLock = new(1, 1);
     private ClientWebSocket? _socket;
     private CancellationTokenSource? _lifetime;
@@ -235,6 +238,42 @@ public sealed class RelayLink(string workerId, ILogger<RelayLink> logger) : IAsy
         request.RequestBodyWriter.TryWrite(payload);
     }
 
+    /// <summary>轮询等待 localhost:&lt;port&gt; 出现监听（间隔 500ms,最长 _waitPortTimeout）。</summary>
+    private async Task<bool> WaitPortOpenAsync(int port, CancellationToken ct)
+    {
+        var deadline = DateTime.UtcNow + _waitPortTimeout;
+        while (true)
+        {
+            try
+            {
+                using var tcp = new System.Net.Sockets.TcpClient();
+                var ar = tcp.BeginConnect(IPAddress.Loopback, port, null, null);
+                if (ar.AsyncWaitHandle.WaitOne(TimeSpan.FromMilliseconds(500)) && tcp.Connected)
+                {
+                    tcp.EndConnect(ar);
+                    return true;
+                }
+            }
+            catch
+            {
+                // 尚未监听，继续等待。
+            }
+
+            if (DateTime.UtcNow >= deadline)
+            {
+                return false;
+            }
+            try
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(500), ct);
+            }
+            catch (OperationCanceledException)
+            {
+                return false;
+            }
+        }
+    }
+
     /// <summary>反代一次访客请求到 localhost:&lt;port&gt;：请求体经管道流式供给，响应分帧回流。</summary>
     private async Task ExecuteTunnelRequestAsync(TunnelRequestFrame request)
     {
@@ -242,6 +281,16 @@ public sealed class RelayLink(string workerId, ILogger<RelayLink> logger) : IAsy
         _inflight[request.Id] = inflight;
         try
         {
+            // 端口未监听时先等它就绪（服务重启/延迟启动场景），超时按 unreachable 返回。
+            if (!await WaitPortOpenAsync(request.Port, inflight.Lifetime.Token))
+            {
+                var timeoutEnd = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(
+                    new TunnelEndFrame { Id = request.Id, Error = $"localhost:{request.Port} not listening after waiting {_waitPortTimeout.TotalSeconds:0}s" },
+                    RelayJson.Default);
+                _outgoing.Writer.TryWrite(new OutgoingFrame(timeoutEnd, WebSocketMessageType.Text));
+                return;
+            }
+
             using var upstream = new HttpRequestMessage(new HttpMethod(request.Method), BuildUrl(request));
             foreach (var (name, values) in request.Headers)
             {

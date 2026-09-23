@@ -198,7 +198,7 @@ static string BuildTunnelUrl(TunnelOptions options, RelayOptions relay, string k
     var query = string.IsNullOrEmpty(secret) ? string.Empty : $"?k={secret}";
     if (!string.IsNullOrEmpty(options.RootDomain))
     {
-        return $"https://{key}.{options.RootDomain}/{query}";
+        return $"https://{options.SubdomainPrefix}{key}.{options.RootDomain}/{query}";
     }
     if (string.IsNullOrWhiteSpace(relay.PublicUrl))
     {
@@ -2071,9 +2071,9 @@ app.MapPost("/api/me/sessions/{sessionId}/tunnels", async (
     if (body.Port <= 0 || body.Port > 65535)
         return Results.BadRequest("Port must be between 1 and 65535.");
 
+    // 端口未监听不再拦截创建：worker 侧会在访客请求时等待端口就绪（WaitPortTimeout），
+    // 这里只把 portOpen=false 带回给客户端做「服务未启动」提示。
     var probe = await workerCommands.ProbeTunnelPortAsync(worker.ConnectionId, body.Port, cancellationToken);
-    if (!probe.Open)
-        return Results.Problem($"Port {body.Port} is not listening on worker: {probe.ErrorMessage}", statusCode: StatusCodes.Status502BadGateway);
 
     var secret = TunnelSecret.GenerateSecret();
     var key = TunnelSecret.GenerateTunnelKey();
@@ -2090,7 +2090,8 @@ app.MapPost("/api/me/sessions/{sessionId}/tunnels", async (
     auditLog.Record(httpContext.CreateAuditEntry(userId, userId, "tunnel.created", "tunnel", entity.Id));
 
     var url = BuildTunnelUrl(options, relayOptions.Value, key, secret);
-    return Results.Ok(new TunnelDto(entity.Id, entity.TunnelKey, entity.Port, entity.SessionId, entity.WorkerId, url, secret, entity.ExpiresAtUtc, entity.CreatedAtUtc));
+    return Results.Ok(new TunnelDto(entity.Id, entity.TunnelKey, entity.Port, entity.SessionId, entity.WorkerId,
+        url, secret, entity.ExpiresAtUtc, entity.CreatedAtUtc, PortOpen: probe.Open));
 }).RequireAuthorization();
 
 app.MapGet("/api/me/sessions/{sessionId}/tunnels", async (
@@ -3172,6 +3173,35 @@ app.MapPost("/api/workspaces/{workspaceId}/files/downloads", async (string works
     catch (WorkspaceFileServiceException ex) { return MapFileError(ex); }
 }).RequireAuthorization();
 
+// ---- 终端文件浏览（root = 客户端给出的绝对路径：OSC 7 实时 cwd 或工作区路径）----
+app.MapGet("/api/workers/{workerId}/files", async (string workerId, string root, string? path, ClaimsPrincipal user, RelayFileTransferService files) =>
+{
+    var userId = GetUserId(user);
+    try { return Results.Ok(await files.ListForWorkerAsync(userId, workerId, root, path, CancellationToken.None)); }
+    catch (UnauthorizedAccessException) { return Results.Forbid(); }
+    catch (WorkspaceFileServiceException ex) { return MapFileError(ex); }
+}).RequireAuthorization();
+
+app.MapPost("/api/workers/{workerId}/files/uploads", async (string workerId, WorkerFileUploadRequest body, ClaimsPrincipal user, RelayFileTransferService files) =>
+{
+    var userId = GetUserId(user);
+    try
+    {
+        return Results.Ok(await files.CreateUploadForWorkerAsync(
+            userId, workerId, body.Root, body.DirPath, body.Filename, body.SizeBytes, body.Sha256, CancellationToken.None));
+    }
+    catch (UnauthorizedAccessException) { return Results.Forbid(); }
+    catch (WorkspaceFileServiceException ex) { return MapFileError(ex); }
+}).RequireAuthorization();
+
+app.MapPost("/api/workers/{workerId}/files/downloads", async (string workerId, WorkerFileDownloadRequest body, ClaimsPrincipal user, RelayFileTransferService files) =>
+{
+    var userId = GetUserId(user);
+    try { return Results.Ok(await files.StartDownloadForWorkerAsync(userId, workerId, body.Root, body.Path, CancellationToken.None)); }
+    catch (UnauthorizedAccessException) { return Results.Forbid(); }
+    catch (WorkspaceFileServiceException ex) { return MapFileError(ex); }
+}).RequireAuthorization();
+
 // ---- Relay 内部 API（Relay → Gateway，X-Relay-Secret 鉴权）----
 // 隧道路由查询：tunnel key → worker/port/secretHash。控制面小流量，Relay 侧短缓存。
 app.MapGet("/internal/tunnels/{tunnelKey}", async (string tunnelKey, HttpContext ctx, TunnelRegistry tunnels) =>
@@ -3561,6 +3591,12 @@ public sealed record PunchRegisterRequest(string Role, string Endpoint);
 public sealed record CreateFileUploadRequest(string DirPath, string Filename, long SizeBytes, string Sha256);
 
 public sealed record CreateFileDownloadRequest(string Path);
+
+/// <summary>终端文件上传请求：root 为绝对路径（OSC 7 实时 cwd 或工作区路径），Worker 校验其不逃出 home。</summary>
+public sealed record WorkerFileUploadRequest(string Root, string DirPath, string Filename, long SizeBytes, string Sha256);
+
+/// <summary>终端文件下载请求：root 为绝对路径，path 为相对 root 的路径。</summary>
+public sealed record WorkerFileDownloadRequest(string Root, string Path);
 
 /// <summary>
 /// Client payload for <c>POST /api/iap/purchase/verify</c>.

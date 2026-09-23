@@ -12,6 +12,8 @@ public sealed record TunnelDto(
     string Url,
     string? Secret,
     DateTimeOffset ExpiresAtUtc,
-    DateTimeOffset CreatedAtUtc);
+    DateTimeOffset CreatedAtUtc,
+    /// <summary>创建响应带回：端口当前是否在 worker 上监听。列表查询恒为 true。</summary>
+    bool PortOpen = true);
 
 public sealed record TunnelListResponse(IReadOnlyList<TunnelDto> Tunnels);

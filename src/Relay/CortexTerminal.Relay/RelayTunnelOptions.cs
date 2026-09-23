@@ -14,6 +14,12 @@ public sealed class RelayTunnelOptions
     /// <summary>子域名模式的根域名，如 "tunnel.corterm.rwecho.top"。为空则仅用路径式 RoutePrefix。DNS 需指向本服务。</summary>
     public string RootDomain { get; set; } = string.Empty;
 
+    /// <summary>
+    /// 子域名前缀：访客 Host 形如 "t-&lt;key&gt;.&lt;RootDomain&gt;"（对应 DNS 泛解析 *.&lt;RootDomain&gt;）。
+    /// 非空时只接受带前缀的子域名（避免劫持同域名下其它子域）；置空则退回旧的无前缀 &lt;key&gt;.&lt;RootDomain&gt;。
+    /// </summary>
+    public string SubdomainPrefix { get; set; } = "t-";
+
     /// <summary>Gateway 基地址，用于内部 API 查询隧道路由（tunnel key → worker/port/secretHash）。</summary>
     public string GatewayInternalUrl { get; set; } = string.Empty;
 

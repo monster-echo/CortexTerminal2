@@ -125,6 +125,110 @@ public sealed class RelayFileTransferService(
     }
 
     /// <summary>
+    /// 终端文件浏览：根目录由客户端给出（shell OSC 7 上报的实时 cwd，或工作区绝对路径），
+    /// Worker 侧负责把根限制在用户 home 内。鉴权只看 worker 归属。
+    /// </summary>
+    public async Task<FileListing> ListForWorkerAsync(
+        string userId, string workerId, string rootPath, string? path, CancellationToken ct)
+    {
+        var worker = OwnedOnlineWorkerOrThrow(userId, workerId);
+
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(TimeSpan.FromSeconds(15));
+        var result = await workerCommands.ListFilesAsync(
+            worker.ConnectionId, rootPath, path ?? string.Empty, timeout.Token);
+        if (result.Error is not null)
+        {
+            throw new WorkspaceFileServiceException(result.Error.Code, result.Error.Message);
+        }
+        return result.Listing ?? throw new WorkspaceFileServiceException(
+            FileTransferErrorCode.TransferFailed, "worker returned an empty listing result");
+    }
+
+    public async Task<UploadInitResult> CreateUploadForWorkerAsync(
+        string userId, string workerId, string rootPath, string dirPath, string filename, long sizeBytes, string sha256, CancellationToken ct)
+    {
+        if (!RemoteFileNameValidator.TryValidateSegment(filename, out var reason))
+        {
+            throw new WorkspaceFileServiceException(FileTransferErrorCode.PathInvalid, reason);
+        }
+        if (sizeBytes <= 0)
+        {
+            throw new WorkspaceFileServiceException(FileTransferErrorCode.PathInvalid, "sizeBytes must be positive");
+        }
+
+        var worker = OwnedOnlineWorkerOrThrow(userId, workerId);
+
+        var transferId = Guid.NewGuid().ToString("N");
+        var token = RelayToken.Mint(
+            _options.SharedSecret, RelayToken.AudienceTransfer, transferId, DateTimeOffset.UtcNow.AddSeconds(_options.TransferTtlSeconds));
+        var command = new PrepareFileReceiveCommand(
+            transferId, rootPath, dirPath ?? string.Empty, filename, sizeBytes, sha256, _options.PublicUrl, token);
+
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(TimeSpan.FromSeconds(20));
+        FileOperationAck ack;
+        try
+        {
+            ack = await workerCommands.PrepareFileReceiveAsync(worker.ConnectionId, command, timeout.Token);
+        }
+        catch (Exception ex)
+        {
+            throw new WorkspaceFileServiceException(FileTransferErrorCode.WorkerOffline,
+                "worker did not accept the transfer: " + ex.Message);
+        }
+        if (!ack.Success)
+        {
+            var error = ack.Error ?? new FileOperationError(FileTransferErrorCode.TransferFailed, "worker rejected the upload");
+            throw new WorkspaceFileServiceException(error.Code, error.Message);
+        }
+
+        return new UploadInitResult(transferId, EndpointsFor(worker, transferId, token));
+    }
+
+    public async Task<DownloadInitResult> StartDownloadForWorkerAsync(
+        string userId, string workerId, string rootPath, string path, CancellationToken ct)
+    {
+        var worker = OwnedOnlineWorkerOrThrow(userId, workerId);
+
+        var transferId = Guid.NewGuid().ToString("N");
+        var token = RelayToken.Mint(
+            _options.SharedSecret, RelayToken.AudienceTransfer, transferId, DateTimeOffset.UtcNow.AddSeconds(_options.TransferTtlSeconds));
+        var command = new PrepareFileSendCommand(transferId, rootPath, path, _options.PublicUrl, token);
+
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(TimeSpan.FromSeconds(20));
+        PrepareFileSendAck ack;
+        try
+        {
+            ack = await workerCommands.PrepareFileSendAsync(worker.ConnectionId, command, timeout.Token);
+        }
+        catch (Exception ex)
+        {
+            throw new WorkspaceFileServiceException(FileTransferErrorCode.WorkerOffline,
+                "worker did not accept the transfer: " + ex.Message);
+        }
+        if (!ack.Success)
+        {
+            var error = ack.Error ?? new FileOperationError(FileTransferErrorCode.TransferFailed, "worker rejected the download");
+            throw new WorkspaceFileServiceException(error.Code, error.Message);
+        }
+
+        return new DownloadInitResult(transferId, ack.SizeBytes, ack.Filename, EndpointsFor(worker, transferId, token));
+    }
+
+    /// <summary>worker 归属校验 + 在线校验（worker-scoped 文件操作共用）。</summary>
+    private RegisteredWorker OwnedOnlineWorkerOrThrow(string userId, string workerId)
+    {
+        if (!workers.TryGetWorker(workerId, out var worker)
+            || (worker.OwnerUserId is not null && worker.OwnerUserId != userId))
+        {
+            throw new WorkspaceFileServiceException(FileTransferErrorCode.PathNotFound, "Worker not found");
+        }
+        return OnlineWorkerOrThrow(workerId);
+    }
+
+    /// <summary>
     /// 端点协商（P2P 优先，按可达概率排序）：同网段 LAN 直连 → 公网直连 → Relay 兜底。
     /// 客户端按顺序尝试，全部失败视为传输失败。
     /// </summary>

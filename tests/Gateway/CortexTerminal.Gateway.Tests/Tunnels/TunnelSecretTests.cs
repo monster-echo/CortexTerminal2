@@ -20,8 +20,8 @@ public sealed class TunnelSecretTests
     public void GenerateTunnelKey_is_short_and_path_safe()
     {
         var key = TunnelSecret.GenerateTunnelKey();
-        key.Length.Should().Be(10); // 5 bytes -> 10 lowercase hex chars
-        key.Should().MatchRegex(@"^[0-9a-f]+$");
+        key.Length.Should().Be(8); // 5 bytes -> 8 base36 chars
+        key.Should().MatchRegex(@"^[0-9a-z]+$");
     }
 
     [Fact]

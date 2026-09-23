@@ -19,7 +19,13 @@ namespace CortexTerminal.Worker.RemoteFiles;
 public sealed class WorkspaceFileService(int maxListEntries, ILogger<WorkspaceFileService> logger)
 {
     public FileListingResult ListFiles(string rootDir, string? relativePath)
-        => new RemoteDirectoryLister(rootDir, maxListEntries).List(relativePath);
+    {
+        if (!TryResolveWorkspaceDir(rootDir, out var root, out var rootError))
+        {
+            return new FileListingResult(null, rootError);
+        }
+        return new RemoteDirectoryLister(root, maxListEntries).List(relativePath);
+    }
 
     public WorkspaceDirectoryAck CreateWorkspaceDirectory(CreateWorkspaceDirectoryCommand command)
     {
@@ -124,6 +130,10 @@ public sealed class RelayTransferService(long maxTransferBytes, ILogger<RelayTra
         {
             return Task.FromResult(Fail(FileTransferErrorCode.PathInvalid, reason));
         }
+        if (!WorkspaceFileService.TryResolveWorkspaceDir(command.RootDir, out _, out var receiveRootError))
+        {
+            return Task.FromResult(Fail(receiveRootError!.Code, receiveRootError.Message));
+        }
         if (!RemotePathValidator.TryResolve(command.RootDir, command.DirPath, out var dirPath, out var pathError))
         {
             return Task.FromResult(Fail(pathError.Code, pathError.Message));
@@ -156,6 +166,10 @@ public sealed class RelayTransferService(long maxTransferBytes, ILogger<RelayTra
 
     public Task<PrepareFileSendAck> PrepareFileSendAsync(PrepareFileSendCommand command, CancellationToken ct)
     {
+        if (!WorkspaceFileService.TryResolveWorkspaceDir(command.RootDir, out _, out var sendRootError))
+        {
+            return Task.FromResult(new PrepareFileSendAck(false, sendRootError!, 0, ""));
+        }
         if (!RemotePathValidator.TryResolve(command.RootDir, command.RelativePath, out var filePath, out var pathError))
         {
             return Task.FromResult(new PrepareFileSendAck(false, pathError, 0, ""));

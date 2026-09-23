@@ -5,9 +5,6 @@ namespace CortexTerminal.Gateway.Audit;
 
 public static class AuditRequestExtensions
 {
-    private static readonly Regex MobileAppParenthesizedRegex =
-        new(@"\(([^)]+)\)\s*$", RegexOptions.Compiled);
-
     private static readonly Regex AndroidModelRegex =
         new(@"Android\s+[\d.]+;\s*([^);]+?)(?:\s+Build/|\))", RegexOptions.Compiled, TimeSpan.FromSeconds(1));
 
@@ -45,19 +42,6 @@ public static class AuditRequestExtensions
     public static string? ParseDeviceModel(string? userAgent)
     {
         if (string.IsNullOrWhiteSpace(userAgent)) return null;
-
-        // Our own client UA: CortexTerminal.Mobile.App/{ver} ({platform}; {model}; {osVersion})
-        var ma = MobileAppParenthesizedRegex.Match(userAgent);
-        if (ma.Success)
-        {
-            var parts = ma.Groups[1].Value.Split(';');
-            if (parts.Length >= 2)
-            {
-                var platform = parts[0].Trim();
-                var model = parts[1].Trim();
-                if (!string.IsNullOrWhiteSpace(model)) return $"{platform}/{model}";
-            }
-        }
 
         // Legacy iOS (CFNetwork / Darwin) before we set explicit UA
         if (userAgent.Contains("CFNetwork", StringComparison.OrdinalIgnoreCase) ||
