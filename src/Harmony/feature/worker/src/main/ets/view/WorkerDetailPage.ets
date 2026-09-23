@@ -360,7 +360,7 @@ export struct WorkerDetailPage {
         .fontSize(13)
         .onClick(() => {
           clickHaptic()
-          const param: Record<string, string> = { 'workspaceId': ws.id, 'workspaceName': ws.name }
+          const param: Record<string, string> = { 'workerId': this.workerId, 'rootDir': ws.rootPath }
           this.pageStack.pushPath({ name: RouteName.FILES_PAGE, param })
         })
 

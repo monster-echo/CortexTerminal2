@@ -8,7 +8,7 @@
  * styling. Failures surface in the in-panel error banner, never silently.
  */
 import { pasteboard } from '@kit.BasicServicesKit'
-import { I18n, ApiService, RouteName, TunnelInfo, showToast, clickHaptic } from '@rwecho/core'
+import { I18n, ApiService, RouteName, TunnelInfo, showToast, clickHaptic, TerminalChrome } from '@rwecho/core'
 
 @Component
 export struct TunnelPanel {
@@ -18,6 +18,11 @@ export struct TunnelPanel {
   @State isLoading: boolean = false
   @State errorMessage: string = ''
   @Consume('pageStack') pageStack: NavPathStack
+  @StorageLink('terminalChromeJson') chromeJson: string = ''
+
+  private chrome(): TerminalChrome {
+    return TerminalChrome.fromJson(this.chromeJson)
+  }
 
   aboutToAppear() {
     this.loadTunnels()
@@ -117,6 +122,27 @@ export struct TunnelPanel {
             ListItem() {
               this.TunnelCard(t)
             }
+            .swipeAction({
+              end: {
+                action: () => {
+                  clickHaptic()
+                  this.confirmRevoke(t)
+                },
+                // 左滑露出的删除区域：红色块 + 删除图标
+                builder: () => {
+                  Row() {
+                    SymbolGlyph($r('sys.symbol.trash'))
+                      .fontSize(22)
+                      .fontColor([$r('app.color.terminal_on_primary')])
+                  }
+                  .width(64)
+                  .height('100%')
+                  .borderRadius(10)
+                  .justifyContent(FlexAlign.Center)
+                  .backgroundColor($r('app.color.terminal_error'))
+                }
+              }
+            })
           }, (t: TunnelInfo) => t.tunnelId)
         }
         .width('100%')
@@ -127,7 +153,7 @@ export struct TunnelPanel {
     }
     .width('100%')
     .height('100%')
-    .backgroundColor($r('app.color.terminal_surface'))
+    .backgroundColor(this.chrome().background)
   }
 
   @Builder
@@ -136,7 +162,7 @@ export struct TunnelPanel {
       Text(I18n.get('tunnel.title'))
         .fontSize(18)
         .fontWeight(FontWeight.Bold)
-        .fontColor($r('app.color.terminal_on_surface'))
+        .fontColor(this.chrome().onSurface)
         .layoutWeight(1)
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
@@ -159,17 +185,17 @@ export struct TunnelPanel {
         .layoutWeight(1)
         .height(48)
         .borderRadius(8)
-        .backgroundColor($r('app.color.terminal_surface_container_high'))
-        .fontColor($r('app.color.terminal_primary'))
-        .placeholderColor($r('app.color.terminal_on_surface_variant'))
+        .backgroundColor(this.chrome().surfaceHigh)
+        .fontColor(this.chrome().accent)
+        .placeholderColor(this.chrome().onSurfaceVariant)
         .fontSize(16)
 
       Button(I18n.get('tunnel.create'))
         .height(48)
         .padding({ left: 24, right: 24 })
         .borderRadius(24)
-        .backgroundColor($r('app.color.terminal_secondary_container'))
-        .fontColor($r('app.color.terminal_on_secondary_container'))
+        .backgroundColor(this.chrome().accentContainer)
+        .fontColor(this.chrome().onAccentContainer)
         .fontSize(15)
         .fontWeight(FontWeight.Medium)
         .enabled(!this.isLoading)
@@ -193,8 +219,8 @@ export struct TunnelPanel {
         .textOverflow({ overflow: TextOverflow.Ellipsis })
       Button(I18n.get('common.retry'))
         .fontSize(13)
-        .fontColor($r('app.color.terminal_on_secondary_container'))
-        .backgroundColor($r('app.color.terminal_secondary_container'))
+        .fontColor(this.chrome().onAccentContainer)
+        .backgroundColor(this.chrome().accentContainer)
         .borderRadius(8)
         .height(32)
         .onClick(() => {
@@ -204,7 +230,7 @@ export struct TunnelPanel {
     }
     .width('100%')
     .padding(12)
-    .backgroundColor($r('app.color.terminal_surface_container'))
+    .backgroundColor(this.chrome().surface)
     .margin({ left: 16, right: 16, bottom: 8 })
   }
 
@@ -214,7 +240,7 @@ export struct TunnelPanel {
       LoadingProgress()
         .width(32)
         .height(32)
-        .color($r('app.color.terminal_secondary'))
+        .color(this.chrome().accent)
     }
     .width('100%')
     .layoutWeight(1)
@@ -226,11 +252,11 @@ export struct TunnelPanel {
     Column() {
       SymbolGlyph($r('sys.symbol.link'))
         .fontSize(40)
-        .fontColor([$r('app.color.terminal_outline')])
+        .fontColor([this.chrome().outlineVariant])
         .margin({ bottom: 16 })
       Text(I18n.get('tunnel.empty'))
         .fontSize(13)
-        .fontColor($r('app.color.terminal_on_surface_variant'))
+        .fontColor(this.chrome().onSurfaceVariant)
         .textAlign(TextAlign.Center)
     }
     .width('100%')
@@ -246,10 +272,10 @@ export struct TunnelPanel {
         Text(`${t.port}`)
           .fontSize(16)
           .fontWeight(FontWeight.Bold)
-          .fontColor($r('app.color.terminal_primary'))
+          .fontColor(this.chrome().accent)
         Text(this.localTime(t.expiresAtUtc))
           .fontSize(12)
-          .fontColor($r('app.color.terminal_on_surface_variant'))
+          .fontColor(this.chrome().onSurfaceVariant)
           .margin({ left: 10 })
           .layoutWeight(1)
           .maxLines(1)
@@ -260,7 +286,7 @@ export struct TunnelPanel {
 
       Text(t.url)
         .fontSize(12)
-        .fontColor($r('app.color.terminal_secondary'))
+        .fontColor(this.chrome().accent)
         .width('100%')
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
@@ -271,8 +297,8 @@ export struct TunnelPanel {
           .layoutWeight(1)
           .height(32)
           .borderRadius(8)
-          .backgroundColor($r('app.color.terminal_secondary_container'))
-          .fontColor($r('app.color.terminal_on_secondary_container'))
+          .backgroundColor(this.chrome().accentContainer)
+          .fontColor(this.chrome().onAccentContainer)
           .fontSize(13)
           .onClick(() => {
             clickHaptic()
@@ -283,8 +309,8 @@ export struct TunnelPanel {
           .height(32)
           .borderRadius(8)
           .backgroundColor(Color.Transparent)
-          .fontColor($r('app.color.terminal_secondary'))
-          .border({ width: 1, color: $r('app.color.terminal_outline_variant') })
+          .fontColor(this.chrome().accent)
+          .border({ width: 1, color: this.chrome().outlineVariant })
           .fontSize(13)
           .onClick(() => {
             clickHaptic()
@@ -308,7 +334,7 @@ export struct TunnelPanel {
     .width('100%')
     .padding(14)
     .borderRadius(12)
-    .backgroundColor($r('app.color.terminal_surface_container'))
+    .backgroundColor(this.chrome().surface)
     .alignItems(HorizontalAlign.Start)
   }
 }

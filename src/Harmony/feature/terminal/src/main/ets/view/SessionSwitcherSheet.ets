@@ -5,7 +5,7 @@
  * Mirrors the Flutter端 SessionSelectorSheet: RUNNING sessions first, then
  * RECENT ones; tapping an entry switches the terminal to that session.
  */
-import { ApiService, SessionInfo, I18n, lightHaptic } from '@rwecho/core'
+import { ApiService, SessionInfo, I18n, lightHaptic, TerminalChrome } from '@rwecho/core'
 
 @Component
 export struct SessionSwitcherSheet {
@@ -13,6 +13,11 @@ export struct SessionSwitcherSheet {
   onPick: (session: SessionInfo) => void = (_s: SessionInfo) => {}
   @State sessions: SessionInfo[] = []
   @State loadError: string = ''
+  @StorageLink('terminalChromeJson') chromeJson: string = ''
+
+  private chrome(): TerminalChrome {
+    return TerminalChrome.fromJson(this.chromeJson)
+  }
 
   aboutToAppear() {
     this.load()
@@ -23,7 +28,7 @@ export struct SessionSwitcherSheet {
       Text(I18n.get('sidebar.sessions'))
         .fontSize(18)
         .fontWeight(FontWeight.Bold)
-        .fontColor($r('app.color.terminal_on_surface'))
+        .fontColor(this.chrome().onSurface)
         .width('100%')
         .padding({ left: 16, right: 16, top: 8, bottom: 12 })
 
@@ -36,7 +41,7 @@ export struct SessionSwitcherSheet {
       } else if (this.sessions.length === 0) {
         Text(I18n.get('session.home.guide.no_session'))
           .fontSize(14)
-          .fontColor($r('app.color.terminal_on_surface_variant'))
+          .fontColor(this.chrome().onSurfaceVariant)
           .width('100%')
           .padding({ left: 16, right: 16, top: 12, bottom: 24 })
       } else {
@@ -76,7 +81,7 @@ export struct SessionSwitcherSheet {
   SectionHeader(label: string) {
     Text(label)
       .fontSize(12)
-      .fontColor($r('app.color.terminal_on_surface_variant'))
+      .fontColor(this.chrome().onSurfaceVariant)
       .width('100%')
       .padding({ top: 8, bottom: 6 })
   }
@@ -93,13 +98,13 @@ export struct SessionSwitcherSheet {
         Text(session.name || `session ${session.id.substring(0, 8)}`)
           .fontSize(14)
           .fontWeight(session.id === this.currentSessionId ? FontWeight.Medium : FontWeight.Normal)
-          .fontColor($r('app.color.terminal_on_surface'))
+          .fontColor(this.chrome().onSurface)
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
 
         Text(session.status.length > 0 ? session.status : 'idle')
           .fontSize(11)
-          .fontColor($r('app.color.terminal_on_surface_variant'))
+          .fontColor(this.chrome().onSurfaceVariant)
           .margin({ top: 2 })
       }
       .alignItems(HorizontalAlign.Start)
@@ -110,7 +115,7 @@ export struct SessionSwitcherSheet {
         Text('✓')
           .fontSize(14)
           .fontWeight(FontWeight.Bold)
-          .fontColor($r('app.color.terminal_primary'))
+          .fontColor(this.chrome().accent)
       }
     }
     .width('100%')
@@ -118,7 +123,7 @@ export struct SessionSwitcherSheet {
     .padding({ left: 10, right: 10 })
     .borderRadius(10)
     .backgroundColor(session.id === this.currentSessionId ?
-      $r('app.color.terminal_primary_container') : Color.Transparent)
+      this.chrome().accentContainer : Color.Transparent)
     .alignItems(VerticalAlign.Center)
     .onClick(() => {
       lightHaptic()
@@ -160,7 +165,7 @@ export struct SessionSwitcherSheet {
       case 'error':
         return $r('app.color.terminal_error')
       default:
-        return $r('app.color.terminal_outline')
+        return this.chrome().outlineVariant
     }
   }
 }

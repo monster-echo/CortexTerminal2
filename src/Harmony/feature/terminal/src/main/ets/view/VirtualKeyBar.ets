@@ -6,7 +6,7 @@
  * Ctrl/Alt are sticky toggle — stay latched until manually toggled off.
  */
 import { pasteboard } from '@kit.BasicServicesKit'
-import { I18n, lightHaptic, clickHaptic } from '@rwecho/core'
+import { I18n, lightHaptic, clickHaptic, TerminalChrome } from '@rwecho/core'
 
 type OnKeyPressCallback = (key: string) => void
 type OnPasteTextCallback = (text: string) => void
@@ -16,6 +16,11 @@ struct LatchButton {
   label: string = ''
   @Prop latched: boolean = false
   onToggle: () => void = () => {}
+  @StorageLink('terminalChromeJson') chromeJson: string = ''
+
+  private chrome(): TerminalChrome {
+    return TerminalChrome.fromJson(this.chromeJson)
+  }
 
   build() {
     Button(this.label)
@@ -23,11 +28,11 @@ struct LatchButton {
       .constraintSize({ minWidth: 36 })
       .borderRadius(8)
       .backgroundColor(this.latched ?
-        $r('app.color.terminal_secondary_container') :
-        $r('app.color.terminal_surface_container_high'))
+        this.chrome().accentContainer :
+        this.chrome().surfaceHigh)
       .fontColor(this.latched ?
-        $r('app.color.terminal_on_secondary_container') :
-        $r('app.color.terminal_primary'))
+        this.chrome().onAccentContainer :
+        this.chrome().accent)
       .fontSize(12)
       .fontWeight(FontWeight.Medium)
       .margin({ left: 2, right: 2 })
@@ -48,6 +53,11 @@ export struct VirtualKeyBar {
   onModifierChange: ((ctrl: boolean, alt: boolean) => void) | null = null
   @State ctrlLatched: boolean = false
   @State altLatched: boolean = false
+  @StorageLink('terminalChromeJson') chromeJson: string = ''
+
+  private chrome(): TerminalChrome {
+    return TerminalChrome.fromJson(this.chromeJson)
+  }
 
   build() {
     Row() {
@@ -116,8 +126,8 @@ export struct VirtualKeyBar {
         .height(36)
         .constraintSize({ minWidth: 52 })
         .borderRadius(8)
-        .backgroundColor($r('app.color.terminal_secondary_container'))
-        .fontColor($r('app.color.terminal_on_secondary_container'))
+        .backgroundColor(this.chrome().accentContainer)
+        .fontColor(this.chrome().onAccentContainer)
         .fontSize(12)
         .fontWeight(FontWeight.Medium)
         .margin({ left: 4, right: 4 })
@@ -131,7 +141,7 @@ export struct VirtualKeyBar {
     .width('100%')
     .height(44)
     .padding({ left: 4, right: 4 })
-    .backgroundColor($r('app.color.terminal_surface_container'))
+    .backgroundColor(this.chrome().surface)
   }
 
   private notifyModifierChange() {
@@ -146,8 +156,8 @@ export struct VirtualKeyBar {
       .height(36)
       .constraintSize({ minWidth: 36 })
       .borderRadius(8)
-      .backgroundColor($r('app.color.terminal_surface_container_high'))
-      .fontColor($r('app.color.terminal_primary'))
+      .backgroundColor(this.chrome().surfaceHigh)
+      .fontColor(this.chrome().accent)
       .fontSize(12)
       .fontWeight(FontWeight.Medium)
       .margin({ left: 2, right: 2 })

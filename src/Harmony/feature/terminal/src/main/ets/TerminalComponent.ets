@@ -5,6 +5,7 @@
  * Provides the main terminal navigation destination that hosts
  * TerminalHome. The shell Navigation handles routing.
  */
+import { TerminalChrome } from '@rwecho/core'
 import { TerminalPage } from './view/TerminalPage'
 
 /**
@@ -13,11 +14,17 @@ import { TerminalPage } from './view/TerminalPage'
  */
 @Component
 export struct TerminalComponent {
+  @StorageLink('terminalChromeJson') chromeJson: string = ''
+
+  private chrome(): TerminalChrome {
+    return TerminalChrome.fromJson(this.chromeJson)
+  }
+
   build() {
     NavDestination() {
       TerminalPage()
     }
     .hideTitleBar(true)
-    .backgroundColor($r('app.color.terminal_surface'))
+    .backgroundColor(this.chrome().background)
   }
 }

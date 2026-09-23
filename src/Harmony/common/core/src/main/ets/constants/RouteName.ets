@@ -5,6 +5,7 @@ export class RouteName {
   static readonly WORKER_LIST: string = 'worker/List'
   static readonly WORKER_DETAIL: string = 'worker/Detail'
   static readonly SETTINGS: string = 'settings/Page'
+  static readonly SETTINGS_ROOT: string = 'settings/Root'
   static readonly ACCOUNT_SECURITY: string = 'AccountSecurity'
   static readonly CHANGE_PASSWORD: string = 'ChangePassword'
   static readonly ACTIVATE_WORKER: string = 'ActivateWorker'

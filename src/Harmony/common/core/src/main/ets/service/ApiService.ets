@@ -82,28 +82,29 @@ export class ApiService {
     return await ApiService.post('/api/workspaces', body as Object) as Record<string, Object>
   }
 
-  static async listFiles(workspaceId: string, path: string): Promise<Object> {
+  static async listFiles(workerId: string, root: string, path: string): Promise<Object> {
     return await ApiService.get(
-      `/api/workspaces/${encodeURIComponent(workspaceId)}/files?path=${encodeURIComponent(path)}`)
+      `/api/workers/${encodeURIComponent(workerId)}/files?root=${encodeURIComponent(root)}&path=${encodeURIComponent(path)}`)
   }
 
-  static async createFileUpload(workspaceId: string, dirPath: string, filename: string,
+  static async createFileUpload(workerId: string, root: string, dirPath: string, filename: string,
     sizeBytes: number, sha256: string): Promise<Record<string, Object>> {
     const body: Record<string, Object> = {
+      'root': root,
       'dirPath': dirPath,
       'filename': filename,
       'sizeBytes': sizeBytes,
       'sha256': sha256
     }
     return await ApiService.post(
-      `/api/workspaces/${encodeURIComponent(workspaceId)}/files/uploads`,
+      `/api/workers/${encodeURIComponent(workerId)}/files/uploads`,
       body as Object) as Record<string, Object>
   }
 
-  static async startFileDownload(workspaceId: string, path: string): Promise<Record<string, Object>> {
-    const body: Record<string, Object> = { 'path': path }
+  static async startFileDownload(workerId: string, root: string, path: string): Promise<Record<string, Object>> {
+    const body: Record<string, Object> = { 'root': root, 'path': path }
     return await ApiService.post(
-      `/api/workspaces/${encodeURIComponent(workspaceId)}/files/downloads`,
+      `/api/workers/${encodeURIComponent(workerId)}/files/downloads`,
       body as Object) as Record<string, Object>
   }
 

@@ -84,11 +84,12 @@ struct Index {
       .backgroundColor('#0f1419')
     } else if (name === RouteName.WORKER_LIST) {
       NavDestination() {
-        ShellScaffold({ activeRoute: RouteName.WORKER_LIST })
+        ShellScaffold({ activeRoute: RouteName.WORKER_LIST, subPage: !!param })
       }
       .hideTitleBar(true)
       .backgroundColor($r('app.color.terminal_surface'))
-      .onBackPressed(() => true)
+      // 顶层进入（无 param）拦截返回；从「我的」带 param 压栈时放行 pop。
+      .onBackPressed(() => !param)
     } else if (name === RouteName.WORKER_DETAIL) {
       NavDestination() {
         ShellScaffold({ activeRoute: RouteName.WORKER_DETAIL })
@@ -114,6 +115,12 @@ struct Index {
       .hideTitleBar(true)
       .backgroundColor($r('app.color.terminal_surface'))
       .onBackPressed(() => true)
+    } else if (name === RouteName.SETTINGS_ROOT) {
+      NavDestination() {
+        ShellScaffold({ activeRoute: RouteName.SETTINGS_ROOT, subPage: true })
+      }
+      .hideTitleBar(true)
+      .backgroundColor($r('app.color.terminal_surface'))
     } else if (name === RouteName.ACTIVATE_WORKER) {
       NavDestination() {
         ActivateWorkerPage()

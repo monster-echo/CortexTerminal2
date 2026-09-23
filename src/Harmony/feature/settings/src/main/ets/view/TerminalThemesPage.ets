@@ -126,13 +126,14 @@ export struct TerminalThemesPage {
     this.syncResolvedTheme(selection)
   }
 
-  /** 与 EntryAbility.syncTerminalColorMode 同一规则：写 terminalColorMode / terminalThemeJson / terminalThemeName。 */
+  /** 与 EntryAbility.syncTerminalColorMode 同一规则：写 terminalColorMode / terminalThemeJson / terminalThemeName / terminalChromeJson。 */
   private syncResolvedTheme(selection: string) {
     const appColorMode = (AppStorage.get<string>('colorMode') ?? 'dark') === 'light' ? 'light' : 'dark'
     const resolution = TerminalThemes.resolve(selection, appColorMode, this.customThemesJson)
     AppStorage.setOrCreate('terminalColorMode', resolution.colorMode)
     AppStorage.setOrCreate('terminalThemeJson', resolution.themeJson)
     AppStorage.setOrCreate('terminalThemeName', resolution.themeName)
+    AppStorage.setOrCreate('terminalChromeJson', resolution.chromeJson)
   }
 
   private persistCustomList() {

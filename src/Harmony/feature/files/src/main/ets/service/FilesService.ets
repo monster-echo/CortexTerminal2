@@ -26,16 +26,16 @@ export class FilesService {
     return WorkspaceModel.fromRecord(response)
   }
 
-  /** List one directory of the workspace ('' = workspace root). */
-  static async listFiles(workspaceId: string, path: string): Promise<FileListingModel> {
-    const response = await ApiService.listFiles(workspaceId, path) as Record<string, Object>
+  /** List one directory under the given root ('' = root itself). */
+  static async listFiles(workerId: string, root: string, path: string): Promise<FileListingModel> {
+    const response = await ApiService.listFiles(workerId, root, path) as Record<string, Object>
     return FileListingModel.fromRecord(response)
   }
 
   /** Upload step 1: register the transfer, get candidate endpoints. */
-  static async beginUpload(workspaceId: string, dirPath: string, filename: string,
+  static async beginUpload(workerId: string, root: string, dirPath: string, filename: string,
     sizeBytes: number, sha256: string): Promise<UploadInitModel> {
-    const response = await ApiService.createFileUpload(workspaceId, dirPath, filename, sizeBytes, sha256)
+    const response = await ApiService.createFileUpload(workerId, root, dirPath, filename, sizeBytes, sha256)
     const model = new UploadInitModel()
     model.transferId = (response['transferId'] as string) ?? ''
     FilesService.readEndpoints(response, model.endpoints)
@@ -43,8 +43,8 @@ export class FilesService {
   }
 
   /** Download step 1: validate on the worker, get candidate endpoints. */
-  static async startDownload(workspaceId: string, path: string): Promise<DownloadInitModel> {
-    const response = await ApiService.startFileDownload(workspaceId, path)
+  static async startDownload(workerId: string, root: string, path: string): Promise<DownloadInitModel> {
+    const response = await ApiService.startFileDownload(workerId, root, path)
     const model = new DownloadInitModel()
     model.transferId = (response['transferId'] as string) ?? ''
     model.sizeBytes = (response['sizeBytes'] as number) ?? 0

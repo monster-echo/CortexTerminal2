@@ -36,6 +36,55 @@ export class TerminalThemeResolution {
   colorMode: string = 'dark'
   themeJson: string = ''
   themeName: string = ''
+  /** 页面 chrome 派生色 JSON（Session 页 header/键盘/Sheet 用）。 */
+  chromeJson: string = ''
+}
+
+/**
+ * Session 页 chrome 配色：由当前选中的终端主题档案派生，
+ * 让 header / 键盘栏 / Sheet 与 xterm 画布同源，切换主题不跳色。
+ * 语义状态色（成功/错误/警告）不在此派生，仍走 app 资源。
+ */
+export class TerminalChrome {
+  isDark: boolean = true
+  /** 页面 / header / Sheet 背景 = 主题 background。 */
+  background: string = ''
+  /** 状态徽章 / 键盘栏背景。 */
+  surface: string = ''
+  /** 按键 / 弹窗背景。 */
+  surfaceHigh: string = ''
+  /** 主文字（对比 background ≥ 4.5:1）。 */
+  onSurface: string = ''
+  /** 次要文字（对比 background ≥ 4.5:1）。 */
+  onSurfaceVariant: string = ''
+  /** 分割线 / 弱边框（装饰用，无对比度要求）。 */
+  outlineVariant: string = ''
+  /** 强调色 = 主题 cursor（对比 background ≥ 3:1，按钮文字/图标用）。 */
+  accent: string = ''
+  /** 强调容器背景 = background 与 cursor 的 25% 混合。 */
+  accentContainer: string = ''
+  /** accentContainer 上的文字（对比 ≥ 3:1）。 */
+  onAccentContainer: string = ''
+
+  /** 从 AppStorage 的 terminalChromeJson 解析；空/非法直接抛错。 */
+  static fromJson(json: string): TerminalChrome {
+    if (json.length === 0) {
+      throw new Error('terminal chrome json is empty')
+    }
+    const item = JSON.parse(json) as Record<string, Object>
+    const c = new TerminalChrome()
+    c.isDark = item['isDark'] as boolean
+    c.background = item['background'] as string
+    c.surface = item['surface'] as string
+    c.surfaceHigh = item['surfaceHigh'] as string
+    c.onSurface = item['onSurface'] as string
+    c.onSurfaceVariant = item['onSurfaceVariant'] as string
+    c.outlineVariant = item['outlineVariant'] as string
+    c.accent = item['accent'] as string
+    c.accentContainer = item['accentContainer'] as string
+    c.onAccentContainer = item['onAccentContainer'] as string
+    return c
+  }
 }
 
 export class TerminalThemeProfile {
@@ -218,6 +267,86 @@ export class TerminalThemes {
     return list
   }
 
+  /** #RRGGBB → 0..1 WCAG 相对亮度。 */
+  static luminance(hex: string): number {
+    const v = TerminalThemes.normalizeHex(hex)
+    const channels: number[] = []
+    for (let i = 0; i < 3; i++) {
+      const raw = parseInt(v.substring(i * 2, i * 2 + 2), 16) / 255
+      channels.push(raw <= 0.03928 ? raw / 12.92 : Math.pow((raw + 0.055) / 1.055, 2.4))
+    }
+    return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722
+  }
+
+  /** 两色的 WCAG 对比度（1..21）。 */
+  static contrastRatio(a: string, b: string): number {
+    const la = TerminalThemes.luminance(a)
+    const lb = TerminalThemes.luminance(b)
+    return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05)
+  }
+
+  /** 颜色 a 向 b 按 t（0..1）线性混合。 */
+  static blend(a: string, b: string, t: number): string {
+    const ha = TerminalThemes.normalizeHex(a)
+    const hb = TerminalThemes.normalizeHex(b)
+    let out = '#'
+    for (let i = 0; i < 3; i++) {
+      const ca = parseInt(ha.substring(i * 2, i * 2 + 2), 16)
+      const cb = parseInt(hb.substring(i * 2, i * 2 + 2), 16)
+      const v = Math.round(ca + (cb - ca) * t)
+      out += v.toString(16).padStart(2, '0').toUpperCase()
+    }
+    return out
+  }
+
+  /**
+   * 保证 color 对 bg 的对比度 ≥ min：不达标时向黑或白（取远端）逐级贴近，
+   * 最多 20 步（每步 5%）后必然达标（黑白对任意背景 ≥ 4.5:1 不成立时也到极限）。
+   */
+  static ensureContrast(color: string, bg: string, min: number): string {
+    let candidate = color
+    const target = TerminalThemes.luminance(bg) > 0.5 ? '#000000' : '#FFFFFF'
+    for (let step = 1; step <= 20; step++) {
+      if (TerminalThemes.contrastRatio(candidate, bg) >= min) {
+        return candidate
+      }
+      candidate = TerminalThemes.blend(color, target, step * 0.05)
+    }
+    return candidate
+  }
+
+  private static normalizeHex(value: string): string {
+    if (!TerminalThemes.isValidHex(value)) {
+      throw new Error(`invalid hex color: ${value}`)
+    }
+    return value.substring(1).toUpperCase()
+  }
+
+  /** 由主题档案派生 Session 页 chrome 配色（规则见 TerminalChrome 字段注释）。 */
+  static deriveChrome(profile: TerminalThemeProfile): TerminalChrome {
+    const bg = profile.background
+    const onSurface = TerminalThemes.ensureContrast(profile.foreground, bg, 4.5)
+    const c = new TerminalChrome()
+    c.isDark = profile.builtIn ? profile.isDark : TerminalThemes.deriveIsDark(bg)
+    c.background = bg
+    c.surface = TerminalThemes.blend(bg, onSurface, 0.08)
+    c.surfaceHigh = TerminalThemes.blend(bg, onSurface, 0.16)
+    c.onSurface = onSurface
+    c.onSurfaceVariant = TerminalThemes.ensureContrast(
+      TerminalThemes.blend(onSurface, bg, 0.42), bg, 4.5)
+    c.outlineVariant = TerminalThemes.blend(onSurface, bg, 0.72)
+    const accentContainer = TerminalThemes.blend(bg, profile.cursor, 0.25)
+    c.accentContainer = accentContainer
+    c.accent = TerminalThemes.ensureContrast(profile.cursor, bg, 3)
+    c.onAccentContainer = TerminalThemes.ensureContrast(profile.cursor, accentContainer, 3)
+    return c
+  }
+
+  /** 派生 chrome → 持久化/传输 JSON。 */
+  static chromeToJson(chrome: TerminalChrome): string {
+    return JSON.stringify(chrome)
+  }
+
   /** #RRGGBB 合法性校验。 */
   static isValidHex(value: string): boolean {
     return /^#[0-9A-Fa-f]{6}$/.test(value)
@@ -335,6 +464,7 @@ export class TerminalThemes {
     resolution.colorMode = dark ? 'dark' : 'light'
     resolution.themeJson = TerminalThemes.toColorJson(profile)
     resolution.themeName = profile.name
+    resolution.chromeJson = TerminalThemes.chromeToJson(TerminalThemes.deriveChrome(profile))
     return resolution
   }
 }

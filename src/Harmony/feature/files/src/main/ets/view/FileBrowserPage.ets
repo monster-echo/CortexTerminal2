@@ -18,12 +18,13 @@ import { FilesService } from '../service/FilesService'
 import { FilePicker, FilePickerResult } from '../service/FilePicker'
 
 interface FileNavParam {
-  workspaceId: string;
-  workspaceName: string;
+  workerId: string;
+  rootDir: string;
 }
 
 interface PreviewNavParam {
-  workspaceId: string;
+  workerId: string;
+  rootDir: string;
   path: string;
   name: string;
   sizeBytes: number;
@@ -31,8 +32,8 @@ interface PreviewNavParam {
 
 @Component
 export struct FileBrowserPage {
-  @State workspaceId: string = ''
-  @State workspaceName: string = ''
+  @State workerId: string = ''
+  @State rootDir: string = ''
   @State pathSegments: string[] = []
   @State entries: FileEntryModel[] = []
   @State truncated: boolean = false
@@ -48,11 +49,11 @@ export struct FileBrowserPage {
   aboutToAppear() {
     const params = this.pageStack.getParamByName('files/Page') as FileNavParam[]
     if (params && params.length > 0) {
-      this.workspaceId = params[params.length - 1].workspaceId
-      this.workspaceName = params[params.length - 1].workspaceName
+      this.workerId = params[params.length - 1].workerId
+      this.rootDir = params[params.length - 1].rootDir
     }
-    if (this.workspaceId.length === 0) {
-      throw new Error('FileBrowserPage requires a workspaceId in nav params')
+    if (this.workerId.length === 0 || this.rootDir.length === 0) {
+      throw new Error('FileBrowserPage requires workerId and rootDir in nav params')
     }
     this.applyStatusBar(AppStorage.get<string>('colorMode') !== 'light')
     this.loadListing()
@@ -81,17 +82,23 @@ export struct FileBrowserPage {
     return this.pathSegments.join('/')
   }
 
-  /** Breadcrumb labels: [工作区名, ...segments]. */
+  /** Breadcrumb labels: [根目录名, ...segments]. */
   private breadcrumbItems(): string[] {
-    const items: string[] = this.workspaceName.length > 0 ? [this.workspaceName] : [I18n.get('files.home')]
+    const items: string[] = [FileBrowserPage.baseName(this.rootDir)]
     return items.concat(this.pathSegments)
+  }
+
+  private static baseName(path: string): string {
+    const trimmed = path.length > 1 ? path.replace(/\/+$/, '') : path
+    const idx = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\'))
+    return idx < 0 || (idx === 0 && trimmed.length === 1) ? trimmed : trimmed.substring(idx + 1)
   }
 
   private async loadListing(): Promise<void> {
     this.loading = this.entries.length === 0
     this.loadError = ''
     try {
-      const listing = await FilesService.listFiles(this.workspaceId, this.currentPath())
+      const listing = await FilesService.listFiles(this.workerId, this.rootDir, this.currentPath())
       this.entries = listing.entries
       this.truncated = listing.truncated
     } catch (e) {
@@ -468,7 +475,7 @@ export struct FileBrowserPage {
         fs.closeSync(readFile)
       }
 
-      const init = await FilesService.beginUpload(this.workspaceId, dirPath, picked.filename, sizeBytes, sha256)
+      const init = await FilesService.beginUpload(this.workerId, this.rootDir, dirPath, picked.filename, sizeBytes, sha256)
       await FilesService.uploadViaEndpoints(init.endpoints, buffer)
     } finally {
       fs.unlinkSync(sandboxPath)
@@ -480,7 +487,8 @@ export struct FileBrowserPage {
   private openPreview(item: FileEntryModel): void {
     lightHaptic()
     const param: PreviewNavParam = {
-      workspaceId: this.workspaceId,
+      workerId: this.workerId,
+      rootDir: this.rootDir,
       path: this.entryPath(item.name),
       name: item.name,
       sizeBytes: item.sizeBytes

@@ -1,5 +1,6 @@
 import { ApiService, AuthService, AuthState, I18n, RouteName, showI18nToast, showToast, AnalyticsService, lightHaptic, clickHaptic, heavyHaptic } from '@rwecho/core'
 import { common } from '@kit.AbilityKit'
+import { systemShare } from '@kit.ShareKit'
 import { AvatarPicker } from '../service/AvatarPicker'
 import { MarketLauncher } from '../service/MarketLauncher'
 
@@ -38,13 +39,6 @@ export struct SettingsPage {
 
   private accountItems(): NavItem[] {
     const items: NavItem[] = []
-    const membership: NavItem = new NavItem()
-    membership.icon = $r('sys.symbol.checkmark_circle')
-    membership.labelKey = 'settings.membership'
-    membership.action = (): void => {
-      this.pageStack.pushPath({ name: RouteName.MEMBERSHIP })
-    }
-    items.push(membership)
     const redeem: NavItem = new NavItem()
     redeem.icon = $r('sys.symbol.gift')
     redeem.labelKey = 'settings.redeem_code_nav'
@@ -52,13 +46,11 @@ export struct SettingsPage {
       this.pageStack.pushPath({ name: RouteName.REDEEM })
     }
     items.push(redeem)
-    const referral: NavItem = new NavItem()
-    referral.icon = $r('sys.symbol.share')
-    referral.labelKey = 'settings.referral'
-    referral.action = (): void => {
-      this.pageStack.pushPath({ name: RouteName.REFERRAL })
-    }
-    items.push(referral)
+    return items
+  }
+
+  private securityItems(): NavItem[] {
+    const items: NavItem[] = []
     const security: NavItem = new NavItem()
     security.icon = $r('sys.symbol.person_2')
     security.labelKey = 'settings.account_security'
@@ -66,6 +58,11 @@ export struct SettingsPage {
       this.pageStack.pushPath({ name: RouteName.ACCOUNT_SECURITY })
     }
     items.push(security)
+    return items
+  }
+
+  private deviceItems(): NavItem[] {
+    const items: NavItem[] = []
     const worker: NavItem = new NavItem()
     worker.icon = $r('sys.symbol.link')
     worker.labelKey = 'settings.activate_worker'
@@ -145,6 +142,14 @@ export struct SettingsPage {
 
         this.NavCard(this.generalItems())
 
+        this.SectionHeader('settings.security_section')
+
+        this.NavCard(this.securityItems())
+
+        this.SectionHeader('settings.device_section')
+
+        this.NavCard(this.deviceItems())
+
         this.SectionHeader('settings.support')
 
         this.NavCard(this.supportItems())
@@ -212,6 +217,13 @@ export struct SettingsPage {
 
   private aboutItems(): NavItem[] {
     const items: NavItem[] = []
+    const share: NavItem = new NavItem()
+    share.icon = $r('sys.symbol.share')
+    share.labelKey = 'settings.share_app'
+    share.action = (): void => {
+      this.shareApp()
+    }
+    items.push(share)
     const rate: NavItem = new NavItem()
     rate.icon = $r('sys.symbol.star')
     rate.labelKey = 'settings.rate_us'
@@ -230,6 +242,21 @@ export struct SettingsPage {
     }
     items.push(about)
     return items
+  }
+
+  /** 分享应用：系统分享面板带 AppGallery 详情链接（bundleName 与 AppScope/app.json5 一致） */
+  private async shareApp() {
+    const context = getContext(this) as common.UIAbilityContext
+    const url = 'https://appgallery.huawei.com/app/detail?id=top.rwecho.cortexterminal'
+    const data: systemShare.SharedData = new systemShare.SharedData({
+      utd: 'general.text',
+      content: I18n.getWithArgs('settings.share_app_text', { 'url': url })
+    })
+    const controller: systemShare.ShareController = new systemShare.ShareController(data)
+    await controller.show(context, {
+      selectionMode: systemShare.SelectionMode.SINGLE,
+      previewMode: systemShare.SharePreviewMode.DETAIL
+    })
   }
 
   private appVersion(): string {

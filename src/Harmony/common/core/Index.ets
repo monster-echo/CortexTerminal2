@@ -62,6 +62,7 @@ export {
 export {
   TerminalThemeProfile,
   TerminalThemeResolution,
+  TerminalChrome,
   TerminalThemes,
   profilesToColorJson
 } from './src/main/ets/model/TerminalThemeProfile'

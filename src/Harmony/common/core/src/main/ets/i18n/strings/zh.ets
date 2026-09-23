@@ -256,6 +256,20 @@ export const zhStrings: Record<string, string> = {
   'settings.feedback': '意见反馈',
   'settings.report': '投诉举报',
 
+  // ── Me page ─────────────────────────────────────────────────────
+  'me.open_membership': '管理会员',
+  'me.title': '我的',
+  'me.benefits_hint': '升级解锁更高权益',
+  'me.worker_section': 'Worker 与统计',
+  'me.total_sessions': '会话总数',
+  'me.avg_cpu': '平均 CPU',
+  'me.avg_memory': '平均内存',
+  'me.view_all': '查看全部',
+  'settings.share_app': '分享应用',
+  'settings.share_app_text': 'CortexTerminal —— 你的机器，一个终端直达。{url}',
+  'settings.security_section': '安全',
+  'settings.device_section': '设备接入',
+
   // ── Membership / Billing ───────────────────────────────────────────
   'settings.membership': '会员',
   'membership.title': '会员',
@@ -408,6 +422,7 @@ export const zhStrings: Record<string, string> = {
   'files.preview_size': '文件大小',
   'files.preview_audio_playing': '正在播放',
   'files.browse': '文件浏览',
+  'files.cwd_missing': '尚未获取到终端当前目录——先在终端按一次回车，再打开文件',
 
   // ── Tunnel (Port Forwarding) ───────────────────────────────────────
   'tunnel.title': '端口转发',

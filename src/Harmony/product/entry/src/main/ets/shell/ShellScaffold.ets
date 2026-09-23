@@ -10,7 +10,7 @@ import { RouteName, I18n, AppBar } from '@rwecho/core'
 import { SessionHomePage } from '@rwecho/session'
 import { TerminalPage } from '@rwecho/terminal'
 import { WorkerListPage, WorkerDetailPage } from '@rwecho/worker'
-import { SettingsPage } from '@rwecho/settings'
+import { SettingsPage, MePage } from '@rwecho/settings'
 import { SidebarContent } from './SidebarContent'
 
 @Component
@@ -21,6 +21,8 @@ export struct ShellScaffold {
   @State sidebarOpen: boolean = false
   @StorageLink('sidebarOpen') @Watch('onSidebarChanged') sidebarTrigger: boolean = false
   @StorageLink('navWorkerName') navWorkerName: string = 'Worker'
+  // 顶层页通过压栈带 param 进入时为 true：AppBar 显示返回键而不是汉堡按钮。
+  subPage: boolean = false
 
   onSidebarChanged() {
     if (this.sidebarTrigger) {
@@ -47,6 +49,12 @@ export struct ShellScaffold {
       || this.activeRoute === RouteName.SETTINGS
   }
 
+  private showBack(): boolean {
+    return this.subPage
+      && (this.activeRoute === RouteName.WORKER_LIST
+        || this.activeRoute === RouteName.SETTINGS_ROOT)
+  }
+
   build() {
     SideBarContainer(SideBarContainerType.Overlay) {
       SidebarContent({
@@ -62,7 +70,7 @@ export struct ShellScaffold {
         if (this.activeRoute !== RouteName.TERMINAL_SESSION) {
           AppBar({
             title: this.pageTitle(),
-            showHamburger: this.isTopRoute(),
+            showHamburger: this.isTopRoute() && !this.showBack(),
             showCreateButton: this.activeRoute === RouteName.SESSION_HOME,
             onToggleSidebar: () => {
               this.getUIContext()?.animateTo({ duration: 300 }, () => {
@@ -117,6 +125,8 @@ export struct ShellScaffold {
     } else if (this.activeRoute === RouteName.WORKER_DETAIL) {
       WorkerDetailPage()
     } else if (this.activeRoute === RouteName.SETTINGS) {
+      MePage()
+    } else if (this.activeRoute === RouteName.SETTINGS_ROOT) {
       SettingsPage()
     } else {
       SessionHomePage()
@@ -130,6 +140,8 @@ export struct ShellScaffold {
       case RouteName.WORKER_LIST:
         return I18n.get('worker.list.title')
       case RouteName.SETTINGS:
+        return I18n.get('me.title')
+      case RouteName.SETTINGS_ROOT:
         return I18n.get('settings.title')
       case RouteName.WORKER_DETAIL:
         return this.navWorkerName

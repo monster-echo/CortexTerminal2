@@ -11,7 +11,7 @@ import { common } from '@kit.AbilityKit'
 import { window } from '@kit.ArkUI'
 import { webview } from '@kit.ArkWeb'
 import { pasteboard } from '@kit.BasicServicesKit'
-import { ApiService, SessionInfo, TerminalNavParam, RouteName, I18n, AnalyticsService, lightHaptic, clickHaptic, showToast, PageMenuItem, OverflowMenuButton } from '@rwecho/core'
+import { ApiService, SessionInfo, TerminalNavParam, RouteName, I18n, AnalyticsService, lightHaptic, clickHaptic, showToast, PageMenuItem, OverflowMenuButton, TerminalChrome } from '@rwecho/core'
 import { TerminalCache, TerminalCacheEntry } from '../service/TerminalCache'
 import { SnapshotStore } from '../service/SnapshotStore'
 import { TerminalStateManager } from '../service/TerminalStateManager'
@@ -40,13 +40,19 @@ struct SessionDetailDialog {
   cols: number = 0
   rows: number = 0
   latencyMs: number = -1
+  @StorageLink('terminalChromeJson') chromeJson: string = ''
+
+  /** 当前终端主题派生的 chrome 配色（跟随 AppStorage 变化）。 */
+  private chrome(): TerminalChrome {
+    return TerminalChrome.fromJson(this.chromeJson)
+  }
 
   build() {
     Column() {
       Text(I18n.get('terminal.detail.title'))
         .fontSize(18)
         .fontWeight(FontWeight.Bold)
-        .fontColor($r('app.color.terminal_on_surface'))
+        .fontColor(this.chrome().onSurface)
         .width('100%')
         .textAlign(TextAlign.Start)
         .margin({ bottom: 12 })
@@ -54,54 +60,54 @@ struct SessionDetailDialog {
       Row() {
         Text(I18n.get('terminal.detail.status'))
           .fontSize(14)
-          .fontColor($r('app.color.terminal_on_surface_variant'))
+          .fontColor(this.chrome().onSurfaceVariant)
           .layoutWeight(1)
         Text(this.status)
           .fontSize(14)
           .fontWeight(FontWeight.Medium)
-          .fontColor($r('app.color.terminal_on_surface'))
+          .fontColor(this.chrome().onSurface)
       }
       .width('100%')
       .height(36)
-      .border({ width: { bottom: 0.5 }, color: $r('app.color.terminal_outline_variant') })
+      .border({ width: { bottom: 0.5 }, color: this.chrome().outlineVariant })
 
       Row() {
         Text(I18n.get('terminal.detail.cols'))
           .fontSize(14)
-          .fontColor($r('app.color.terminal_on_surface_variant'))
+          .fontColor(this.chrome().onSurfaceVariant)
           .layoutWeight(1)
         Text(`${this.cols}`)
           .fontSize(14)
           .fontWeight(FontWeight.Medium)
-          .fontColor($r('app.color.terminal_on_surface'))
+          .fontColor(this.chrome().onSurface)
       }
       .width('100%')
       .height(36)
-      .border({ width: { bottom: 0.5 }, color: $r('app.color.terminal_outline_variant') })
+      .border({ width: { bottom: 0.5 }, color: this.chrome().outlineVariant })
 
       Row() {
         Text(I18n.get('terminal.detail.rows'))
           .fontSize(14)
-          .fontColor($r('app.color.terminal_on_surface_variant'))
+          .fontColor(this.chrome().onSurfaceVariant)
           .layoutWeight(1)
         Text(`${this.rows}`)
           .fontSize(14)
           .fontWeight(FontWeight.Medium)
-          .fontColor($r('app.color.terminal_on_surface'))
+          .fontColor(this.chrome().onSurface)
       }
       .width('100%')
       .height(36)
-      .border({ width: { bottom: 0.5 }, color: $r('app.color.terminal_outline_variant') })
+      .border({ width: { bottom: 0.5 }, color: this.chrome().outlineVariant })
 
       Row() {
         Text(I18n.get('terminal.detail.latency'))
           .fontSize(14)
-          .fontColor($r('app.color.terminal_on_surface_variant'))
+          .fontColor(this.chrome().onSurfaceVariant)
           .layoutWeight(1)
         Text(this.latencyMs >= 0 ? `${this.latencyMs}ms` : '—')
           .fontSize(14)
           .fontWeight(FontWeight.Medium)
-          .fontColor($r('app.color.terminal_on_surface'))
+          .fontColor(this.chrome().onSurface)
       }
       .width('100%')
       .height(36)
@@ -121,7 +127,7 @@ struct SessionDetailDialog {
     }
     .padding(20)
     .borderRadius(16)
-    .backgroundColor($r('app.color.terminal_surface_container_high'))
+    .backgroundColor(this.chrome().surfaceHigh)
     .width('80%')
     .constraintSize({ maxWidth: 320 })
   }
@@ -144,6 +150,12 @@ export struct TerminalPage {
   @StorageLink('appBackgroundTick') @Watch('onAppBackground') appBackgroundTick: number = 0
   /** 解析后的终端配色（'dark'/'light'）；变化时同步系统状态栏颜色。 */
   @StorageLink('terminalColorMode') @Watch('onTerminalColorModeChange') terminalColorMode: string = 'dark'
+  /** 终端主题派生的 Session 页 chrome 配色（header/菜单/Sheet/键盘栏同源，避免换主题跳色）。 */
+  @StorageLink('terminalChromeJson') chromeJson: string = ''
+  /** 当前终端主题派生的 chrome 配色。 */
+  private chrome(): TerminalChrome {
+    return TerminalChrome.fromJson(this.chromeJson)
+  }
   @State connectionError: string = ''
   @State latencyMs: number = -1
   @State lastPingTime: number = 0
@@ -294,7 +306,7 @@ export struct TerminalPage {
         Button() {
           SymbolGlyph($r('sys.symbol.chevron_left'))
             .fontSize(20)
-            .fontColor([$r('app.color.terminal_on_surface')])
+            .fontColor([this.chrome().onSurface])
         }
         .width(40)
         .height(40)
@@ -311,13 +323,13 @@ export struct TerminalPage {
           Text(this.sessionName)
             .fontSize(17)
             .fontWeight(FontWeight.Medium)
-            .fontColor($r('app.color.terminal_on_surface'))
+            .fontColor(this.chrome().onSurface)
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
 
           SymbolGlyph($r('sys.symbol.chevron_down'))
             .fontSize(14)
-            .fontColor([$r('app.color.terminal_on_surface_variant')])
+            .fontColor([this.chrome().onSurfaceVariant])
             .margin({ left: 4 })
         }
         .layoutWeight(1)
@@ -331,7 +343,7 @@ export struct TerminalPage {
           detents: [SheetSize.MEDIUM, SheetSize.LARGE],
           preferType: SheetType.BOTTOM,
           showClose: true,
-          backgroundColor: $r('app.color.terminal_surface'),
+          backgroundColor: this.chrome().background,
           onDisappear: () => { this.showSessionSheet = false }
         })
 
@@ -476,7 +488,7 @@ export struct TerminalPage {
           }
           .padding({ left: 6, right: 6, top: 4, bottom: 4 })
           .borderRadius(8)
-          .backgroundColor($r('app.color.terminal_surface_container_highest'))
+          .backgroundColor(this.chrome().surfaceHigh)
           .shadow({ radius: 12, color: 'rgba(0,0,0,0.4)', offsetY: 2 })
           .onAreaChange((_oldArea: Area, newArea: Area) => {
             this.menuW = newArea.width as number
@@ -520,12 +532,12 @@ export struct TerminalPage {
     }
     .width('100%')
     .height('100%')
-    .backgroundColor($r('app.color.terminal_surface'))
+    .backgroundColor(this.chrome().background)
     .bindSheet($$this.showTunnelSheet, this.TunnelSheetContent(), {
       detents: ['66%', SheetSize.MEDIUM],
       preferType: SheetType.BOTTOM,
       showClose: true,
-      backgroundColor: $r('app.color.terminal_surface'),
+      backgroundColor: this.chrome().background,
       onDisappear: () => { this.showTunnelSheet = false }
     })
   }
@@ -1231,7 +1243,7 @@ export struct TerminalPage {
       .constraintSize({ minWidth: 64 })
       .borderRadius(8)
       .backgroundColor(Color.Transparent)
-      .fontColor(enabled ? $r('app.color.terminal_on_surface') : $r('app.color.terminal_outline'))
+      .fontColor(enabled ? this.chrome().onSurface : this.chrome().onSurfaceVariant)
       .opacity(enabled ? 1 : 0.5)
       .fontSize(14)
       .margin({ left: 2, right: 2 })
@@ -1321,24 +1333,24 @@ export struct TerminalPage {
       case TerminalState.Error:
         return $r('app.color.terminal_error')
       default:
-        return $r('app.color.terminal_outline_variant')
+        return this.chrome().outlineVariant
     }
   }
 
   private getStatusTextColor(): ResourceColor {
     switch (this.currentState) {
       case TerminalState.Live:
-        return $r('app.color.terminal_on_surface_variant')
+        return this.chrome().onSurfaceVariant
       case TerminalState.Expired:
       case TerminalState.Error:
         return $r('app.color.terminal_error')
       default:
-        return $r('app.color.terminal_on_surface_variant')
+        return this.chrome().onSurfaceVariant
     }
   }
 
   private getStatusBadgeBg(): ResourceColor {
-    return $r('app.color.terminal_surface_container')
+    return this.chrome().surface
   }
 
   private getStatusLabel(): string {
@@ -1412,39 +1424,14 @@ export struct TerminalPage {
   }
 
   private async openFiles() {
-    // 会话绑定工作区；旧会话（无 workspaceId）回落到该 worker 的默认工作区。
-    const session = await ApiService.getSession(this.sessionId)
-    const workspaces = await ApiService.listWorkspaces() as Record<string, Object>[]
-    let workspaceId = ''
-    let workspaceName = ''
-    let fallbackId = ''
-    let fallbackName = ''
-    for (let i = 0; i < workspaces.length; i++) {
-      const item = workspaces[i] as Record<string, Object>
-      const id = (item['id'] as string) ?? ''
-      const name = (item['name'] as string) ?? ''
-      const isDefault = (item['isDefault'] as boolean) ?? false
-      if (id.length > 0 && id === session.workspaceId) {
-        workspaceId = id
-        workspaceName = name
-        break
-      }
-      if (fallbackId.length === 0 && (item['workerId'] as string) === session.workerId) {
-        if (isDefault || fallbackName.length === 0) {
-          fallbackId = id
-          fallbackName = name
-        }
-      }
-    }
-    if (workspaceId.length === 0) {
-      workspaceId = fallbackId
-      workspaceName = fallbackName
-    }
-    if (workspaceId.length === 0) {
-      showToast(I18n.get('workspaces.empty'))
+    // 文件浏览器以 shell OSC 7 上报的实时 cwd 为根，不再绑定工作区。
+    const cwd = AppStorage.get<string>('terminalCwd') ?? ''
+    if (cwd.length === 0) {
+      showToast(I18n.get('files.cwd_missing'))
       return
     }
-    const param: Record<string, string> = { 'workspaceId': workspaceId, 'workspaceName': workspaceName }
+    const session = await ApiService.getSession(this.sessionId)
+    const param: Record<string, string> = { 'workerId': session.workerId, 'rootDir': cwd }
     this.pageStack.pushPath({ name: RouteName.FILES_PAGE, param })
   }
 }

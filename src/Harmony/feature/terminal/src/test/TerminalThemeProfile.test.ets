@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@ohos/hypium';
-import { TerminalThemes, TerminalThemeProfile } from '@rwecho/core';
+import { TerminalThemes, TerminalThemeProfile, TerminalChrome } from '@rwecho/core';
 
 function makeCustomProfile(): TerminalThemeProfile {
   const p = new TerminalThemeProfile()
@@ -122,6 +122,79 @@ export default function terminalThemeProfileTest() {
       let threw = false
       try {
         TerminalThemes.resolve('no-such-id', 'dark', '[]')
+      } catch (err) {
+        threw = true
+      }
+      expect(threw).assertTrue()
+    })
+
+    it('blend_basic', 0, () => {
+      expect(TerminalThemes.blend('#000000', '#FFFFFF', 0.5)).assertEqual('#808080')
+      expect(TerminalThemes.blend('#000000', '#FFFFFF', 0)).assertEqual('#000000')
+      expect(TerminalThemes.blend('#000000', '#FFFFFF', 1)).assertEqual('#FFFFFF')
+    })
+
+    it('contrastRatio_blackWhite', 0, () => {
+      expect(TerminalThemes.contrastRatio('#000000', '#FFFFFF')).assertEqual(21)
+    })
+
+    it('blend_invalidHex_throws', 0, () => {
+      let threw = false
+      try {
+        TerminalThemes.blend('#12345', '#FFFFFF', 0.5)
+      } catch (err) {
+        threw = true
+      }
+      expect(threw).assertTrue()
+    })
+
+    it('deriveChrome_allColorsValidHex', 0, () => {
+      for (let i = 0; i < TerminalThemes.BUILT_IN.length; i++) {
+        const chrome: TerminalChrome = TerminalThemes.deriveChrome(TerminalThemes.BUILT_IN[i])
+        expect(TerminalThemes.isValidHex(chrome.background)).assertTrue()
+        expect(TerminalThemes.isValidHex(chrome.surface)).assertTrue()
+        expect(TerminalThemes.isValidHex(chrome.surfaceHigh)).assertTrue()
+        expect(TerminalThemes.isValidHex(chrome.onSurface)).assertTrue()
+        expect(TerminalThemes.isValidHex(chrome.onSurfaceVariant)).assertTrue()
+        expect(TerminalThemes.isValidHex(chrome.outlineVariant)).assertTrue()
+        expect(TerminalThemes.isValidHex(chrome.accent)).assertTrue()
+        expect(TerminalThemes.isValidHex(chrome.accentContainer)).assertTrue()
+        expect(TerminalThemes.isValidHex(chrome.onAccentContainer)).assertTrue()
+      }
+    })
+
+    it('deriveChrome_contrastFloors', 0, () => {
+      for (let i = 0; i < TerminalThemes.BUILT_IN.length; i++) {
+        const profile: TerminalThemeProfile = TerminalThemes.BUILT_IN[i]
+        const chrome: TerminalChrome = TerminalThemes.deriveChrome(profile)
+        expect(TerminalThemes.contrastRatio(chrome.onSurface, chrome.background) >= 4.5).assertTrue()
+        expect(TerminalThemes.contrastRatio(chrome.onSurfaceVariant, chrome.background) >= 4.5).assertTrue()
+        expect(TerminalThemes.contrastRatio(chrome.accent, chrome.background) >= 3).assertTrue()
+        expect(TerminalThemes.contrastRatio(chrome.onAccentContainer, chrome.accentContainer) >= 3).assertTrue()
+      }
+    })
+
+    it('deriveChrome_matchesProfileDarkness', 0, () => {
+      const darkChrome = TerminalThemes.deriveChrome(TerminalThemes.BUILT_IN[0])
+      expect(darkChrome.isDark).assertTrue()
+      const lightProfile = TerminalThemes.findById('default-light', [])
+      const lightChrome = TerminalThemes.deriveChrome(lightProfile)
+      expect(lightChrome.isDark).assertFalse()
+      expect(lightChrome.background).assertEqual(lightProfile.background)
+    })
+
+    it('chromeJson_roundtrip', 0, () => {
+      const resolution = TerminalThemes.resolve('nord', 'dark', '[]')
+      expect(resolution.chromeJson.length > 0).assertTrue()
+      const chrome = TerminalChrome.fromJson(resolution.chromeJson)
+      expect(chrome.background).assertEqual(TerminalThemes.findById('nord', []).background)
+      expect(chrome.isDark).assertTrue()
+    })
+
+    it('fromJson_emptyJson_throws', 0, () => {
+      let threw = false
+      try {
+        TerminalChrome.fromJson('')
       } catch (err) {
         threw = true
       }

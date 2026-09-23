@@ -9,6 +9,7 @@
  */
 import { webview } from '@kit.ArkWeb'
 import deviceInfo from '@ohos.deviceInfo'
+import { TerminalChrome } from '@rwecho/core'
 
 type OnInputReadyCallback = () => void
 type OnInputCallback = (data: string) => void
@@ -40,6 +41,12 @@ export struct XtermWebview {
   @StorageLink('terminalColorMode') @Watch('onTerminalColorModeChange') terminalColorMode: string = 'dark'
   /** 完整 xterm ITheme JSON（由 EntryAbility/设置页按 terminalTheme 解析写入）。 */
   @StorageLink('terminalThemeJson') @Watch('onTerminalColorModeChange') terminalThemeJson: string = ''
+  /** 终端主题派生 chrome：Web 容器底色与 xterm background 同源，避免闪色。 */
+  @StorageLink('terminalChromeJson') chromeJson: string = ''
+
+  private chrome(): TerminalChrome {
+    return TerminalChrome.fromJson(this.chromeJson)
+  }
   /**
    * ArkWeb API20 模拟器的 GPU 栈有回归:WebGL canvas 合成输出黑屏(见 xterm/index.html
    * 内注释)。模拟器上一律走 DOM 渲染;真机维持用户设置。
@@ -85,7 +92,7 @@ export struct XtermWebview {
       Web({ src: $rawfile('xterm/index.html'), controller: this.webviewController, renderMode: RenderMode.ASYNC_RENDER })
         .width('100%')
         .height('100%')
-        .backgroundColor(this.terminalColorMode === 'light' ? '#FAFAFA' : '#121414')
+        .backgroundColor(this.chrome().background)
         .javaScriptAccess(true)
         .domStorageAccess(true)
         .mixedMode(MixedMode.All)

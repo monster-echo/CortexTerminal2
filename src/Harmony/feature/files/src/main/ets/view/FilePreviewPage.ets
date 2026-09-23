@@ -16,7 +16,8 @@ import { I18n, PageLayout } from '@rwecho/core'
 import { FilesService } from '../service/FilesService'
 
 interface PreviewNavParam {
-  workspaceId: string
+  workerId: string
+  rootDir: string
   path: string
   name: string
   sizeBytes: number
@@ -45,7 +46,8 @@ export struct FilePreviewPage {
   @State textContent: string = ''
   @State textTruncated: boolean = false
   @State imagePixels: image.PixelMap | undefined = undefined
-  private workspaceId: string = ''
+  private workerId: string = ''
+  private rootDir: string = ''
   private remotePath: string = ''
   private fileName: string = ''
   private fileSize: number = 0
@@ -57,13 +59,14 @@ export struct FilePreviewPage {
     const params = this.pageStack.getParamByName('files/Preview') as PreviewNavParam[]
     if (params && params.length > 0) {
       const last = params[params.length - 1]
-      this.workspaceId = last.workspaceId
+      this.workerId = last.workerId
+      this.rootDir = last.rootDir
       this.remotePath = last.path
       this.fileName = last.name
       this.fileSize = last.sizeBytes
     }
-    if (this.workspaceId.length === 0 || this.remotePath.length === 0) {
-      throw new Error('FilePreviewPage requires workspaceId and path in nav params')
+    if (this.workerId.length === 0 || this.rootDir.length === 0 || this.remotePath.length === 0) {
+      throw new Error('FilePreviewPage requires workerId, rootDir and path in nav params')
     }
     await this.prepare()
   }
@@ -85,7 +88,7 @@ export struct FilePreviewPage {
         fs.mkdirSync(previewDir)
       }
 
-      const init = await FilesService.startDownload(this.workspaceId, this.remotePath)
+      const init = await FilesService.startDownload(this.workerId, this.rootDir, this.remotePath)
       this.localPath = `${previewDir}/${this.fileName}`
       await FilesService.downloadViaEndpoints(context, this.localPath, init.endpoints)
 

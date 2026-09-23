@@ -47,6 +47,7 @@ export default class EntryAbility extends UIAbility {
     AppStorage.setOrCreate('terminalColorMode', resolution.colorMode)
     AppStorage.setOrCreate('terminalThemeJson', resolution.themeJson)
     AppStorage.setOrCreate('terminalThemeName', resolution.themeName)
+    AppStorage.setOrCreate('terminalChromeJson', resolution.chromeJson)
   }
 
   private syncColorMode(): void {

@@ -257,6 +257,20 @@ export const enStrings: Record<string, string> = {
   'settings.feedback': 'Feedback',
   'settings.report': 'Report',
 
+  // ── Me page ─────────────────────────────────────────────────────
+  'me.open_membership': 'Manage membership',
+  'me.title': 'Me',
+  'me.benefits_hint': 'Upgrade to unlock higher quotas',
+  'me.worker_section': 'Workers & stats',
+  'me.total_sessions': 'Total sessions',
+  'me.avg_cpu': 'Avg CPU',
+  'me.avg_memory': 'Avg memory',
+  'me.view_all': 'View all',
+  'settings.share_app': 'Share app',
+  'settings.share_app_text': 'CortexTerminal — your machines, one terminal away. {url}',
+  'settings.security_section': 'Security',
+  'settings.device_section': 'Device Access',
+
   // ── Membership / Billing ───────────────────────────────────────────
   'settings.membership': 'Membership',
   'membership.title': 'Membership',
@@ -409,6 +423,7 @@ export const enStrings: Record<string, string> = {
   'files.preview_size': 'File size',
   'files.preview_audio_playing': 'Playing',
   'files.browse': 'Browse files',
+  'files.cwd_missing': 'Terminal directory not reported yet — press Enter in the terminal, then try again',
 
   // ── Tunnel (Port Forwarding) ───────────────────────────────────────
   'tunnel.title': 'Port Forwarding',
