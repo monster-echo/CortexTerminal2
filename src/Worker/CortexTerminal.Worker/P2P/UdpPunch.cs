@@ -67,7 +67,22 @@ public static class UdpPunch
         {
             while (true)
             {
-                var result = await socket.ReceiveAsync(lifetime.Token);
+                UdpReceiveResult result;
+                try
+                {
+                    result = await socket.ReceiveAsync(lifetime.Token);
+                }
+                catch (SocketException ex)
+                    when (!ct.IsCancellationRequested
+                          && ex.SocketErrorCode is SocketError.ConnectionReset
+                              or SocketError.IcmpUnreachablePortUnreachable
+                              or SocketError.NetworkReset)
+                {
+                    // Windows：对端不可达的 ICMP 会让未完成的 ReceiveAsync 抛
+                    // ConnectionReset/PortUnreachable——这是“没有回包”，不是失败。
+                    // 吞掉继续等，直到打洞窗口耗尽由统一转为 TimeoutException。
+                    continue;
+                }
                 if (!IsProbe(result.Buffer, transactionId))
                 {
                     continue;
