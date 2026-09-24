@@ -6,8 +6,11 @@ using Xunit;
 namespace CortexTerminal.Worker.Tests.RemoteFiles;
 
 /// <summary>
-/// "~" 根展开（design/02 §4：新建首个工作区前的文件夹浏览起点）。
-/// 断言全部用 Path API 组装，保证在 linux/osx/windows 测试矩阵下等价。
+/// 工作区根解析策略（design 评审后）：
+/// - 根可以是任意绝对路径（不再限制 home 内）；"~" 展开为 home；
+/// - 候选路径若为符号链接，解析为最终目标作为根；
+/// - 安全边界是「工作区根本身」，由 RemotePathValidator 在每次请求时守卫。
+/// 断言全部用 Path API 组装，linux/osx/windows 矩阵下等价。
 /// </summary>
 public class TildeRootTests
 {
@@ -34,20 +37,36 @@ public class TildeRootTests
     }
 
     [Fact]
-    public void OutsideHome_StillRejected()
+    public void OutsideHome_IsAllowed_Relaxed()
     {
-        // home 的同级目录必然在 home 之外（GetTempPath 在 Windows 上位于 home 内，不可用）。
-        var outside = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(Home)!, "corterm-outside"));
-        var ok = WorkspaceFileService.TryResolveWorkspaceDir(outside, out _, out var error);
-        ok.Should().BeFalse();
-        error!.Code.Should().Be(FileTransferErrorCode.AccessDenied);
+        // 设计决策：根不再限制在 home 内（项目可在任意挂载点/外部盘）。
+        var outside = Path.GetFullPath(Path.Combine(
+            Path.GetDirectoryName(Home)!, "corterm-anywhere"));
+        var ok = WorkspaceFileService.TryResolveWorkspaceDir(outside, out var path, out var error);
+        ok.Should().BeTrue();
+        error.Should().BeNull();
+        Path.GetFullPath(path).Should().Be(outside);
     }
 
     [Fact]
-    public void LexicalDotDot_UnderHome_StillRejected()
+    public void SymlinkRoot_ResolvesToFinalTarget()
     {
-        var ok = WorkspaceFileService.TryResolveWorkspaceDir("~/../escape", out _, out var error);
-        ok.Should().BeFalse();
-        error.Should().NotBeNull();
+        if (OperatingSystem.IsWindows()) return; // symlink 需特权
+        var realDir = Path.Combine(Path.GetDirectoryName(Home)!, "corterm-real-target");
+        Directory.CreateDirectory(realDir);
+        var link = Path.Combine(Home, $"corterm-link-{Guid.NewGuid():N}");
+        Directory.CreateSymbolicLink(link, realDir);
+
+        try
+        {
+            var ok = WorkspaceFileService.TryResolveWorkspaceDir(link, out var path, out var error);
+            ok.Should().BeTrue();
+            error.Should().BeNull();
+            Path.GetFullPath(path).Should().Be(Path.GetFullPath(realDir));
+        }
+        finally
+        {
+            File.Delete(link);
+        }
     }
 }

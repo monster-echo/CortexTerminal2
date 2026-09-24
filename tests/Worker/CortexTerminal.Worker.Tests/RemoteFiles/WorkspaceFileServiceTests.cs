@@ -37,22 +37,22 @@ public sealed class WorkspaceFileServiceTests
     }
 
     [Fact]
-    public void CreateWorkspaceDirectory_EscapingHome_IsRejected()
+    public void CreateWorkspaceDirectory_OutsideHome_IsAllowed_Relaxed()
     {
-        // GetTempPath 在 Windows 上位于 home 内，不能当“外部目录”用；
-        // 用 home 的同级目录，三平台语义一致。
+        // 设计决策：根不再限制在 home 内（安全边界是工作区根本身）；
+        // 外部盘/挂载点上的项目目录是合法工作区。
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         var outside = Path.Combine(Path.GetDirectoryName(home)!, "corterm-outside-test");
 
         var ack = NewService().CreateWorkspaceDirectory(
             new CreateWorkspaceDirectoryCommand("ws-1", outside));
-        ack.Success.Should().BeFalse();
-        ack.Error!.Code.Should().Be(FileTransferErrorCode.AccessDenied);
+        ack.Success.Should().BeTrue();
 
-        // 词法逃逸同样拒绝
+        // 相对路径（../elsewhere）相对 home 解析；新策略下不再被拒——
+        // 根本身就是沙箱边界，解析成什么路径就在什么路径内。
         var traversal = NewService().CreateWorkspaceDirectory(
             new CreateWorkspaceDirectoryCommand("ws-2", "../elsewhere"));
-        traversal.Success.Should().BeFalse();
+        traversal.Success.Should().BeTrue();
     }
 
     [Fact]

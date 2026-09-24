@@ -2,6 +2,7 @@ using CortexTerminal.Contracts.Sessions;
 using CortexTerminal.Contracts.Streaming;
 using CortexTerminal.Gateway.Sessions;
 using CortexTerminal.Gateway.Workers;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Options;
 
 namespace CortexTerminal.Gateway.Workspaces;
@@ -53,6 +54,24 @@ public sealed class RelayFileTransferService(
             (worker, ws, token) => workerCommands.DeleteAsync(worker.ConnectionId, ws.RootPath, path!, token), ct);
 
     /// <summary>
+    /// 旧版 worker 没有新 RPC（如 ListFiles/Mkdir）时，SignalR 会抛 HubException
+    /// （"Client failed to parse argument(s)"）。映射为结构化的 worker_too_old，
+    /// 客户端提示升级 worker，而不是未处理的 500。
+    /// </summary>
+    private static T GuardWorkerCapability<T>(Func<T> invoke)
+    {
+        try
+        {
+            return invoke();
+        }
+        catch (HubException ex)
+        {
+            throw new WorkspaceFileServiceException(FileTransferErrorCode.WorkerTooOld,
+                "该电脑的 worker 版本过低，无法执行此操作，请升级 worker 到最新版本（≥ 0.5.19）: " + ex.Message);
+        }
+    }
+
+    /// <summary>
     /// 文件变更类 RPC 的共用编排：path 非空校验 → 工作区归属 + Worker 在线 → 15s 超时 →
     /// 把 FileOpResult 的结构化错误翻成 <see cref="WorkspaceFileServiceException"/>，RPC 通道异常翻成 worker_offline。
     /// </summary>
@@ -78,6 +97,11 @@ public sealed class RelayFileTransferService(
         {
             result = await invoke(worker, workspace, timeout.Token);
         }
+        catch (HubException ex)
+        {
+            throw new WorkspaceFileServiceException(FileTransferErrorCode.WorkerTooOld,
+                "该电脑的 worker 版本过低，无法执行此操作，请升级 worker 到最新版本（≥ 0.5.19）: " + ex.Message);
+        }
         catch (Exception ex)
         {
             throw new WorkspaceFileServiceException(FileTransferErrorCode.WorkerOffline,
@@ -96,8 +120,8 @@ public sealed class RelayFileTransferService(
 
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(TimeSpan.FromSeconds(15));
-        var result = await workerCommands.ListFilesAsync(
-            worker.ConnectionId, workspace.RootPath, path ?? string.Empty, timeout.Token);
+        var result = GuardWorkerCapability(() => workerCommands.ListFilesAsync(
+            worker.ConnectionId, workspace.RootPath, path ?? string.Empty, timeout.Token).GetAwaiter().GetResult());
         if (result.Error is not null)
         {
             throw new WorkspaceFileServiceException(result.Error.Code, result.Error.Message);
@@ -199,8 +223,8 @@ public sealed class RelayFileTransferService(
 
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(TimeSpan.FromSeconds(15));
-        var result = await workerCommands.ListFilesAsync(
-            worker.ConnectionId, rootPath, path ?? string.Empty, timeout.Token);
+        var result = GuardWorkerCapability(() => workerCommands.ListFilesAsync(
+            worker.ConnectionId, rootPath, path ?? string.Empty, timeout.Token).GetAwaiter().GetResult());
         if (result.Error is not null)
         {
             throw new WorkspaceFileServiceException(result.Error.Code, result.Error.Message);

@@ -241,20 +241,21 @@ public sealed class WorkspaceFileService(int maxListEntries, ILogger<WorkspaceFi
             ? expanded
             : Path.GetFullPath(Path.Combine(home, expanded));
 
-        var fullHome = Path.GetFullPath(home);
-        // Windows 文件系统大小写不敏感：Ordinal 比较会误拒合法路径
-        // （如盘符大小写差异），故按平台选择比较方式（与 RemotePathValidator 一致）。
-        var comparison = OperatingSystem.IsWindows()
-            ? StringComparison.OrdinalIgnoreCase
-            : StringComparison.Ordinal;
-        if (!candidate.StartsWith(fullHome, comparison))
+        // 产品决策（design 评审）：不再限制工作区根必须在 home 内——开发者的项目
+        // 常在任意挂载点/外部盘。安全边界是「工作区根本身」：进入后所有浏览/读写
+        // 由 RemotePathValidator 限制在根内（含符号链接逃逸检查）。
+        // 若候选路径本身是符号链接，解析为最终目标作为根——否则根下条目解析后会
+        // 落在链接真实位置，被误判为逃逸。
+        var info = Directory.Exists(candidate)
+            ? new DirectoryInfo(candidate)
+            : (FileSystemInfo)new FileInfo(candidate);
+        string? final = null;
+        if (info.LinkTarget is not null)
         {
-            error = new FileOperationError(FileTransferErrorCode.AccessDenied,
-                "workspace root must stay inside the user home");
-            return false;
+            // 只对真正的符号链接做最终目标解析（不存在/普通路径直接用候选值）。
+            final = info.ResolveLinkTarget(returnFinalTarget: true)?.FullName;
         }
-
-        fullPath = candidate;
+        fullPath = Path.GetFullPath(final ?? candidate);
         return true;
     }
 }

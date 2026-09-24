@@ -44,7 +44,20 @@ public sealed class RemoteDirectoryLister(string root, int maxEntries)
             return new FileListingResult(null, new FileOperationError(FileTransferErrorCode.AccessDenied, ex.Message));
         }
 
-        var ordered = entries
+        // 逃逸出工作区根的符号链接不进列表：显示出来只会让用户点击后吃 400
+        // （TryResolve 会拒），直接过滤。指向根内部的链接保留。
+        var safeEntries = entries
+            .Where(e =>
+            {
+                var target = e.LinkTarget;
+                if (target is null) return true;
+                var final = e.ResolveLinkTarget(returnFinalTarget: true)?.FullName;
+                if (final is null) return false; // broken link：点了也是 404，不展示
+                return RemotePathValidator.IsInsideRoot(root, Path.GetFullPath(final));
+            })
+            .ToArray();
+
+        var ordered = safeEntries
             .OrderBy(e => e is DirectoryInfo ? 0 : 1)
             .ThenBy(e => e.Name, StringComparer.Ordinal)
             .ToArray();
