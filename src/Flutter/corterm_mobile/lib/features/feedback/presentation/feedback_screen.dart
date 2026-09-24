@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+import '../../../app/theme/corterm_theme.dart';
 import '../../../core/auth/auth_controller.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/app_bar.dart';
@@ -104,14 +105,14 @@ class _FeedbackScreenState extends ConsumerState<FeedbackScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final theme = ShadTheme.of(context);
-    final scheme = theme.colorScheme;
+    final c = colorsOf(context);
 
     return Scaffold(
-      backgroundColor: scheme.background,
+      backgroundColor: c.background,
       appBar: CortermAppBar(
         title: l10n.feedbackTitle,
         leading: ShadIconButton.ghost(
-          foregroundColor: scheme.foreground,
+          foregroundColor: c.textPrimary,
           icon: const Icon(LucideIcons.arrowLeft, size: 20),
           onPressed: () => context.pop(),
         ),
@@ -150,7 +151,7 @@ class _FeedbackScreenState extends ConsumerState<FeedbackScreen> {
                   children: [
                     Text(
                       l10n.feedbackAttachments(_images.length, _maxImages),
-                      style: theme.textTheme.small.copyWith(color: scheme.mutedForeground),
+                      style: theme.textTheme.small.copyWith(color: c.textSecondary),
                     ),
                     const Spacer(),
                     ShadButton.outline(
@@ -175,7 +176,7 @@ class _FeedbackScreenState extends ConsumerState<FeedbackScreen> {
                               height: 72,
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: scheme.border),
+                                border: Border.all(color: c.divider),
                               ),
                               child: const Icon(LucideIcons.image),
                             ),
@@ -183,7 +184,7 @@ class _FeedbackScreenState extends ConsumerState<FeedbackScreen> {
                               right: -6,
                               top: -6,
                               child: ShadIconButton.ghost(
-                                foregroundColor: scheme.destructive,
+                                foregroundColor: c.danger,
                                 icon: const Icon(LucideIcons.x, size: 20),
                                 // shadcn 只认 enabled:，onPressed: null 不会置灰
                                 enabled: !_submitting,
@@ -198,7 +199,7 @@ class _FeedbackScreenState extends ConsumerState<FeedbackScreen> {
                 if (_error != null) ...[
                   const SizedBox(height: 12),
                   Text(_error!,
-                      style: theme.textTheme.small.copyWith(color: scheme.destructive)),
+                      style: theme.textTheme.small.copyWith(color: c.danger)),
                 ],
                 const SizedBox(height: 24),
                 ShadButton(
@@ -228,22 +229,22 @@ class _DoneView extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final theme = ShadTheme.of(context);
-    final scheme = theme.colorScheme;
+    final c = colorsOf(context);
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(LucideIcons.circleCheck, size: 56, color: scheme.primary),
+            Icon(LucideIcons.circleCheck, size: 56, color: c.accent),
             const SizedBox(height: 16),
             Text(l10n.feedbackDone,
                 style: theme.textTheme.small.copyWith(
-                    fontWeight: FontWeight.w600, color: scheme.foreground)),
+                    fontWeight: FontWeight.w600, color: c.textPrimary)),
             const SizedBox(height: 8),
             Text('Ticket: $ticketId',
                 style: theme.textTheme.muted.copyWith(
-                    fontFamily: 'monospace', color: scheme.mutedForeground)),
+                    fontFamily: 'monospace', color: c.textSecondary)),
           ],
         ),
       ),

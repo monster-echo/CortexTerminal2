@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../core/storage/app_preferences.dart';
+import '../../app/theme/corterm_theme.dart';
 import '../../l10n/app_localizations.dart';
 import '../../shared/widgets/list_group.dart';
 import '../../shared/widgets/states.dart';
@@ -111,7 +112,7 @@ class _ScrollbackRow extends ConsumerWidget {
           height: 14,
           child: ShadProgress(value: null),
         ),
-        error: (e, _) => Text('—', style: TextStyle(color: ShadTheme.of(context).colorScheme.mutedForeground)),
+        error: (e, _) => Text('—', style: TextStyle(color: colorsOf(context).textSecondary)),
         data: (p) {
           // 服务端可能存有非预设值（web 端设置过）：如实展示，不冒充预设档位。
           final options = Map<int, String>.of(_options);

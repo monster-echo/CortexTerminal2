@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+import '../../../app/theme/corterm_theme.dart';
 import '../../../core/api/api_exception.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/app_bar.dart';
@@ -60,15 +61,15 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final scheme = ShadTheme.of(context).colorScheme;
+    final c = colorsOf(context);
     final summary = ref.watch(referralSummaryProvider);
 
     return Scaffold(
-      backgroundColor: scheme.background,
+      backgroundColor: c.background,
       appBar: CortermAppBar(
         title: l10n.referral,
         leading: ShadIconButton.ghost(
-          foregroundColor: scheme.foreground,
+          foregroundColor: c.textPrimary,
           icon: const Icon(LucideIcons.arrowLeft, size: 20),
           onPressed: () => context.pop(),
         ),
@@ -89,7 +90,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen> {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: scheme.primary.withValues(alpha: 0.08),
+                color: c.accent.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Column(children: [
@@ -206,5 +207,5 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen> {
   TextStyle? _mutedTextStyle(BuildContext context) => ShadTheme.of(context)
       .textTheme
       .muted
-      .copyWith(color: ShadTheme.of(context).colorScheme.foreground);
+      .copyWith(color: colorsOf(context).textPrimary);
 }

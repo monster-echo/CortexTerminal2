@@ -9,6 +9,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../app/theme/corterm_theme.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/app_bar.dart';
 import '../../../shared/widgets/list_group.dart';
@@ -24,15 +25,15 @@ class SupportScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
-    final scheme = ShadTheme.of(context).colorScheme;
+    final c = colorsOf(context);
     final info = ref.watch(supportInfoProvider);
 
     return Scaffold(
-      backgroundColor: scheme.background,
+      backgroundColor: c.background,
       appBar: CortermAppBar(
         title: l10n.supportTitle,
         leading: ShadIconButton.ghost(
-          foregroundColor: scheme.foreground,
+          foregroundColor: c.textPrimary,
           icon: const Icon(LucideIcons.arrowLeft, size: 20),
           onPressed: () => context.pop(),
         ),
@@ -146,35 +147,35 @@ class _GroupCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final theme = ShadTheme.of(context);
-    final scheme = theme.colorScheme;
+    final c = colorsOf(context);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: scheme.card,
+          color: c.surfaceElevated,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: scheme.border),
+          border: Border.all(color: c.divider),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Icon(icon, size: 20, color: scheme.primary),
+                Icon(icon, size: 20, color: c.accent),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     title,
                     style: theme.textTheme.small.copyWith(
-                        fontWeight: FontWeight.w600, color: scheme.foreground),
+                        fontWeight: FontWeight.w600, color: c.textPrimary),
                   ),
                 ),
                 if (subtitle.isNotEmpty)
                   Text(
                     subtitle,
-                    style: theme.textTheme.muted.copyWith(color: scheme.mutedForeground),
+                    style: theme.textTheme.muted.copyWith(color: c.textSecondary),
                   ),
               ],
             ),
@@ -197,7 +198,7 @@ class _GroupCard extends StatelessWidget {
                       errorBuilder: (_, _, _) => SizedBox(
                         width: 132,
                         height: 132,
-                        child: Icon(LucideIcons.qrCode, size: 32, color: scheme.mutedForeground),
+                        child: Icon(LucideIcons.qrCode, size: 32, color: c.textSecondary),
                       ),
                     ),
                   ),
@@ -241,7 +242,7 @@ class _GroupCard extends StatelessWidget {
   void _previewQr(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final theme = ShadTheme.of(context);
-    final scheme = theme.colorScheme;
+    final c = colorsOf(context);
     showCortermSheet(
       context: context,
       builder: (_) => SafeArea(
@@ -266,9 +267,9 @@ class _GroupCard extends StatelessWidget {
               const SizedBox(height: 12),
               Text(title,
                   style: theme.textTheme.small
-                      .copyWith(fontWeight: FontWeight.w600, color: scheme.foreground)),
+                      .copyWith(fontWeight: FontWeight.w600, color: c.textPrimary)),
               Text(subtitle,
-                  style: theme.textTheme.muted.copyWith(color: scheme.mutedForeground)),
+                  style: theme.textTheme.muted.copyWith(color: c.textSecondary)),
               const SizedBox(height: 12),
               ShadButton.outline(
                 onPressed: () => Navigator.of(context).pop(),

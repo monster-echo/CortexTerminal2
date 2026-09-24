@@ -1,6 +1,5 @@
 import 'dart:convert';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -33,7 +32,6 @@ class AppPreferences implements TerminalSnapshotStore {
 
   final SharedPreferences _prefs;
 
-  static const _kThemeMode = 'ui.theme_mode';
   static const _kTerminalThemeMode = 'terminal.theme_mode';
   static const _kTerminalThemeSelection = 'terminal.theme_selection';
   static const _kTerminalCustomThemes = 'terminal.custom_themes';
@@ -83,15 +81,6 @@ class AppPreferences implements TerminalSnapshotStore {
       await _prefs.setStringList(_kDismissedAnnouncements, dismissed);
     }
   }
-
-  ThemeMode get themeMode => switch (_prefs.getString(_kThemeMode)) {
-        'light' => ThemeMode.light,
-        'dark' => ThemeMode.dark,
-        _ => ThemeMode.system,
-      };
-
-  Future<void> setThemeMode(ThemeMode mode) =>
-      _prefs.setString(_kThemeMode, mode.name);
 
   /// 终端配色模式（§52 扩展）：'system'（跟随 App）/ 'dark' / 'light'，默认 system。
   String get terminalThemeMode =>
@@ -195,22 +184,6 @@ class FontSizeController extends StateNotifier<double> {
 
 final fontSizeProvider = StateNotifierProvider<FontSizeController, double>(
   (ref) => FontSizeController(ref.watch(appPreferencesProvider)),
-);
-
-/// 外观模式（§52）：System / Light / Dark，默认 System。
-class ThemeModeController extends StateNotifier<ThemeMode> {
-  ThemeModeController(this._prefs) : super(_prefs.themeMode);
-
-  final AppPreferences _prefs;
-
-  Future<void> set(ThemeMode mode) async {
-    await _prefs.setThemeMode(mode);
-    state = mode;
-  }
-}
-
-final themeModeProvider = StateNotifierProvider<ThemeModeController, ThemeMode>(
-  (ref) => ThemeModeController(ref.watch(appPreferencesProvider)),
 );
 
 /// 终端主题选择：'followApp' 或主题档案 id。

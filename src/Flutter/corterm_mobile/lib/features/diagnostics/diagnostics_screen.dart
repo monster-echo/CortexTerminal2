@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+import '../../app/theme/corterm_theme.dart';
 import '../../core/platform/sysinfo.dart';
 import '../../shared/widgets/app_bar.dart';
 import '../../shared/widgets/list_group.dart';
@@ -56,7 +57,7 @@ class _DiagnosticsScreenState extends ConsumerState<DiagnosticsScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final scheme = ShadTheme.of(context).colorScheme;
+    final c = colorsOf(context);
     final ws = ref.watch(sessionControllerProvider);
     final sessions = ref.watch(sessionsProvider);
     final gatewayInfo = ref.watch(gatewayInfoProvider);
@@ -67,10 +68,10 @@ class _DiagnosticsScreenState extends ConsumerState<DiagnosticsScreen> {
         .toList();
 
     return Scaffold(
-      backgroundColor: scheme.background,
+      backgroundColor: c.background,
       appBar: CortermAppBar(
         leading: ShadIconButton.ghost(
-          foregroundColor: scheme.foreground,
+          foregroundColor: c.textPrimary,
           icon: const Icon(LucideIcons.arrowLeft, size: 20),
           onPressed: () => context.pop(),
         ),
@@ -91,7 +92,7 @@ class _DiagnosticsScreenState extends ConsumerState<DiagnosticsScreen> {
                   value: r == null
                       ? l10n.diagnosticTesting
                       : (r.error == null ? l10n.ms(r.latencyMs!) : l10n.diagnosticFail),
-                  valueColor: r?.error != null ? scheme.destructive : null,
+                  valueColor: r?.error != null ? c.danger : null,
                 );
               },
             ),
@@ -122,8 +123,8 @@ class _DiagnosticsScreenState extends ConsumerState<DiagnosticsScreen> {
               for (final (id, entry) in opened)
                 AppRow(
                   leadingWidget: ConnectionStatusDot(
-                    color: connDotStyle(ShadTheme.of(context).colorScheme, entry!.connState).$1,
-                    pulse: connDotStyle(ShadTheme.of(context).colorScheme, entry.connState).$2,
+                    color: connDotStyle(colorsOf(context), entry!.connState).$1,
+                    pulse: connDotStyle(colorsOf(context), entry.connState).$2,
                   ),
                   label:
                       sessions.value?.where((s) => s.sessionId == id).firstOrNull?.displayName ??

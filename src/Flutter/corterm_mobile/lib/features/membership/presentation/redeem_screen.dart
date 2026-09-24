@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+import '../../../app/theme/corterm_theme.dart';
 import '../../../core/api/api_exception.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/app_bar.dart';
@@ -49,14 +50,14 @@ class _RedeemScreenState extends ConsumerState<RedeemScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final scheme = ShadTheme.of(context).colorScheme;
+    final c = colorsOf(context);
 
     return Scaffold(
-      backgroundColor: scheme.background,
+      backgroundColor: c.background,
       appBar: CortermAppBar(
         title: l10n.redeemCode,
         leading: ShadIconButton.ghost(
-          foregroundColor: scheme.foreground,
+          foregroundColor: c.textPrimary,
           icon: const Icon(LucideIcons.arrowLeft, size: 20),
           onPressed: () => context.pop(),
         ),

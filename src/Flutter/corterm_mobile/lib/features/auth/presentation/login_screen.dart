@@ -18,7 +18,8 @@ import '../../../core/auth/auth_repository.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/storage/app_preferences.dart';
 import '../../../core/models/auth_models.dart';
-import '../../../app/theme/app_theme.dart';
+import '../../../app/theme/corterm_theme.dart';
+import '../../../shared/widgets/corterm_ui.dart';
 import '../../legal/legal_screens.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/brand_logos.dart';
@@ -125,7 +126,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           style: ShadTheme.of(bodyContext)
               .textTheme
               .muted
-              .copyWith(color: ShadTheme.of(bodyContext).colorScheme.mutedForeground),
+              .copyWith(color: colorsOf(bodyContext).textSecondary),
         ),
       ),
       actions: [
@@ -148,10 +149,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   /// 勾选行内的《文档》链接：导航到全文页（路由名显式传入，LegalDocument 无值相等语义）。
   TextSpan _docLink(BuildContext context, String label, String route) {
-    final scheme = ShadTheme.of(context).colorScheme;
+    final c = colorsOf(context);
     return TextSpan(
       text: '《$label》',
-      style: TextStyle(color: scheme.primary, fontWeight: FontWeight.w600),
+      style: TextStyle(color: c.accent, fontWeight: FontWeight.w600),
       recognizer: TapGestureRecognizer()
         ..onTap = () {
           context.push('/legal/$route');
@@ -382,7 +383,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final scheme = ShadTheme.of(context).colorScheme;
+    final c = colorsOf(context);
     final theme = ShadTheme.of(context);
     final localeTag = ref.watch(localeProvider);
     final privacyDoc = privacyPolicyOf(localeTag);
@@ -448,13 +449,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   Text(
                     l10n.appName,
                     textAlign: TextAlign.center,
-                    style: theme.textTheme.h2.copyWith(color: scheme.foreground),
+                    style: theme.textTheme.h2.copyWith(color: c.textPrimary),
                   ),
                   const SizedBox(height: 6),
                   Text(
                     l10n.aboutTagline,
                     textAlign: TextAlign.center,
-                    style: theme.textTheme.muted.copyWith(color: scheme.mutedForeground),
+                    style: theme.textTheme.muted.copyWith(color: c.textSecondary),
                   ),
                   const SizedBox(height: 32),
                   if (_passwordMode) ...[
@@ -549,18 +550,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                   ],
                   const SizedBox(height: 24),
-                  ShadButton(
-                    size: ShadButtonSize.lg,
-                    enabled: !_busy && _methodsLoaded && _inputValid,
-                    onPressed: _login,
-                    leading: _busy
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: ShadProgress(value: null),
-                          )
-                        : null,
-                    child: Text(_busy ? l10n.signingIn : l10n.signIn),
+                  // 主按钮：黑底白字胶囊（Corterm 设计系统）。
+                  PrimaryButton(
+                    label: _busy ? l10n.signingIn : l10n.signIn,
+                    onPressed:
+                        !_busy && _methodsLoaded && _inputValid ? _login : null,
                   ),
                   if (secondaryEntries.isNotEmpty) ...[
                     const SizedBox(height: 24),
@@ -572,7 +566,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           child: Text(
                             l10n.otherLoginMethods,
                             style: theme.textTheme.muted.copyWith(
-                              color: scheme.mutedForeground,
+                              color: c.textSecondary,
                             ),
                           ),
                         ),
@@ -628,7 +622,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               child: Text.rich(
                                 TextSpan(
                                   style: theme.textTheme.muted
-                                      .copyWith(color: scheme.mutedForeground),
+                                      .copyWith(color: c.textSecondary),
                                   children: [
                                     TextSpan(text: l10n.consentPrefix),
                                     _docLink(context, termsDoc.title, 'terms'),
@@ -672,7 +666,7 @@ class _EyeButton extends StatelessWidget {
         child: Icon(
           obscure ? LucideIcons.eye : LucideIcons.eyeOff,
           size: 16,
-          color: ShadTheme.of(context).colorScheme.mutedForeground,
+          color: colorsOf(context).textSecondary,
         ),
       ),
     );
@@ -804,18 +798,18 @@ class _CaptchaDialogState extends State<_CaptchaDialog>
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final theme = ShadTheme.of(context);
-    final scheme = theme.colorScheme;
+    final c = colorsOf(context);
 
     final fillColor = switch (_phase) {
-      _CaptchaPhase.idle => scheme.secondary,
-      _CaptchaPhase.verifying => scheme.primary.withValues(alpha: 0.25),
-      _CaptchaPhase.success => scheme.success.withValues(alpha: 0.25),
-      _CaptchaPhase.failed => scheme.destructive.withValues(alpha: 0.15),
+      _CaptchaPhase.idle => c.surface,
+      _CaptchaPhase.verifying => c.accent.withValues(alpha: 0.25),
+      _CaptchaPhase.success => c.success.withValues(alpha: 0.25),
+      _CaptchaPhase.failed => c.danger.withValues(alpha: 0.15),
     };
     final thumbColor = switch (_phase) {
-      _CaptchaPhase.success => scheme.success,
-      _CaptchaPhase.failed => scheme.destructive,
-      _ => scheme.primary,
+      _CaptchaPhase.success => c.success,
+      _CaptchaPhase.failed => c.danger,
+      _ => c.accent,
     };
 
     return Column(
@@ -828,7 +822,7 @@ class _CaptchaDialogState extends State<_CaptchaDialog>
                 if (snap.hasError) {
                   return Text('${snap.error}',
                       style: theme.textTheme.muted
-                          .copyWith(color: scheme.mutedForeground));
+                          .copyWith(color: c.textSecondary));
                 }
                 if (!snap.hasData) {
                   return const Center(
@@ -895,7 +889,7 @@ class _CaptchaDialogState extends State<_CaptchaDialog>
                   child: Container(
                     height: thumbSize,
                     decoration: BoxDecoration(
-                      color: scheme.muted,
+                      color: c.surface,
                       borderRadius: BorderRadius.circular(22),
                     ),
                     child: Stack(
@@ -920,7 +914,7 @@ class _CaptchaDialogState extends State<_CaptchaDialog>
                             child: Text(
                               l10n.slideToVerify,
                               style: theme.textTheme.muted
-                                  .copyWith(color: scheme.mutedForeground),
+                                  .copyWith(color: c.textSecondary),
                             ),
                           ),
                         // Thumb
@@ -931,15 +925,15 @@ class _CaptchaDialogState extends State<_CaptchaDialog>
                             width: thumbSize,
                             height: thumbSize,
                             decoration: BoxDecoration(
-                              color: scheme.card,
+                              color: c.surfaceElevated,
                               shape: BoxShape.circle,
                               border: Border.all(color: thumbColor, width: 1.5),
                             ),
                             child: switch (_phase) {
                               _CaptchaPhase.success => Icon(LucideIcons.check,
-                                  size: 20, color: scheme.success),
+                                  size: 20, color: c.success),
                               _CaptchaPhase.failed => Icon(LucideIcons.x,
-                                  size: 20, color: scheme.destructive),
+                                  size: 20, color: c.danger),
                               _CaptchaPhase.verifying => const SizedBox(
                                   width: 18,
                                   height: 18,
@@ -961,7 +955,7 @@ class _CaptchaDialogState extends State<_CaptchaDialog>
               Text(
                 _error!,
                 textAlign: TextAlign.center,
-                style: theme.textTheme.muted.copyWith(color: scheme.destructive),
+                style: theme.textTheme.muted.copyWith(color: c.danger),
               ),
             ],
           ],

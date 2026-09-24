@@ -6,7 +6,9 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../../core/auth/auth_repository.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../../app/theme/corterm_theme.dart';
 import '../../../shared/widgets/app_bar.dart';
+import '../../../shared/widgets/corterm_ui.dart';
 
 /// 设备激活：一进来就是全屏扫码。worker / 桌面端显示的二维码编码
 /// `<verification_uri>?code=<user_code>`（见 worker_ui auth_screen），
@@ -98,7 +100,7 @@ class _ActivateScreenState extends ConsumerState<ActivateScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final theme = ShadTheme.of(context);
-    final scheme = theme.colorScheme;
+    final c = colorsOf(context);
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -121,7 +123,7 @@ class _ActivateScreenState extends ConsumerState<ActivateScreen> {
                   Icon(
                     LucideIcons.circleCheck,
                     size: 56,
-                    color: scheme.primary,
+                    color: c.accent,
                   ),
                   const SizedBox(height: 16),
                   Text(
@@ -172,7 +174,7 @@ class _ActivateScreenState extends ConsumerState<ActivateScreen> {
                     height: 240,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: scheme.primary, width: 2),
+                      border: Border.all(color: c.accent, width: 2),
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -192,7 +194,7 @@ class _ActivateScreenState extends ConsumerState<ActivateScreen> {
                         _error!,
                         textAlign: TextAlign.center,
                         style: theme.textTheme.small.copyWith(
-                          color: scheme.destructive,
+                          color: c.danger,
                         ),
                       ),
                     ),
@@ -293,10 +295,10 @@ class _CodeEntryScreenState extends ConsumerState<_CodeEntryScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final theme = ShadTheme.of(context);
-    final scheme = theme.colorScheme;
+    final c = colorsOf(context);
 
     return Scaffold(
-      backgroundColor: scheme.background,
+      backgroundColor: c.background,
       appBar: CortermAppBar(title: l10n.activateCodeNavTitle),
       body: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -309,7 +311,7 @@ class _CodeEntryScreenState extends ConsumerState<_CodeEntryScreen> {
               Text(
                 l10n.activateIntro,
                 style: theme.textTheme.small.copyWith(
-                  color: scheme.mutedForeground,
+                  color: c.textSecondary,
                   height: 1.5,
                 ),
               ),
@@ -329,15 +331,14 @@ class _CodeEntryScreenState extends ConsumerState<_CodeEntryScreen> {
                 Text(
                   _error!,
                   style: theme.textTheme.small.copyWith(
-                    color: scheme.destructive,
+                    color: c.danger,
                   ),
                 ),
               ],
               const SizedBox(height: 24),
-              ShadButton(
-                enabled: !_verifying && _valid,
-                onPressed: _verify,
-                child: Text(_verifying ? l10n.verifying : l10n.activateConfirm),
+              PrimaryButton(
+                label: _verifying ? l10n.verifying : l10n.activateConfirm,
+                onPressed: !_verifying && _valid ? _verify : null,
               ),
             ],
           ),

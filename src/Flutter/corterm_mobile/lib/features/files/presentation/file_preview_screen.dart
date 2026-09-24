@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+import '../../../app/theme/corterm_theme.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/states.dart';
 import '../data/file_repository.dart';
@@ -80,22 +81,26 @@ class _FilePreviewScreenState extends ConsumerState<FilePreviewScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final theme = ShadTheme.of(context);
-    final scheme = theme.colorScheme;
 
+    // 文件页属于 Dark Tool Context（design/05 §8）。
+    return Theme(
+      data: cortermDarkToolTheme(),
+      child: Builder(builder: (context) {
+    final c = colorsOf(context);
     return Scaffold(
-      backgroundColor: scheme.background,
+      backgroundColor: c.background,
       appBar: AppBar(
-        backgroundColor: scheme.background,
-        foregroundColor: scheme.foreground,
+        backgroundColor: c.background,
+        foregroundColor: c.textPrimary,
         elevation: 0,
         title: Text(
           widget.name,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: theme.textTheme.large.copyWith(
-            color: scheme.foreground,
+          style: TextStyle(
+            color: c.textPrimary,
             fontSize: 17,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ),
@@ -134,16 +139,17 @@ class _FilePreviewScreenState extends ConsumerState<FilePreviewScreen> {
                     width: double.infinity,
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: scheme.card,
+                      color: c.surface,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: scheme.border),
+                      border: Border.all(color: c.divider),
                     ),
                     child: SingleChildScrollView(
                       child: Text(
                         String.fromCharCodes(bytes),
-                        style: theme.textTheme.muted.copyWith(
+                        style: TextStyle(
                           fontFamily: 'packages/shadcn_ui/GeistMono',
                           fontSize: 13,
+                          color: c.textPrimary,
                         ),
                       ),
                     ),
@@ -156,18 +162,17 @@ class _FilePreviewScreenState extends ConsumerState<FilePreviewScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(LucideIcons.fileQuestion,
-                            size: 48, color: scheme.mutedForeground),
+                            size: 48, color: c.textSecondary),
                         const SizedBox(height: 12),
                         Text(
                           l10n.previewUnsupported,
-                          style: theme.textTheme.small
-                              .copyWith(color: scheme.foreground),
+                          style: TextStyle(fontSize: 15, color: c.textPrimary),
                         ),
                         const SizedBox(height: 4),
                         Text(
                           _fmtSize(widget.sizeBytes),
-                          style: theme.textTheme.muted
-                              .copyWith(color: scheme.mutedForeground),
+                          style: TextStyle(
+                              fontSize: 13, color: c.textSecondary),
                         ),
                         const SizedBox(height: 20),
                         ShadButton.outline(
@@ -194,8 +199,8 @@ class _FilePreviewScreenState extends ConsumerState<FilePreviewScreen> {
                   Text(
                     _fmtSize(widget.sizeBytes),
                     textAlign: TextAlign.center,
-                    style: theme.textTheme.muted
-                        .copyWith(color: scheme.mutedForeground),
+                    style:
+                        TextStyle(fontSize: 12, color: c.textSecondary),
                   ),
                 ],
               );
@@ -203,6 +208,8 @@ class _FilePreviewScreenState extends ConsumerState<FilePreviewScreen> {
           ),
         ),
       ),
+    );
+      }),
     );
   }
 

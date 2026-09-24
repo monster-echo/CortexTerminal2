@@ -5,6 +5,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../core/models/terminal_color_scheme.dart';
 import '../../core/storage/app_preferences.dart';
+import '../../app/theme/corterm_theme.dart';
 import '../../l10n/app_localizations.dart';
 import '../../shared/widgets/list_group.dart';
 import '../../shared/widgets/sheets_and_dialogs.dart';
@@ -39,13 +40,13 @@ class TerminalThemesScreen extends ConsumerWidget {
               ),
               ShadIconButton.ghost(
                 icon: Icon(LucideIcons.trash,
-                    size: 16, color: ShadTheme.of(context).colorScheme.destructive),
+                    size: 16, color: colorsOf(context).danger),
                 onPressed: () => _confirmDelete(context, ref, scheme),
               ),
             ],
             if (selected)
               Icon(LucideIcons.check,
-                  size: 18, color: ShadTheme.of(context).colorScheme.primary),
+                  size: 18, color: colorsOf(context).accent),
           ],
         ),
       );
@@ -75,7 +76,7 @@ class TerminalThemesScreen extends ConsumerWidget {
                     style: ShadTheme.of(context)
                         .textTheme
                         .small
-                        .copyWith(color: ShadTheme.of(context).colorScheme.mutedForeground),
+                        .copyWith(color: colorsOf(context).textSecondary),
                   ),
                 )
               else
@@ -169,7 +170,7 @@ class _SchemePreview extends StatelessWidget {
         color: scheme.backgroundColor,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: ShadTheme.of(context).colorScheme.border,
+          color: colorsOf(context).divider,
         ),
       ),
       child: Row(

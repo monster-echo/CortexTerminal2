@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+import '../../app/theme/corterm_theme.dart';
 import '../../core/models/terminal_color_scheme.dart';
 import '../../core/storage/app_preferences.dart';
 import '../../l10n/app_localizations.dart';
@@ -146,7 +147,7 @@ class _TerminalThemeEditorScreenState
               child: Text(
                 _error!,
                 style: theme.textTheme.small
-                    .copyWith(color: theme.colorScheme.destructive),
+                    .copyWith(color: colorsOf(context).danger),
               ),
             ),
           const SizedBox(height: 16),
@@ -193,7 +194,7 @@ class _ColorFieldRow extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: preview,
                   shape: BoxShape.circle,
-                  border: Border.all(color: theme.colorScheme.border),
+                  border: Border.all(color: colorsOf(context).divider),
                 ),
               );
             },

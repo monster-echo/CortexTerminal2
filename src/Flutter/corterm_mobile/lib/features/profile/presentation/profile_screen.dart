@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+import '../../../app/theme/corterm_theme.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/utils/file_reader.dart';
 import '../../../shared/widgets/app_bar.dart';
@@ -26,16 +27,16 @@ class ProfileScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
-    final scheme = ShadTheme.of(context).colorScheme;
+    final c = colorsOf(context);
     final profile = ref.watch(profileProvider);
     final repo = ref.read(profileRepositoryProvider);
 
     return Scaffold(
-      backgroundColor: scheme.background,
+      backgroundColor: c.background,
       appBar: CortermAppBar(
         title: l10n.profileTitle,
         leading: ShadIconButton.ghost(
-          foregroundColor: scheme.foreground,
+          foregroundColor: c.textPrimary,
           icon: const Icon(LucideIcons.arrowLeft, size: 20),
           onPressed: () => context.pop(),
         ),
@@ -58,9 +59,9 @@ class ProfileScreen extends ConsumerWidget {
                       bottom: 0,
                       child: CircleAvatar(
                         radius: 15,
-                        backgroundColor: scheme.primary,
+                        backgroundColor: c.accent,
                         child: Icon(LucideIcons.camera,
-                            size: 16, color: scheme.background),
+                            size: 16, color: c.background),
                       ),
                     ),
                   ],
@@ -175,14 +176,14 @@ class _Avatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = ShadTheme.of(context).colorScheme;
+    final c = colorsOf(context);
     final inner = ClipOval(
       child: url.isEmpty
           ? Container(
               width: size,
               height: size,
-              color: scheme.muted,
-              child: Icon(LucideIcons.user, size: size * 0.5, color: scheme.mutedForeground),
+              color: c.surfaceElevated,
+              child: Icon(LucideIcons.user, size: size * 0.5, color: c.textSecondary),
             )
           : Image.network(
               url,
@@ -192,9 +193,9 @@ class _Avatar extends StatelessWidget {
               errorBuilder: (_, _, _) => Container(
                 width: size,
                 height: size,
-                color: scheme.muted,
+                color: c.surfaceElevated,
                 child:
-                    Icon(LucideIcons.user, size: size * 0.5, color: scheme.mutedForeground),
+                    Icon(LucideIcons.user, size: size * 0.5, color: c.textSecondary),
               ),
             ),
     );
@@ -203,7 +204,7 @@ class _Avatar extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(color: scheme.border),
+        border: Border.all(color: c.divider),
       ),
       child: inner,
     );
@@ -292,7 +293,7 @@ class _AvatarCropSheetState extends State<AvatarCropSheet> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final scheme = ShadTheme.of(context).colorScheme;
+    final c = colorsOf(context);
 
     return SafeArea(
       child: Padding(
@@ -305,7 +306,7 @@ class _AvatarCropSheetState extends State<AvatarCropSheet> {
                 width: 280,
                 height: 280,
                 child: ColoredBox(
-                  color: scheme.muted,
+                  color: c.surfaceElevated,
                   child: LayoutBuilder(
                     builder: (context, box) => FutureBuilder<ui.Image>(
                       future: _image,
@@ -318,7 +319,7 @@ class _AvatarCropSheetState extends State<AvatarCropSheet> {
                               '${snap.error}',
                               textAlign: TextAlign.center,
                               style: TextStyle(
-                                  color: scheme.destructive, fontSize: 13),
+                                  color: c.danger, fontSize: 13),
                             ),
                           );
                         }

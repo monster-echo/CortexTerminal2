@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+import '../../app/theme/corterm_theme.dart';
 import '../../shared/widgets/app_bar.dart';
 import '../../shared/widgets/list_group.dart';
 
@@ -27,15 +28,15 @@ class LegalDocumentScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final theme = ShadTheme.of(context);
-    final scheme = theme.colorScheme;
+    final c = colorsOf(context);
     final bodyMedium =
-        theme.textTheme.small.copyWith(height: 1.55, color: scheme.foreground);
+        theme.textTheme.small.copyWith(height: 1.55, color: c.textPrimary);
 
     return Scaffold(
-      backgroundColor: scheme.background,
+      backgroundColor: c.background,
       appBar: CortermAppBar(
         leading: ShadIconButton.ghost(
-          foregroundColor: scheme.foreground,
+          foregroundColor: c.textPrimary,
           icon: const Icon(LucideIcons.arrowLeft, size: 20),
           onPressed: () => context.pop(),
         ),
@@ -46,7 +47,7 @@ class LegalDocumentScreen extends StatelessWidget {
         children: [
           Text(
             l10n.legalVersionCaption(document.effectiveDate),
-            style: theme.textTheme.small.copyWith(color: scheme.mutedForeground),
+            style: theme.textTheme.small.copyWith(color: c.textSecondary),
           ),
           const SizedBox(height: 16),
           for (final section in document.sections) ...[
@@ -55,7 +56,7 @@ class LegalDocumentScreen extends StatelessWidget {
                 section.title,
                 style: theme.textTheme.small.copyWith(
                   fontWeight: FontWeight.w700,
-                  color: scheme.foreground,
+                  color: c.textPrimary,
                 ),
               ),
               const SizedBox(height: 6),
@@ -94,13 +95,14 @@ class LegalIndexScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final theme = ShadTheme.of(context);
+    final c = colorsOf(context);
     final localeTag = ref.watch(localeProvider);
 
     return Scaffold(
-      backgroundColor: ShadTheme.of(context).colorScheme.background,
+      backgroundColor: c.background,
       appBar: CortermAppBar(
         leading: ShadIconButton.ghost(
-          foregroundColor: ShadTheme.of(context).colorScheme.foreground,
+          foregroundColor: c.textPrimary,
           icon: const Icon(LucideIcons.arrowLeft, size: 20),
           onPressed: () => context.pop(),
         ),
@@ -112,7 +114,7 @@ class LegalIndexScreen extends ConsumerWidget {
           Text(
             l10n.legalIndexIntro,
             style: theme.textTheme.muted
-                .copyWith(color: ShadTheme.of(context).colorScheme.mutedForeground),
+                .copyWith(color: c.textSecondary),
           ),
           const SizedBox(height: 12),
           AppGroupCard(children: [

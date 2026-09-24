@@ -6,6 +6,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import '../core/analytics/analytics_service.dart';
 import '../core/auth/auth_controller.dart';
 import '../core/storage/app_preferences.dart';
+import '../features/activate/activate_screen.dart';
 import '../features/auth/presentation/login_screen.dart';
 import '../features/computers/presentation/computer_detail_screen.dart';
 import '../features/computers/presentation/pair_computer_screen.dart';
@@ -76,6 +77,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     },
     routes: [
       GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
+      GoRoute(path: '/activate', builder: (_, _) => const ActivateScreen()),
       GoRoute(path: '/home', builder: (_, _) => const HomeShell()),
       GoRoute(path: '/search', builder: (_, _) => const SearchScreen()),
 

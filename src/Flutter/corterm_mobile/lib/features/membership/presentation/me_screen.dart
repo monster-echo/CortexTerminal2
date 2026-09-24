@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/auth/auth_controller.dart';
 import '../../../core/config/app_config.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../../app/theme/corterm_theme.dart';
 import '../../../shared/widgets/app_shell.dart';
 import '../../../shared/widgets/connection_status_dot.dart';
 import '../../../shared/widgets/list_group.dart';
@@ -32,7 +33,7 @@ class MeScreen extends ConsumerWidget {
         // 右上角设置入口：压栈进入，设置页带返回键。
         Builder(
           builder: (innerContext) => ShadIconButton.ghost(
-            foregroundColor: ShadTheme.of(innerContext).colorScheme.foreground,
+            foregroundColor: colorsOf(innerContext).textPrimary,
             icon: const Icon(LucideIcons.settings, size: 20),
             onPressed: () => context.push('/settings'),
           ),
@@ -80,13 +81,13 @@ class _BenefitsHero extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final theme = ShadTheme.of(context);
-    final scheme = theme.colorScheme;
+    final c = colorsOf(context);
 
     return Container(
       margin: const EdgeInsets.only(top: 16),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: scheme.primary,
+        color: c.accent,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -95,12 +96,12 @@ class _BenefitsHero extends ConsumerWidget {
           Row(
             children: [
               Icon(LucideIcons.crown,
-                  size: 20, color: scheme.primaryForeground),
+                  size: 20, color: Colors.white),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(l10n.benefitsTitle,
                     style: theme.textTheme.large.copyWith(
-                      color: scheme.primaryForeground,
+                      color: Colors.white,
                       fontWeight: FontWeight.w700,
                     )),
               ),
@@ -110,7 +111,7 @@ class _BenefitsHero extends ConsumerWidget {
           Text(
             l10n.meBenefitsHint,
             style: theme.textTheme.muted.copyWith(
-                color: scheme.primaryForeground.withValues(alpha: 0.85)),
+                color: Colors.white.withValues(alpha: 0.85)),
           ),
           const SizedBox(height: 16),
           // Wrap 而非 Row+Expanded：按钮保持自然宽度并换行，
@@ -120,17 +121,17 @@ class _BenefitsHero extends ConsumerWidget {
             runSpacing: 10,
             children: [
               ShadButton(
-                backgroundColor: scheme.primaryForeground,
-                foregroundColor: scheme.primary,
+                backgroundColor: Colors.white,
+                foregroundColor: c.accent,
                 // IAP / 会员购买：购买在 web 控制台完成，打开网关定价页。
                 onPressed: () => _openPricing(context, ref),
                 child: Text(l10n.meOpenMembership),
               ),
               ShadButton.outline(
-                foregroundColor: scheme.primaryForeground,
+                foregroundColor: Colors.white,
                 decoration: ShadDecoration(
                   border: ShadBorder.all(
-                    color: scheme.primaryForeground.withValues(alpha: 0.5),
+                    color: Colors.white.withValues(alpha: 0.5),
                     radius: BorderRadius.circular(8),
                   ),
                 ),
@@ -153,7 +154,6 @@ class _WorkerStatsCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
-    final scheme = ShadTheme.of(context).colorScheme;
     final workers = ref.watch(workersProvider);
 
     return workers.when(
@@ -225,7 +225,7 @@ class _WorkerStatsCard extends ConsumerWidget {
             for (final w in list.take(3))
               AppRow(
                 leadingWidget: ConnectionStatusDot(
-                  color: workerDotColor(scheme, w),
+                  color: workerDotColor(colorsOf(context), w),
                 ),
                 label: w.displayName,
                 value: w.isOnline ? l10n.workerOnline : l10n.workerOffline,
@@ -254,7 +254,7 @@ class _Stat extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
-    final scheme = theme.colorScheme;
+    final c = colorsOf(context);
     return Column(
       children: [
         Text(
@@ -269,7 +269,7 @@ class _Stat extends StatelessWidget {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style:
-              theme.textTheme.muted.copyWith(color: scheme.mutedForeground),
+              theme.textTheme.muted.copyWith(color: c.textSecondary),
         ),
       ],
     );

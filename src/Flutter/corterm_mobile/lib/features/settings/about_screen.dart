@@ -6,6 +6,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../app/theme/corterm_theme.dart';
 import '../../l10n/app_localizations.dart';
 import '../../features/sessions/data/sessions_providers.dart';
 import '../../shared/widgets/list_group.dart';
@@ -51,7 +52,7 @@ class AboutScreen extends ConsumerWidget {
               style: theme.textTheme.small.copyWith(
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
-                color: theme.colorScheme.foreground,
+                color: colorsOf(context).textPrimary,
               ),
               textAlign: TextAlign.center,
             ),
