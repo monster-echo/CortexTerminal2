@@ -25,6 +25,9 @@ import 'package:corterm_mobile/features/workspaces/data/workspace_providers.dart
 import 'package:corterm_mobile/core/models/workspace.dart';
 import 'package:corterm_mobile/features/session/session_controller.dart';
 
+import 'package:corterm_mobile/features/membership/data/membership_repository.dart';
+import 'package:corterm_mobile/features/profile/data/profile_repository.dart';
+import 'package:corterm_mobile/features/support/data/support_repository.dart';
 import '../test/fakes.dart';
 
 /// E2E（模拟器）：真实路由表 + 假数据源，从首页走查主要页面与主题一致性。
@@ -96,6 +99,9 @@ void main() {
           ]),
       sessionControllerProvider.overrideWith((ref) => sessionController),
       fileRepositoryProvider.overrideWith((ref) => FakeFileRepo()),
+      profileRepositoryProvider.overrideWith((ref) => FakeProfileRepo()),
+      supportRepositoryProvider.overrideWith((ref) => FakeSupportRepo()),
+      membershipRepositoryProvider.overrideWith((ref) => FakeMembershipRepo()),
       tunnelRepositoryProvider.overrideWith((ref) => FakeTunnelRepo()),
     ]);
   });
@@ -207,6 +213,44 @@ void main() {
     await settle(t);
 
     expect(find.text('端口转发'), findsOneWidget);
+  });
+
+  testWidgets('剩余路由逐条直达：任何页面启动即崩都逃不过', (tester) async {
+    final (t, router) = await pump(tester);
+
+    const routes = <String, Matcher>{
+      '/computers/new': findsOneWidget,
+      '/computers/w1': findsOneWidget,
+      '/folder-picker?workerId=w1': findsOneWidget,
+      '/workspaces/new': findsOneWidget,
+      '/sessions/new': findsOneWidget,
+      '/workspaces/ws1/files/preview?path=README.md&name=README.md&size=1234':
+          findsOneWidget,
+      '/settings': findsOneWidget,
+      '/settings/profile': findsOneWidget,
+      '/settings/support': findsOneWidget,
+      '/settings/feedback': findsOneWidget,
+      '/settings/about': findsOneWidget,
+      '/settings/preferences': findsOneWidget,
+      '/settings/terminal-themes': findsOneWidget,
+      '/settings/terminal-themes/edit': findsOneWidget,
+      '/settings/security': findsOneWidget,
+      '/settings/redeem': findsOneWidget,
+      '/settings/referral': findsOneWidget,
+      '/legal/privacy': findsOneWidget,
+      '/activate': findsOneWidget,
+    };
+
+    for (final entry in routes.entries) {
+      router.go(entry.key);
+      // 每个页面给足渲染时间；异常会在 pump 阶段被测试框架捕获。
+      await t.pump(const Duration(milliseconds: 400));
+      await t.pump(const Duration(milliseconds: 400));
+      expect(t.takeException(), isNull,
+          reason: 'route \${entry.key} threw during build');
+      expect(find.byType(Scaffold), findsWidgets,
+          reason: 'route \${entry.key} did not render a scaffold');
+    }
   });
 
   testWidgets('我的 与 设置：Light App Context', (tester) async {

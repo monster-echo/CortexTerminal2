@@ -5,7 +5,12 @@ import 'package:corterm_mobile/core/ws/terminal_socket.dart';
 import 'package:corterm_mobile/core/ws/ws_frames.dart';
 import 'package:corterm_mobile/features/files/data/file_repository.dart';
 import 'package:corterm_mobile/features/session/session_controller.dart';
+import 'dart:typed_data';
+
+import 'package:corterm_mobile/features/membership/data/membership_repository.dart';
+import 'package:corterm_mobile/features/profile/data/profile_repository.dart';
 import 'package:corterm_mobile/features/sessions/data/session_repository.dart';
+import 'package:corterm_mobile/features/support/data/support_repository.dart';
 import 'package:corterm_mobile/features/tunnels/data/tunnel_repository.dart';
 
 /// 测试共享假实现：不建真连、不访问网络。
@@ -62,6 +67,51 @@ class FakeSessionController extends SessionController {
   void seed(SessionState state) => this.state = state;
 }
 
+class FakeProfileRepo implements ProfileRepository {
+  @override
+  Future<UserProfile> get() async => UserProfile(
+        id: 'u1',
+        username: 'tester',
+        email: 'tester@example.com',
+        displayName: 'tester',
+        hasPassword: true,
+      );
+
+  @override
+  String resolveAvatarUrl(String? avatarUrl) => avatarUrl ?? '';
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnimplementedError('${invocation.memberName}');
+}
+
+class FakeSupportRepo implements SupportRepository {
+  @override
+  Future<SupportInfo> get() async => SupportInfo(
+        email: 'support@example.com',
+        qqGroup: SupportGroup(name: 'QQ', number: '123', qrCodeUrl: ''),
+      );
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnimplementedError('${invocation.memberName}');
+}
+
+class FakeMembershipRepo implements MembershipRepository {
+  @override
+  Future<ReferralSummary> referral() async => ReferralSummary(
+        code: 'INVITE-1',
+        rewardDaysPerInvite: 7,
+        invitedCount: 0,
+        totalRewardDays: 0,
+        rewards: const [],
+      );
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnimplementedError('${invocation.memberName}');
+}
+
 class FakeFileRepo implements FileRepository {
   @override
   Future<FileListing> list(
@@ -81,6 +131,24 @@ class FakeFileRepo implements FileRepository {
           name: 'pubspec.yaml',
           isDirectory: false,
           sizeBytes: 567,
+          modifiedUtc: null),
+    ], truncated: false);
+  }
+
+  @override
+  Future<Uint8List> downloadBytes(
+      {required String workspaceId, required String path}) async {
+    return Uint8List.fromList('hello corterm'.codeUnits);
+  }
+
+  @override
+  Future<FileListing> listForWorker(
+      {required String workerId, String root = '', String path = ''}) async {
+    return const FileListing(entries: [
+      FileEntry(
+          name: 'Projects',
+          isDirectory: true,
+          sizeBytes: 0,
           modifiedUtc: null),
     ], truncated: false);
   }

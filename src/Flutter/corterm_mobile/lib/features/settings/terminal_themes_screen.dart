@@ -163,7 +163,8 @@ class _SchemePreview extends StatelessWidget {
         );
 
     return Container(
-      width: 56,
+      // 68 = 内容（Aa + 3×色点 + 间距 ≈ 54）+ 2×6 padding + 余量，避免 Row 溢出。
+      width: 68,
       height: 32,
       padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
@@ -173,22 +174,25 @@ class _SchemePreview extends StatelessWidget {
           color: colorsOf(context).divider,
         ),
       ),
-      child: Row(
-        children: [
-          Text(
-            'Aa',
-            style: ShadTheme.of(context).textTheme.small.copyWith(
-                  color: scheme.foregroundColor,
-                  fontWeight: FontWeight.w600,
-                ),
-          ),
-          const Spacer(),
-          chip(scheme.red),
-          const SizedBox(width: 3),
-          chip(scheme.green),
-          const SizedBox(width: 3),
-          chip(scheme.blue),
-        ],
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Row(
+          children: [
+            Text(
+              'Aa',
+              style: ShadTheme.of(context).textTheme.small.copyWith(
+                    color: scheme.foregroundColor,
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+            const SizedBox(width: 3),
+            chip(scheme.red),
+            const SizedBox(width: 3),
+            chip(scheme.green),
+            const SizedBox(width: 3),
+            chip(scheme.blue),
+          ],
+        ),
       ),
     );
   }
