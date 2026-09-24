@@ -173,7 +173,6 @@ public sealed class TerminalHubReconnectTests
             TestSessionFactory.CreateContextFactoryPublic(),
             new FixedTimeProvider(DateTimeOffset.UtcNow));
         var agentActivity = TestSessionFactory.CreateAgentActivityService(hub);
-        var entitlements = new NoOpEntitlementService();
         return (WorkerHub)Activator.CreateInstance(
             typeof(WorkerHub),
             workers,
@@ -186,7 +185,6 @@ public sealed class TerminalHubReconnectTests
             workspaces,
             Microsoft.Extensions.Options.Options.Create(new CortexTerminal.Gateway.Workspaces.RelayOptions()).Value,
             agentActivity,
-            entitlements,
             NullLogger<WorkerHub>.Instance)!;
     }
 

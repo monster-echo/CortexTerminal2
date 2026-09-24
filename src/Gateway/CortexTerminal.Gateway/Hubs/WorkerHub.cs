@@ -26,7 +26,6 @@ public sealed class WorkerHub(
     WorkspaceRegistry workspaceRegistry,
     RelayOptions relayOptions,
     AgentActivityService agentActivity,
-    IEntitlementService entitlements,
     ILogger<WorkerHub> logger) : Hub
 {
     private readonly RelayOptions _relayOptions = relayOptions;
@@ -40,10 +39,9 @@ public sealed class WorkerHub(
     public async Task RegisterWorker(string workerId)
     {
         var userId = GetUserId();
-        // Enforce plan quota BEFORE registering — authoritative source is the registry's in-memory
-        // live-worker set (DB write is fire-and-forget). Throws MembershipQuotaExceededException
-        // (an InvalidOperationException); SignalR surfaces it to the client as a HubException.
-        await entitlements.EnforceWorkerQuotaAsync(userId, Context.ConnectionAborted);
+        // 不做配额硬拦截（design 决策：免费额度限制改为纯 UI 提示，例如
+        // 使用时长提醒升级 Pro）。历史实现在此抛 MembershipQuotaExceededException
+        // 直接拒绝注册，导致多设备用户无法上线。
         workers.Register(workerId, Context.ConnectionId, ownerUserId: userId);
         var reboundSessionCount = await sessions.RebindActiveSessions(userId, workerId, Context.ConnectionId);
 
