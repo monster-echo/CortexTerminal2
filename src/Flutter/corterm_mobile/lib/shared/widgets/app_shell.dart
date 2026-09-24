@@ -1,16 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:shadcn_ui/shadcn_ui.dart';
 
-import '../../core/auth/auth_controller.dart';
-import '../../l10n/app_localizations.dart';
-import 'app_bar.dart';
-import 'push_drawer.dart';
+import '../../app/theme/corterm_theme.dart';
+import '../../features/home/home_shell.dart';
 
-/// 顶层壳（对齐 ArkTS ShellScaffold + SidebarContent）：
-/// 三大顶层页（首页/Worker/我的）共用 304 宽侧边栏 + 汉堡按钮；
-/// 内容区结构：品牌行 → 导航项 → 活跃会话（≤5）→ 分割线 → 底部用户行。
+/// 顶层壳（design/07 Light App Context）：
+/// 「我的」/设置等二级页与新首页共用同一个新侧边栏（CortermSidebar）与视觉 token。
 /// settings 保留为枚举值：设置页从「我的」进入，侧边栏不再有独立入口。
 enum ShellTab { home, workers, settings, me }
 
@@ -36,241 +32,38 @@ class AppShellScaffold extends ConsumerStatefulWidget {
 }
 
 class _AppShellScaffoldState extends ConsumerState<AppShellScaffold> {
-  final _sidebar = PushDrawerController();
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
 
   @override
   Widget build(BuildContext context) {
-    final scheme = ShadTheme.of(context).colorScheme;
-    return PushDrawerShell(
-      controller: _sidebar,
-      width: 304,
-      // Material：Drawer 自带，换成自绘侧栏后要显式提供（InkWell 水波纹依赖它）。
-      menu: Material(
-        color: scheme.secondary,
-        child: SafeArea(
-          child: _SidebarContent(selected: widget.tab, onClose: _sidebar.close),
+    final c = colorsOf(context);
+    return Scaffold(
+      key: _scaffoldKey,
+      backgroundColor: c.background,
+      drawer: const CortermSidebar(),
+      appBar: AppBar(
+        backgroundColor: c.background,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        leadingWidth: 48,
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 4),
+          child: widget.showBack
+              ? BackButton(color: c.textPrimary, onPressed: () => context.pop())
+              : IconButton(
+                  icon: Icon(Icons.menu, color: c.textPrimary),
+                  onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+                ),
         ),
+        title: Text(widget.title,
+            style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w600,
+                color: c.textPrimary)),
+        centerTitle: false,
+        actions: widget.actions,
       ),
-      child: Scaffold(
-        backgroundColor: scheme.background,
-        appBar: CortermAppBar(
-          title: widget.title,
-          // 与右侧 actions 对称：leading 区 48 = 8 缩进 + 40（ShadIconButton），
-          // 图标视觉缩进 8+9=17 ≈ 16（与内容区 edgePadding 对齐）。
-          leadingWidth: 48,
-          leading: Padding(
-            padding: const EdgeInsets.only(left: 8),
-            child: widget.showBack
-                ? ShadIconButton.ghost(
-                    foregroundColor: scheme.foreground,
-                    icon: const Icon(LucideIcons.arrowLeft, size: 20),
-                    onPressed: () => context.pop(),
-                  )
-                : ShadIconButton.ghost(
-                    foregroundColor: scheme.foreground,
-                    icon: const Icon(LucideIcons.menu, size: 22),
-                    onPressed: _sidebar.toggle,
-                  ),
-          ),
-          actions: widget.actions,
-        ),
-        body: widget.body,
-      ),
+      body: widget.body,
     );
   }
 }
-
-class _SidebarContent extends ConsumerWidget {
-  const _SidebarContent({required this.selected, required this.onClose});
-
-  final ShellTab selected;
-
-  /// 收起右推侧栏（导航前调用）。
-  final VoidCallback onClose;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context)!;
-    final theme = ShadTheme.of(context);
-    final scheme = theme.colorScheme;
-    final auth = ref.watch(authProvider);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // 品牌行。
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: Image.asset('assets/branding/icon.png',
-                    width: 36, height: 36),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(l10n.appName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.small
-                            .copyWith(fontWeight: FontWeight.w600)),
-                    Text(l10n.aboutTagline,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.muted.copyWith(
-                            fontSize: 11, color: scheme.mutedForeground)),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        _NavItem(
-          icon: LucideIcons.command,
-          label: l10n.homeTitle,
-          selected: selected == ShellTab.home,
-          onTap: () => _go(context, '/home'),
-        ),
-        Divider(color: scheme.border, height: 20, indent: 16, endIndent: 16),
-        _NavItem(
-          icon: LucideIcons.server,
-          label: l10n.workersTitle,
-          selected: selected == ShellTab.workers,
-          onTap: () => _go(context, '/workers'),
-        ),
-        _NavItem(
-          icon: LucideIcons.scanLine,
-          label: l10n.activateTitle,
-          selected: false,
-          // 子页面用 push 压栈：页面返回键 pop 才有栈可弹（go 是替换，pop 会报
-          // GoError: There is nothing to pop）。
-          onTap: () => _push(context, '/activate'),
-        ),
-        const Spacer(),
-        // 底部用户行 → 我的（会员权益 / 评分 / 分享 / 设置入口）。
-        InkWell(
-          onTap: () => _go(context, '/me'),
-          child: Container(
-            height: 60,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            decoration: BoxDecoration(color: scheme.card),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 19,
-                  backgroundColor: scheme.primary,
-                  child: Text(
-                    _initial(auth.username),
-                    style: theme.textTheme.small.copyWith(
-                      color: scheme.primaryForeground,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(auth.username ?? l10n.unknown,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.small
-                              .copyWith(fontWeight: FontWeight.w500)),
-                      Text(l10n.account,
-                          style: theme.textTheme.muted
-                              .copyWith(color: scheme.mutedForeground)),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  String _initial(String? username) {
-    final u = username?.trim();
-    if (u == null || u.isEmpty) return 'U';
-    return u.characters.first.toUpperCase();
-  }
-
-  void _go(BuildContext context, String location) {
-    onClose(); // 收起侧栏
-    context.go(location);
-  }
-
-  /// 子页面压栈进入（有返回栈）；同样先收起侧栏。
-  void _push(BuildContext context, String location) {
-    onClose(); // 收起侧栏
-    context.push(location);
-  }
-}
-
-class _NavItem extends StatelessWidget {
-  const _NavItem({
-    required this.icon,
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
-    final scheme = theme.colorScheme;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-      child: Material(
-        color: selected ? scheme.primary : Colors.transparent,
-        borderRadius: BorderRadius.circular(10),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(10),
-          onTap: onTap,
-          child: Container(
-            height: 44,
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            child: Row(
-              children: [
-                Icon(icon,
-                    size: 18,
-                    color: selected
-                        ? scheme.primaryForeground
-                        : scheme.mutedForeground),
-                const SizedBox(width: 10),
-                // Expanded + ellipsis：侧栏宽度固定 304，标签再长也不能溢出。
-                Expanded(
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.small.copyWith(
-                      fontWeight:
-                          selected ? FontWeight.w500 : FontWeight.normal,
-                      color: selected
-                          ? scheme.primaryForeground
-                          : scheme.foreground,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-

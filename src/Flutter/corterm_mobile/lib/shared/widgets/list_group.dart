@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:shadcn_ui/shadcn_ui.dart';
+import '../../app/theme/corterm_theme.dart';
 
 /// 设置/诊断/Worker 页共用的「分组列表」原语（shadcn 卡片组风格）：
 /// [AppGroupCard] = 圆角卡片容器；[AppRow] = 单行（图标 + 标签 + 右侧值/控件）。
@@ -11,13 +11,14 @@ class AppGroupHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
+    final c = colorsOf(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(4, 20, 4, 6),
       child: Text(
         label,
-        style: theme.textTheme.small.copyWith(
-          color: theme.colorScheme.mutedForeground,
+        style: TextStyle(
+          fontSize: 13,
+          color: c.textSecondary,
           fontWeight: FontWeight.w600,
         ),
       ),
@@ -39,12 +40,12 @@ class AppGroupCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = ShadTheme.of(context).colorScheme;
+    final c = colorsOf(context);
     return Container(
       decoration: BoxDecoration(
-        color: scheme.card,
+        color: c.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: scheme.border),
+        border: Border.all(color: c.divider),
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(mainAxisSize: mainAxisSize, children: children),
@@ -84,17 +85,16 @@ class AppRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
-    final scheme = theme.colorScheme;
-    final color = destructive ? scheme.destructive : null;
+    final c = colorsOf(context);
+    final color = destructive ? c.danger : null;
     final valueText = (value == null || value!.isEmpty)
         ? null
         : Text(
             value!,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.muted
-                .copyWith(fontSize: 13, color: valueColor ?? scheme.mutedForeground),
+            style: TextStyle(
+                fontSize: 13, color: valueColor ?? c.textSecondary),
           );
     // ListTile 的底色/水波纹画在最近的 Material 祖先上；AppGroupCard 的
     // DecoratedBox 会遮住它们，所以自带一层透明 Material。
@@ -103,20 +103,21 @@ class AppRow extends StatelessWidget {
       child: ListTile(
         minVerticalPadding: 14,
         contentPadding: contentPadding,
-        iconColor: color ?? scheme.mutedForeground,
+        iconColor: color ?? c.textSecondary,
         textColor: color,
         leading: leadingWidget ?? Icon(icon, size: 20),
         title: Text(
           label,
-          style: theme.textTheme.small.copyWith(
+          style: TextStyle(
+            fontSize: 15,
             fontWeight: FontWeight.w500,
-            color: color ?? scheme.foreground,
+            color: color ?? c.textPrimary,
           ),
         ),
         subtitle: valueText,
         trailing: trailing ??
             (chevron
-                ? Icon(LucideIcons.chevronRight, size: 20, color: scheme.mutedForeground)
+                ? Icon(Icons.chevron_right, size: 20, color: c.textSecondary)
                 : null),
         onTap: onTap,
       ),

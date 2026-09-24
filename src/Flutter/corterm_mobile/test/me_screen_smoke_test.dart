@@ -10,6 +10,7 @@ import 'package:corterm_mobile/core/analytics/analytics_firebase.dart'
     if (dart.library.js_interop) 'package:corterm_mobile/core/analytics/analytics_stub.dart';
 import 'package:corterm_mobile/core/auth/auth_controller.dart';
 import 'package:corterm_mobile/core/auth/token_store.dart';
+import 'package:corterm_mobile/app/theme/corterm_theme.dart';
 import 'package:corterm_mobile/features/membership/presentation/me_screen.dart';
 import 'package:corterm_mobile/l10n/app_localizations.dart';
 
@@ -28,6 +29,9 @@ void main() {
     return ProviderScope(
       overrides: [authProvider.overrideWith((ref) => fakeAuth())],
       child: ShadApp(
+        materialThemeBuilder: (context, theme) => theme.copyWith(
+          extensions: const [CortermColors.light],
+        ),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: child,
