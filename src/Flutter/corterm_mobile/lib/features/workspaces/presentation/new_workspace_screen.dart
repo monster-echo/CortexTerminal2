@@ -22,16 +22,21 @@ class _NewWorkspaceScreenState extends ConsumerState<NewWorkspaceScreen> {
   bool _nameAutoFilled = false;
   bool _creating = false;
   String? _error;
+  bool _queryRead = false;
 
   final _nameController = TextEditingController();
 
   @override
-  void initState() {
-    super.initState();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
     // 路由 query 预选电脑（/workspaces/new?workerId=…），可缺省。
-    final preselect =
-        GoRouterState.of(context).uri.queryParameters['workerId'];
-    if (preselect != null && preselect.isNotEmpty) _workerId = preselect;
+    // GoRouterState 是继承组件：只能在 didChangeDependencies/build 里读。
+    if (_workerId == null && !_queryRead) {
+      _queryRead = true;
+      final preselect =
+          GoRouterState.of(context).uri.queryParameters['workerId'];
+      if (preselect != null && preselect.isNotEmpty) _workerId = preselect;
+    }
   }
 
   @override

@@ -153,6 +153,17 @@ void main() {
     expect(find.text('CortexTerminal2'), findsOneWidget);
   });
 
+  testWidgets('新建工作区页可直接打开（回归：initState 读路由曾红屏）', (tester) async {
+    final (t, router) = await pump(tester);
+    router.go('/workspaces/new?workerId=w1');
+    await settle(t);
+
+    expect(find.text('新建工作区'), findsOneWidget);
+    expect(find.text('创建工作区'), findsOneWidget);
+    // query 预选的电脑名渲染出来。
+    expect(find.text('Mac mini'), findsOneWidget);
+  });
+
   testWidgets('工作区详情 → 新建会话流（锁定）', (tester) async {
     final (t, router) = await pump(tester);
     router.go('/workspaces/ws1');
