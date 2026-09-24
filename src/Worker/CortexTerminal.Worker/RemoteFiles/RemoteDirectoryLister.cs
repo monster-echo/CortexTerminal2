@@ -28,12 +28,28 @@ public sealed class RemoteDirectoryLister(string root, int maxEntries)
             return new FileListingResult(null, new FileOperationError(code, $"no such directory: {relativePath}"));
         }
 
-        FileSystemInfo[] entries;
+        // 目录整体不存在照常报错；但单个条目无权限（macOS TCC 保护
+        // ~/Library/Desktop 等）只跳过该条目，不让整页列表失败。
+        List<FileSystemInfo> entries = new();
         try
         {
-            entries = new DirectoryInfo(fullPath)
-                .EnumerateFileSystemInfos()
-                .ToArray();
+            using var enumerator = new DirectoryInfo(fullPath).EnumerateFileSystemInfos().GetEnumerator();
+            while (true)
+            {
+                FileSystemInfo entry;
+                try
+                {
+                    if (!enumerator.MoveNext()) break;
+                    entry = enumerator.Current;
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    continue; // 无权限的条目：跳过
+                }
+                catch (FileNotFoundException) { continue; }
+                catch (DirectoryNotFoundException) { continue; }
+                entries.Add(entry);
+            }
         }
         catch (Exception ex) when (ex is DirectoryNotFoundException or FileNotFoundException)
         {

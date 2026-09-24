@@ -178,7 +178,7 @@ static IResult MapFileError(CortexTerminal.Gateway.Workspaces.WorkspaceFileServi
             or CortexTerminal.Contracts.Sessions.FileTransferErrorCode.NotADirectory
             or CortexTerminal.Contracts.Sessions.FileTransferErrorCode.FileNotFound
             or CortexTerminal.Contracts.Sessions.FileTransferErrorCode.TransferNotFound => Results.NotFound(new { error = ex.Message }),
-        CortexTerminal.Contracts.Sessions.FileTransferErrorCode.AccessDenied => Results.Json(null, statusCode: StatusCodes.Status403Forbidden),
+        CortexTerminal.Contracts.Sessions.FileTransferErrorCode.AccessDenied => Results.Json(new { error = ex.Message, code = ex.Code }, statusCode: StatusCodes.Status403Forbidden),
         CortexTerminal.Contracts.Sessions.FileTransferErrorCode.PathInvalid
             or CortexTerminal.Contracts.Sessions.FileTransferErrorCode.FileTooLarge
             or CortexTerminal.Contracts.Sessions.FileTransferErrorCode.TooManyEntries
