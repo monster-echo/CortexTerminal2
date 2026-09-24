@@ -146,7 +146,8 @@ class _PortForwardingSheetState extends ConsumerState<PortForwardingSheet> {
                 ),
               ),
             Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              // end 对齐：按钮与输入框（含 label 的整列）底边齐平。
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Expanded(
                   child: ShadInputFormField(
@@ -158,13 +159,11 @@ class _PortForwardingSheetState extends ConsumerState<PortForwardingSheet> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                Padding(
-                  padding: const EdgeInsets.only(top: 18),
-                  child: ShadButton(
-                    enabled: !_creating,
-                    onPressed: _create,
-                    child: Text(_creating ? l10n.creating : l10n.create),
-                  ),
+                ShadButton(
+                  height: 48,
+                  enabled: !_creating,
+                  onPressed: _create,
+                  child: Text(_creating ? l10n.creating : l10n.create),
                 ),
               ],
             ),

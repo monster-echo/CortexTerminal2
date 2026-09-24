@@ -29,7 +29,7 @@ import '../features/settings/terminal_theme_editor_screen.dart';
 import '../features/settings/terminal_themes_screen.dart';
 import '../core/models/terminal_color_scheme.dart';
 import '../features/settings/security_screen.dart';
-import '../features/workspace/workspace_screen.dart';
+import '../features/session/session_screen.dart';
 
 /// 路由（§49）：/login /home /workspace /sessions /settings。
 /// 不为单个 session 建 route —— Terminal 内切换由 Workspace State 控制。
@@ -82,7 +82,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       // Terminal 页面固定深色（§2）：终端本体深色，外壳跟随浅色会露白底。
       GoRoute(
         path: '/workspace',
-        builder: (_, _) => const WorkspaceScreen(),
+        builder: (_, _) => const SessionScreen(),
       ),
       GoRoute(path: '/sessions', builder: (_, _) => const AllSessionsScreen()),
       GoRoute(path: '/me', builder: (_, _) => const MeScreen()),

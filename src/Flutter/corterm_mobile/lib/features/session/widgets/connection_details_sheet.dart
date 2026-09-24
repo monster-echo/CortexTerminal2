@@ -4,10 +4,10 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../../l10n/app_localizations.dart';
 import '../../../features/sessions/data/sessions_providers.dart';
-import '../workspace_state.dart';
+import '../session_state.dart';
 import '../../../shared/widgets/connection_status_dot.dart';
 import '../../../shared/widgets/sheets_and_dialogs.dart';
-import '../workspace_controller.dart';
+import '../session_controller.dart';
 import 'session_status.dart';
 
 /// Connection Details（§20/§21）：点击 AppBar 状态圆点弹出。
@@ -34,7 +34,7 @@ class _ConnectionDetailsSheetState extends ConsumerState<ConnectionDetailsSheet>
     final l10n = AppLocalizations.of(context)!;
     final theme = ShadTheme.of(context);
     final scheme = theme.colorScheme;
-    final ws = ref.watch(workspaceControllerProvider);
+    final ws = ref.watch(sessionControllerProvider);
     final sessions = ref.watch(sessionsProvider);
     final entry = ws.entryOf(widget.sessionId);
     final session = sessions.value?.where((s) => s.sessionId == widget.sessionId).firstOrNull;

@@ -10,9 +10,9 @@ import '../../shared/widgets/list_group.dart';
 
 import '../../core/config/app_config.dart';
 import '../../features/sessions/data/sessions_providers.dart';
-import '../../features/workspace/widgets/session_status.dart';
-import '../../features/workspace/workspace_controller.dart';
-import '../../features/workspace/workspace_state.dart';
+import '../../features/session/widgets/session_status.dart';
+import '../../features/session/session_controller.dart';
+import '../../features/session/session_state.dart';
 import '../../l10n/app_localizations.dart';
 import '../../shared/widgets/connection_status_dot.dart';
 
@@ -57,7 +57,7 @@ class _DiagnosticsScreenState extends ConsumerState<DiagnosticsScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final scheme = ShadTheme.of(context).colorScheme;
-    final ws = ref.watch(workspaceControllerProvider);
+    final ws = ref.watch(sessionControllerProvider);
     final sessions = ref.watch(sessionsProvider);
     final gatewayInfo = ref.watch(gatewayInfoProvider);
 

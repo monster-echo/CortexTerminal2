@@ -22,34 +22,6 @@ class FileRepository {
 
   // ---- 工作区 ----
 
-  Future<List<Workspace>> listWorkspaces() async {
-    List<Map<String, dynamic>> raw;
-    try {
-      final list = await _client.getList('/api/workspaces');
-      raw = list.cast<Map<String, dynamic>>();
-    } on DioException catch (e) {
-      ApiClient.throwFor(e);
-    }
-    return raw.map(Workspace.fromJson).toList();
-  }
-
-  Future<Workspace> createWorkspace({
-    required String workerId,
-    required String name,
-    required String rootPath,
-  }) async {
-    Map<String, dynamic> json;
-    try {
-      json = await _client.postMap('/api/workspaces', {
-        'workerId': workerId,
-        'name': name,
-        'rootPath': rootPath,
-      });
-    } on DioException catch (e) {
-      ApiClient.throwFor(e);
-    }
-    return Workspace.fromJson(json);
-  }
 
   // ---- 浏览 ----
 
@@ -68,6 +40,76 @@ class FileRepository {
       ApiClient.throwFor(e);
     }
     return FileListing.fromJson(json);
+  }
+
+  // ---- Worker 直连通道（IA 约定：ungrouped 会话按终端 cwd 浏览 + 远端选文件夹）----
+  // root 由客户端给定（须在用户 home 内，Worker 端校验），path 相对 root。
+
+  Future<FileListing> listForWorker({
+    required String workerId,
+    required String root,
+    String path = '',
+  }) async {
+    Map<String, dynamic> json;
+    try {
+      json = await _client.getMap(
+        '/api/workers/$workerId/files',
+        query: {'root': root, 'path': path},
+      );
+    } on DioException catch (e) {
+      ApiClient.throwFor(e);
+    }
+    return FileListing.fromJson(json);
+  }
+
+  Future<void> uploadForWorker({
+    required String workerId,
+    required String root,
+    required String dirPath,
+    required String filename,
+    required Uint8List bytes,
+  }) async {
+    Map<String, dynamic> grant;
+    try {
+      grant = await _client.postMap(
+        '/api/workers/$workerId/files/uploads',
+        {
+          'root': root,
+          'dirPath': dirPath,
+          'filename': filename,
+          'sizeBytes': bytes.length,
+          'sha256': _sha256of(bytes),
+        },
+      );
+    } on DioException catch (e) {
+      ApiClient.throwFor(e);
+    }
+    final endpoints = _readEndpoints(grant);
+    if (endpoints.isEmpty) {
+      throw ApiException(0, serverMessage: 'no transfer endpoints');
+    }
+    await _putViaEndpoints(endpoints, bytes);
+  }
+
+  Future<Uint8List> downloadBytesForWorker({
+    required String workerId,
+    required String root,
+    required String path,
+  }) async {
+    Map<String, dynamic> init;
+    try {
+      init = await _client.postMap(
+        '/api/workers/$workerId/files/downloads',
+        {'root': root, 'path': path},
+      );
+    } on DioException catch (e) {
+      ApiClient.throwFor(e);
+    }
+    final endpoints = _readEndpoints(init);
+    if (endpoints.isEmpty) {
+      throw ApiException(0, serverMessage: 'no transfer endpoints');
+    }
+    return _getViaEndpoints(endpoints);
   }
 
   // ---- 上传 ----
@@ -189,31 +231,6 @@ class FileRepository {
   }
 
   String _sha256of(Uint8List bytes) => sha256.convert(bytes).toString();
-}
-
-/// 工作区（文件管理的边界：绑定一个 Worker + 一个根路径）。
-class Workspace {
-  const Workspace({
-    required this.workspaceId,
-    required this.workerId,
-    required this.name,
-    this.rootPath,
-  });
-
-  final String workspaceId;
-  final String workerId;
-  final String name;
-  final String? rootPath;
-
-  String get displayName => name.isNotEmpty ? name : (rootPath ?? workspaceId);
-
-  factory Workspace.fromJson(Map<String, dynamic> json) => Workspace(
-        workspaceId:
-            (json['workspaceId'] ?? json['id']) as String? ?? '',
-        workerId: json['workerId'] as String? ?? '',
-        name: json['name'] as String? ?? '',
-        rootPath: json['rootPath'] as String?,
-      );
 }
 
 class FileEntry {

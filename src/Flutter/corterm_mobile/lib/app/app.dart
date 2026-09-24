@@ -8,7 +8,7 @@ import '../core/lifecycle/app_lifecycle.dart';
 import '../core/net/connectivity_watcher.dart';
 import '../core/storage/app_preferences.dart';
 import '../features/sessions/data/sessions_providers.dart';
-import '../features/workspace/workspace_controller.dart';
+import '../features/session/session_controller.dart';
 import 'router.dart';
 import 'theme/app_theme.dart';
 
@@ -27,9 +27,9 @@ class _CortermAppState extends ConsumerState<CortermApp> with WidgetsBindingObse
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(AppLifecycleObserver(
-      onPaused: () => ref.read(workspaceControllerProvider.notifier).enterBackground(),
+      onPaused: () => ref.read(sessionControllerProvider.notifier).enterBackground(),
       onResumed: () {
-        ref.read(workspaceControllerProvider.notifier).reattachAll();
+        ref.read(sessionControllerProvider.notifier).reattachAll();
         ref.invalidate(sessionsProvider);
       },
     ));
@@ -54,7 +54,7 @@ class _CortermAppState extends ConsumerState<CortermApp> with WidgetsBindingObse
       final prevResults = prev?.value;
       final wasOnline = prevResults == null || isOnline(prevResults);
       if (!wasOnline && isOnline(nextResults)) {
-        ref.read(workspaceControllerProvider.notifier).reattachAll();
+        ref.read(sessionControllerProvider.notifier).reattachAll();
       }
     });
 

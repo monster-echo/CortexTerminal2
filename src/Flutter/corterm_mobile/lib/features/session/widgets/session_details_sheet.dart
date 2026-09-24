@@ -6,7 +6,7 @@ import '../../../core/models/session.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/sheets_and_dialogs.dart';
 import '../../sessions/data/sessions_providers.dart';
-import '../workspace_controller.dart';
+import '../session_controller.dart';
 
 /// Session Details（§54/§23）：会话元信息速览（不含 sessionId 与重命名入口）。
 class SessionDetailsSheet extends ConsumerStatefulWidget {
@@ -51,7 +51,7 @@ class _SessionDetailsSheetState extends ConsumerState<SessionDetailsSheet> {
     };
 
     // 终端尺寸与延迟取自当前附着（对齐 MAUI 会话详情 ActionSheet）。
-    final wsEntry = ref.watch(workspaceControllerProvider).entryOf(session.sessionId);
+    final wsEntry = ref.watch(sessionControllerProvider).entryOf(session.sessionId);
     final rows = <(String, String)>[
       (l10n.agentKind, session.agentKind.label),
       (l10n.worker, session.workerName ?? session.workerId),

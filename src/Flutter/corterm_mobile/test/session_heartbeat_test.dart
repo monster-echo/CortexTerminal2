@@ -7,8 +7,8 @@ import 'package:corterm_mobile/core/ws/terminal_socket.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:corterm_mobile/core/ws/ws_frames.dart';
 import 'package:corterm_mobile/features/sessions/data/session_repository.dart';
-import 'package:corterm_mobile/features/workspace/workspace_controller.dart';
-import 'package:corterm_mobile/features/workspace/workspace_state.dart';
+import 'package:corterm_mobile/features/session/session_controller.dart';
+import 'package:corterm_mobile/features/session/session_state.dart';
 
 /// 假 socket：不连网，只转发注入的帧；记录发送的探测与 forceClose。
 class FakeSocket implements TerminalSocket {
@@ -130,7 +130,7 @@ void main() {
   test('attach 成功后进入 live，静默超时触发 forceClose + 自动重连', () {
     fakeAsync((async) {
       final created = <FakeSocket>[];
-      final controller = WorkspaceController(FakeRepo(), ({required sessionId, sinceSeq = 0}) async {
+      final controller = SessionController(FakeRepo(), ({required sessionId, sinceSeq = 0}) async {
         final s = FakeSocket(sessionId);
         created.add(s);
         return s;
@@ -158,7 +158,7 @@ void main() {
   test('有服务端帧活动时不判死', () {
     fakeAsync((async) {
       final created = <FakeSocket>[];
-      final controller = WorkspaceController(FakeRepo(), ({required sessionId, sinceSeq = 0}) async {
+      final controller = SessionController(FakeRepo(), ({required sessionId, sinceSeq = 0}) async {
         final s = FakeSocket(sessionId);
         created.add(s);
         return s;
@@ -184,7 +184,7 @@ void main() {
   test('displaced 帧置终态错误，且不自动重连', () {
     fakeAsync((async) {
       final created = <FakeSocket>[];
-      final controller = WorkspaceController(FakeRepo(), ({required sessionId, sinceSeq = 0}) async {
+      final controller = SessionController(FakeRepo(), ({required sessionId, sinceSeq = 0}) async {
         final s = FakeSocket(sessionId);
         created.add(s);
         return s;
@@ -211,7 +211,7 @@ void main() {
   test('退后台断开所有活动连接，回前台立即重连', () {
     fakeAsync((async) {
       final created = <FakeSocket>[];
-      final controller = WorkspaceController(FakeRepo(), ({required sessionId, sinceSeq = 0}) async {
+      final controller = SessionController(FakeRepo(), ({required sessionId, sinceSeq = 0}) async {
         final s = FakeSocket(sessionId);
         created.add(s);
         return s;

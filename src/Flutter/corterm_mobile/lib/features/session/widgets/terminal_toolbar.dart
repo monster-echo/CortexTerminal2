@@ -17,6 +17,8 @@ class TerminalToolbar extends StatelessWidget {
     required this.onCtrlToggle,
     required this.onAltToggle,
     required this.onPaste,
+    this.terminalBackground,
+    this.terminalForeground,
   });
 
   /// 仅 live 时可用，防止输入落入未附着的会话。
@@ -28,17 +30,25 @@ class TerminalToolbar extends StatelessWidget {
   final void Function(bool armed) onAltToggle;
   final void Function(String text) onPaste;
 
+  /// 终端页配色覆盖：工具栏底色/前景跟随终端主题而非 App 深浅。
+  final Color? terminalBackground;
+  final Color? terminalForeground;
+
   static const height = 42.0;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final scheme = ShadTheme.of(context).colorScheme;
-    final border = scheme.border;
+    final bg = terminalBackground ?? scheme.background;
+    final fg = terminalForeground ?? scheme.foreground;
+    final border = terminalBackground == null
+        ? scheme.border
+        : fg.withValues(alpha: 0.18);
     final keyStyle = ShadTheme.of(context)
         .textTheme
         .small
-        .copyWith(color: scheme.foreground);
+        .copyWith(color: fg);
 
     Widget key(String label, VoidCallback onTap, {bool active = false}) =>
         Padding(
@@ -47,7 +57,7 @@ class TerminalToolbar extends StatelessWidget {
             // 键帽：次级表面底 + 8 圆角；粘滞激活态用品牌色 16% 底 + 品牌字。
             color: active
                 ? scheme.primary.withValues(alpha: 0.16)
-                : scheme.secondary,
+                : fg.withValues(alpha: 0.10),
             borderRadius: BorderRadius.circular(8),
             child: InkWell(
               onTap: enabled
@@ -66,7 +76,7 @@ class TerminalToolbar extends StatelessWidget {
                   style: keyStyle.copyWith(
                     color: enabled
                         ? (active ? scheme.primary : keyStyle.color)
-                        : scheme.mutedForeground.withValues(alpha: 0.5),
+                        : fg.withValues(alpha: 0.4),
                   ),
                 ),
               ),
@@ -77,7 +87,7 @@ class TerminalToolbar extends StatelessWidget {
     return Container(
       height: height,
       decoration: BoxDecoration(
-        color: scheme.background,
+        color: bg,
         border: Border(top: BorderSide(color: border)),
       ),
       child: Row(
@@ -125,7 +135,7 @@ class TerminalToolbar extends StatelessWidget {
                   height: 36,
                   padding: const EdgeInsets.symmetric(horizontal: 10),
                   child: Icon(LucideIcons.chevronDown,
-                      size: 18, color: scheme.mutedForeground),
+                      size: 18, color: fg.withValues(alpha: 0.6)),
                 ),
               ),
             ),

@@ -13,9 +13,13 @@ import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/connection_status_dot.dart';
 import '../../../shared/widgets/sheets_and_dialogs.dart';
 import '../../../shared/widgets/states.dart';
+import '../../../core/models/workspace.dart';
 import '../../sessions/data/sessions_providers.dart';
 import '../../sessions/data/session_repository.dart';
-import '../../workspace/widgets/session_status.dart';
+import '../../session/session_controller.dart';
+import '../../session/widgets/session_status.dart';
+import '../../files/presentation/remote_folder_picker_sheet.dart';
+import '../data/workspace_repository.dart';
 
 /// Workers（阶段4）：列表 + 详情（含宿主会话）+ 升级。
 class WorkersScreen extends ConsumerWidget {
@@ -269,6 +273,9 @@ class _WorkerDetailSheet extends ConsumerStatefulWidget {
 
 class _WorkerDetailSheetState extends ConsumerState<_WorkerDetailSheet> {
   late WorkerDetail detail = widget.initialDetail;
+
+  /// 新建工作区 sheet 里已选的远端 folder（sheet 关闭重开后保留）。
+  String? _newWsFolder;
   Object? refreshError;
   Timer? _timer;
 
@@ -425,10 +432,301 @@ class _WorkerDetailSheetState extends ConsumerState<_WorkerDetailSheet> {
                   ],
                 ),
               ),
+            _workspacesSection(context, l10n),
           ],
         ),
       ),
     );
+  }
+
+  /// 工作区列表（Worker-Workspace-Session 概念模型的中间层）：
+  /// 查看 / 新建 / 删除（默认工作区不可删）/ 在此工作区开新会话。
+  Widget _workspacesSection(BuildContext context, AppLocalizations l10n) {
+    final theme = ShadTheme.of(context);
+    final scheme = theme.colorScheme;
+    final workspacesAsync = ref.watch(workerWorkspacesProvider(detail.worker.workerId));
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                l10n.workspacesSectionTitle,
+                style: theme.textTheme.small.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: scheme.mutedForeground,
+                ),
+              ),
+            ),
+            ShadButton.ghost(
+              height: 28,
+              onPressed: () => _createWorkspace(context, l10n),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(LucideIcons.plus, size: 14, color: scheme.primary),
+                  const SizedBox(width: 4),
+                  Text(l10n.create,
+                      style: theme.textTheme.small.copyWith(color: scheme.primary)),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        workspacesAsync.when(
+          loading: () => const SmallSpinner(),
+          error: (e, _) => Text(
+            '$e',
+            style: theme.textTheme.small.copyWith(color: scheme.destructive),
+          ),
+          data: (list) {
+            if (list.isEmpty) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Text(
+                  l10n.workspaceEmpty,
+                  style: theme.textTheme.small.copyWith(color: scheme.mutedForeground),
+                ),
+              );
+            }
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final ws in list)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Row(
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      ws.displayName,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: theme.textTheme.small.copyWith(
+                                        fontWeight: FontWeight.w600,
+                                        color: scheme.foreground,
+                                      ),
+                                    ),
+                                  ),
+                                  if (ws.isDefault) ...[
+                                    const SizedBox(width: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 6, vertical: 1),
+                                      decoration: BoxDecoration(
+                                        color: scheme.secondary.withValues(alpha: 0.15),
+                                        borderRadius: BorderRadius.circular(999),
+                                      ),
+                                      child: Text(
+                                        l10n.workspaceDefault,
+                                        style: theme.textTheme.small.copyWith(
+                                          fontSize: 11,
+                                          color: scheme.primary,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              if (ws.rootPath?.isNotEmpty ?? false)
+                                Text(
+                                  ws.rootPath!,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.small.copyWith(
+                                    fontSize: 11,
+                                    color: scheme.mutedForeground,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        ShadButton.ghost(
+                          height: 28,
+                          onPressed: () => _newSessionHere(context, ws),
+                          child: Text(l10n.workspaceNewSession,
+                              style:
+                                  theme.textTheme.small.copyWith(color: scheme.primary)),
+                        ),
+                        if (!ws.isDefault) ...[
+                          const SizedBox(width: 4),
+                          ShadButton.ghost(
+                            height: 28,
+                            onPressed: () => _deleteWorkspace(context, l10n, ws),
+                            child: Icon(LucideIcons.trash2,
+                                size: 15, color: scheme.destructive),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Future<void> _createWorkspace(BuildContext context, AppLocalizations l10n) async {
+    final theme = ShadTheme.of(context);
+    final scheme = theme.colorScheme;
+    final nameController = TextEditingController();
+    final wsList = ref.read(workerWorkspacesProvider(detail.worker.workerId)).value;
+    // 选文件夹的浏览起点：默认工作区根（即 home），否则任一已有工作区根。
+    final startRoot = (wsList?.where((e) => e.isDefault).firstOrNull ??
+            wsList?.firstOrNull)
+        ?.rootPath;
+    var pickedFolder = _newWsFolder;
+    final ok = await showCortermSheetDialog<bool>(
+      context: context,
+      title: l10n.workspaceCreateTitle,
+      child: StatefulBuilder(builder: (context, setSheetState) {
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ShadInputFormField(
+              controller: nameController,
+              label: Text(l10n.workspaceNameLabel),
+              placeholder: Text(l10n.workspaceNameHint),
+            ),
+            const SizedBox(height: 12),
+            // 必须选定远端机器上的一个 folder 关联到工作区（IA 约定）。
+            InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: () async {
+                final folder = await showRemoteFolderPickerSheet(
+                  context,
+                  workerId: detail.worker.workerId,
+                  initialRoot: pickedFolder ?? startRoot,
+                );
+                if (folder != null) {
+                  setSheetState(() => pickedFolder = folder);
+                }
+              },
+              child: Container(
+                width: double.infinity,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: scheme.card,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: scheme.border),
+                ),
+                child: Row(
+                  children: [
+                    Icon(LucideIcons.folder, size: 15, color: scheme.primary),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        pickedFolder ?? l10n.workspacePickFolder,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.small.copyWith(
+                          color: pickedFolder == null
+                              ? scheme.mutedForeground
+                              : scheme.foreground,
+                          fontFamily: pickedFolder == null
+                              ? null
+                              : 'packages/shadcn_ui/GeistMono',
+                        ),
+                      ),
+                    ),
+                    Icon(LucideIcons.chevronRight,
+                        size: 14, color: scheme.mutedForeground),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      }),
+      actions: [
+        ShadButton.ghost(
+          onPressed: () => Navigator.pop(context, false),
+          child: Text(l10n.cancel),
+        ),
+        ShadButton(
+          // 文件夹未选时不允许提交（根路径不能空，也不能猜）。
+          onPressed: (pickedFolder == null) ? null : () => Navigator.pop(context, true),
+          child: Text(l10n.create),
+        ),
+      ],
+    );
+    if (ok != true || !context.mounted) return;
+    final name = nameController.text.trim();
+    final folder = pickedFolder;
+    if (name.isEmpty || folder == null) return;
+    try {
+      await ref.read(workspaceRepositoryProvider).create(
+            workerId: detail.worker.workerId,
+            name: name,
+            rootPath: folder,
+          );
+      if (!context.mounted) return;
+      setState(() => _newWsFolder = null);
+      ref.invalidate(workerWorkspacesProvider(detail.worker.workerId));
+    } catch (e) {
+      if (context.mounted) showAppToast(context, '$e', destructive: true);
+    }
+  }
+
+  Future<void> _deleteWorkspace(
+    BuildContext context,
+    AppLocalizations l10n,
+    Workspace ws,
+  ) async {
+    final confirmed = await showConfirmDialog(
+      context: context,
+      title: l10n.workspaceDeleteConfirmTitle,
+      body: l10n.workspaceDeleteConfirmBody(ws.displayName),
+      confirmLabel: l10n.workspaceDelete,
+      destructive: true,
+    );
+    if (!confirmed || !context.mounted) return;
+    try {
+      await ref.read(workspaceRepositoryProvider).delete(ws.workspaceId);
+      if (!context.mounted) return;
+      ref.invalidate(workerWorkspacesProvider(detail.worker.workerId));
+    } catch (e) {
+      if (context.mounted) showAppToast(context, '$e', destructive: true);
+    }
+  }
+
+  /// 在此工作区开新会话（cwd = 工作区根），成功后进入终端。
+  Future<void> _newSessionHere(BuildContext context, Workspace ws) async {
+    final size = MediaQuery.sizeOf(context);
+    final cols = (size.width / (14.0 * 0.602)).floor();
+    final rows = ((size.height - 44) / (14.0 * 1.2)).floor();
+    try {
+      final session = await ref.read(sessionRepositoryProvider).create(
+            columns: cols,
+            rows: rows,
+            workerId: detail.worker.workerId,
+            workspaceId: ws.workspaceId,
+          );
+      ref.invalidate(sessionsProvider);
+      if (!context.mounted) return;
+      Navigator.of(context).pop(); // 关闭 worker 详情 sheet
+      ref.read(sessionControllerProvider.notifier).open(session.sessionId);
+      if (!context.mounted) return;
+      context.push('/workspace');
+    } catch (e) {
+      if (context.mounted) showAppToast(context, '$e', destructive: true);
+    }
   }
 
   /// 相对时间：1 天内用「x 分钟/小时前」，更久回退「x 天前」。

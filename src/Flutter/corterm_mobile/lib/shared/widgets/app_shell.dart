@@ -6,6 +6,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../l10n/app_localizations.dart';
 import 'app_bar.dart';
+import 'push_drawer.dart';
 
 /// 顶层壳（对齐 ArkTS ShellScaffold + SidebarContent）：
 /// 三大顶层页（首页/Worker/我的）共用 304 宽侧边栏 + 汉堡按钮；
@@ -13,7 +14,7 @@ import 'app_bar.dart';
 /// settings 保留为枚举值：设置页从「我的」进入，侧边栏不再有独立入口。
 enum ShellTab { home, workers, settings, me }
 
-class AppShellScaffold extends ConsumerWidget {
+class AppShellScaffold extends ConsumerStatefulWidget {
   const AppShellScaffold({
     super.key,
     required this.tab,
@@ -31,48 +32,61 @@ class AppShellScaffold extends ConsumerWidget {
   final bool showBack;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AppShellScaffold> createState() => _AppShellScaffoldState();
+}
+
+class _AppShellScaffoldState extends ConsumerState<AppShellScaffold> {
+  final _sidebar = PushDrawerController();
+
+  @override
+  Widget build(BuildContext context) {
     final scheme = ShadTheme.of(context).colorScheme;
-    return Scaffold(
-      backgroundColor: scheme.background,
-      drawer: Drawer(
-        width: 304,
-        backgroundColor: scheme.secondary,
-        child: SafeArea(child: _SidebarContent(selected: tab)),
+    return PushDrawerShell(
+      controller: _sidebar,
+      width: 304,
+      // Material：Drawer 自带，换成自绘侧栏后要显式提供（InkWell 水波纹依赖它）。
+      menu: Material(
+        color: scheme.secondary,
+        child: SafeArea(
+          child: _SidebarContent(selected: widget.tab, onClose: _sidebar.close),
+        ),
       ),
-      appBar: CortermAppBar(
-        title: title,
-        // 与右侧 actions 对称：leading 区 48 = 8 缩进 + 40（ShadIconButton），
-        // 图标视觉缩进 8+9=17 ≈ 16（与内容区 edgePadding 对齐）。
-        leadingWidth: 48,
-        // Builder 下沉 context：Scaffold.of 必须从 Scaffold 之下的树里查找。
-        leading: Padding(
-          padding: const EdgeInsets.only(left: 8),
-          child: showBack
-              ? ShadIconButton.ghost(
-                  foregroundColor: scheme.foreground,
-                  icon: const Icon(LucideIcons.arrowLeft, size: 20),
-                  onPressed: () => context.pop(),
-                )
-              : Builder(
-                  builder: (innerContext) => ShadIconButton.ghost(
+      child: Scaffold(
+        backgroundColor: scheme.background,
+        appBar: CortermAppBar(
+          title: widget.title,
+          // 与右侧 actions 对称：leading 区 48 = 8 缩进 + 40（ShadIconButton），
+          // 图标视觉缩进 8+9=17 ≈ 16（与内容区 edgePadding 对齐）。
+          leadingWidth: 48,
+          leading: Padding(
+            padding: const EdgeInsets.only(left: 8),
+            child: widget.showBack
+                ? ShadIconButton.ghost(
+                    foregroundColor: scheme.foreground,
+                    icon: const Icon(LucideIcons.arrowLeft, size: 20),
+                    onPressed: () => context.pop(),
+                  )
+                : ShadIconButton.ghost(
                     foregroundColor: scheme.foreground,
                     icon: const Icon(LucideIcons.menu, size: 22),
-                    onPressed: () => Scaffold.of(innerContext).openDrawer(),
+                    onPressed: _sidebar.toggle,
                   ),
-                ),
+          ),
+          actions: widget.actions,
         ),
-        actions: actions,
+        body: widget.body,
       ),
-      body: body,
     );
   }
 }
 
 class _SidebarContent extends ConsumerWidget {
-  const _SidebarContent({required this.selected});
+  const _SidebarContent({required this.selected, required this.onClose});
 
   final ShellTab selected;
+
+  /// 收起右推侧栏（导航前调用）。
+  final VoidCallback onClose;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -189,13 +203,13 @@ class _SidebarContent extends ConsumerWidget {
   }
 
   void _go(BuildContext context, String location) {
-    Navigator.of(context).pop(); // 收起抽屉
+    onClose(); // 收起侧栏
     context.go(location);
   }
 
-  /// 子页面压栈进入（有返回栈）；同样先收起抽屉。
+  /// 子页面压栈进入（有返回栈）；同样先收起侧栏。
   void _push(BuildContext context, String location) {
-    Navigator.of(context).pop(); // 收起抽屉
+    onClose(); // 收起侧栏
     context.push(location);
   }
 }
@@ -236,14 +250,19 @@ class _NavItem extends StatelessWidget {
                         ? scheme.primaryForeground
                         : scheme.mutedForeground),
                 const SizedBox(width: 10),
-                Text(
-                  label,
-                  style: theme.textTheme.small.copyWith(
-                    fontWeight:
-                        selected ? FontWeight.w500 : FontWeight.normal,
-                    color: selected
-                        ? scheme.primaryForeground
-                        : scheme.foreground,
+                // Expanded + ellipsis：侧栏宽度固定 304，标签再长也不能溢出。
+                Expanded(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.small.copyWith(
+                      fontWeight:
+                          selected ? FontWeight.w500 : FontWeight.normal,
+                      color: selected
+                          ? scheme.primaryForeground
+                          : scheme.foreground,
+                    ),
                   ),
                 ),
               ],

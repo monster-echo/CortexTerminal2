@@ -14,6 +14,8 @@ class CortermAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.centerTitle = true,
     this.showLeading = true,
     this.leadingWidth,
+    this.backgroundColor,
+    this.foregroundColor,
   });
 
   final String title;
@@ -29,6 +31,10 @@ class CortermAppBar extends StatelessWidget implements PreferredSizeWidget {
   /// 与右侧 actions 对称时指定（默认 AppBar 56）。
   final double? leadingWidth;
 
+  /// 终端页等需要跟随终端配色的场景覆盖默认 ShadTheme 背景/前景。
+  final Color? backgroundColor;
+  final Color? foregroundColor;
+
   @override
   Size get preferredSize =>
       Size.fromHeight(kToolbarHeight + (bottom?.preferredSize.height ?? 0));
@@ -37,8 +43,8 @@ class CortermAppBar extends StatelessWidget implements PreferredSizeWidget {
   Widget build(BuildContext context) {
     final scheme = ShadTheme.of(context).colorScheme;
     return AppBar(
-      backgroundColor: scheme.background,
-      foregroundColor: scheme.foreground,
+      backgroundColor: backgroundColor ?? scheme.background,
+      foregroundColor: foregroundColor ?? scheme.foreground,
       elevation: 0,
       scrolledUnderElevation: 0,
       centerTitle: centerTitle,

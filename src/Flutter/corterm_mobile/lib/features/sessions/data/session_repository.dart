@@ -98,7 +98,13 @@ class SessionRepository {
   }
 
   /// 创建 shell 会话。`clientRequestId` 幂等键，防重复点击造成双开。
-  Future<SessionSummary> create({required int columns, required int rows, String? workerId}) async {
+  /// `workspaceId` 决定 PTY cwd = 工作区根（IA 约定：会话必属工作区）。
+  Future<SessionSummary> create({
+    required int columns,
+    required int rows,
+    String? workerId,
+    String? workspaceId,
+  }) async {
     Map<String, dynamic> json;
     try {
       json = await _client.postMap('/api/sessions', {
@@ -107,6 +113,7 @@ class SessionRepository {
         'rows': rows,
         'clientRequestId': _newRequestId(),
         'workerId': ?workerId,
+        'workspaceId': ?workspaceId,
       });
     } on ApiException {
       rethrow;

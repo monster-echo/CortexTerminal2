@@ -1020,4 +1020,42 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get tunnelPortPending => '端口暂未监听，服务启动后隧道即自动生效。';
+
+  @override
+  String get workspacesSectionTitle => '工作区';
+
+  @override
+  String get workspaceEmpty => '暂无工作区';
+
+  @override
+  String get workspaceDefault => '默认';
+
+  @override
+  String get workspaceNewSession => '新会话';
+
+  @override
+  String get workspaceDelete => '删除';
+
+  @override
+  String get workspaceDeleteConfirmTitle => '删除工作区';
+
+  @override
+  String workspaceDeleteConfirmBody(String name) {
+    return '目录 $name 仍会保留在机器上，绑定它的会话将被解绑。';
+  }
+
+  @override
+  String get workspacePickFolder => '选择此文件夹';
+
+  @override
+  String get workspacePickTitle => '选择远端电脑上的文件夹';
+
+  @override
+  String get pickerNoSubfolders => '没有子文件夹';
+
+  @override
+  String get pickerNoStartPoint => '暂无法定位远端主目录——请先打开一个终端会话。';
+
+  @override
+  String get filesCwdMissing => '尚未获取到终端当前目录——回到终端按一次回车再试。';
 }

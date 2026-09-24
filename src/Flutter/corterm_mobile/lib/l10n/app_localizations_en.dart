@@ -1036,4 +1036,44 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get tunnelPortPending =>
       'Port not listening yet — the tunnel will work as soon as the service is up.';
+
+  @override
+  String get workspacesSectionTitle => 'Workspaces';
+
+  @override
+  String get workspaceEmpty => 'No workspaces yet';
+
+  @override
+  String get workspaceDefault => 'Default';
+
+  @override
+  String get workspaceNewSession => 'New session';
+
+  @override
+  String get workspaceDelete => 'Delete';
+
+  @override
+  String get workspaceDeleteConfirmTitle => 'Delete workspace';
+
+  @override
+  String workspaceDeleteConfirmBody(String name) {
+    return 'The folder $name stays on the machine. Sessions bound to it will be unbound.';
+  }
+
+  @override
+  String get workspacePickFolder => 'Choose folder';
+
+  @override
+  String get workspacePickTitle => 'Choose a folder on the remote machine';
+
+  @override
+  String get pickerNoSubfolders => 'No subfolders';
+
+  @override
+  String get pickerNoStartPoint =>
+      'Cannot locate the remote home directory yet. Open a terminal session first.';
+
+  @override
+  String get filesCwdMissing =>
+      'No terminal working directory yet — go back to the terminal and press enter once.';
 }

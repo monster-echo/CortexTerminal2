@@ -10,7 +10,7 @@ import 'package:corterm_mobile/core/storage/app_preferences.dart';
 import 'package:corterm_mobile/core/ws/terminal_socket.dart';
 import 'package:corterm_mobile/core/ws/ws_frames.dart';
 import 'package:corterm_mobile/features/sessions/data/session_repository.dart';
-import 'package:corterm_mobile/features/workspace/workspace_controller.dart';
+import 'package:corterm_mobile/features/session/session_controller.dart';
 
 /// 假 socket：不连网。
 class FakeSocket implements TerminalSocket {
@@ -112,9 +112,9 @@ void main() {
         .setMockMethodCallHandler(platformChannel, null);
   });
 
-  Future<WorkspaceController> makeController(
+  Future<SessionController> makeController(
       FakeSnapshotStore snapshotStore) async {
-    final controller = WorkspaceController(
+    final controller = SessionController(
       FakeRepo(),
       ({required sessionId, sinceSeq = 0}) async => FakeSocket(sessionId),
       snapshotStore,
@@ -196,7 +196,7 @@ void main() {
     fakeAsync((async) {
       final store = FakeSnapshotStore();
       final created = <FakeSocket>[];
-      final controller = WorkspaceController(
+      final controller = SessionController(
         FakeRepo(),
         ({required sessionId, sinceSeq = 0}) async {
           final s = FakeSocket(sessionId);

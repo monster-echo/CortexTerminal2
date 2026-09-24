@@ -12,16 +12,16 @@ import 'package:corterm_mobile/core/models/session.dart';
 import 'package:corterm_mobile/core/storage/app_preferences.dart';
 import 'package:corterm_mobile/features/sessions/data/session_repository.dart';
 import 'package:corterm_mobile/features/sessions/data/sessions_providers.dart';
-import 'package:corterm_mobile/features/workspace/widgets/more_actions_sheet.dart';
-import 'package:corterm_mobile/features/workspace/widgets/terminal_toolbar.dart';
-import 'package:corterm_mobile/features/workspace/workspace_controller.dart';
-import 'package:corterm_mobile/features/workspace/workspace_screen.dart';
-import 'package:corterm_mobile/features/workspace/workspace_state.dart';
+import 'package:corterm_mobile/features/session/widgets/more_actions_sheet.dart';
+import 'package:corterm_mobile/features/session/widgets/terminal_toolbar.dart';
+import 'package:corterm_mobile/features/session/session_controller.dart';
+import 'package:corterm_mobile/features/session/session_screen.dart';
+import 'package:corterm_mobile/features/session/session_state.dart';
 import 'package:corterm_mobile/l10n/app_localizations.dart';
 
 /// 测试不建连：直接注入 state（socket 工厂只兜 AssertionError）。
-class _TestWorkspaceController extends WorkspaceController {
-  _TestWorkspaceController(AppPreferences prefs)
+class _TestSessionController extends SessionController {
+  _TestSessionController(AppPreferences prefs)
       : super(
           _NoopRepo(),
           ({required String sessionId, int sinceSeq = 0}) async =>
@@ -29,7 +29,7 @@ class _TestWorkspaceController extends WorkspaceController {
           prefs,
         );
 
-  void seed(WorkspaceState state) => this.state = state;
+  void seed(SessionState state) => this.state = state;
 }
 
 /// workspace 控制器只用到 rememberCurrent；其余调用视为测试漏了注入。
@@ -69,13 +69,13 @@ void main() {
 
   /// App 主题固定浅色 —— Session 页必须依旧深色（§2/§3）。
   Widget harness(
-    WorkspaceController controller, {
+    SessionController controller, {
     double keyboardInset = 0,
   }) {
     return ProviderScope(
       overrides: [
         sharedPreferencesProvider.overrideWithValue(sharedPreferences),
-        workspaceControllerProvider.overrideWith((ref) => controller),
+        sessionControllerProvider.overrideWith((ref) => controller),
         sessionsProvider.overrideWith((ref) async => [_session()]),
       ],
       child: ShadApp(
@@ -95,12 +95,12 @@ void main() {
               .copyWith(viewInsets: EdgeInsets.only(bottom: keyboardInset)),
           child: child!,
         ),
-        home: const WorkspaceScreen(),
+        home: const SessionScreen(),
       ),
     );
   }
 
-  WorkspaceController controllerWithLiveSession() {
+  SessionController controllerWithLiveSession() {
     final entry = SessionTerminalState(
       terminal: Terminal(maxLines: 200),
       epoch: 0,
@@ -108,9 +108,9 @@ void main() {
       rttMs: 12,
       workerId: 'w1',
     );
-    final controller = _TestWorkspaceController(appPreferences);
+    final controller = _TestSessionController(appPreferences);
     controller.seed(
-      WorkspaceState(
+      SessionState(
         currentSessionId: 's1',
         openedSessionIds: const ['s1'],
         entries: {'s1': entry},
@@ -159,7 +159,7 @@ void main() {
     expect(tester.getRect(find.byType(TerminalView)).bottom, _phone.height);
   });
 
-  testWidgets('App 浅色时 Session 页面跟随浅色（页面 + 右上角弹出的功能页）', (tester) async {
+  testWidgets('App 浅色时 Session 页面页头/工具栏跟随终端配色（浅色终端主题）', (tester) async {
     tester.view.physicalSize = _phone * 3;
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
@@ -172,8 +172,12 @@ void main() {
     final pageContext = tester.element(find.byType(TerminalToolbar));
     expect(ShadTheme.of(pageContext).brightness, Brightness.light);
     expect(Theme.of(pageContext).brightness, Brightness.light);
+    // 页头/工具栏底色 = 终端主题底色，而非 App light/dark 背景。
     final appBar = tester.widget<AppBar>(find.byType(AppBar));
-    expect(appBar.backgroundColor, shadLightTheme().colorScheme.background);
+    expect(appBar.backgroundColor, cortermTerminalLightTheme.background);
+    final toolbar = tester.widget<TerminalToolbar>(find.byType(TerminalToolbar));
+    expect(toolbar.terminalBackground, cortermTerminalLightTheme.background);
+    expect(toolbar.terminalForeground, cortermTerminalLightTheme.foreground);
 
     // 右上角 ⋯ → More Actions sheet 同样跟随浅色（sheet 走独立路由，
     // 但主题来自 ShadApp 的 themeMode，无需再单独强制）。

@@ -12,7 +12,7 @@ import '../../../shared/widgets/connection_status_dot.dart';
 import '../../../shared/widgets/list_group.dart';
 import '../../../shared/widgets/states.dart';
 import '../../sessions/data/sessions_providers.dart';
-import '../../workspace/widgets/session_status.dart';
+import '../../session/widgets/session_status.dart';
 
 /// 我的：上面强调会员权益（hero 卡：权益说明 + 兑换 / 邀请返利入口），
 /// 下面是 Worker 概况与统计（压栈进入，可返回）；右上角齿轮进设置。

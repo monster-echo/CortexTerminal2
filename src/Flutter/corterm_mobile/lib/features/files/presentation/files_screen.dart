@@ -7,19 +7,20 @@ import 'package:share_plus/share_plus.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../../core/models/session.dart';
+import '../../../core/models/workspace.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/app_bar.dart';
-import '../../../shared/widgets/list_group.dart';
-import '../../../shared/widgets/sheets_and_dialogs.dart';
 import '../../../shared/widgets/states.dart';
 import '../../sessions/data/sessions_providers.dart';
-import '../../workspace/workspace_controller.dart';
+import '../../session/session_controller.dart';
 import '../data/file_repository.dart';
+import 'remote_dir_browser.dart';
+import '../../workers/data/workspace_repository.dart';
 
 /// 远程文件浏览 v2（对齐 ArkTS FileBrowserPage / FilesService）：
-/// 以【工作区】为边界（绑定 Worker + 根路径），'' = 工作区根。
-/// 打开时自动解析该 Worker 的第一个工作区；没有则引导创建。
-/// 入口：终端 ⋯ 菜单 → 文件管理（sessionId 参数实为 Worker 绑定键）。
+/// IA 约定（app-ia-design.md）——会话绑定工作区 → 以工作区为根（workspace 通道）；
+/// 未绑定（ungrouped）→ 以终端 OSC 7 当前目录为根（worker 通道）。
+/// 入口：终端 ⋯ 菜单 → 文件管理。
 class FilesScreen extends ConsumerStatefulWidget {
   const FilesScreen({super.key, required this.sessionId, this.initialPath = ''});
 
@@ -33,6 +34,10 @@ class FilesScreen extends ConsumerStatefulWidget {
 
 class _FilesScreenState extends ConsumerState<FilesScreen> {
   Workspace? _workspace;
+
+  /// cwd 模式（ungrouped 会话）：浏览根 = 终端 OSC 7 当前目录。
+  String? _cwdRoot;
+  String? _workerId;
   bool _workspaceLoading = true;
   String? _workspaceError;
   late String _path = widget.initialPath;
@@ -42,28 +47,54 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
   double? _progress; // 0..1，null = 不确定进度
 
   Future<FileListing> _load(String path) {
+    final ws = _workspace;
+    if (ws != null) {
+      return ref
+          .read(fileRepositoryProvider)
+          .list(workspaceId: ws.workspaceId, path: path);
+    }
     return ref
         .read(fileRepositoryProvider)
-        .list(workspaceId: _workspace!.workspaceId, path: path);
+        .listForWorker(workerId: _workerId!, root: _cwdRoot!, path: path);
   }
 
-  /// 解析该 Worker 的工作区：有 → 直接进入；无 → 空态引导创建。
-  Future<void> _resolveWorkspace() async {
+  /// 解析浏览作用域（IA 约定）：
+  /// 会话绑定工作区 → 工作区模式；未绑定 → cwd 模式（根 = 终端当前目录）。
+  Future<void> _resolveScope() async {
     try {
       final summaries =
           ref.read(sessionsProvider).value ?? const <SessionSummary>[];
-      final workerId = summaries
-              .where((s) => s.sessionId == widget.sessionId)
-              .firstOrNull
-              ?.workerId ??
-          widget.sessionId;
-      final list = await ref.read(fileRepositoryProvider).listWorkspaces();
-      final mine = list.where((w) => w.workerId == workerId).toList();
+      final session = summaries
+          .where((s) => s.sessionId == widget.sessionId)
+          .firstOrNull;
+      final workerId = session?.workerId ?? widget.sessionId;
+      _workerId = workerId;
+      final workspaceId = session?.workspaceId ?? '';
+      if (workspaceId.isNotEmpty) {
+        final list = await ref.read(workspaceRepositoryProvider).list();
+        final bound =
+            list.where((w) => w.workspaceId == workspaceId).firstOrNull;
+        if (!mounted) return;
+        if (bound != null) {
+          setState(() {
+            _workspace = bound;
+            _workspaceLoading = false;
+            _path = '';
+            _future = _load(_path);
+          });
+          return;
+        }
+      }
+      // ungrouped：以终端当前目录为根。
+      final cwd = ref
+          .read(sessionControllerProvider)
+          .entryOf(widget.sessionId)
+          ?.remoteCwd;
       if (!mounted) return;
       setState(() {
-        _workspace = mine.isEmpty ? null : mine.first;
+        _cwdRoot = (cwd != null && cwd.isNotEmpty) ? cwd : null;
         _workspaceLoading = false;
-        if (_workspace != null) {
+        if (_cwdRoot != null) {
           _path = '';
           _future = _load(_path);
         }
@@ -74,61 +105,6 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
         _workspaceError = '$e';
         _workspaceLoading = false;
       });
-    }
-  }
-
-  Future<void> _createWorkspace() async {
-    final l10n = AppLocalizations.of(context)!;
-    final nameController = TextEditingController();
-    final rootController = TextEditingController(text: '/');
-    final ok = await showCortermSheetDialog<bool>(
-      context: context,
-      title: l10n.workspaceCreateTitle,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ShadInputFormField(
-            controller: nameController,
-            label: Text(l10n.workspaceNameLabel),
-            placeholder: Text(l10n.workspaceNameHint),
-          ),
-          const SizedBox(height: 12),
-          ShadInputFormField(
-            controller: rootController,
-            label: Text(l10n.workspaceRootLabel),
-            placeholder: Text(l10n.workspaceRootHint),
-          ),
-        ],
-      ),
-      actions: [
-        ShadButton.ghost(
-          onPressed: () => Navigator.pop(context, false),
-          child: Text(l10n.cancel),
-        ),
-        ShadButton(
-          onPressed: () => Navigator.pop(context, true),
-          child: Text(l10n.create),
-        ),
-      ],
-    );
-    if (ok != true) return;
-    final name = nameController.text.trim();
-    final root = rootController.text.trim();
-    if (name.isEmpty || root.isEmpty) return;
-    try {
-      final ws = await ref.read(fileRepositoryProvider).createWorkspace(
-            workerId: widget.sessionId,
-            name: name,
-            rootPath: root,
-          );
-      if (!mounted) return;
-      setState(() {
-        _workspace = ws;
-        _path = '';
-        _future = _load(_path);
-      });
-    } catch (e) {
-      if (mounted) showAppToast(context, '$e', destructive: true);
     }
   }
 
@@ -147,24 +123,27 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
   String _join(String dir, String name) =>
       dir.isEmpty ? name : '$dir/$name';
 
-  String? _parentOf(String path) {
-    if (path.isEmpty) return null;
-    final idx = path.lastIndexOf('/');
-    if (idx <= 0) return '';
-    return path.substring(0, idx);
-  }
 
   Future<void> _download(FileEntry entry) async {
     final l10n = AppLocalizations.of(context)!;
+    final ws = _workspace;
+    final root = ws?.rootPath ?? _cwdRoot;
+    if (ws == null && root == null) return;
     setState(() {
       _busy = true;
       _progress = null;
     });
     try {
-      final bytes = await ref.read(fileRepositoryProvider).downloadBytes(
-            workspaceId: _workspace!.workspaceId,
-            path: _join(_path, entry.name),
-          );
+      final bytes = ws != null
+          ? await ref.read(fileRepositoryProvider).downloadBytes(
+                workspaceId: ws.workspaceId,
+                path: _join(_path, entry.name),
+              )
+          : await ref.read(fileRepositoryProvider).downloadBytesForWorker(
+                workerId: _workerId!,
+                root: root!,
+                path: _join(_path, entry.name),
+              );
       if (!mounted) return;
       await SharePlus.instance.share(
         ShareParams(
@@ -187,6 +166,9 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
 
   Future<void> _upload() async {
     final l10n = AppLocalizations.of(context)!;
+    final ws = _workspace;
+    final root = ws?.rootPath ?? _cwdRoot;
+    if (ws == null && root == null) return;
     final result = await FilePicker.pickFiles(
       withData: true,
       type: FileType.any,
@@ -198,12 +180,22 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
       _progress = null;
     });
     try {
-      await ref.read(fileRepositoryProvider).upload(
-            workspaceId: _workspace!.workspaceId,
-            dirPath: _path,
-            filename: picked.name,
-            bytes: picked.bytes!,
-          );
+      if (ws != null) {
+        await ref.read(fileRepositoryProvider).upload(
+              workspaceId: ws.workspaceId,
+              dirPath: _path,
+              filename: picked.name,
+              bytes: picked.bytes!,
+            );
+      } else {
+        await ref.read(fileRepositoryProvider).uploadForWorker(
+              workerId: _workerId!,
+              root: root!,
+              dirPath: _path,
+              filename: picked.name,
+              bytes: picked.bytes!,
+            );
+      }
       if (!mounted) return;
       showAppToast(context, l10n.uploadDone);
       await _refresh();
@@ -223,7 +215,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
   @override
   void initState() {
     super.initState();
-    _resolveWorkspace();
+    _resolveScope();
   }
 
   @override
@@ -242,37 +234,37 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
             _workspaceLoading = true;
             _workspaceError = null;
           });
-          _resolveWorkspace();
+          _resolveScope();
         },
       );
-    } else if (_workspace == null) {
+    } else if (_workspace == null && _cwdRoot == null) {
+      // ungrouped 且终端还没上报过 cwd：如实告知，不猜根目录。
       body = EmptyState(
-        title: l10n.workspaceNoneTitle,
-        hint: l10n.workspaceNoneHint,
-        actionLabel: l10n.create,
-        onAction: _createWorkspace,
+        title: l10n.filesTitle,
+        hint: l10n.filesCwdMissing,
       );
     } else {
       // OSC 7 联动：终端上报的当前目录若在工作区根内 → 提供一键跳转。
       final cwd = ref
-          .watch(workspaceControllerProvider)
+          .watch(sessionControllerProvider)
           .entryOf(widget.sessionId)
           ?.remoteCwd;
-      final root = _workspace!.rootPath ?? '/';
-      final rootNorm = root.endsWith('/') && root.length > 1
-          ? root.substring(0, root.length - 1)
-          : root;
-      final cwdJump = (cwd == null || cwd.isEmpty)
-          ? null
-          : (cwd == rootNorm || cwd.startsWith('$rootNorm/'))
-              ? (cwd == rootNorm
-                  ? ''
-                  : cwd.substring(rootNorm.length + 1))
-              : null;
+      final ws = _workspace;
+      // cwd 跳转条仅工作区模式：cwd 在工作区根内 → 一键跳转；根外 → 仅提示。
+      String? cwdJump;
+      if (ws != null && cwd != null && cwd.isNotEmpty) {
+        final root = ws.rootPath ?? '/';
+        final rootNorm = root.endsWith('/') && root.length > 1
+            ? root.substring(0, root.length - 1)
+            : root;
+        cwdJump = (cwd == rootNorm || cwd.startsWith('$rootNorm/'))
+            ? (cwd == rootNorm ? '' : cwd.substring(rootNorm.length + 1))
+            : null;
+      }
 
       body = Column(
         children: [
-          if (cwd != null && cwd.isNotEmpty) ...[
+          if (ws != null && cwd != null && cwd.isNotEmpty) ...[
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
               child: InkWell(
@@ -281,7 +273,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
                     ? null
                     : () {
                         HapticFeedback.selectionClick();
-                        _open(cwdJump);
+                        _open(cwdJump!);
                       },
                 child: Container(
                   width: double.infinity,
@@ -325,84 +317,31 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
           if (_busy && _progress != null)
             LinearProgressIndicator(value: _progress),
           Expanded(
-            child: FutureBuilder<FileListing>(
+            child: RemoteDirBrowser(
               future: _future,
-              builder: (context, snap) {
-                if (snap.hasError) {
-                  return ErrorState(
-                    message: '${snap.error}',
-                    onRetry: _refresh,
+              onRefresh: _refresh,
+              path: _path,
+              onNavigate: _open,
+              fileTrailing: (e) => _busy
+                  ? const SizedBox.shrink()
+                  : ShadIconButton.ghost(
+                      icon: const Icon(LucideIcons.download, size: 20),
+                      onPressed: () => _download(e),
+                    ),
+              onFileTap: (e) {
+                final ws = _workspace;
+                if (ws != null) {
+                  context.push(
+                    '/files/${widget.sessionId}/preview'
+                    '?workspaceId=${Uri.encodeComponent(ws.workspaceId)}'
+                    '&path=${Uri.encodeComponent(_join(_path, e.name))}'
+                    '&name=${Uri.encodeComponent(e.name)}'
+                    '&size=${e.sizeBytes}',
                   );
+                } else {
+                  // cwd 模式：点文件直接下载分享（预览页仅工作区模式支持）。
+                  _download(e);
                 }
-                if (!snap.hasData) {
-                  return const Center(child: ShadProgress(value: null));
-                }
-                final listing = snap.data!;
-                final parent = _parentOf(_path);
-                final entries = listing.entries;
-                return RefreshIndicator(
-                  onRefresh: _refresh,
-                  child: ListView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 4),
-                    children: [
-                      if (parent != null)
-                        AppRow(
-                          icon: LucideIcons.arrowUp,
-                          label: '..',
-                          onTap: () => _open(parent),
-                        ),
-                      for (final e in entries)
-                        AppRow(
-                          icon: e.isDirectory
-                              ? LucideIcons.folder
-                              : LucideIcons.file,
-                          label: e.name,
-                          value:
-                              e.isDirectory ? null : _fmtSize(e.sizeBytes),
-                          trailing: e.isDirectory
-                              ? null
-                              : (_busy
-                                  ? null
-                                  : ShadIconButton.ghost(
-                                      icon: const Icon(LucideIcons.download,
-                                          size: 20),
-                                      onPressed: () => _download(e),
-                                    )),
-                          chevron: e.isDirectory,
-                          onTap: e.isDirectory
-                              ? () => _open(_join(_path, e.name))
-                              : () => context.push(
-                                    '/files/${widget.sessionId}/preview'
-                                    '?workspaceId=${Uri.encodeComponent(_workspace!.workspaceId)}'
-                                    '&path=${Uri.encodeComponent(_join(_path, e.name))}'
-                                    '&name=${Uri.encodeComponent(e.name)}'
-                                    '&size=${e.sizeBytes}',
-                                  ),
-                        ),
-                      if (entries.isEmpty && parent != null)
-                        SizedBox(
-                          height: 160,
-                          child: Center(
-                            child: Text(
-                              l10n.emptyFolder,
-                              style:
-                                  TextStyle(color: scheme.mutedForeground),
-                            ),
-                          ),
-                        ),
-                      if (listing.truncated)
-                        Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Text(
-                            l10n.listTruncated,
-                            style: TextStyle(color: scheme.mutedForeground),
-                          ),
-                        ),
-                    ],
-                  ),
-                );
               },
             ),
           ),
@@ -419,7 +358,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
           onPressed: () => context.pop(),
         ),
         title: l10n.filesTitle,
-        bottom: _workspace == null
+        bottom: (_workspace == null && _cwdRoot == null)
             ? null
             : PreferredSize(
                 preferredSize: const Size.fromHeight(30),
@@ -433,7 +372,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
                 ),
               ),
       ),
-      floatingActionButton: _workspace == null
+      floatingActionButton: (_workspace == null && _cwdRoot == null)
           ? null
           : FloatingActionButton.extended(
               onPressed: _busy ? null : _upload,
@@ -451,11 +390,6 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
     );
   }
 
-  String _fmtSize(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    return '${(bytes / 1024 / 1024).toStringAsFixed(1)} MB';
-  }
 }
 
 /// 路径面包屑（官方 ShadBreadcrumb）：根目录 + 逐级段，父级可点回跳；

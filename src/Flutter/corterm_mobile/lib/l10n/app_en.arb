@@ -459,5 +459,24 @@
       }
     }
   },
-  "tunnelPortPending": "Port not listening yet — the tunnel will work as soon as the service is up."
+  "tunnelPortPending": "Port not listening yet — the tunnel will work as soon as the service is up.",
+  "workspacesSectionTitle": "Workspaces",
+  "workspaceEmpty": "No workspaces yet",
+  "workspaceDefault": "Default",
+  "workspaceNewSession": "New session",
+  "workspaceDelete": "Delete",
+  "workspaceDeleteConfirmTitle": "Delete workspace",
+  "@workspaceDeleteConfirmBody": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "workspaceDeleteConfirmBody": "The folder {name} stays on the machine. Sessions bound to it will be unbound.",
+  "workspacePickFolder": "Choose folder",
+  "workspacePickTitle": "Choose a folder on the remote machine",
+  "pickerNoSubfolders": "No subfolders",
+  "pickerNoStartPoint": "Cannot locate the remote home directory yet. Open a terminal session first.",
+  "filesCwdMissing": "No terminal working directory yet — go back to the terminal and press enter once."
 }

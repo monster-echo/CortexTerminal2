@@ -12,7 +12,7 @@ final sharedPreferencesProvider = Provider<SharedPreferences>(
 );
 
 /// 终端 scrollback 快照存储（按 workerId 键）。
-/// WorkspaceController 只依赖此接口，测试可给内存实现。
+/// SessionController 只依赖此接口，测试可给内存实现。
 abstract interface class TerminalSnapshotStore {
   String? terminalSnapshot(String key);
   Future<void> setTerminalSnapshot(String key, String text);

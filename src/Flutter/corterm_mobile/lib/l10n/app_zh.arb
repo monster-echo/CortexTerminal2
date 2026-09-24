@@ -375,5 +375,17 @@
       }
     }
   },
-  "tunnelPortPending": "端口暂未监听，服务启动后隧道即自动生效。"
+  "tunnelPortPending": "端口暂未监听，服务启动后隧道即自动生效。",
+  "workspacesSectionTitle": "工作区",
+  "workspaceEmpty": "暂无工作区",
+  "workspaceDefault": "默认",
+  "workspaceNewSession": "新会话",
+  "workspaceDelete": "删除",
+  "workspaceDeleteConfirmTitle": "删除工作区",
+  "workspaceDeleteConfirmBody": "目录 {name} 仍会保留在机器上，绑定它的会话将被解绑。",
+  "workspacePickFolder": "选择此文件夹",
+  "workspacePickTitle": "选择远端电脑上的文件夹",
+  "pickerNoSubfolders": "没有子文件夹",
+  "pickerNoStartPoint": "暂无法定位远端主目录——请先打开一个终端会话。",
+  "filesCwdMissing": "尚未获取到终端当前目录——回到终端按一次回车再试。"
 }

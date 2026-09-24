@@ -4,7 +4,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import '../../../../app/theme/app_theme.dart';
 import '../../../../core/models/session.dart';
 import '../../../../core/models/worker.dart';
-import '../../../../features/workspace/workspace_state.dart';
+import '../../../../features/session/session_state.dart';
 
 /// Session/Gateway 状态 → 圆点颜色（§13）。颜色一律来自主题的 custom 状态槽。
 Color sessionDotColor(ShadColorScheme scheme, SessionStatus status) =>

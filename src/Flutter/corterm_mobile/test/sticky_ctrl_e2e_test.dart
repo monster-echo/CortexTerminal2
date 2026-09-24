@@ -12,8 +12,8 @@ import 'package:corterm_mobile/core/auth/token_store.dart';
 import 'package:corterm_mobile/core/storage/app_preferences.dart';
 import 'package:corterm_mobile/core/ws/terminal_socket.dart';
 import 'package:corterm_mobile/features/sessions/data/session_repository.dart';
-import 'package:corterm_mobile/features/workspace/workspace_controller.dart';
-import 'package:corterm_mobile/features/workspace/workspace_state.dart';
+import 'package:corterm_mobile/features/session/session_controller.dart';
+import 'package:corterm_mobile/features/session/session_state.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -34,7 +34,7 @@ void main() {
 
   tearDown(() => server.close(force: true));
 
-  Future<WorkspaceController> makeController() async {
+  Future<SessionController> makeController() async {
     final prefs = AppPreferences(await SharedPreferences.getInstance());
     final repo = SessionRepository(
       ApiClient(
@@ -51,10 +51,10 @@ void main() {
         sinceSeq: sinceSeq,
       );
     };
-    return WorkspaceController(repo, factory, prefs);
+    return SessionController(repo, factory, prefs);
   }
 
-  Future<void> waitUntilLive(WorkspaceController c, String sessionId) async {
+  Future<void> waitUntilLive(SessionController c, String sessionId) async {
     for (var i = 0; i < 100; i++) {
       final e = c.state.entries[sessionId];
       if (e != null && e.connState == TerminalConnState.live) return;

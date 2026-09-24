@@ -16,9 +16,9 @@ import '../../shared/widgets/states.dart';
 import '../../shared/widgets/sheets_and_dialogs.dart';
 import '../sessions/data/session_repository.dart';
 import '../sessions/data/sessions_providers.dart';
-import '../workspace/widgets/new_session_sheet.dart';
-import '../workspace/widgets/session_status.dart';
-import '../workspace/workspace_controller.dart';
+import '../session/widgets/new_session_sheet.dart';
+import '../session/widgets/session_status.dart';
+import '../session/session_controller.dart';
 
 /// 首页（结构对齐 ArkTS SessionHomePage，组件只用 shadcn 标准件）：
 /// 单一会话列表（活跃+历史按最近活动排序）+ 四态互斥 + 卡片左滑操作。
@@ -206,7 +206,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             onPressed: () => showNewSessionSheet(
               context,
               onCreated: (sessionId) {
-                ref.read(workspaceControllerProvider.notifier).open(sessionId);
+                ref.read(sessionControllerProvider.notifier).open(sessionId);
                 context.go('/workspace');
               },
             ),
@@ -298,7 +298,7 @@ class _SessionCard extends ConsumerWidget {
               if (alive) {
                 await repo.terminate(sessionId: session.sessionId);
                 await ref
-                    .read(workspaceControllerProvider.notifier)
+                    .read(sessionControllerProvider.notifier)
                     .closeTerminal(session.sessionId);
               } else {
                 await repo.delete(sessionId: session.sessionId);
@@ -318,7 +318,7 @@ class _SessionCard extends ConsumerWidget {
         child: GestureDetector(
           onTap: () {
             ref
-                .read(workspaceControllerProvider.notifier)
+                .read(sessionControllerProvider.notifier)
                 .open(session.sessionId, workerId: session.workerId);
             context.go('/workspace');
           },

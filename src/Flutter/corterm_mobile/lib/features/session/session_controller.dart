@@ -12,7 +12,7 @@ import '../../core/storage/app_preferences.dart';
 import '../../core/ws/terminal_socket.dart';
 import '../../core/ws/ws_frames.dart';
 import '../sessions/data/session_repository.dart';
-import 'workspace_state.dart';
+import 'session_state.dart';
 
 /// OSC 扩展事件（远端 → 本地 UI 的带外通信）：剪贴板 / 通知。
 enum OscNoticeKind { clipboard, notify }
@@ -25,8 +25,8 @@ class OscNotice {
 }
 
 /// Workspace 全局状态（§40）：当前 session + 打开过的 session + 每个 session 的终端状态。
-class WorkspaceState {
-  const WorkspaceState({
+class SessionState {
+  const SessionState({
     this.currentSessionId,
     this.openedSessionIds = const [],
     this.entries = const {},
@@ -54,7 +54,7 @@ class WorkspaceState {
   SessionTerminalState? entryOf(String? sessionId) =>
       sessionId == null ? null : entries[sessionId];
 
-  WorkspaceState copyWith({
+  SessionState copyWith({
     String? currentSessionId,
     List<String>? openedSessionIds,
     Map<String, SessionTerminalState>? entries,
@@ -63,7 +63,7 @@ class WorkspaceState {
     OscNotice? oscNotice,
     bool clearOscNotice = false,
   }) =>
-      WorkspaceState(
+      SessionState(
         currentSessionId: currentSessionId ?? this.currentSessionId,
         openedSessionIds: openedSessionIds ?? this.openedSessionIds,
         entries: entries ?? this.entries,
@@ -74,13 +74,13 @@ class WorkspaceState {
 }
 
 /// Workspace 控制器：
-/// - 切换 session 只改 [WorkspaceState.currentSessionId]，绝不终止远程会话（§16/§17）
+/// - 切换 session 只改 [SessionState.currentSessionId]，绝不终止远程会话（§16/§17）
 /// - 后台 session 的连接保持附着，输出持续写入各自 buffer（切回来不重放）
 /// - 附着数上限 [maxAttached]，超出后 LRU detach（会话继续在服务端跑）
 /// - 断线自动退避重连，成功后重放快照并重建 buffer（§56/§57）
-class WorkspaceController extends StateNotifier<WorkspaceState> {
-  WorkspaceController(this._repo, this._socketFactory, this._prefs)
-      : super(const WorkspaceState());
+class SessionController extends StateNotifier<SessionState> {
+  SessionController(this._repo, this._socketFactory, this._prefs)
+      : super(const SessionState());
 
   static const maxAttached = 4;
   static const _backoff = [Duration(seconds: 1), Duration(seconds: 2), Duration(seconds: 5), Duration(seconds: 10), Duration(seconds: 30)];
@@ -775,9 +775,9 @@ class WorkspaceController extends StateNotifier<WorkspaceState> {
   }
 }
 
-final workspaceControllerProvider =
-    StateNotifierProvider<WorkspaceController, WorkspaceState>((ref) {
-  return WorkspaceController(
+final sessionControllerProvider =
+    StateNotifierProvider<SessionController, SessionState>((ref) {
+  return SessionController(
     ref.watch(sessionRepositoryProvider),
     ref.watch(terminalSocketFactoryProvider),
     ref.watch(appPreferencesProvider),

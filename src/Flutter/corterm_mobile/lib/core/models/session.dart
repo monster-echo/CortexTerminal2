@@ -59,6 +59,7 @@ class SessionSummary {
     required this.lastActivityAt,
     this.agentKind = AgentKind.unknown,
     this.inferredTitle,
+    this.workspaceId = '',
   });
 
   final String sessionId;
@@ -72,6 +73,9 @@ class SessionSummary {
   final DateTime lastActivityAt;
   final AgentKind agentKind;
   final String? inferredTitle;
+
+  /// 绑定的工作区（网关列表/详情都返回；'' = 未绑定，即 ungrouped）。
+  final String workspaceId;
 
   /// 显示名优先级（§55）：用户名 → worker 推断标题 → Agent + 短 ID。禁止裸 UUID。
   String get displayName {
@@ -99,6 +103,7 @@ class SessionSummary {
       lastActivityAt: _parseDate(json['lastActivityAtUtc'] ?? json['lastActivityAt']),
       agentKind: agentKindFrom(json['agentKind'] as String?),
       inferredTitle: json['inferredTitle'] as String?,
+      workspaceId: (json['workspaceId'] as String?) ?? '',
     );
   }
 
@@ -112,6 +117,7 @@ class SessionSummary {
         lastActivityAt: lastActivityAt,
         agentKind: agentKind,
         inferredTitle: inferredTitle,
+        workspaceId: workspaceId,
       );
 }
 

@@ -2023,6 +2023,78 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Port not listening yet — the tunnel will work as soon as the service is up.'**
   String get tunnelPortPending;
+
+  /// No description provided for @workspacesSectionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Workspaces'**
+  String get workspacesSectionTitle;
+
+  /// No description provided for @workspaceEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No workspaces yet'**
+  String get workspaceEmpty;
+
+  /// No description provided for @workspaceDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Default'**
+  String get workspaceDefault;
+
+  /// No description provided for @workspaceNewSession.
+  ///
+  /// In en, this message translates to:
+  /// **'New session'**
+  String get workspaceNewSession;
+
+  /// No description provided for @workspaceDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete'**
+  String get workspaceDelete;
+
+  /// No description provided for @workspaceDeleteConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete workspace'**
+  String get workspaceDeleteConfirmTitle;
+
+  /// No description provided for @workspaceDeleteConfirmBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The folder {name} stays on the machine. Sessions bound to it will be unbound.'**
+  String workspaceDeleteConfirmBody(String name);
+
+  /// No description provided for @workspacePickFolder.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose folder'**
+  String get workspacePickFolder;
+
+  /// No description provided for @workspacePickTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a folder on the remote machine'**
+  String get workspacePickTitle;
+
+  /// No description provided for @pickerNoSubfolders.
+  ///
+  /// In en, this message translates to:
+  /// **'No subfolders'**
+  String get pickerNoSubfolders;
+
+  /// No description provided for @pickerNoStartPoint.
+  ///
+  /// In en, this message translates to:
+  /// **'Cannot locate the remote home directory yet. Open a terminal session first.'**
+  String get pickerNoStartPoint;
+
+  /// No description provided for @filesCwdMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'No terminal working directory yet — go back to the terminal and press enter once.'**
+  String get filesCwdMissing;
 }
 
 class _AppLocalizationsDelegate

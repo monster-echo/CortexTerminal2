@@ -12,10 +12,10 @@ import '../../../shared/widgets/sheets_and_dialogs.dart';
 import '../../../shared/widgets/states.dart';
 import '../data/sessions_providers.dart';
 import '../data/session_repository.dart';
-import '../../workspace/widgets/new_session_sheet.dart';
-import '../../workspace/widgets/session_list_item.dart';
-import '../../workspace/widgets/session_details_sheet.dart';
-import '../../workspace/workspace_controller.dart';
+import '../../session/widgets/new_session_sheet.dart';
+import '../../session/widgets/session_list_item.dart';
+import '../../session/widgets/session_details_sheet.dart';
+import '../../session/session_controller.dart';
 
 /// All Sessions（§45/§46）：完整管理页（区别于快速切换的 Selector）。
 /// 支持重命名 / 详情 / 终止 / 删除。
@@ -44,7 +44,7 @@ class AllSessionsScreen extends ConsumerWidget {
             onPressed: () => showNewSessionSheet(
               context,
               onCreated: (sessionId) {
-                ref.read(workspaceControllerProvider.notifier).open(sessionId);
+                ref.read(sessionControllerProvider.notifier).open(sessionId);
                 context.go('/workspace');
               },
             ),
@@ -61,7 +61,7 @@ class AllSessionsScreen extends ConsumerWidget {
                   onAction: () => showNewSessionSheet(
                     context,
                     onCreated: (sessionId) {
-                      ref.read(workspaceControllerProvider.notifier).open(sessionId);
+                      ref.read(sessionControllerProvider.notifier).open(sessionId);
                       context.go('/workspace');
                     },
                   ),
@@ -96,7 +96,7 @@ class AllSessionsScreen extends ConsumerWidget {
                         session: s,
                         isCurrent: false,
                         onTap: () {
-                          ref.read(workspaceControllerProvider.notifier).open(s.sessionId);
+                          ref.read(sessionControllerProvider.notifier).open(s.sessionId);
                           context.go('/workspace');
                         },
                         onLongPress: () => _showActions(context, ref, s.sessionId, canTerminate: true),
@@ -108,7 +108,7 @@ class AllSessionsScreen extends ConsumerWidget {
                       SessionListItem(
                         session: s,
                         onTap: () {
-                          ref.read(workspaceControllerProvider.notifier).open(s.sessionId);
+                          ref.read(sessionControllerProvider.notifier).open(s.sessionId);
                           context.go('/workspace');
                         },
                         onLongPress: () => _showActions(context, ref, s.sessionId, canTerminate: false),
@@ -218,7 +218,7 @@ class AllSessionsScreen extends ConsumerWidget {
     await ref.read(sessionRepositoryProvider).terminate(sessionId: sessionId);
     ref.invalidate(sessionsProvider);
     if (context.mounted) {
-      await ref.read(workspaceControllerProvider.notifier).closeTerminal(sessionId);
+      await ref.read(sessionControllerProvider.notifier).closeTerminal(sessionId);
     }
   }
 

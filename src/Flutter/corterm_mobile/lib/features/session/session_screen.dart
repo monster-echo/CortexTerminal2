@@ -22,8 +22,8 @@ import 'widgets/new_session_sheet.dart';
 import 'widgets/session_selector_sheet.dart';
 import 'widgets/session_status.dart';
 import 'widgets/terminal_toolbar.dart';
-import 'workspace_controller.dart';
-import 'workspace_state.dart';
+import 'session_controller.dart';
+import 'session_state.dart';
 
 /// 主 Terminal 页面（§6/§85）：
 ///
@@ -36,22 +36,22 @@ import 'workspace_state.dart';
 /// └──────────────────────────────────┘
 ///
 /// Terminal 占满 AppBar 与工具栏之外的全部空间；无常驻 Context/Status Bar。
-class WorkspaceScreen extends ConsumerStatefulWidget {
-  const WorkspaceScreen({super.key});
+class SessionScreen extends ConsumerStatefulWidget {
+  const SessionScreen({super.key});
 
   @override
-  ConsumerState<WorkspaceScreen> createState() => _WorkspaceScreenState();
+  ConsumerState<SessionScreen> createState() => _SessionScreenState();
 }
 
-class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> {
+class _SessionScreenState extends ConsumerState<SessionScreen> {
   @override
   void initState() {
     super.initState();
     // 屏幕常亮（§51）：在监听器里驱动平台通道，禁止 build 内副作用。
-    ref.listenManual(workspaceControllerProvider, (_, _) => _applyWakelock());
+    ref.listenManual(sessionControllerProvider, (_, _) => _applyWakelock());
     _applyWakelock();
     // OSC 扩展事件（52 远程剪贴板 / 9,777 远程通知）→ toast 呈现。
-    ref.listenManual(workspaceControllerProvider, (prev, next) {
+    ref.listenManual(sessionControllerProvider, (prev, next) {
       final notice = next.oscNotice;
       if (notice == null || !mounted) return;
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -63,13 +63,13 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> {
               ? l10n.copied
               : notice.message,
         );
-        ref.read(workspaceControllerProvider.notifier).clearOscNotice();
+        ref.read(sessionControllerProvider.notifier).clearOscNotice();
       });
     });
   }
 
   void _applyWakelock() {
-    final ws = ref.read(workspaceControllerProvider);
+    final ws = ref.read(sessionControllerProvider);
     final entry = ws.entryOf(ws.currentSessionId);
     WakelockPlus.toggle(
       enable:
@@ -86,10 +86,10 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> {
   @override
   Widget build(BuildContext context) {
     final ref = this.ref;
-    final ws = ref.watch(workspaceControllerProvider);
+    final ws = ref.watch(sessionControllerProvider);
     final currentId = ws.currentSessionId;
     final entry = ws.entryOf(currentId);
-    final controller = ref.read(workspaceControllerProvider.notifier);
+    final controller = ref.read(sessionControllerProvider.notifier);
     // 键盘工具栏在软键盘弹出时出现（对齐 ArkTS VirtualKeyBar 行为）；
     // 收起键盘（收起键 / 系统返回）→ viewInsets 归零 → 工具栏随动画收回。
     // web 没有软键盘概念（viewInsets 恒为 0，输入靠物理键盘）→ 工具栏常驻，
@@ -97,8 +97,17 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> {
     final keyboardOpen =
         kIsWeb || MediaQuery.of(context).viewInsets.bottom > 0;
 
+    // 页头 / 键盘工具栏 / Scaffold 背景跟随终端配色（而非 App light/dark），
+    // 使整页与终端融为一体。
+    final terminalTheme = resolveTerminalTheme(
+      selection: ref.watch(terminalThemeSelectionProvider),
+      brightness: Theme.of(context).brightness,
+      customThemes: ref.watch(customTerminalThemesProvider),
+    );
+
     return Scaffold(
-      appBar: _buildAppBar(context, ref, ws, currentId),
+      backgroundColor: terminalTheme.background,
+      appBar: _buildAppBar(context, ref, ws, currentId, terminalTheme),
       // 工具栏必须放在 body 内：Scaffold 的 bottomNavigationBar 定位在屏幕物理底部
       // （键盘只压缩 body，不推 bottomNavigationBar），放那里会被键盘完全遮住。
       // body 已被 viewInsets 压缩，Column 末尾即键盘上方。
@@ -107,7 +116,11 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> {
           : Column(
               children: [
                 Expanded(
-                  child: _TerminalArea(sessionId: currentId!, entry: entry),
+                  child: _TerminalArea(
+                    sessionId: currentId!,
+                    entry: entry,
+                    terminalTheme: terminalTheme,
+                  ),
                 ),
                 _CollapsibleToolbar(
                   visible: keyboardOpen,
@@ -119,6 +132,8 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> {
                     onCtrlToggle: controller.setCtrlArmed,
                     onAltToggle: controller.setAltArmed,
                     onPaste: controller.sendInputRaw,
+                    terminalBackground: terminalTheme.background,
+                    terminalForeground: terminalTheme.foreground,
                   ),
                 ),
               ],
@@ -129,8 +144,9 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> {
   PreferredSizeWidget _buildAppBar(
     BuildContext context,
     WidgetRef ref,
-    WorkspaceState ws,
+    SessionState ws,
     String? currentId,
+    TerminalTheme terminalTheme,
   ) {
     final l10n = AppLocalizations.of(context)!;
     final sessions = ref.watch(sessionsProvider);
@@ -138,12 +154,16 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> {
     final entry = ws.entryOf(currentId);
     final theme = ShadTheme.of(context);
     final scheme = theme.colorScheme;
+    // 页头前景用终端主题前景色，保证在终端底色上可读。
+    final fg = terminalTheme.foreground;
 
     final (dotColor, pulse) = entry == null
-        ? (scheme.mutedForeground, false)
+        ? (fg.withValues(alpha: 0.6), false)
         : connDotStyle(scheme, entry.connState);
 
     return CortermAppBar(
+      backgroundColor: terminalTheme.background,
+      foregroundColor: fg,
       // 标题 = Session Switcher（§5/§7/§8/§88）：单行、可点击、带下拉指示、自动截断。
       title: l10n.sessions,
       titleWidget: session == null
@@ -167,19 +187,19 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> {
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.small.copyWith(
                           fontWeight: FontWeight.w600,
-                          color: scheme.foreground,
+                          color: fg,
                         ),
                       ),
                     ),
                     const SizedBox(width: 2),
                     Icon(LucideIcons.chevronDown,
-                        size: 18, color: scheme.mutedForeground),
+                        size: 18, color: fg.withValues(alpha: 0.6)),
                   ],
                 ),
               ),
             ),
       leading: ShadIconButton.ghost(
-        foregroundColor: scheme.foreground,
+        foregroundColor: fg,
         icon: const Icon(LucideIcons.arrowLeft, size: 20),
         onPressed: () => context.go('/home'),
       ),
@@ -191,10 +211,11 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> {
             entry: entry,
             fallbackColor: dotColor,
             pulse: pulse,
+            onColor: fg,
             onTap: () => ConnectionDetailsSheet.show(context, sessionId: currentId),
           ),
           ShadIconButton.ghost(
-            foregroundColor: scheme.foreground,
+            foregroundColor: fg,
             icon: Icon(LucideIcons.ellipsis, size: 22),
             onPressed: () => MoreActionsSheet.show(context, sessionId: currentId),
           ),
@@ -212,12 +233,16 @@ class _StatusBadge extends StatelessWidget {
     required this.entry,
     required this.fallbackColor,
     required this.pulse,
+    required this.onColor,
     required this.onTap,
   });
 
   final SessionTerminalState? entry;
   final Color fallbackColor;
   final bool pulse;
+
+  /// 页头所在终端底色上的前景色（胶囊底/状态词派生自它）。
+  final Color onColor;
   final VoidCallback onTap;
 
   @override
@@ -250,7 +275,7 @@ class _StatusBadge extends StatelessWidget {
     final textColor =
         state == TerminalConnState.error || state == TerminalConnState.exited
             ? scheme.destructive
-            : scheme.mutedForeground;
+            : onColor.withValues(alpha: 0.7);
 
     return GestureDetector(
       onTap: onTap,
@@ -258,7 +283,7 @@ class _StatusBadge extends StatelessWidget {
         height: 28,
         padding: const EdgeInsets.symmetric(horizontal: 10),
         decoration: BoxDecoration(
-          color: scheme.muted,
+          color: onColor.withValues(alpha: 0.10),
           borderRadius: BorderRadius.circular(14),
         ),
         child: Row(
@@ -363,7 +388,7 @@ class _EmptyWorkspace extends ConsumerWidget {
       actionLabel: l10n.newSession,
       onAction: () => showNewSessionSheet(
         context,
-        onCreated: (sessionId) => ref.read(workspaceControllerProvider.notifier).open(sessionId),
+        onCreated: (sessionId) => ref.read(sessionControllerProvider.notifier).open(sessionId),
       ),
     );
   }
@@ -372,10 +397,15 @@ class _EmptyWorkspace extends ConsumerWidget {
 /// 终端区域：TerminalView + 轻量状态 banner（§56：不弹重复 Dialog）。
 /// 长按选择（vendored xterm 内置）→ 浮出复制按钮（MAUI 同款交互）。
 class _TerminalArea extends ConsumerStatefulWidget {
-  const _TerminalArea({required this.sessionId, required this.entry});
+  const _TerminalArea({
+    required this.sessionId,
+    required this.entry,
+    required this.terminalTheme,
+  });
 
   final String sessionId;
   final SessionTerminalState entry;
+  final TerminalTheme terminalTheme;
 
   @override
   ConsumerState<_TerminalArea> createState() => _TerminalAreaState();
@@ -421,7 +451,7 @@ class _TerminalAreaState extends ConsumerState<_TerminalArea> {
       final sessionId = widget.sessionId;
       _autoReturnTimer = Timer(const Duration(seconds: 2), () {
         if (!mounted) return;
-        ref.read(workspaceControllerProvider.notifier).closeTerminal(sessionId);
+        ref.read(sessionControllerProvider.notifier).closeTerminal(sessionId);
         context.go('/home');
       });
     }
@@ -484,7 +514,7 @@ class _TerminalAreaState extends ConsumerState<_TerminalArea> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final fontSize = ref.watch(fontSizeProvider);
-    final controller = ref.read(workspaceControllerProvider.notifier);
+    final controller = ref.read(sessionControllerProvider.notifier);
     final entry = widget.entry;
     final sessionId = widget.sessionId;
     final hasSelection = _terminalController.selection != null;
@@ -498,12 +528,8 @@ class _TerminalAreaState extends ConsumerState<_TerminalArea> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        // 终端配色：followApp 跟随 App 深浅；具体主题按档案解析。
-        final terminalTheme = resolveTerminalTheme(
-          selection: ref.watch(terminalThemeSelectionProvider),
-          brightness: Theme.of(context).brightness,
-          customThemes: ref.watch(customTerminalThemesProvider),
-        );
+        // 终端配色由 SessionScreen 统一解析（页头/工具栏与终端同底色）。
+        final terminalTheme = widget.terminalTheme;
         // 屏幕坐标 → 终端区局部坐标（菜单锚点）。
         Offset? menuAnchorLocal;
         final box = context.findRenderObject();

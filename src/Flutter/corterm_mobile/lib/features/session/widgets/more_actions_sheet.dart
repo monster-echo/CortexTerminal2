@@ -11,7 +11,7 @@ import '../../../shared/widgets/sheets_and_dialogs.dart';
 import '../../sessions/data/sessions_providers.dart';
 import '../../sessions/data/session_repository.dart';
 import '../../tunnels/presentation/port_forwarding_sheet.dart';
-import '../workspace_controller.dart';
+import '../session_controller.dart';
 import 'session_details_sheet.dart';
 
 /// More Menu（§25/§26）：Session Details / All Sessions / Settings + 底部危险区 Terminate。
@@ -86,7 +86,7 @@ class MoreActionsSheet extends ConsumerWidget {
     ref.invalidate(sessionsProvider);
     // 终止后关闭本地终端视图（PTY 已被 kill）。
     if (context.mounted) {
-      await ref.read(workspaceControllerProvider.notifier).closeTerminal(sessionId);
+      await ref.read(sessionControllerProvider.notifier).closeTerminal(sessionId);
     }
     // 会话已不存在，回到菜单没有意义——整个菜单一并关闭。
     if (context.mounted) Navigator.of(context).pop();

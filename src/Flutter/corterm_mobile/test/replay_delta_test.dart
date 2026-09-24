@@ -8,8 +8,8 @@ import 'package:corterm_mobile/core/storage/app_preferences.dart';
 import 'package:corterm_mobile/core/ws/terminal_socket.dart';
 import 'package:corterm_mobile/core/ws/ws_frames.dart';
 import 'package:corterm_mobile/features/sessions/data/session_repository.dart';
-import 'package:corterm_mobile/features/workspace/workspace_controller.dart';
-import 'package:corterm_mobile/features/workspace/workspace_state.dart';
+import 'package:corterm_mobile/features/session/session_controller.dart';
+import 'package:corterm_mobile/features/session/session_state.dart';
 
 class FakeSocket implements TerminalSocket {
   FakeSocket(this.sessionId);
@@ -136,11 +136,11 @@ void main() {
   group('控制器增量重放', () {
     late FakeStore store;
     late FakeSocket socket;
-    late WorkspaceController controller;
+    late SessionController controller;
 
     setUp(() async {
       store = FakeStore();
-      controller = WorkspaceController(
+      controller = SessionController(
         FakeRepo(),
         ({required sessionId, sinceSeq = 0}) async {
           socket = FakeSocket(sessionId);

@@ -6,7 +6,7 @@ import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/sheets_and_dialogs.dart';
 import '../../sessions/data/sessions_providers.dart';
 import 'new_session_sheet.dart';
-import '../workspace_controller.dart';
+import '../session_controller.dart';
 import 'session_list_item.dart';
 
 /// Session Selector（§10/§11）：Modal Bottom Sheet，快速切换，RUNNING / RECENT 分组。
@@ -29,7 +29,7 @@ class SessionSelectorSheet extends ConsumerWidget {
     final theme = ShadTheme.of(context);
     final scheme = theme.colorScheme;
     final groups = ref.watch(sessionGroupsProvider);
-    final controller = ref.read(workspaceControllerProvider.notifier);
+    final controller = ref.read(sessionControllerProvider.notifier);
 
     // 边距 / 底部 safe area 由 showCortermSheet 统一提供。
     return Column(
