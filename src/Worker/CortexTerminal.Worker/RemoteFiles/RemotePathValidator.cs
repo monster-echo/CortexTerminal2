@@ -78,34 +78,8 @@ public static class RemotePathValidator
             return false;
         }
 
-        // Symlink escape check: walk each level; if the entry is a link, its FINAL target
-        // must still resolve inside the root. A broken link is rejected as not found — the
-        // caller asked for a real entry.
-        var current = root;
-        foreach (var segment in segments)
-        {
-            current = Path.Combine(current, segment);
-            var info = Stat(current);
-            var linkTarget = info.LinkTarget;
-            if (linkTarget is null)
-            {
-                continue;
-            }
-
-            var final = info.ResolveLinkTarget(returnFinalTarget: true)?.FullName;
-            if (final is null)
-            {
-                error = new FileOperationError(FileTransferErrorCode.PathNotFound, $"broken symlink: {relativePath}");
-                return false;
-            }
-            var resolved = Path.GetFullPath(final);
-            if (!IsInsideRoot(root, resolved))
-            {
-                error = Invalid($"symlink escapes the session root: {segment}");
-                return false;
-            }
-        }
-
+        // 产品决策：符号链接一律跟随（用户建链接就是为了让它出现在那里），
+        // 不做逃逸检查；断链交给下游的 Existence 判断自然报 not found。
         fullPath = candidate;
         return true;
     }

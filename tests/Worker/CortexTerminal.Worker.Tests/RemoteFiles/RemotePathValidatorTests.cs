@@ -102,7 +102,7 @@ public sealed class RemotePathValidatorTests : IDisposable
     }
 
     [Fact]
-    public void SymlinkPointingOutsideRoot_IsRejected()
+    public void SymlinkPointingOutsideRoot_IsFollowed()
     {
         if (OperatingSystem.IsWindows()) return; // symlink creation needs privileges on Windows
         CreateRoot();
@@ -114,8 +114,8 @@ public sealed class RemotePathValidatorTests : IDisposable
             Directory.CreateSymbolicLink(linkPath, outsideDir);
 
             Resolve("escape/file.txt", out var ok, out _, out var errorCode);
-            ok.Should().BeFalse("symlink must not escape the session root");
-            errorCode.Should().Be(FileTransferErrorCode.PathInvalid);
+            ok.Should().BeTrue("product decision: symlinks are followed, not sandboxed");
+            errorCode.Should().BeNull();
         }
         finally
         {

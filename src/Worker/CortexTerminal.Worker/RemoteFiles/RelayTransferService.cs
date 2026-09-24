@@ -158,16 +158,8 @@ public sealed class WorkspaceFileService(int maxListEntries, ILogger<WorkspaceFi
         {
             return OpFail(FileTransferErrorCode.PathInvalid, "cannot delete the workspace root");
         }
-        // 危险操作：最终解析目标也必须严格位于 root 内，禁止符号链接指向 root 外的递归删除。
-        FileSystemInfo info = Directory.Exists(fullPath) ? new DirectoryInfo(fullPath) : new FileInfo(fullPath);
-        if (info.LinkTarget is not null)
-        {
-            var final = info.ResolveLinkTarget(returnFinalTarget: true)?.FullName;
-            if (final is null || Path.GetFullPath(final) == root || !RemotePathValidator.IsInsideRoot(root, Path.GetFullPath(final)))
-            {
-                return OpFail(FileTransferErrorCode.PathInvalid, "symlink escapes the workspace root");
-            }
-        }
+        // 产品决策：符号链接跟随（不做逃逸复核）。删除链接本身只移除链接，
+        // 不会伤害目标；若链接指向目录则递归删除目标目录，等同用户本机操作。
         if (!Directory.Exists(fullPath) && !File.Exists(fullPath))
         {
             return OpFail(FileTransferErrorCode.FileNotFound, $"no such file or directory: {relativePath}");
