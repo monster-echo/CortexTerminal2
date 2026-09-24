@@ -36,7 +36,8 @@ public class TildeRootTests
     [Fact]
     public void OutsideHome_StillRejected()
     {
-        var outside = Path.GetTempPath();
+        // home 的同级目录必然在 home 之外（GetTempPath 在 Windows 上位于 home 内，不可用）。
+        var outside = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(Home)!, "corterm-outside"));
         var ok = WorkspaceFileService.TryResolveWorkspaceDir(outside, out _, out var error);
         ok.Should().BeFalse();
         error!.Code.Should().Be(FileTransferErrorCode.AccessDenied);

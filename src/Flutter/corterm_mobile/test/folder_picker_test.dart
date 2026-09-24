@@ -4,11 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:corterm_mobile/app/theme/corterm_theme.dart';
-import 'package:corterm_mobile/core/models/worker.dart';
 import 'package:corterm_mobile/core/models/workspace.dart';
 import 'package:corterm_mobile/features/files/data/file_repository.dart';
 import 'package:corterm_mobile/features/sessions/data/sessions_providers.dart';
-import 'package:corterm_mobile/features/workers/data/workspace_repository.dart';
 import 'package:corterm_mobile/features/workspaces/data/workspace_providers.dart';
 import 'package:corterm_mobile/features/workspaces/presentation/folder_picker_screen.dart';
 import 'package:corterm_mobile/features/workspaces/presentation/new_workspace_screen.dart';

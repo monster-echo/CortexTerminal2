@@ -1,6 +1,5 @@
 import 'package:flutter/widgets.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
-import '../../app/theme/corterm_theme.dart';
 
 /// 官方品牌 logo（SVG 内嵌，flutter_svg 由 shadcn_ui 导出）。
 /// 仅登录页 OAuth 按钮使用；颜色固定品牌官方色，不随主题。

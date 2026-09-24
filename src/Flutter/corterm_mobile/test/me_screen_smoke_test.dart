@@ -6,8 +6,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:corterm_mobile/core/analytics/analytics_firebase.dart'
-    if (dart.library.js_interop) 'package:corterm_mobile/core/analytics/analytics_stub.dart';
 import 'package:corterm_mobile/core/auth/auth_controller.dart';
 import 'package:corterm_mobile/core/auth/token_store.dart';
 import 'package:corterm_mobile/app/theme/corterm_theme.dart';

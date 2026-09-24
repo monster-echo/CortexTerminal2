@@ -64,6 +64,9 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore tests/Worker/CortexTerminal.Worker.Tests/CortexTerminal.Worker.Tests.csproj
 
+      - name: Build tests
+        run: dotnet build tests/Worker/CortexTerminal.Worker.Tests/CortexTerminal.Worker.Tests.csproj --configuration Release --no-restore
+
       - name: Run Worker tests
         run: dotnet test tests/Worker/CortexTerminal.Worker.Tests --configuration Release --no-build --filter "Category!=Integration"
 
