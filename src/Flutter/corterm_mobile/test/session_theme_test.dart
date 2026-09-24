@@ -1,31 +1,53 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:xterm/xterm.dart';
 
-import 'package:corterm_mobile/app/theme/app_theme.dart';
+import 'package:corterm_mobile/app/theme/corterm_theme.dart';
 import 'package:corterm_mobile/app/theme/terminal_theme.dart';
 import 'package:corterm_mobile/core/models/session.dart';
 import 'package:corterm_mobile/core/storage/app_preferences.dart';
+import 'package:corterm_mobile/core/ws/terminal_socket.dart';
+import 'package:corterm_mobile/core/ws/ws_frames.dart';
 import 'package:corterm_mobile/features/sessions/data/session_repository.dart';
 import 'package:corterm_mobile/features/sessions/data/sessions_providers.dart';
-import 'package:corterm_mobile/features/session/widgets/more_actions_sheet.dart';
-import 'package:corterm_mobile/features/session/widgets/terminal_toolbar.dart';
+import 'package:corterm_mobile/features/session/presentation/session_terminal_screen.dart';
+import 'package:corterm_mobile/features/session/presentation/terminal_keyboard_toolbar.dart';
 import 'package:corterm_mobile/features/session/session_controller.dart';
-import 'package:corterm_mobile/features/session/session_screen.dart';
 import 'package:corterm_mobile/features/session/session_state.dart';
-import 'package:corterm_mobile/l10n/app_localizations.dart';
 
-/// 测试不建连：直接注入 state（socket 工厂只兜 AssertionError）。
+/// 测试不建真连：socket 工厂返回空帧流假 socket。
+class _FakeSocket implements TerminalSocket {
+  @override
+  Stream<ServerFrame> get frames => const Stream.empty();
+
+  @override
+  bool get closedByUs => false;
+
+  @override
+  bool get detachedByUs => false;
+
+  @override
+  bool get sessionNotFound => false;
+
+  @override
+  void forceClose() {}
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnimplementedError('${invocation.memberName}');
+}
+
 class _TestSessionController extends SessionController {
   _TestSessionController(AppPreferences prefs)
       : super(
           _NoopRepo(),
           ({required String sessionId, int sinceSeq = 0}) async =>
-              throw UnimplementedError('测试直接注入 state，不建立连接'),
+              _FakeSocket(),
           prefs,
         );
 
@@ -67,40 +89,42 @@ void main() {
     appPreferences = AppPreferences(sharedPreferences);
   });
 
-  /// App 主题固定浅色 —— Session 页必须依旧深色（§2/§3）。
+  /// Light App Context 全局浅色 —— Session 页必须依旧深色（design/00 §4）。
   Widget harness(
     SessionController controller, {
     double keyboardInset = 0,
   }) {
+    final router = GoRouter(
+      initialLocation: '/s',
+      routes: [
+        GoRoute(
+          path: '/s',
+          builder: (_, _) => const SessionTerminalScreen(sessionId: 's1'),
+        ),
+      ],
+    );
     return ProviderScope(
       overrides: [
         sharedPreferencesProvider.overrideWithValue(sharedPreferences),
         sessionControllerProvider.overrideWith((ref) => controller),
         sessionsProvider.overrideWith((ref) async => [_session()]),
       ],
-      child: ShadApp(
-        theme: shadLightTheme(),
-        darkTheme: shadDarkTheme(),
-        themeMode: ThemeMode.light,
-        localizationsDelegates: const [
-          AppLocalizations.delegate,
-          GlobalMaterialLocalizations.delegate,
-          GlobalWidgetsLocalizations.delegate,
-          GlobalCupertinoLocalizations.delegate,
-        ],
-        supportedLocales: const [Locale('en'), Locale('zh')],
-        debugShowCheckedModeBanner: false,
+      child: MaterialApp.router(
+        theme: ThemeData(
+          useMaterial3: true,
+          extensions: const [CortermColors.light],
+        ),
+        routerConfig: router,
         builder: (context, child) => MediaQuery(
           data: MediaQuery.of(context)
               .copyWith(viewInsets: EdgeInsets.only(bottom: keyboardInset)),
           child: child!,
         ),
-        home: const SessionScreen(),
       ),
     );
   }
 
-  SessionController controllerWithLiveSession() {
+  SessionController controllerWithSession() {
     final entry = SessionTerminalState(
       terminal: Terminal(maxLines: 200),
       epoch: 0,
@@ -119,110 +143,61 @@ void main() {
     return controller;
   }
 
-  testWidgets('软键盘弹出时键盘工具栏出现在键盘上方（不再被键盘遮住）', (tester) async {
+  testWidgets('软键盘弹出时键盘工具栏出现在键盘上方（design/04 §3）', (tester) async {
     tester.view.physicalSize = _phone * 3;
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
 
-    final controller = controllerWithLiveSession();
+    final controller = controllerWithSession();
 
     await tester.pumpWidget(harness(controller, keyboardInset: _keyboardInset));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 200));
 
-    final toolbar = find.byType(TerminalToolbar);
+    final toolbar = find.byType(TerminalKeyboardToolbar);
     expect(toolbar, findsOneWidget);
 
     final rect = tester.getRect(toolbar);
-    expect(rect.height, TerminalToolbar.height);
-    // 键盘顶边 = 视口高 - viewInsets.bottom；工具栏必须整体在其上方。
-    expect(rect.bottom, lessThanOrEqualTo(_phone.height - _keyboardInset));
+    expect(rect.height, TerminalKeyboardToolbar.height);
+    // 工具栏悬浮在键盘正上方（overlay，不挤占终端区）。
+    expect(rect.bottom, _phone.height - _keyboardInset);
     expect(rect.top, greaterThanOrEqualTo(0));
-    // 终端区被工具栏挤到键盘正上方。
+    // 终端区贴到键盘顶边。
     expect(
       tester.getRect(find.byType(TerminalView)).bottom,
-      _phone.height - _keyboardInset - TerminalToolbar.height,
+      _phone.height - _keyboardInset,
     );
   });
 
-  testWidgets('无软键盘时工具栏收起，终端占满', (tester) async {
+  testWidgets('无软键盘时工具栏收起，终端占满（design/04 §2）', (tester) async {
     tester.view.physicalSize = _phone * 3;
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
 
-    final controller = controllerWithLiveSession();
+    final controller = controllerWithSession();
 
     await tester.pumpWidget(harness(controller));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 200));
 
-    // heightFactor 0：工具栏折叠为 0 高，终端区直接贴到视口底部。
-    expect(find.byType(TerminalToolbar), findsOneWidget);
+    expect(find.byType(TerminalKeyboardToolbar), findsNothing);
     expect(tester.getRect(find.byType(TerminalView)).bottom, _phone.height);
   });
 
-  testWidgets('App 浅色时 Session 页面页头/工具栏跟随终端配色（浅色终端主题）', (tester) async {
+  testWidgets('Session 页固定 Dark Tool Context：深色 Scaffold + 深色终端配色', (tester) async {
     tester.view.physicalSize = _phone * 3;
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
 
-    final controller = controllerWithLiveSession();
+    final controller = controllerWithSession();
 
     await tester.pumpWidget(harness(controller));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 200));
 
-    final pageContext = tester.element(find.byType(TerminalToolbar));
-    expect(ShadTheme.of(pageContext).brightness, Brightness.light);
-    expect(Theme.of(pageContext).brightness, Brightness.light);
-    // 页头/工具栏底色 = 终端主题底色，而非 App light/dark 背景。
-    final appBar = tester.widget<AppBar>(find.byType(AppBar));
-    expect(appBar.backgroundColor, cortermTerminalLightTheme.background);
-    final toolbar = tester.widget<TerminalToolbar>(find.byType(TerminalToolbar));
-    expect(toolbar.terminalBackground, cortermTerminalLightTheme.background);
-    expect(toolbar.terminalForeground, cortermTerminalLightTheme.foreground);
-
-    // 右上角 ⋯ → More Actions sheet 同样跟随浅色（sheet 走独立路由，
-    // 但主题来自 ShadApp 的 themeMode，无需再单独强制）。
-    await tester.tap(find.byIcon(LucideIcons.ellipsis));
-    await tester.pumpAndSettle();
-
-    expect(find.byType(MoreActionsSheet), findsOneWidget);
-    final sheetContext = tester.element(find.byType(MoreActionsSheet));
-    expect(ShadTheme.of(sheetContext).brightness, Brightness.light);
-    expect(Theme.of(sheetContext).brightness, Brightness.light);
-  });
-
-  testWidgets('终端主题 system 模式跟随 App：浅色 App 下终端用浅色配色', (tester) async {
-    tester.view.physicalSize = _phone * 3;
-    tester.view.devicePixelRatio = 3;
-    addTearDown(tester.view.reset);
-
-    final controller = controllerWithLiveSession();
-
-    await tester.pumpWidget(harness(controller));
-    await tester.pumpAndSettle();
+    final context = tester.element(find.byType(TerminalView));
+    expect(Theme.of(context).brightness, Brightness.dark);
+    expect(Theme.of(context).scaffoldBackgroundColor,
+        CortermColors.darkTool.background);
 
     final view = tester.widget<TerminalView>(find.byType(TerminalView));
-    // resolveTerminalTheme 每次按档案新建实例，按值断言背景色。
-    expect(
-      view.theme.background,
-      cortermTerminalLightTheme.background,
-    );
-  });
-
-  testWidgets('终端主题固定 dark：浅色 App 下终端仍是深色配色', (tester) async {
-    tester.view.physicalSize = _phone * 3;
-    tester.view.devicePixelRatio = 3;
-    addTearDown(tester.view.reset);
-
-    await appPreferences.setTerminalThemeMode('dark');
-    final controller = controllerWithLiveSession();
-
-    await tester.pumpWidget(harness(controller));
-    await tester.pumpAndSettle();
-
-    final view = tester.widget<TerminalView>(find.byType(TerminalView));
-    expect(
-      view.theme.background,
-      cortermTerminalDarkTheme.background,
-    );
+    expect(view.theme.background, cortermTerminalDarkTheme.background);
   });
 }

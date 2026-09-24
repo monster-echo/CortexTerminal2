@@ -9,8 +9,9 @@ import '../core/net/connectivity_watcher.dart';
 import '../core/storage/app_preferences.dart';
 import '../features/sessions/data/sessions_providers.dart';
 import '../features/session/session_controller.dart';
+import 'theme/corterm_theme.dart';
 import 'router.dart';
-import 'theme/app_theme.dart';
+import 'theme/app_theme.dart' show shadLightTheme;
 
 /// App 根：ShadApp.router（shadcn 框架要求的根，内部桥接 go_router 与 l10n）。
 /// ShadToaster 提供全局 toast 通道（Sonner 风格反馈统一走它）。
@@ -43,7 +44,6 @@ class _CortermAppState extends ConsumerState<CortermApp> with WidgetsBindingObse
 
   @override
   Widget build(BuildContext context) {
-    final themeMode = ref.watch(themeModeProvider);
     final localeTag = ref.watch(localeProvider);
     final router = ref.watch(routerProvider);
 
@@ -60,9 +60,14 @@ class _CortermAppState extends ConsumerState<CortermApp> with WidgetsBindingObse
 
     return ShadApp.router(
       routerConfig: router,
+      // design/07：Light App Context 全局固定浅色；Dark Tool Context
+      // 由 Session/文件/端口转发页自行用 cortermDarkToolTheme 覆盖。
       theme: shadLightTheme(),
-      darkTheme: shadDarkTheme(),
-      themeMode: themeMode,
+      themeMode: ThemeMode.light,
+      materialThemeBuilder: (context, theme) => theme.copyWith(
+        scaffoldBackgroundColor: CortermColors.light.background,
+        extensions: const [CortermColors.light],
+      ),
       locale: (localeTag == null || localeTag.isEmpty) ? null : Locale(localeTag),
       localizationsDelegates: const [
         AppLocalizations.delegate,
