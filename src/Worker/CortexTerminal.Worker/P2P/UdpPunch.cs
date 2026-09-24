@@ -75,7 +75,6 @@ public static class UdpPunch
                 catch (SocketException ex)
                     when (!ct.IsCancellationRequested
                           && ex.SocketErrorCode is SocketError.ConnectionReset
-                              or SocketError.IcmpUnreachablePortUnreachable
                               or SocketError.NetworkReset)
                 {
                     // Windows：对端不可达的 ICMP 会让未完成的 ReceiveAsync 抛
