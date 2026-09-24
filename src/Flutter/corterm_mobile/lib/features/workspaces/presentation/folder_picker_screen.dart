@@ -20,25 +20,22 @@ class FolderPickerScreen extends ConsumerStatefulWidget {
 }
 
 class _FolderPickerScreenState extends ConsumerState<FolderPickerScreen> {
-  /// 浏览根：沿用旧选文件夹逻辑——该电脑默认工作区根（即 home），否则任一工作区根。
-  /// 找不到任何起点时如实报错，不猜。
-  String? _startRoot(List<Workspace> workspaces) {
+  /// 浏览根：该电脑已有工作区时用其根；否则用 "~"（worker 端展开为 home，
+  /// design/02 §4——新建首个工作区时也能浏览）。
+  String _startRoot(List<Workspace> workspaces) {
     final mine =
         workspaces.where((w) => w.workerId == widget.workerId).toList();
     return (mine.where((w) => w.isDefault).firstOrNull ?? mine.firstOrNull)
-        ?.rootPath;
+            ?.rootPath ??
+        '~';
   }
 
   String _rel = '';
-  late final String? _root =
+  late final String _root =
       _startRoot(ref.read(workspacesProvider).value ?? const <Workspace>[]);
   late Future<FileListing> _future = _load();
 
   Future<FileListing> _load() {
-    if (_root == null) {
-      return Future.error(
-          StateError('无法定位浏览起点：该电脑尚无工作区根目录'));
-    }
     return ref.read(fileRepositoryProvider).listForWorker(
           workerId: widget.workerId,
           root: _root,
@@ -54,7 +51,7 @@ class _FolderPickerScreenState extends ConsumerState<FolderPickerScreen> {
   }
 
   String get _absolute {
-    final root = _root!;
+    final root = _root;
     final trimmed =
         root.endsWith('/') && root.length > 1 ? root.substring(0, root.length - 1) : root;
     return _rel.isEmpty ? trimmed : '$trimmed/$_rel';
@@ -81,19 +78,17 @@ class _FolderPickerScreenState extends ConsumerState<FolderPickerScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
             child: Text(
-              _root == null ? '无法定位浏览起点：该电脑尚无工作区根目录' : _absolute,
+              _absolute,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontSize: 12,
-                color: _root == null ? colors.danger : colors.textSecondary,
+                color: colors.textSecondary,
               ),
             ),
           ),
           Expanded(
-            child: _root == null
-                ? const SizedBox.shrink()
-                : FutureBuilder<FileListing>(
+            child: FutureBuilder<FileListing>(
                     future: _future,
                     builder: (context, snap) {
                       if (snap.connectionState != ConnectionState.done) {
@@ -149,9 +144,7 @@ class _FolderPickerScreenState extends ConsumerState<FolderPickerScreen> {
               padding: const EdgeInsets.all(16),
               child: PrimaryButton(
                 label: '使用当前文件夹',
-                onPressed: _root == null
-                    ? null
-                    : () => Navigator.pop(context, _absolute),
+                onPressed: () => Navigator.pop(context, _absolute),
               ),
             ),
           ),

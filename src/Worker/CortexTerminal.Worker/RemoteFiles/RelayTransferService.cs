@@ -233,9 +233,13 @@ public sealed class WorkspaceFileService(int maxListEntries, ILogger<WorkspaceFi
         }
 
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        var candidate = Path.IsPathRooted(rootPath)
-            ? rootPath
-            : Path.GetFullPath(Path.Combine(home, rootPath));
+        // "~" / "~/..." = 用户 home（新建工作区前的文件夹浏览起点，design/02 §4）。
+        var expanded = rootPath == "~" || rootPath.StartsWith("~/")
+            ? Path.GetFullPath(Path.Combine(home, rootPath[1..].TrimStart('/')))
+            : rootPath;
+        var candidate = Path.IsPathRooted(expanded)
+            ? expanded
+            : Path.GetFullPath(Path.Combine(home, expanded));
 
         var fullHome = Path.GetFullPath(home);
         if (!candidate.StartsWith(fullHome, StringComparison.Ordinal))
