@@ -17,7 +17,6 @@ class PreferencesScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
-    final themeMode = ref.watch(themeModeProvider);
     final terminalThemeSelection = ref.watch(terminalThemeSelectionProvider);
     final customThemes = ref.watch(customTerminalThemesProvider);
     final localeTag = ref.watch(localeProvider);
@@ -29,25 +28,7 @@ class PreferencesScreen extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         children: [
           AppGroupCard(children: [
-            AppRow(
-              icon: LucideIcons.contrast,
-              label: l10n.appearance,
-              trailing: ShadSelect<ThemeMode>(
-                initialValue: themeMode,
-                options: [
-                  ShadOption(value: ThemeMode.system, child: Text(l10n.appearanceSystem)),
-                  ShadOption(value: ThemeMode.light, child: Text(l10n.appearanceLight)),
-                  ShadOption(value: ThemeMode.dark, child: Text(l10n.appearanceDark)),
-                ],
-                selectedOptionBuilder: (context, value) => Text(switch (value) {
-                  ThemeMode.light => l10n.appearanceLight,
-                  ThemeMode.dark => l10n.appearanceDark,
-                  ThemeMode.system => l10n.appearanceSystem,
-                }),
-                onChanged: (v) =>
-                    v == null ? null : ref.read(themeModeProvider.notifier).set(v),
-              ),
-            ),
+            // 外观主题固定 Light（design/07 Light App Context），不提供切换。
             AppRow(
               icon: LucideIcons.terminal,
               label: l10n.terminalTheme,

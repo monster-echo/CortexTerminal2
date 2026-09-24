@@ -162,6 +162,13 @@ class _SessionTerminalScreenState extends ConsumerState<SessionTerminalScreen> {
         .where((s) => s.sessionId == widget.sessionId)
         .firstOrNull;
     final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
+    final fontSize = ref.watch(fontSizeProvider);
+    // Dark Tool Context 固定深色环境下解析终端配色（followApp → 深色预设）。
+    final terminalTheme = resolveTerminalTheme(
+      selection: ref.watch(terminalThemeSelectionProvider),
+      brightness: Brightness.dark,
+      customThemes: ref.watch(customTerminalThemesProvider),
+    );
 
     return Theme(
       data: cortermDarkToolTheme(),
@@ -182,9 +189,9 @@ class _SessionTerminalScreenState extends ConsumerState<SessionTerminalScreen> {
                       key: ValueKey('term-${widget.sessionId}-${entry.epoch}'),
                       entry.terminal,
                       controller: _terminalController,
-                      theme: cortermTerminalDarkTheme,
-                      textStyle: const TerminalStyle(
-                        fontSize: 14,
+                      theme: terminalTheme,
+                      textStyle: TerminalStyle(
+                        fontSize: fontSize,
                         fontFamily: 'packages/shadcn_ui/GeistMono',
                       ),
                       readOnly: !entry.canInput,
@@ -217,6 +224,14 @@ class _SessionTerminalScreenState extends ConsumerState<SessionTerminalScreen> {
                       left: 0,
                       right: 0,
                       child: Center(child: _OverlayPill(text: '正在重新连接…')),
+                    ),
+                  if (entry.connState == TerminalConnState.workerOffline)
+                    Positioned(
+                      top: MediaQuery.paddingOf(context).top + 56,
+                      left: 0,
+                      right: 0,
+                      child: Center(
+                          child: _OverlayPill(text: '电脑已离线，等待其上线…')),
                     ),
                   if (_isDead(entry.connState))
                     Positioned(

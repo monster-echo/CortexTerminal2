@@ -88,4 +88,37 @@ public sealed class TunnelRegistryTests
         await reg.RevokeAsync(a.Id, "u");
         (await reg.CountActiveForSessionAsync("s")).Should().Be(1);
     }
+
+    [Fact]
+    public async Task Workspace_scoped_create_list_count_and_update()
+    {
+        var reg = await NewRegistryAsync("tun_ws");
+
+        var created = await reg.CreateAsync(
+            "k1", "h", "u1", "w", "c", sessionId: "",
+            port: 3000, ttl: TimeSpan.FromHours(1),
+            workspaceId: "ws1", name: "web", localPort: 8080, remoteAddress: "127.0.0.1");
+
+        created.WorkspaceId.Should().Be("ws1");
+        created.Name.Should().Be("web");
+        created.LocalPort.Should().Be(8080);
+        created.RemoteAddress.Should().Be("127.0.0.1");
+
+        // session 过滤不受 workspace 规则影响（SessionId 留空不会命中）
+        (await reg.ListForSessionAsync("s1", "u1")).Should().BeEmpty();
+        (await reg.ListForWorkspaceAsync("ws1", "u1")).Should().ContainSingle();
+        (await reg.ListForWorkspaceAsync("ws2", "u1")).Should().BeEmpty();
+        (await reg.CountActiveForWorkspaceAsync("ws1")).Should().Be(1);
+
+        var updated = await reg.UpdateAsync(created.Id, "u1",
+            name: "", localPort: 9090, remoteAddress: "10.0.0.2", remotePort: 5432);
+        updated.Should().NotBeNull();
+        updated!.Name.Should().BeNull();
+        updated.LocalPort.Should().Be(9090);
+        updated.RemoteAddress.Should().Be("10.0.0.2");
+        updated.Port.Should().Be(5432);
+
+        (await reg.UpdateAsync(created.Id, "other-user", name: "x", localPort: null, remoteAddress: null, remotePort: null))
+            .Should().BeNull();
+    }
 }

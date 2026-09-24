@@ -134,6 +134,7 @@ class _DiagnosticsScreenState extends ConsumerState<DiagnosticsScreen> {
                     TerminalConnState.connecting => l10n.connConnecting,
                     TerminalConnState.replaying => l10n.connReplaying,
                     TerminalConnState.reconnecting => l10n.connReconnecting,
+                    TerminalConnState.workerOffline => '电脑离线',
                     TerminalConnState.idle => l10n.connIdle,
                     TerminalConnState.exited => l10n.connExited,
                     TerminalConnState.error =>

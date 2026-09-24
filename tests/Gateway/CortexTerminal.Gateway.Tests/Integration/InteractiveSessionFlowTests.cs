@@ -270,6 +270,10 @@ public sealed class InteractiveSessionFlowTests : IClassFixture<GatewayApplicati
 
         public Task<CortexTerminal.Contracts.Sessions.FileListingResult> ListFilesAsync(string workerConnectionId, string rootDir, string relativePath, CancellationToken cancellationToken)
             => Task.FromResult(new CortexTerminal.Contracts.Sessions.FileListingResult(null, new CortexTerminal.Contracts.Sessions.FileOperationError(CortexTerminal.Contracts.Sessions.FileTransferErrorCode.TransferFailed, "not supported")));
+        public Task<CortexTerminal.Contracts.Sessions.FileOpResult> MkdirAsync(string workerConnectionId, string rootDir, string relativePath, CancellationToken cancellationToken) => throw new NotImplementedException();
+        public Task<CortexTerminal.Contracts.Sessions.FileOpResult> WriteTextFileAsync(string workerConnectionId, string rootDir, string relativePath, string content, CancellationToken cancellationToken) => throw new NotImplementedException();
+        public Task<CortexTerminal.Contracts.Sessions.FileOpResult> RenameAsync(string workerConnectionId, string rootDir, string relativePath, string newName, CancellationToken cancellationToken) => throw new NotImplementedException();
+        public Task<CortexTerminal.Contracts.Sessions.FileOpResult> DeleteAsync(string workerConnectionId, string rootDir, string relativePath, CancellationToken cancellationToken) => throw new NotImplementedException();
 
                 public Task<CortexTerminal.Contracts.Streaming.ScrollbackDelta> RequestScrollbackSinceAsync(string workerConnectionId, string sessionId, long sinceSeq, CancellationToken cancellationToken)
             => Task.FromResult(new CortexTerminal.Contracts.Streaming.ScrollbackDelta(Gap: true, LastSeq: 0, Items: []));

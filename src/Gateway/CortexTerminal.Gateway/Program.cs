@@ -208,6 +208,17 @@ static string BuildTunnelUrl(TunnelOptions options, RelayOptions relay, string k
     return $"{relay.PublicUrl.TrimEnd('/')}{options.RoutePrefix}{key}/{query}";
 }
 
+// tunnel 视图组装：Port 即 worker 侧目标端口(remotePort)；Secret 仅创建响应非空；Running=创建即运行。
+static CortexTerminal.Contracts.Sessions.TunnelDto ToTunnelDto(
+    CortexTerminal.Gateway.Data.TunnelEntity t, string url, string? secret = null, bool portOpen = true)
+    => new(t.Id, t.TunnelKey, t.Port, t.SessionId, t.WorkerId, url, secret, t.ExpiresAtUtc, t.CreatedAtUtc,
+        PortOpen: portOpen,
+        Name: t.Name,
+        LocalPort: t.LocalPort,
+        RemoteAddress: t.RemoteAddress,
+        WorkspaceId: t.WorkspaceId.Length == 0 ? null : t.WorkspaceId,
+        Running: true);
+
 static string NormalizeVersion(string version)
     => System.Text.RegularExpressions.Regex.Replace(version, @"(\.0)+$", "");
 
@@ -2085,13 +2096,16 @@ app.MapPost("/api/me/sessions/{sessionId}/tunnels", async (
         workerConnectionId: worker.ConnectionId,
         sessionId: sessionId,
         port: body.Port,
-        ttl: options.DefaultTtl);
+        ttl: options.DefaultTtl,
+        workspaceId: "",
+        name: null,
+        localPort: body.Port,
+        remoteAddress: "127.0.0.1");
 
     auditLog.Record(httpContext.CreateAuditEntry(userId, userId, "tunnel.created", "tunnel", entity.Id));
 
     var url = BuildTunnelUrl(options, relayOptions.Value, key, secret);
-    return Results.Ok(new TunnelDto(entity.Id, entity.TunnelKey, entity.Port, entity.SessionId, entity.WorkerId,
-        url, secret, entity.ExpiresAtUtc, entity.CreatedAtUtc, PortOpen: probe.Open));
+    return Results.Ok(ToTunnelDto(entity, url, secret, probe.Open));
 }).RequireAuthorization();
 
 app.MapGet("/api/me/sessions/{sessionId}/tunnels", async (
@@ -2110,7 +2124,7 @@ app.MapGet("/api/me/sessions/{sessionId}/tunnels", async (
         return Results.Forbid();
     var list = await tunnelRegistry.ListForSessionAsync(sessionId, userId);
     return Results.Ok(new TunnelListResponse(
-        list.Select(t => new TunnelDto(t.Id, t.TunnelKey, t.Port, t.SessionId, t.WorkerId, BuildTunnelUrl(tunnelOptions.Value, relayOptions.Value, t.TunnelKey, null), null, t.ExpiresAtUtc, t.CreatedAtUtc)).ToList()));
+        list.Select(t => ToTunnelDto(t, BuildTunnelUrl(tunnelOptions.Value, relayOptions.Value, t.TunnelKey, null))).ToList()));
 }).RequireAuthorization();
 
 app.MapDelete("/api/me/tunnels/{tunnelId}", async (
@@ -2127,6 +2141,155 @@ app.MapDelete("/api/me/tunnels/{tunnelId}", async (
         return Results.NotFound();
     auditLog.Record(httpContext.CreateAuditEntry(userId, userId, "tunnel.revoked", "tunnel", tunnelId));
     return Results.NoContent();
+}).RequireAuthorization();
+
+// ---- Workspace 级端口转发（design/06：规则归属 Workspace，Session 入口只是快捷方式）----
+app.MapGet("/api/me/workspaces/{workspaceId}/tunnels", async (
+    string workspaceId,
+    ClaimsPrincipal user,
+    WorkspaceRegistry workspaces,
+    TunnelRegistry tunnelRegistry,
+    IOptions<TunnelOptions> tunnelOptions,
+    IOptions<RelayOptions> relayOptions) =>
+{
+    var userId = GetUserId(user);
+    try
+    {
+        await workspaces.GetOwnedAsync(userId, workspaceId);
+    }
+    catch (WorkspaceNotFoundException) { return Results.NotFound(new { error = "Workspace not found" }); }
+    catch (WorkspaceForbiddenException) { return Results.Forbid(); }
+
+    var list = await tunnelRegistry.ListForWorkspaceAsync(workspaceId, userId);
+    return Results.Ok(new TunnelListResponse(
+        list.Select(t => ToTunnelDto(t, BuildTunnelUrl(tunnelOptions.Value, relayOptions.Value, t.TunnelKey, null))).ToList()));
+}).RequireAuthorization();
+
+app.MapPost("/api/me/workspaces/{workspaceId}/tunnels", async (
+    string workspaceId,
+    WorkspaceCreateTunnelRequest body,
+    ClaimsPrincipal user,
+    WorkspaceRegistry workspaces,
+    IWorkerRegistry workers,
+    IWorkerCommandDispatcher workerCommands,
+    TunnelRegistry tunnelRegistry,
+    IOptions<TunnelOptions> tunnelOptions,
+    IOptions<RelayOptions> relayOptions,
+    IAuditLogStore auditLog,
+    HttpContext httpContext,
+    CancellationToken cancellationToken) =>
+{
+    var userId = GetUserId(user);
+    WorkspaceEntity workspace;
+    try
+    {
+        workspace = await workspaces.GetOwnedAsync(userId, workspaceId);
+    }
+    catch (WorkspaceNotFoundException) { return Results.NotFound(new { error = "Workspace not found" }); }
+    catch (WorkspaceForbiddenException) { return Results.Forbid(); }
+
+    if (!tunnelOptions.Value.Enabled)
+        return Results.Problem("Port forwarding is disabled.", statusCode: StatusCodes.Status503ServiceUnavailable);
+
+    if (body.LocalPort <= 0 || body.LocalPort > 65535 || body.RemotePort <= 0 || body.RemotePort > 65535)
+        return Results.BadRequest("Ports must be between 1 and 65535.");
+
+    var remoteAddress = string.IsNullOrWhiteSpace(body.RemoteAddress) ? "127.0.0.1" : body.RemoteAddress.Trim();
+    if (remoteAddress.Length > 255)
+        return Results.BadRequest("remoteAddress is too long.");
+
+    if (!workers.TryGetWorker(workspace.WorkerId, out var worker)
+        || (worker.OwnerUserId is not null && worker.OwnerUserId != userId))
+        return Results.Problem("Worker is offline.", statusCode: StatusCodes.Status503ServiceUnavailable);
+
+    var options = tunnelOptions.Value;
+    var active = await tunnelRegistry.CountActiveForWorkspaceAsync(workspaceId);
+    if (active >= options.MaxTunnelsPerSession)
+        return Results.Problem($"Tunnel quota reached ({options.MaxTunnelsPerSession} per workspace).", statusCode: StatusCodes.Status429TooManyRequests);
+
+    // 端口未监听不拦截创建：worker 侧会在访客请求时等待端口就绪（WaitPortTimeout），
+    // 这里只把 portOpen=false 带回给客户端做「服务未启动」提示。
+    var probe = await workerCommands.ProbeTunnelPortAsync(worker.ConnectionId, body.RemotePort, cancellationToken);
+
+    var secret = TunnelSecret.GenerateSecret();
+    var key = TunnelSecret.GenerateTunnelKey();
+    var entity = await tunnelRegistry.CreateAsync(
+        tunnelKey: key,
+        secretHash: TunnelSecret.Hash(secret),
+        ownerUserId: userId,
+        workerId: workspace.WorkerId,
+        workerConnectionId: worker.ConnectionId,
+        sessionId: "",
+        port: body.RemotePort,
+        ttl: options.DefaultTtl,
+        workspaceId: workspaceId,
+        name: string.IsNullOrWhiteSpace(body.Name) ? null : body.Name.Trim(),
+        localPort: body.LocalPort,
+        remoteAddress: remoteAddress);
+
+    auditLog.Record(httpContext.CreateAuditEntry(userId, userId, "tunnel.created", "tunnel", entity.Id));
+
+    var url = BuildTunnelUrl(options, relayOptions.Value, key, secret);
+    return Results.Ok(ToTunnelDto(entity, url, secret, probe.Open));
+}).RequireAuthorization();
+
+app.MapPatch("/api/me/workspaces/{workspaceId}/tunnels/{tunnelId}", async (
+    string workspaceId,
+    string tunnelId,
+    WorkspaceUpdateTunnelRequest body,
+    ClaimsPrincipal user,
+    WorkspaceRegistry workspaces,
+    IWorkerRegistry workers,
+    IWorkerCommandDispatcher workerCommands,
+    TunnelRegistry tunnelRegistry,
+    IOptions<TunnelOptions> tunnelOptions,
+    IOptions<RelayOptions> relayOptions,
+    IAuditLogStore auditLog,
+    HttpContext httpContext,
+    CancellationToken cancellationToken) =>
+{
+    var userId = GetUserId(user);
+    try
+    {
+        await workspaces.GetOwnedAsync(userId, workspaceId);
+    }
+    catch (WorkspaceNotFoundException) { return Results.NotFound(new { error = "Workspace not found" }); }
+    catch (WorkspaceForbiddenException) { return Results.Forbid(); }
+
+    var existing = await tunnelRegistry.FindOwnedAsync(tunnelId, userId);
+    if (existing is null || existing.WorkspaceId != workspaceId)
+        return Results.NotFound(new { error = "Tunnel not found" });
+
+    if ((body.LocalPort is not null && (body.LocalPort <= 0 || body.LocalPort > 65535))
+        || (body.RemotePort is not null && (body.RemotePort <= 0 || body.RemotePort > 65535)))
+        return Results.BadRequest("Ports must be between 1 and 65535.");
+
+    var targetChanged = body.RemoteAddress is not null || body.RemotePort is not null;
+    if (targetChanged)
+    {
+        if (!workers.TryGetWorker(existing.WorkerId, out var worker)
+            || (worker.OwnerUserId is not null && worker.OwnerUserId != userId))
+            return Results.Problem("Worker is offline.", statusCode: StatusCodes.Status503ServiceUnavailable);
+
+        // 目标端口/地址变化需要重新 probe（行为对齐创建：端口未监听不拦截编辑）。
+        await workerCommands.ProbeTunnelPortAsync(
+            worker.ConnectionId, body.RemotePort ?? existing.Port, cancellationToken);
+        existing = await tunnelRegistry.UpdateAsync(
+            tunnelId, userId, body.Name, body.LocalPort, body.RemoteAddress, body.RemotePort,
+            workerConnectionId: worker.ConnectionId);
+    }
+    else
+    {
+        existing = await tunnelRegistry.UpdateAsync(
+            tunnelId, userId, body.Name, body.LocalPort, body.RemoteAddress, body.RemotePort);
+    }
+
+    if (existing is null)
+        return Results.NotFound(new { error = "Tunnel not found" });
+
+    auditLog.Record(httpContext.CreateAuditEntry(userId, userId, "tunnel.updated", "tunnel", tunnelId));
+    var url = BuildTunnelUrl(tunnelOptions.Value, relayOptions.Value, existing.TunnelKey, null);
+    return Results.Ok(ToTunnelDto(existing, url));
 }).RequireAuthorization();
 
 app.MapDelete("/api/me/sessions/{sessionId}", async (
@@ -3173,6 +3336,55 @@ app.MapPost("/api/workspaces/{workspaceId}/files/downloads", async (string works
     catch (WorkspaceFileServiceException ex) { return MapFileError(ex); }
 }).RequireAuthorization();
 
+// ---- 工作区文件变更：mkdir / 写文本 / 重命名 / 删除（都走 Worker RPC，错误语义与上面一致）----
+app.MapPost("/api/workspaces/{workspaceId}/files/mkdir", async (string workspaceId, MkdirRequest body, ClaimsPrincipal user, RelayFileTransferService files) =>
+{
+    var userId = GetUserId(user);
+    try
+    {
+        await files.MkdirAsync(userId, workspaceId, body.Path, CancellationToken.None);
+        return Results.Ok();
+    }
+    catch (UnauthorizedAccessException) { return Results.Forbid(); }
+    catch (WorkspaceFileServiceException ex) { return MapFileError(ex); }
+}).RequireAuthorization();
+
+app.MapPost("/api/workspaces/{workspaceId}/files/write-text", async (string workspaceId, WriteTextRequest body, ClaimsPrincipal user, RelayFileTransferService files) =>
+{
+    var userId = GetUserId(user);
+    try
+    {
+        await files.WriteTextAsync(userId, workspaceId, body.Path, body.Content, CancellationToken.None);
+        return Results.Ok();
+    }
+    catch (UnauthorizedAccessException) { return Results.Forbid(); }
+    catch (WorkspaceFileServiceException ex) { return MapFileError(ex); }
+}).RequireAuthorization();
+
+app.MapPost("/api/workspaces/{workspaceId}/files/rename", async (string workspaceId, RenameRequest body, ClaimsPrincipal user, RelayFileTransferService files) =>
+{
+    var userId = GetUserId(user);
+    try
+    {
+        await files.RenameAsync(userId, workspaceId, body.Path, body.NewName, CancellationToken.None);
+        return Results.Ok();
+    }
+    catch (UnauthorizedAccessException) { return Results.Forbid(); }
+    catch (WorkspaceFileServiceException ex) { return MapFileError(ex); }
+}).RequireAuthorization();
+
+app.MapPost("/api/workspaces/{workspaceId}/files/delete", async (string workspaceId, DeleteRequest body, ClaimsPrincipal user, RelayFileTransferService files) =>
+{
+    var userId = GetUserId(user);
+    try
+    {
+        await files.DeleteAsync(userId, workspaceId, body.Path, CancellationToken.None);
+        return Results.Ok();
+    }
+    catch (UnauthorizedAccessException) { return Results.Forbid(); }
+    catch (WorkspaceFileServiceException ex) { return MapFileError(ex); }
+}).RequireAuthorization();
+
 // ---- 终端文件浏览（root = 客户端给出的绝对路径：OSC 7 实时 cwd 或工作区路径）----
 app.MapGet("/api/workers/{workerId}/files", async (string workerId, string root, string? path, ClaimsPrincipal user, RelayFileTransferService files) =>
 {
@@ -3226,7 +3438,7 @@ app.MapGet("/internal/tunnels/{tunnelKey}", async (string tunnelKey, HttpContext
     {
         return Results.Json(new { error = "tunnel expired" }, statusCode: StatusCodes.Status410Gone);
     }
-    return Results.Ok(new { tunnel.WorkerId, tunnel.Port, tunnel.SecretHash, tunnel.ExpiresAtUtc });
+    return Results.Ok(new { tunnel.WorkerId, tunnel.Port, tunnel.RemoteAddress, tunnel.SecretHash, tunnel.ExpiresAtUtc });
 }).AllowAnonymous();
 
 // ---- P2P 打洞中介（introducer）----
@@ -3591,6 +3803,14 @@ public sealed record PunchRegisterRequest(string Role, string Endpoint);
 public sealed record CreateFileUploadRequest(string DirPath, string Filename, long SizeBytes, string Sha256);
 
 public sealed record CreateFileDownloadRequest(string Path);
+
+public sealed record MkdirRequest(string Path);
+
+public sealed record WriteTextRequest(string Path, string Content);
+
+public sealed record RenameRequest(string Path, string NewName);
+
+public sealed record DeleteRequest(string Path);
 
 /// <summary>终端文件上传请求：root 为绝对路径（OSC 7 实时 cwd 或工作区路径），Worker 校验其不逃出 home。</summary>
 public sealed record WorkerFileUploadRequest(string Root, string DirPath, string Filename, long SizeBytes, string Sha256);

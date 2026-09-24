@@ -143,6 +143,10 @@ public sealed class SessionLaunchCoordinatorTests
 
         public Task<FileListingResult> ListFilesAsync(string workerConnectionId, string rootDir, string relativePath, CancellationToken cancellationToken)
             => Task.FromResult(new FileListingResult(null, new FileOperationError(FileTransferErrorCode.TransferFailed, "not supported")));
+        public Task<CortexTerminal.Contracts.Sessions.FileOpResult> MkdirAsync(string workerConnectionId, string rootDir, string relativePath, CancellationToken cancellationToken) => throw new NotImplementedException();
+        public Task<CortexTerminal.Contracts.Sessions.FileOpResult> WriteTextFileAsync(string workerConnectionId, string rootDir, string relativePath, string content, CancellationToken cancellationToken) => throw new NotImplementedException();
+        public Task<CortexTerminal.Contracts.Sessions.FileOpResult> RenameAsync(string workerConnectionId, string rootDir, string relativePath, string newName, CancellationToken cancellationToken) => throw new NotImplementedException();
+        public Task<CortexTerminal.Contracts.Sessions.FileOpResult> DeleteAsync(string workerConnectionId, string rootDir, string relativePath, CancellationToken cancellationToken) => throw new NotImplementedException();
 
                 public Task<ScrollbackDelta> RequestScrollbackSinceAsync(string workerConnectionId, string sessionId, long sinceSeq, CancellationToken cancellationToken)
             => Task.FromResult(new ScrollbackDelta(Gap: true, LastSeq: 0, Items: []));

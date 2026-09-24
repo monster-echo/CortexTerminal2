@@ -27,6 +27,175 @@ public sealed class WorkspaceFileService(int maxListEntries, ILogger<WorkspaceFi
         return new RemoteDirectoryLister(root, maxListEntries).List(relativePath);
     }
 
+    // ---- 文件变更（Gateway 的 Mkdir / WriteTextFile / Rename / Delete RPC）----
+    // 所有路径统一走 RemotePathValidator.TryResolve：词法 ".." 与符号链接逃逸一律拒绝，
+    // 解析后的绝对路径保证位于 root 内。删除前再做一次 root 边界复核（危险操作双保险）。
+
+    /// <summary>新建目录：仅创建最后一级，父级不存在报 path_invalid。</summary>
+    public FileOpResult Mkdir(string rootDir, string? relativePath)
+    {
+        if (!RemotePathValidator.TryResolve(rootDir, relativePath, out var fullPath, out var error))
+        {
+            return new FileOpResult(error);
+        }
+        if (Directory.Exists(fullPath) || File.Exists(fullPath))
+        {
+            return OpFail(FileTransferErrorCode.PathInvalid, $"path already exists: {relativePath}");
+        }
+        var parent = Path.GetDirectoryName(fullPath)!;
+        if (!Directory.Exists(parent))
+        {
+            return OpFail(FileTransferErrorCode.PathInvalid, $"parent directory does not exist: {relativePath}");
+        }
+
+        try
+        {
+            Directory.CreateDirectory(fullPath);
+            logger.LogInformation("Created directory {Path}.", fullPath);
+            return new FileOpResult(null);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to create directory {Path}.", fullPath);
+            return OpFail(FileTransferErrorCode.TransferFailed, ex.Message);
+        }
+    }
+
+    /// <summary>新建/覆盖文本文件（UTF-8）：父级目录必须已存在。</summary>
+    public FileOpResult WriteTextFile(string rootDir, string? relativePath, string? content)
+    {
+        if (!RemotePathValidator.TryResolve(rootDir, relativePath, out var fullPath, out var error))
+        {
+            return new FileOpResult(error);
+        }
+        if (relativePath is "" or ".")
+        {
+            return OpFail(FileTransferErrorCode.PathInvalid, "path is required");
+        }
+        if (Directory.Exists(fullPath))
+        {
+            return OpFail(FileTransferErrorCode.NotADirectory, $"path is a directory: {relativePath}");
+        }
+        var parent = Path.GetDirectoryName(fullPath)!;
+        if (!Directory.Exists(parent))
+        {
+            return OpFail(FileTransferErrorCode.PathNotFound, $"no such directory: {relativePath}");
+        }
+
+        try
+        {
+            File.WriteAllText(fullPath, content ?? string.Empty, Encoding.UTF8);
+            logger.LogInformation("Wrote text file {Path}.", fullPath);
+            return new FileOpResult(null);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to write text file {Path}.", fullPath);
+            return OpFail(FileTransferErrorCode.TransferFailed, ex.Message);
+        }
+    }
+
+    /// <summary>重命名文件或目录：newName 是单段文件名（RemoteFileNameValidator 校验），目标已存在则拒绝。</summary>
+    public FileOpResult Rename(string rootDir, string? relativePath, string? newName)
+    {
+        if (!RemoteFileNameValidator.TryValidateSegment(newName ?? string.Empty, out var nameReason))
+        {
+            return OpFail(FileTransferErrorCode.PathInvalid, nameReason);
+        }
+        if (!RemotePathValidator.TryResolve(rootDir, relativePath, out var fullPath, out var error))
+        {
+            return new FileOpResult(error);
+        }
+        if (relativePath is "" or ".")
+        {
+            return OpFail(FileTransferErrorCode.PathInvalid, "cannot rename the workspace root");
+        }
+        if (!Directory.Exists(fullPath) && !File.Exists(fullPath))
+        {
+            return OpFail(FileTransferErrorCode.FileNotFound, $"no such file or directory: {relativePath}");
+        }
+
+        var root = Path.GetFullPath(rootDir);
+        var target = Path.Combine(Path.GetDirectoryName(fullPath)!, newName!);
+        if (!RemotePathValidator.IsInsideRoot(root, Path.GetFullPath(target)))
+        {
+            return OpFail(FileTransferErrorCode.PathInvalid, "rename target escapes the workspace root");
+        }
+        if (Directory.Exists(target) || File.Exists(target))
+        {
+            return OpFail(FileTransferErrorCode.PathInvalid, $"target already exists: {newName}");
+        }
+
+        try
+        {
+            if (Directory.Exists(fullPath))
+            {
+                Directory.Move(fullPath, target);
+            }
+            else
+            {
+                File.Move(fullPath, target);
+            }
+            logger.LogInformation("Renamed {From} to {To}.", fullPath, target);
+            return new FileOpResult(null);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to rename {Path}.", fullPath);
+            return OpFail(FileTransferErrorCode.TransferFailed, ex.Message);
+        }
+    }
+
+    /// <summary>删除文件或目录（目录递归删除）：路径严格限制在 root 内，符号链接最终目标也必须在 root 内。</summary>
+    public FileOpResult Delete(string rootDir, string? relativePath)
+    {
+        if (!RemotePathValidator.TryResolve(rootDir, relativePath, out var fullPath, out var error))
+        {
+            return new FileOpResult(error);
+        }
+        var root = Path.GetFullPath(rootDir);
+        if (fullPath == root || !RemotePathValidator.IsInsideRoot(root, fullPath))
+        {
+            return OpFail(FileTransferErrorCode.PathInvalid, "cannot delete the workspace root");
+        }
+        // 危险操作：最终解析目标也必须严格位于 root 内，禁止符号链接指向 root 外的递归删除。
+        FileSystemInfo info = Directory.Exists(fullPath) ? new DirectoryInfo(fullPath) : new FileInfo(fullPath);
+        if (info.LinkTarget is not null)
+        {
+            var final = info.ResolveLinkTarget(returnFinalTarget: true)?.FullName;
+            if (final is null || Path.GetFullPath(final) == root || !RemotePathValidator.IsInsideRoot(root, Path.GetFullPath(final)))
+            {
+                return OpFail(FileTransferErrorCode.PathInvalid, "symlink escapes the workspace root");
+            }
+        }
+        if (!Directory.Exists(fullPath) && !File.Exists(fullPath))
+        {
+            return OpFail(FileTransferErrorCode.FileNotFound, $"no such file or directory: {relativePath}");
+        }
+
+        try
+        {
+            if (Directory.Exists(fullPath))
+            {
+                Directory.Delete(fullPath, recursive: true);
+            }
+            else
+            {
+                File.Delete(fullPath);
+            }
+            logger.LogInformation("Deleted {Path}.", fullPath);
+            return new FileOpResult(null);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to delete {Path}.", fullPath);
+            return OpFail(FileTransferErrorCode.TransferFailed, ex.Message);
+        }
+    }
+
+    private static FileOpResult OpFail(string code, string message)
+        => new(new FileOperationError(code, message));
+
     public WorkspaceDirectoryAck CreateWorkspaceDirectory(CreateWorkspaceDirectoryCommand command)
     {
         if (!TryResolveWorkspaceDir(command.RootPath, out var dirPath, out var error))

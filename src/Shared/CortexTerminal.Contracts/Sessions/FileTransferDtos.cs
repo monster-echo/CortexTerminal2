@@ -34,6 +34,16 @@ public sealed record FileListingResult(
     [property: Key(0)] FileListing? Listing,
     [property: Key(1)] FileOperationError? Error);
 
+/// <summary>
+/// Result envelope for the Gateway→Worker file mutation invokes ("Mkdir" /
+/// "WriteTextFile" / "Rename" / "Delete"): a null Error means the operation succeeded.
+/// Same shape philosophy as <see cref="FileListingResult"/> — structured failures travel
+/// in-band so the phone always receives a mappable error code.
+/// </summary>
+[MessagePackObject]
+public sealed record FileOpResult(
+    [property: Key(0)] FileOperationError? Error);
+
 [MessagePackObject]
 public sealed record FileOperationAck(
     [property: Key(0)] bool Success,

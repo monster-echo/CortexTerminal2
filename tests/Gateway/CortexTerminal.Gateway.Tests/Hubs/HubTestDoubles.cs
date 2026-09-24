@@ -103,6 +103,14 @@ internal class NoOpWorkerCommandDispatcher : IWorkerCommandDispatcher
         => Task.FromResult(new ScrollbackDelta(Gap: true, LastSeq: 0, Items: []));
     public Task<FileListingResult> ListFilesAsync(string workerConnectionId, string rootDir, string relativePath, CancellationToken cancellationToken)
         => Task.FromResult(new FileListingResult(null, new FileOperationError(FileTransferErrorCode.TransferFailed, "no-op dispatcher")));
+    public virtual Task<FileOpResult> MkdirAsync(string workerConnectionId, string rootDir, string relativePath, CancellationToken cancellationToken)
+        => Task.FromResult(new FileOpResult(new FileOperationError(FileTransferErrorCode.TransferFailed, "no-op dispatcher")));
+    public virtual Task<FileOpResult> WriteTextFileAsync(string workerConnectionId, string rootDir, string relativePath, string content, CancellationToken cancellationToken)
+        => Task.FromResult(new FileOpResult(new FileOperationError(FileTransferErrorCode.TransferFailed, "no-op dispatcher")));
+    public virtual Task<FileOpResult> RenameAsync(string workerConnectionId, string rootDir, string relativePath, string newName, CancellationToken cancellationToken)
+        => Task.FromResult(new FileOpResult(new FileOperationError(FileTransferErrorCode.TransferFailed, "no-op dispatcher")));
+    public virtual Task<FileOpResult> DeleteAsync(string workerConnectionId, string rootDir, string relativePath, CancellationToken cancellationToken)
+        => Task.FromResult(new FileOpResult(new FileOperationError(FileTransferErrorCode.TransferFailed, "no-op dispatcher")));
     public virtual Task<FileOperationAck> PrepareFileReceiveAsync(string workerConnectionId, PrepareFileReceiveCommand command, CancellationToken cancellationToken)
         => Task.FromResult(new FileOperationAck(false, new FileOperationError(FileTransferErrorCode.TransferFailed, "no-op dispatcher")));
     public Task<PrepareFileSendAck> PrepareFileSendAsync(string workerConnectionId, PrepareFileSendCommand command, CancellationToken cancellationToken)
@@ -183,6 +191,14 @@ internal sealed class ThrowingWorkerCommandDispatcher(string message) : IWorkerC
         => Task.FromException<ScrollbackDelta>(new InvalidOperationException(message));
     public Task<FileListingResult> ListFilesAsync(string workerConnectionId, string rootDir, string relativePath, CancellationToken cancellationToken)
         => Task.FromException<FileListingResult>(new InvalidOperationException(message));
+    public Task<FileOpResult> MkdirAsync(string workerConnectionId, string rootDir, string relativePath, CancellationToken cancellationToken)
+        => Task.FromException<FileOpResult>(new InvalidOperationException(message));
+    public Task<FileOpResult> WriteTextFileAsync(string workerConnectionId, string rootDir, string relativePath, string content, CancellationToken cancellationToken)
+        => Task.FromException<FileOpResult>(new InvalidOperationException(message));
+    public Task<FileOpResult> RenameAsync(string workerConnectionId, string rootDir, string relativePath, string newName, CancellationToken cancellationToken)
+        => Task.FromException<FileOpResult>(new InvalidOperationException(message));
+    public Task<FileOpResult> DeleteAsync(string workerConnectionId, string rootDir, string relativePath, CancellationToken cancellationToken)
+        => Task.FromException<FileOpResult>(new InvalidOperationException(message));
     public Task<FileOperationAck> PrepareFileReceiveAsync(string workerConnectionId, PrepareFileReceiveCommand command, CancellationToken cancellationToken)
         => Task.FromException<FileOperationAck>(new InvalidOperationException(message));
     public Task<PrepareFileSendAck> PrepareFileSendAsync(string workerConnectionId, PrepareFileSendCommand command, CancellationToken cancellationToken)

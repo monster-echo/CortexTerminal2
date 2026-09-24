@@ -3,14 +3,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/theme/corterm_theme.dart';
-import '../../../core/models/session.dart';
 import '../../../shared/widgets/corterm_ui.dart';
 import '../../../shared/widgets/states.dart' show ErrorState, showAppToast;
 import '../../tunnels/data/tunnel_repository.dart';
-import '../../workspaces/data/workspace_providers.dart';
 
-/// 端口转发（Dark Tool Context，design/06）：后端隧道挂在 Session 上，
-/// 此页展示当前工作区所有运行中会话的隧道并集；开 = create，关 = revoke。
+/// 端口转发（Dark Tool Context，design/06）：规则归属 Workspace，
+/// 开 = 存在运行中的转发，关 = revoke（删除规则）。
 class PortForwardingScreen extends ConsumerStatefulWidget {
   const PortForwardingScreen({super.key, required this.workspaceId});
 
@@ -21,51 +19,33 @@ class PortForwardingScreen extends ConsumerStatefulWidget {
       _PortForwardingScreenState();
 }
 
-class _SessionTunnel {
-  _SessionTunnel(this.sessionId, this.sessionName, this.tunnel);
-  final String sessionId;
-  final String sessionName;
-  final TunnelSummary tunnel;
-}
-
 class _PortForwardingScreenState extends ConsumerState<PortForwardingScreen> {
-  late List<String> _runningIds;
-  late Future<List<_SessionTunnel>> _future = _load();
+  late Future<List<TunnelSummary>> _future = _load();
 
   bool _busy = false;
 
-  @override
-  void initState() {
-    super.initState();
-    final sessions = ref.read(workspaceSessionsProvider(widget.workspaceId));
-    _runningIds =
-        sessions.where((s) => s.status.isRunning).map((s) => s.sessionId).toList();
-  }
-
-  Future<List<_SessionTunnel>> _load() async {
-    final sessions = ref.read(workspaceSessionsProvider(widget.workspaceId));
-    final running = sessions.where((s) => s.status.isRunning).toList();
-    final results = await Future.wait(
-      running.map((s) => ref.read(tunnelRepositoryProvider).list(s.sessionId)),
-    );
-    return [
-      for (final (i, tunnels) in results.indexed)
-        for (final t in tunnels)
-          _SessionTunnel(running[i].sessionId, running[i].displayName, t),
-    ];
-  }
+  Future<List<TunnelSummary>> _load() =>
+      ref.read(tunnelRepositoryProvider).list(widget.workspaceId);
 
   Future<void> _refresh() async {
     setState(() => _future = _load());
     await _future;
   }
 
-  Future<void> _create(int port) async {
+  Future<void> _create({
+    String? name,
+    required int localPort,
+    required String remoteAddress,
+    required int remotePort,
+  }) async {
     setState(() => _busy = true);
     try {
       await ref.read(tunnelRepositoryProvider).create(
-            sessionId: _runningIds.first,
-            port: port,
+            workspaceId: widget.workspaceId,
+            name: name,
+            localPort: localPort,
+            remoteAddress: remoteAddress,
+            remotePort: remotePort,
           );
       if (!mounted) return;
       showAppToast(context, '转发已创建并启动');
@@ -77,10 +57,37 @@ class _PortForwardingScreenState extends ConsumerState<PortForwardingScreen> {
     }
   }
 
-  Future<void> _stop(_SessionTunnel st) async {
+  Future<void> _edit(
+    TunnelSummary t, {
+    String? name,
+    required int localPort,
+    required String remoteAddress,
+    required int remotePort,
+  }) async {
     setState(() => _busy = true);
     try {
-      await ref.read(tunnelRepositoryProvider).revoke(st.tunnel.tunnelId);
+      await ref.read(tunnelRepositoryProvider).update(
+            workspaceId: widget.workspaceId,
+            tunnelId: t.tunnelId,
+            name: name,
+            localPort: localPort,
+            remoteAddress: remoteAddress,
+            remotePort: remotePort,
+          );
+      if (!mounted) return;
+      showAppToast(context, '转发已更新');
+      await _refresh();
+    } catch (e) {
+      if (mounted) showAppToast(context, '更新失败：$e', destructive: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _stop(TunnelSummary t) async {
+    setState(() => _busy = true);
+    try {
+      await ref.read(tunnelRepositoryProvider).revoke(t.tunnelId);
       if (!mounted) return;
       showAppToast(context, '转发已停止');
       await _refresh();
@@ -91,7 +98,7 @@ class _PortForwardingScreenState extends ConsumerState<PortForwardingScreen> {
     }
   }
 
-  void _confirmDelete(_SessionTunnel st) {
+  void _confirmDelete(TunnelSummary t) {
     final c = colorsOf(context);
     showDialog<void>(
       context: context,
@@ -99,7 +106,7 @@ class _PortForwardingScreenState extends ConsumerState<PortForwardingScreen> {
         backgroundColor: c.surfaceElevated,
         title: Text('删除转发规则', style: TextStyle(color: c.textPrimary)),
         content: Text(
-          '端口 ${st.tunnel.port} 的转发将被删除，此操作不可撤销。',
+          '${t.name ?? '规则'}（${t.localPort} → ${t.remoteAddress}:${t.remotePort}）将被删除，此操作不可撤销。',
           style: TextStyle(color: c.textSecondary),
         ),
         actions: [
@@ -110,7 +117,7 @@ class _PortForwardingScreenState extends ConsumerState<PortForwardingScreen> {
           TextButton(
             onPressed: () {
               Navigator.of(dialogContext).pop();
-              _stop(st);
+              _stop(t);
             },
             child: Text('删除', style: TextStyle(color: c.danger)),
           ),
@@ -124,15 +131,28 @@ class _PortForwardingScreenState extends ConsumerState<PortForwardingScreen> {
     showAppToast(context, '地址已复制');
   }
 
-  void _showCreateSheet() {
+  void _showRuleSheet({TunnelSummary? existing}) {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: colorsOf(context).surface,
-      builder: (_) => _CreateSheet(
-        onSubmit: (port) {
+      builder: (_) => _RuleSheet(
+        existing: existing,
+        onSubmit: (name, localPort, remoteAddress, remotePort) {
           Navigator.of(context).pop();
-          _create(port);
+          if (existing != null) {
+            _edit(existing,
+                name: name,
+                localPort: localPort,
+                remoteAddress: remoteAddress,
+                remotePort: remotePort);
+          } else {
+            _create(
+                name: name,
+                localPort: localPort,
+                remoteAddress: remoteAddress,
+                remotePort: remotePort);
+          }
         },
       ),
     );
@@ -145,7 +165,6 @@ class _PortForwardingScreenState extends ConsumerState<PortForwardingScreen> {
       child: Builder(
         builder: (context) {
           final c = colorsOf(context);
-          final hasRunning = _runningIds.isNotEmpty;
           return Scaffold(
             backgroundColor: c.background,
             appBar: AppBar(
@@ -154,43 +173,40 @@ class _PortForwardingScreenState extends ConsumerState<PortForwardingScreen> {
                 IconButton(
                   icon: const Icon(Icons.add),
                   tooltip: '新建转发规则',
-                  onPressed: hasRunning && !_busy ? _showCreateSheet : null,
+                  onPressed: _busy ? null : _showRuleSheet,
                 ),
               ],
             ),
-            body: !hasRunning
-                ? EmptyState(
-                    icon: Icons.error_outline,
-                    message: '没有运行中的会话，无法使用端口转发',
-                  )
-                : FutureBuilder<List<_SessionTunnel>>(
-                    future: _future,
-                    builder: (context, snap) {
-                      if (snap.hasError) {
-                        return ErrorState(
-                          message: '${snap.error}',
-                          onRetry: _refresh,
-                        );
-                      }
-                      if (!snap.hasData) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
-                      final tunnels = snap.data!;
-                      if (tunnels.isEmpty) {
-                        return const EmptyState(
-                          icon: Icons.swap_horiz,
-                          message: '暂无转发规则，点右上角 + 新建',
-                        );
-                      }
-                      return ListView.separated(
-                        itemCount: tunnels.length,
-                        separatorBuilder: (_, _) =>
-                            Divider(color: c.divider, height: 1, indent: 16),
-                        itemBuilder: (context, i) =>
-                            _TunnelTile(st: tunnels[i], screen: this),
-                      );
-                    },
+            body: FutureBuilder<List<TunnelSummary>>(
+              future: _future,
+              builder: (context, snap) {
+                if (snap.hasError) {
+                  return ErrorState(
+                    message: '${snap.error}',
+                    onRetry: _refresh,
+                  );
+                }
+                if (!snap.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                final tunnels = snap.data!;
+                if (tunnels.isEmpty) {
+                  return const EmptyState(
+                    icon: Icons.swap_horiz,
+                    message: '暂无转发规则，点右上角 + 新建',
+                  );
+                }
+                return ListView.separated(
+                  itemCount: tunnels.length,
+                  separatorBuilder: (_, _) =>
+                      Divider(color: c.divider, height: 1, indent: 16),
+                  itemBuilder: (context, i) => _TunnelTile(
+                    tunnel: tunnels[i],
+                    screen: this,
                   ),
+                );
+              },
+            ),
           );
         },
       ),
@@ -199,57 +215,60 @@ class _PortForwardingScreenState extends ConsumerState<PortForwardingScreen> {
 }
 
 class _TunnelTile extends StatelessWidget {
-  const _TunnelTile({required this.st, required this.screen});
+  const _TunnelTile({required this.tunnel, required this.screen});
 
-  final _SessionTunnel st;
+  final TunnelSummary tunnel;
   final _PortForwardingScreenState screen;
 
   @override
   Widget build(BuildContext context) {
     final c = colorsOf(context);
-    final t = st.tunnel;
-    final listening = t.portOpen;
+    final t = tunnel;
     return ListTile(
       title: Text(
-        '${t.port} → ${t.url}',
+        '${t.name ?? '规则'} ${t.localPort} → ${t.remoteAddress}:${t.remotePort}',
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: TextStyle(fontSize: 16, color: c.textPrimary),
       ),
       subtitle: Text(
-        listening
-            ? '${st.sessionName} · 到期 ${_fmtExpire(t.expiresAtUtc)}'
-            : '${st.sessionName} · 等待远端服务监听端口',
+        t.portOpen
+            ? '运行中 · 到期 ${_fmtExpire(t.expiresAtUtc)}'
+            : '等待远端服务监听 ${t.remoteAddress}:${t.remotePort}',
         style: TextStyle(
           fontSize: 13,
-          color: listening ? c.textSecondary : c.warning,
+          color: t.portOpen ? c.textSecondary : c.warning,
         ),
       ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            'ON',
-            style: TextStyle(fontSize: 12, color: c.success),
+            t.running ? 'ON' : 'OFF',
+            style: TextStyle(
+                fontSize: 12, color: t.running ? c.success : c.textSecondary),
           ),
           const SizedBox(width: 4),
           Switch(
-            value: true,
+            value: t.running,
             activeThumbColor: c.success,
-            onChanged: screen._busy ? null : (_) => screen._stop(st),
+            onChanged: screen._busy ? null : (_) => screen._stop(t),
           ),
           PopupMenuButton<String>(
             icon: Icon(Icons.more_horiz, color: c.textSecondary),
             color: c.surfaceElevated,
             onSelected: (action) {
               switch (action) {
+                case 'edit':
+                  screen._showRuleSheet(existing: t);
                 case 'copy':
                   screen._copyUrl(t);
                 case 'delete':
-                  screen._confirmDelete(st);
+                  screen._confirmDelete(t);
               }
             },
             itemBuilder: (_) => const [
+              PopupMenuItem(value: 'edit', child: Text('编辑')),
               PopupMenuItem(value: 'copy', child: Text('复制地址')),
               PopupMenuItem(value: 'delete', child: Text('删除')),
             ],
@@ -260,22 +279,28 @@ class _TunnelTile extends StatelessWidget {
   }
 }
 
-/// 新建规则弹层（design/06 §5）。后端 create 仅接受端口，
-/// 名称/远端地址仅作表单展示，端口取本地端口值。
-class _CreateSheet extends StatefulWidget {
-  const _CreateSheet({required this.onSubmit});
+/// 新建/编辑规则弹层（design/06 §5）。[existing] 非 null 时为编辑（提交走 PATCH）。
+class _RuleSheet extends StatefulWidget {
+  const _RuleSheet({required this.onSubmit, this.existing});
 
-  final ValueChanged<int> onSubmit;
+  final TunnelSummary? existing;
+  final void Function(
+          String? name, int localPort, String remoteAddress, int remotePort)
+      onSubmit;
 
   @override
-  State<_CreateSheet> createState() => _CreateSheetState();
+  State<_RuleSheet> createState() => _RuleSheetState();
 }
 
-class _CreateSheetState extends State<_CreateSheet> {
-  final _nameController = TextEditingController();
-  final _localPortController = TextEditingController();
-  final _remoteHostController = TextEditingController(text: '127.0.0.1');
-  final _remotePortController = TextEditingController();
+class _RuleSheetState extends State<_RuleSheet> {
+  late final _nameController =
+      TextEditingController(text: widget.existing?.name ?? '');
+  late final _localPortController = TextEditingController(
+      text: widget.existing == null ? '' : '${widget.existing!.localPort}');
+  late final _remoteHostController =
+      TextEditingController(text: widget.existing?.remoteAddress ?? '127.0.0.1');
+  late final _remotePortController = TextEditingController(
+      text: widget.existing == null ? '' : '${widget.existing!.remotePort}');
 
   @override
   void dispose() {
@@ -286,14 +311,29 @@ class _CreateSheetState extends State<_CreateSheet> {
     super.dispose();
   }
 
+  bool _validPort(String text) {
+    final port = int.tryParse(text.trim());
+    return port != null && port > 0 && port <= 65535;
+  }
+
   void _submit() {
-    final port = int.tryParse(_localPortController.text.trim());
-    if (port == null || port <= 0 || port > 65535) return;
-    widget.onSubmit(port);
+    if (!_validPort(_localPortController.text) ||
+        !_validPort(_remotePortController.text)) {
+      return;
+    }
+    final remoteHost = _remoteHostController.text.trim();
+    widget.onSubmit(
+      _nameController.text.trim().isEmpty ? null : _nameController.text.trim(),
+      int.parse(_localPortController.text.trim()),
+      remoteHost.isEmpty ? '127.0.0.1' : remoteHost,
+      int.parse(_remotePortController.text.trim()),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final canSubmit =
+        _validPort(_localPortController.text) && _validPort(_remotePortController.text);
     return Padding(
       padding: EdgeInsets.only(
         left: 24,
@@ -305,26 +345,28 @@ class _CreateSheetState extends State<_CreateSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SectionHeader('新建转发规则'),
+          SectionHeader(widget.existing == null ? '新建转发规则' : '编辑转发规则'),
           _field('名称（可选）', _nameController, keyboardType: TextInputType.text),
           _field('本地端口', _localPortController,
-              keyboardType: TextInputType.number),
+              keyboardType: TextInputType.number,
+              onChanged: (_) => setState(() {})),
           _field('远端地址', _remoteHostController,
               keyboardType: TextInputType.url),
           _field('远端端口', _remotePortController,
-              keyboardType: TextInputType.number,
-              onChanged: (v) {
-                final remote = int.tryParse(v);
-                if (remote != null &&
-                    remote > 0 &&
-                    _localPortController.text.isEmpty) {
-                  _localPortController.text = '$remote';
-                }
-              }),
+              keyboardType: TextInputType.number, onChanged: (v) {
+            setState(() {});
+            // 输入远端端口后，本地端口默认同值，用户可修改。
+            final remote = int.tryParse(v);
+            if (remote != null &&
+                remote > 0 &&
+                _localPortController.text.isEmpty) {
+              _localPortController.text = '$remote';
+            }
+          }),
           const SizedBox(height: 24),
           PrimaryButton(
-            label: '创建并启动',
-            onPressed: _localPortController.text.isEmpty ? null : _submit,
+            label: widget.existing == null ? '创建并启动' : '保存',
+            onPressed: canSubmit ? _submit : null,
           ),
         ],
       ),

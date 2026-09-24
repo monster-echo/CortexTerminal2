@@ -54,6 +54,18 @@ public sealed class WorkerGatewayClient : IWorkerGatewayClient
     public IDisposable OnListFiles(Func<string, string?, Task<FileListingResult>> handler)
         => _connection.On<string, string?, FileListingResult>("ListFiles", handler);
 
+    public IDisposable OnMkdir(Func<string, string?, Task<FileOpResult>> handler)
+        => _connection.On<string, string?, FileOpResult>("Mkdir", handler);
+
+    public IDisposable OnWriteTextFile(Func<string, string?, string, Task<FileOpResult>> handler)
+        => _connection.On<string, string?, string, FileOpResult>("WriteTextFile", handler);
+
+    public IDisposable OnRename(Func<string, string?, string, Task<FileOpResult>> handler)
+        => _connection.On<string, string?, string, FileOpResult>("Rename", handler);
+
+    public IDisposable OnDelete(Func<string, string?, Task<FileOpResult>> handler)
+        => _connection.On<string, string?, FileOpResult>("Delete", handler);
+
     public IDisposable OnPrepareFileReceive(Func<PrepareFileReceiveCommand, Task<FileOperationAck>> handler)
         => _connection.On<PrepareFileReceiveCommand, FileOperationAck>("PrepareFileReceive", handler);
 

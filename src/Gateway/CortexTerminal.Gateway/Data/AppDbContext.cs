@@ -72,6 +72,7 @@ public class AppDbContext : DbContext
             entity.HasIndex(e => e.TunnelKey).IsUnique();
             entity.HasIndex(e => e.OwnerUserId);
             entity.HasIndex(e => e.SessionId);
+            entity.HasIndex(e => e.WorkspaceId);
             entity.HasIndex(e => e.ExpiresAtUtc);
         });
 

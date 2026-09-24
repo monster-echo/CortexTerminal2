@@ -111,6 +111,10 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         _subscriptions.Add(_gatewayClient.OnRequestScrollback(HandleRequestScrollbackAsync));
         _subscriptions.Add(_gatewayClient.OnRequestScrollbackSince(HandleRequestScrollbackSince));
         _subscriptions.Add(_gatewayClient.OnListFiles((rootDir, path) => Task.FromResult(_workspaceFiles.ListFiles(rootDir, path))));
+        _subscriptions.Add(_gatewayClient.OnMkdir((rootDir, path) => Task.FromResult(_workspaceFiles.Mkdir(rootDir, path))));
+        _subscriptions.Add(_gatewayClient.OnWriteTextFile((rootDir, path, content) => Task.FromResult(_workspaceFiles.WriteTextFile(rootDir, path, content))));
+        _subscriptions.Add(_gatewayClient.OnRename((rootDir, path, newName) => Task.FromResult(_workspaceFiles.Rename(rootDir, path, newName))));
+        _subscriptions.Add(_gatewayClient.OnDelete((rootDir, path) => Task.FromResult(_workspaceFiles.Delete(rootDir, path))));
         _subscriptions.Add(_gatewayClient.OnPrepareFileReceive(req => _relayTransfers.PrepareFileReceiveAsync(req, CancellationToken.None)));
         _subscriptions.Add(_gatewayClient.OnPrepareFileSend(req => _relayTransfers.PrepareFileSendAsync(req, CancellationToken.None)));
         _subscriptions.Add(_gatewayClient.OnCreateWorkspaceDirectory(cmd => Task.FromResult(_workspaceFiles.CreateWorkspaceDirectory(cmd))));

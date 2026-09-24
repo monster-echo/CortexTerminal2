@@ -371,7 +371,10 @@ class SessionController extends StateNotifier<SessionState> {
       socket = await _socketFactory(sessionId: sessionId, sinceSeq: _lastSeq(sessionId));
     } catch (e) {
       if (!state.entries.containsKey(sessionId)) return;
-      entry.connState = TerminalConnState.reconnecting;
+      // 已确认 worker 离线时保持 workerOffline 标识（不回退为普通重连文案）。
+      entry.connState = entry.connState == TerminalConnState.workerOffline
+          ? TerminalConnState.workerOffline
+          : TerminalConnState.reconnecting;
       entry.errorMessage = e.toString();
       state = state.copyWith(entries: Map.of(state.entries));
       _scheduleReconnect(sessionId, 0);
@@ -462,11 +465,11 @@ class SessionController extends StateNotifier<SessionState> {
         switch (frame.code) {
           case 'worker-offline':
             // Worker 链路已断（网关在 worker 掉线时推给附着客户端）。
-            // 当前 socket 已无用：主动关闭（closedByUs → onDone 不重复处理），
-            // 进入 reconnecting 退避，直到 worker 回来 reattach 成功。
+            // 当前 socket 已无用：主动关闭（closedByUs → onDone 不重复处理）。
+            // 标记 workerOffline（UI 显示「电脑已离线」），退避重连等其上线。
             _timers.remove(sessionId)?.cancel();
             _stopProbe(sessionId);
-            entry.connState = TerminalConnState.reconnecting;
+            entry.connState = TerminalConnState.workerOffline;
             state = state.copyWith(entries: Map.of(state.entries));
             _sockets.remove(sessionId)?.forceClose();
             _scheduleReconnect(sessionId, 0);

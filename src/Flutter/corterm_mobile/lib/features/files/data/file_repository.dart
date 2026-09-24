@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
@@ -110,6 +108,70 @@ class FileRepository {
       throw ApiException(0, serverMessage: 'no transfer endpoints');
     }
     return _getViaEndpoints(endpoints);
+  }
+
+  // ---- 文件变更 ----
+
+  /// 新建目录（仅最后一级，父级不存在服务端报 path_invalid）。
+  Future<void> mkdir({
+    required String workspaceId,
+    required String path,
+  }) async {
+    try {
+      await _client.postMap(
+        '/api/workspaces/$workspaceId/files/mkdir',
+        {'path': path},
+      );
+    } on DioException catch (e) {
+      ApiClient.throwFor(e);
+    }
+  }
+
+  /// 新建/覆盖文本文件（UTF-8）。
+  Future<void> writeText({
+    required String workspaceId,
+    required String path,
+    required String content,
+  }) async {
+    try {
+      await _client.postMap(
+        '/api/workspaces/$workspaceId/files/write-text',
+        {'path': path, 'content': content},
+      );
+    } on DioException catch (e) {
+      ApiClient.throwFor(e);
+    }
+  }
+
+  /// 重命名文件或目录（newName 是单段文件名）。
+  Future<void> rename({
+    required String workspaceId,
+    required String path,
+    required String newName,
+  }) async {
+    try {
+      await _client.postMap(
+        '/api/workspaces/$workspaceId/files/rename',
+        {'path': path, 'newName': newName},
+      );
+    } on DioException catch (e) {
+      ApiClient.throwFor(e);
+    }
+  }
+
+  /// 删除文件或目录（目录递归删除）。
+  Future<void> delete({
+    required String workspaceId,
+    required String path,
+  }) async {
+    try {
+      await _client.postMap(
+        '/api/workspaces/$workspaceId/files/delete',
+        {'path': path},
+      );
+    } on DioException catch (e) {
+      ApiClient.throwFor(e);
+    }
   }
 
   // ---- 上传 ----

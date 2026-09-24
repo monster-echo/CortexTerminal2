@@ -25,7 +25,11 @@ public sealed class LocalTransferListenerTests : IAsyncLifetime
 
     public LocalTransferListenerTests()
     {
-        _workDir = Path.Combine(Path.GetTempPath(), $"corterm-local-transfer-{Guid.NewGuid():N}");
+        // Worker 的传输根目录强制位于用户 home 内（TryResolveWorkspaceDir），
+        // 测试工作目录也必须遵守该约束，否则 ack 会以 access-denied 失败。
+        _workDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            ".corterm-test", $"local-transfer-{Guid.NewGuid():N}");
         Directory.CreateDirectory(_workDir);
         _listener = new LocalTransferListener(
             _transfers, listenPort: 0, publicBaseUrl: null, NullLogger<LocalTransferListener>.Instance);

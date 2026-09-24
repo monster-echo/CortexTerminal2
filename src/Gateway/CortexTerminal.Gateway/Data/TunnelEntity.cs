@@ -19,6 +19,25 @@ public class TunnelEntity
     public string OwnerUserId { get; set; } = "";
 
     [Required]
+    [Column("workspace_id")]
+    public string WorkspaceId { get; set; } = "";
+
+    /// <summary>规则名称（可选）；session 级快捷隧道为 null。</summary>
+    [Column("name")]
+    public string? Name { get; set; }
+
+    /// <summary>访问入口端口标识（展示用）。</summary>
+    [Required]
+    [Column("local_port")]
+    public int LocalPort { get; set; }
+
+    /// <summary>Worker 侧目标地址，默认 127.0.0.1。</summary>
+    [Required]
+    [Column("remote_address")]
+    [StringLength(255)]
+    public string RemoteAddress { get; set; } = "127.0.0.1";
+
+    [Required]
     [Column("worker_id")]
     [StringLength(64)]
     public string WorkerId { get; set; } = "";

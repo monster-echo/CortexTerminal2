@@ -5,8 +5,8 @@ using Microsoft.Extensions.Options;
 
 namespace CortexTerminal.Relay.Tunnels;
 
-/// <summary>从 Gateway 内部 API 查回的隧道路由。</summary>
-public sealed record TunnelRoute(string WorkerId, int Port, string SecretHash, DateTimeOffset ExpiresAtUtc);
+/// <summary>从 Gateway 内部 API 查回的隧道路由。RemoteAddress 为 worker 侧目标地址（旧 Gateway 不下发 → null，按 127.0.0.1 处理）。</summary>
+public sealed record TunnelRoute(string WorkerId, int Port, string SecretHash, DateTimeOffset ExpiresAtUtc, string? RemoteAddress = null);
 
 /// <summary>
 /// tunnel key → 路由的解析器：调 Gateway 内部 API（X-Relay-Secret 头鉴权，密钥同 Relay:SharedSecret），

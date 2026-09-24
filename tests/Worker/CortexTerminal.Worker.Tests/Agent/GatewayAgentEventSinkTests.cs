@@ -81,6 +81,10 @@ public sealed class GatewayAgentEventSinkTests
         public IDisposable OnRequestScrollback(Func<string, IReadOnlyList<TerminalChunk>> handler) => NoOpDisposable.Instance;
         public IDisposable OnRequestScrollbackSince(Func<string, long, ScrollbackDelta> handler) => NoOpDisposable.Instance;
         public IDisposable OnListFiles(Func<string, string?, Task<FileListingResult>> handler) => NoOpDisposable.Instance;
+        public IDisposable OnMkdir(Func<string, string?, Task<FileOpResult>> handler) => NoOpDisposable.Instance;
+        public IDisposable OnWriteTextFile(Func<string, string?, string, Task<FileOpResult>> handler) => NoOpDisposable.Instance;
+        public IDisposable OnRename(Func<string, string?, string, Task<FileOpResult>> handler) => NoOpDisposable.Instance;
+        public IDisposable OnDelete(Func<string, string?, Task<FileOpResult>> handler) => NoOpDisposable.Instance;
         public IDisposable OnPrepareFileReceive(Func<PrepareFileReceiveCommand, Task<FileOperationAck>> handler) => NoOpDisposable.Instance;
         public IDisposable OnPrepareFileSend(Func<PrepareFileSendCommand, Task<PrepareFileSendAck>> handler) => NoOpDisposable.Instance;
         public IDisposable OnCreateWorkspaceDirectory(Func<CreateWorkspaceDirectoryCommand, Task<WorkspaceDirectoryAck>> handler) => NoOpDisposable.Instance;

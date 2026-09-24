@@ -130,6 +130,7 @@ public sealed class TunnelEntryMiddleware(RequestDelegate next, ILogger<TunnelEn
         {
             Id = Guid.NewGuid().ToString("N"),
             Port = route.Port,
+            RemoteAddress = route.RemoteAddress,
             Method = context.Request.Method,
             Path = subPath,
             Query = context.Request.QueryString.Value ?? string.Empty,

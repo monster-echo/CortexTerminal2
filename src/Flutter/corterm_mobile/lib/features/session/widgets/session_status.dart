@@ -23,7 +23,8 @@ Color sessionDotColor(ShadColorScheme scheme, SessionStatus status) =>
       TerminalConnState.idle => (scheme.idle, false),
       TerminalConnState.connecting ||
       TerminalConnState.replaying ||
-      TerminalConnState.reconnecting =>
+      TerminalConnState.reconnecting ||
+      TerminalConnState.workerOffline =>
         (scheme.warning, true),
       TerminalConnState.exited => (scheme.idle, false),
       TerminalConnState.error => (scheme.destructive, false),

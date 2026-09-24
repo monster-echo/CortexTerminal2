@@ -61,6 +61,8 @@ public sealed class TunnelRequestFrame
     [JsonPropertyName("type")] public string Type { get; set; } = RelayProtocol.TunnelRequestType;
     [JsonPropertyName("id")] public string Id { get; set; } = "";
     [JsonPropertyName("port")] public int Port { get; set; }
+    /// <summary>Worker 侧目标地址；旧 Relay 不下发时 worker 视为 127.0.0.1。</summary>
+    [JsonPropertyName("remoteAddress")] public string? RemoteAddress { get; set; }
     [JsonPropertyName("method")] public string Method { get; set; } = "GET";
     [JsonPropertyName("path")] public string Path { get; set; } = "/";
     [JsonPropertyName("query")] public string Query { get; set; } = "";

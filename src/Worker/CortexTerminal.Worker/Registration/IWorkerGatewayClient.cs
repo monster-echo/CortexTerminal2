@@ -19,6 +19,10 @@ public interface IWorkerGatewayClient : IAsyncDisposable
     IDisposable OnReconnected(Func<string?, Task> handler);
     IDisposable OnClosed(Func<Exception?, Task> handler);
     IDisposable OnListFiles(Func<string, string?, Task<FileListingResult>> handler);
+    IDisposable OnMkdir(Func<string, string?, Task<FileOpResult>> handler);
+    IDisposable OnWriteTextFile(Func<string, string?, string, Task<FileOpResult>> handler);
+    IDisposable OnRename(Func<string, string?, string, Task<FileOpResult>> handler);
+    IDisposable OnDelete(Func<string, string?, Task<FileOpResult>> handler);
     IDisposable OnPrepareFileReceive(Func<PrepareFileReceiveCommand, Task<FileOperationAck>> handler);
     IDisposable OnPrepareFileSend(Func<PrepareFileSendCommand, Task<PrepareFileSendAck>> handler);
     IDisposable OnCreateWorkspaceDirectory(Func<CreateWorkspaceDirectoryCommand, Task<WorkspaceDirectoryAck>> handler);

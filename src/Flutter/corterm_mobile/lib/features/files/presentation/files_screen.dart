@@ -99,6 +99,314 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
     showAppToast(context, '路径已复制');
   }
 
+  Future<void> _rename(FileEntry entry) async {
+    final newName = await _promptText(
+      title: '重命名',
+      label: '名称',
+      initial: entry.name,
+      confirmLabel: '重命名',
+    );
+    if (newName == null || newName.isEmpty || newName == entry.name) return;
+    setState(() => _busy = true);
+    try {
+      await ref.read(fileRepositoryProvider).rename(
+            workspaceId: widget.workspaceId,
+            path: _join(_path, entry.name),
+            newName: newName,
+          );
+      if (!mounted) return;
+      showAppToast(context, '已重命名');
+      await _refresh();
+    } catch (e) {
+      if (mounted) showAppToast(context, '重命名失败：$e', destructive: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _delete(FileEntry entry) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        final c = colorsOf(dialogContext);
+        return AlertDialog(
+          backgroundColor: c.surfaceElevated,
+          title: Text('删除${entry.isDirectory ? '文件夹' : '文件'}',
+              style: TextStyle(fontSize: 18, color: c.textPrimary)),
+          content: Text(
+            entry.isDirectory
+                ? '「${entry.name}」及其全部内容将被删除，此操作不可恢复。'
+                : '「${entry.name}」将被删除，此操作不可恢复。',
+            style: TextStyle(fontSize: 14, color: c.textSecondary),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text('取消', style: TextStyle(color: c.textSecondary)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text('删除', style: TextStyle(color: c.danger)),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true) return;
+    setState(() => _busy = true);
+    try {
+      await ref.read(fileRepositoryProvider).delete(
+            workspaceId: widget.workspaceId,
+            path: _join(_path, entry.name),
+          );
+      if (!mounted) return;
+      showAppToast(context, '已删除');
+      await _refresh();
+    } catch (e) {
+      if (mounted) showAppToast(context, '删除失败：$e', destructive: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _mkdir() async {
+    final name = await _promptText(title: '新建文件夹', label: '文件夹名称', confirmLabel: '创建');
+    if (name == null || name.isEmpty) return;
+    setState(() => _busy = true);
+    try {
+      await ref.read(fileRepositoryProvider).mkdir(
+            workspaceId: widget.workspaceId,
+            path: _join(_path, name),
+          );
+      if (!mounted) return;
+      showAppToast(context, '文件夹已创建');
+      await _refresh();
+    } catch (e) {
+      if (mounted) showAppToast(context, '创建失败：$e', destructive: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _createTextFile() async {
+    final result = await _promptNewTextFile();
+    if (result == null) return;
+    final (name, content) = result;
+    setState(() => _busy = true);
+    try {
+      await ref.read(fileRepositoryProvider).writeText(
+            workspaceId: widget.workspaceId,
+            path: _join(_path, name),
+            content: content,
+          );
+      if (!mounted) return;
+      showAppToast(context, '文件已创建');
+      await _refresh();
+    } catch (e) {
+      if (mounted) showAppToast(context, '创建失败：$e', destructive: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// 单行文本输入弹层（Dark Tool 风格）。返回 null 表示取消。
+  Future<String?> _promptText({
+    required String title,
+    required String label,
+    String initial = '',
+    required String confirmLabel,
+  }) {
+    final controller = TextEditingController(text: initial);
+    return showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        final c = colorsOf(sheetContext);
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 20,
+            bottom: 20 + MediaQuery.of(sheetContext).viewInsets.bottom,
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: c.surfaceElevated,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: c.textPrimary)),
+                const SizedBox(height: 16),
+                Text(label,
+                    style: TextStyle(fontSize: 14, color: c.textSecondary)),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: controller,
+                  autofocus: true,
+                  style: TextStyle(fontSize: 16, color: c.textPrimary),
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: c.surface,
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 14),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: c.divider),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: c.divider),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: c.accent),
+                    ),
+                  ),
+                  onSubmitted: (value) =>
+                      Navigator.of(sheetContext).pop(value),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: c.accent,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                    ),
+                    onPressed: () =>
+                        Navigator.of(sheetContext).pop(controller.text),
+                    child: Text(confirmLabel,
+                        style: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.w500)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// 新建文本文件弹层：文件名 + 内容。返回 null 表示取消。
+  Future<(String, String)?> _promptNewTextFile() {
+    final nameController = TextEditingController();
+    final contentController = TextEditingController();
+    return showModalBottomSheet<(String, String)>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        final c = colorsOf(sheetContext);
+        InputDecoration inputDecoration(String hint) => InputDecoration(
+              hintText: hint,
+              hintStyle: TextStyle(fontSize: 14, color: c.textSecondary),
+              filled: true,
+              fillColor: c.surface,
+              isDense: true,
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: c.divider),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: c.divider),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: c.accent),
+              ),
+            );
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 20,
+            bottom: 20 + MediaQuery.of(sheetContext).viewInsets.bottom,
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: c.surfaceElevated,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('新建文本文件',
+                    style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: c.textPrimary)),
+                const SizedBox(height: 16),
+                Text('文件名',
+                    style: TextStyle(fontSize: 14, color: c.textSecondary)),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: nameController,
+                  autofocus: true,
+                  style: TextStyle(fontSize: 16, color: c.textPrimary),
+                  decoration: inputDecoration('例如 notes.txt'),
+                ),
+                const SizedBox(height: 16),
+                Text('内容',
+                    style: TextStyle(fontSize: 14, color: c.textSecondary)),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: contentController,
+                  style: TextStyle(fontSize: 16, color: c.textPrimary),
+                  maxLines: 5,
+                  minLines: 3,
+                  decoration: inputDecoration('文件内容（可为空）'),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: c.accent,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                    ),
+                    onPressed: () {
+                      final name = nameController.text;
+                      if (name.isEmpty) return;
+                      Navigator.of(sheetContext)
+                          .pop((name, contentController.text));
+                    },
+                    child: const Text('创建',
+                        style: TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.w500)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   void _preview(FileEntry entry) {
     context.push(
       '/workspaces/${widget.workspaceId}/files/preview'
@@ -131,10 +439,27 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
             appBar: AppBar(
               title: Text(widget.workspaceName.isEmpty ? '电脑' : widget.workspaceName),
               actions: [
-                IconButton(
-                  icon: const Icon(Icons.add),
-                  tooltip: '上传文件',
-                  onPressed: _busy ? null : _upload,
+                PopupMenuButton<String>(
+                  icon: _busy
+                      ? Icon(Icons.add, color: c.textSecondary)
+                      : const Icon(Icons.add),
+                  tooltip: '新建',
+                  color: c.surfaceElevated,
+                  onSelected: (action) {
+                    switch (action) {
+                      case 'upload':
+                        _upload();
+                      case 'mkdir':
+                        _mkdir();
+                      case 'newText':
+                        _createTextFile();
+                    }
+                  },
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(value: 'upload', child: Text('上传文件')),
+                    PopupMenuItem(value: 'mkdir', child: Text('新建文件夹')),
+                    PopupMenuItem(value: 'newText', child: Text('新建文本文件')),
+                  ],
                 ),
               ],
             ),
@@ -221,12 +546,18 @@ class _EntryTile extends StatelessWidget {
               screen._download(entry);
             case 'copy':
               screen._copyPath(entry);
+            case 'rename':
+              screen._rename(entry);
+            case 'delete':
+              screen._delete(entry);
           }
         },
         itemBuilder: (_) => [
           if (!entry.isDirectory)
             const PopupMenuItem(value: 'download', child: Text('下载')),
           const PopupMenuItem(value: 'copy', child: Text('复制路径')),
+          const PopupMenuItem(value: 'rename', child: Text('重命名')),
+          const PopupMenuItem(value: 'delete', child: Text('删除')),
         ],
       ),
       onTap: entry.isDirectory

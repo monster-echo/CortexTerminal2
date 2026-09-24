@@ -17,6 +17,9 @@ enum TerminalConnState {
   /// 断线重连中（自动退避重试）。
   reconnecting,
 
+  /// Worker 电脑离线（网关推 worker-offline 帧；保持自动重连等其上线）。
+  workerOffline,
+
   /// 会话已退出（exited 帧或 terminate）。
   exited,
 

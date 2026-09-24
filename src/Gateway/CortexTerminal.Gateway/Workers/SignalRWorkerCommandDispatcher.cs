@@ -34,6 +34,18 @@ public sealed class SignalRWorkerCommandDispatcher(IHubContext<WorkerHub> hubCon
     public Task<FileListingResult> ListFilesAsync(string workerConnectionId, string rootDir, string relativePath, CancellationToken cancellationToken)
         => hubContext.Clients.Client(workerConnectionId).InvokeAsync<FileListingResult>("ListFiles", rootDir, relativePath, cancellationToken);
 
+    public Task<FileOpResult> MkdirAsync(string workerConnectionId, string rootDir, string relativePath, CancellationToken cancellationToken)
+        => hubContext.Clients.Client(workerConnectionId).InvokeAsync<FileOpResult>("Mkdir", rootDir, relativePath, cancellationToken);
+
+    public Task<FileOpResult> WriteTextFileAsync(string workerConnectionId, string rootDir, string relativePath, string content, CancellationToken cancellationToken)
+        => hubContext.Clients.Client(workerConnectionId).InvokeAsync<FileOpResult>("WriteTextFile", rootDir, relativePath, content, cancellationToken);
+
+    public Task<FileOpResult> RenameAsync(string workerConnectionId, string rootDir, string relativePath, string newName, CancellationToken cancellationToken)
+        => hubContext.Clients.Client(workerConnectionId).InvokeAsync<FileOpResult>("Rename", rootDir, relativePath, newName, cancellationToken);
+
+    public Task<FileOpResult> DeleteAsync(string workerConnectionId, string rootDir, string relativePath, CancellationToken cancellationToken)
+        => hubContext.Clients.Client(workerConnectionId).InvokeAsync<FileOpResult>("Delete", rootDir, relativePath, cancellationToken);
+
     public Task<FileOperationAck> PrepareFileReceiveAsync(string workerConnectionId, PrepareFileReceiveCommand command, CancellationToken cancellationToken)
         => hubContext.Clients.Client(workerConnectionId).InvokeAsync<FileOperationAck>("PrepareFileReceive", command, cancellationToken);
 

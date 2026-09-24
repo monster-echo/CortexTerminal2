@@ -274,15 +274,33 @@ public sealed class RelayLink(string workerId, ILogger<RelayLink> logger, TimeSp
         }
     }
 
-    /// <summary>反代一次访客请求到 localhost:&lt;port&gt;：请求体经管道流式供给，响应分帧回流。</summary>
+    /// <summary>
+    /// 解析请求的 worker 侧目标地址：旧 Relay 不下发 remoteAddress 时按 127.0.0.1 处理；
+    /// "localhost" 归一化为回环 IP，IPv6 字面量补方括号以便拼 URL。
+    /// </summary>
+    internal static string ResolveTargetHost(string? remoteAddress)
+    {
+        if (string.IsNullOrWhiteSpace(remoteAddress)) return "127.0.0.1";
+        var host = remoteAddress.Trim();
+        if (host.Equals("localhost", StringComparison.OrdinalIgnoreCase)) return "127.0.0.1";
+        if (host.Contains(':') && !host.StartsWith('[')) return $"[{host}]";
+        return host;
+    }
+
+    internal static bool IsLoopbackHost(string host)
+        => host is "127.0.0.1" or "[::1]" or "::1";
+
+    /// <summary>反代一次访客请求到 remoteAddress:remotePort：请求体经管道流式供给，响应分帧回流。</summary>
     private async Task ExecuteTunnelRequestAsync(TunnelRequestFrame request)
     {
         var inflight = new InflightTunnelRequest();
         _inflight[request.Id] = inflight;
         try
         {
-            // 端口未监听时先等它就绪（服务重启/延迟启动场景），超时按 unreachable 返回。
-            if (!await WaitPortOpenAsync(request.Port, inflight.Lifetime.Token))
+            var host = ResolveTargetHost(request.RemoteAddress);
+            // 回环目标未监听时先等它就绪（服务重启/延迟启动场景），超时按 unreachable 返回；
+            // 非回环远端直接 dial，不做等待。
+            if (IsLoopbackHost(host) && !await WaitPortOpenAsync(request.Port, inflight.Lifetime.Token))
             {
                 var timeoutEnd = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(
                     new TunnelEndFrame { Id = request.Id, Error = $"localhost:{request.Port} not listening after waiting {_waitPortTimeout.TotalSeconds:0}s" },
@@ -291,7 +309,7 @@ public sealed class RelayLink(string workerId, ILogger<RelayLink> logger, TimeSp
                 return;
             }
 
-            using var upstream = new HttpRequestMessage(new HttpMethod(request.Method), BuildUrl(request));
+            using var upstream = new HttpRequestMessage(new HttpMethod(request.Method), BuildUrl(request, host));
             foreach (var (name, values) in request.Headers)
             {
                 if (name.StartsWith("Host", StringComparison.OrdinalIgnoreCase)) continue;
@@ -340,7 +358,7 @@ public sealed class RelayLink(string workerId, ILogger<RelayLink> logger, TimeSp
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Tunnel forward to localhost:{Port}{Path} failed.", request.Port, request.Path);
+            logger.LogWarning(ex, "Tunnel forward to {Host}:{Port}{Path} failed.", ResolveTargetHost(request.RemoteAddress), request.Port, request.Path);
             var end = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(
                 new TunnelEndFrame { Id = request.Id, Error = $"localhost:{request.Port} unreachable: {ex.Message}" },
                 RelayJson.Default);
@@ -394,10 +412,11 @@ public sealed class RelayLink(string workerId, ILogger<RelayLink> logger, TimeSp
            || name.Equals("TE", StringComparison.OrdinalIgnoreCase)
            || name.Equals("Trailer", StringComparison.OrdinalIgnoreCase);
 
-    internal static string BuildUrl(TunnelRequestFrame request)
+    internal static string BuildUrl(TunnelRequestFrame request, string? host = null)
     {
         var path = string.IsNullOrEmpty(request.Path) ? "/" : request.Path;
-        return $"http://localhost:{request.Port}{path}{request.Query}";
+        var target = host ?? ResolveTargetHost(request.RemoteAddress);
+        return $"http://{target}:{request.Port}{path}{request.Query}";
     }
 
     internal static byte[] EncodeDataFrame(string requestId, ReadOnlySpan<byte> payload)

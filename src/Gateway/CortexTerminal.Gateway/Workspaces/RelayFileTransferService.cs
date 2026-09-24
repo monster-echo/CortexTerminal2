@@ -25,6 +25,70 @@ public sealed class RelayFileTransferService(
 {
     private readonly RelayOptions _options = options.Value;
 
+    /// <summary>新建目录（仅最后一级；父级缺失由 Worker 报 path_invalid）。</summary>
+    public Task MkdirAsync(string userId, string workspaceId, string? path, CancellationToken ct)
+        => InvokeFileOpAsync(userId, workspaceId, path,
+            (worker, ws, token) => workerCommands.MkdirAsync(worker.ConnectionId, ws.RootPath, path!, token), ct);
+
+    /// <summary>新建/覆盖文本文件（UTF-8；父级目录必须已存在）。</summary>
+    public Task WriteTextAsync(string userId, string workspaceId, string? path, string? content, CancellationToken ct)
+        => InvokeFileOpAsync(userId, workspaceId, path,
+            (worker, ws, token) => workerCommands.WriteTextFileAsync(
+                worker.ConnectionId, ws.RootPath, path!, content ?? string.Empty, token), ct);
+
+    /// <summary>重命名文件或目录（newName 是单段文件名，Worker 端用 RemoteFileNameValidator 校验）。</summary>
+    public Task RenameAsync(string userId, string workspaceId, string? path, string? newName, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(newName))
+        {
+            throw new WorkspaceFileServiceException(FileTransferErrorCode.PathInvalid, "newName is required");
+        }
+        return InvokeFileOpAsync(userId, workspaceId, path,
+            (worker, ws, token) => workerCommands.RenameAsync(worker.ConnectionId, ws.RootPath, path!, newName, token), ct);
+    }
+
+    /// <summary>删除文件或目录（目录由 Worker 递归删除，路径严格限制在 root 内）。</summary>
+    public Task DeleteAsync(string userId, string workspaceId, string? path, CancellationToken ct)
+        => InvokeFileOpAsync(userId, workspaceId, path,
+            (worker, ws, token) => workerCommands.DeleteAsync(worker.ConnectionId, ws.RootPath, path!, token), ct);
+
+    /// <summary>
+    /// 文件变更类 RPC 的共用编排：path 非空校验 → 工作区归属 + Worker 在线 → 15s 超时 →
+    /// 把 FileOpResult 的结构化错误翻成 <see cref="WorkspaceFileServiceException"/>，RPC 通道异常翻成 worker_offline。
+    /// </summary>
+    private async Task InvokeFileOpAsync(
+        string userId,
+        string workspaceId,
+        string? path,
+        Func<RegisteredWorker, Data.WorkspaceEntity, CancellationToken, Task<FileOpResult>> invoke,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            throw new WorkspaceFileServiceException(FileTransferErrorCode.PathInvalid, "path is required");
+        }
+
+        var workspace = await OwnedWorkspaceAsync(userId, workspaceId);
+        var worker = OnlineWorkerOrThrow(workspace.WorkerId);
+
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(TimeSpan.FromSeconds(15));
+        FileOpResult result;
+        try
+        {
+            result = await invoke(worker, workspace, timeout.Token);
+        }
+        catch (Exception ex)
+        {
+            throw new WorkspaceFileServiceException(FileTransferErrorCode.WorkerOffline,
+                "worker did not complete the operation: " + ex.Message);
+        }
+        if (result.Error is not null)
+        {
+            throw new WorkspaceFileServiceException(result.Error.Code, result.Error.Message);
+        }
+    }
+
     public async Task<FileListing> ListAsync(string userId, string workspaceId, string? path, CancellationToken ct)
     {
         var workspace = await OwnedWorkspaceAsync(userId, workspaceId);
