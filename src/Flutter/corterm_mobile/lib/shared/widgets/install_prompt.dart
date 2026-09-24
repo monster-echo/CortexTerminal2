@@ -4,6 +4,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../l10n/app_localizations.dart';
 import 'states.dart';
+import '../../app/theme/corterm_theme.dart';
 
 /// 安装命令（对齐 MAUI Session/WorkerInstallPrompt）。
 const bashInstallCommand = 'curl -fsSL https://corterm.rwecho.top/install.sh | sh';
@@ -93,7 +94,7 @@ class _CommandBlock extends StatelessWidget {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: const Color(0xFF0D1117),
+        color: CortermColors.darkTool.background,
         borderRadius: BorderRadius.circular(10),
       ),
       child: Column(
@@ -103,21 +104,21 @@ class _CommandBlock extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(14, 10, 14, 4),
             child: Row(
               children: [
-                _dot(const Color(0xFFFF5F57)),
+                _dot(CortermColors.darkTool.danger),
                 const SizedBox(width: 5),
-                _dot(const Color(0xFFFEBC2E)),
+                _dot(CortermColors.darkTool.warning),
                 const SizedBox(width: 5),
-                _dot(const Color(0xFF28C840)),
+                _dot(CortermColors.darkTool.success),
                 const SizedBox(width: 8),
                 Text(label,
-                    style: const TextStyle(fontSize: 11, color: Color(0xFF8B949E))),
+                    style: TextStyle(fontSize: 11, color: CortermColors.darkTool.textSecondary)),
                 const Spacer(),
                 InkWell(
                   onTap: () {
                     Clipboard.setData(ClipboardData(text: command));
                     showAppToast(context, AppLocalizations.of(context)!.copied);
                   },
-                  child: const Icon(LucideIcons.copy, size: 14, color: Color(0xFF8B949E)),
+                  child: Icon(LucideIcons.copy, size: 14, color: CortermColors.darkTool.textSecondary),
                 ),
               ],
             ),
@@ -126,10 +127,10 @@ class _CommandBlock extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(14, 4, 14, 12),
             child: SelectableText(
               '\$ $command',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
                 fontFamily: 'monospace',
-                color: Color(0xFFC9D1D9),
+                color: CortermColors.darkTool.textPrimary,
                 height: 1.6,
               ),
             ),

@@ -103,10 +103,10 @@ class _ActivateScreenState extends ConsumerState<ActivateScreen> {
     final c = colorsOf(context);
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: colorsOf(context).scrim,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
-        foregroundColor: Colors.white,
+        foregroundColor: colorsOf(context).onScrim,
         title: Text(l10n.activateTitle),
         // 可能被 go 直接替换进入（无栈可弹），此时回首页兜底。
         leading: context.canPop()
@@ -131,7 +131,7 @@ class _ActivateScreenState extends ConsumerState<ActivateScreen> {
                     textAlign: TextAlign.center,
                     style: theme.textTheme.small.copyWith(
                       fontWeight: FontWeight.w600,
-                      color: Colors.white,
+                      color: colorsOf(context).onScrim,
                     ),
                   ),
                 ],
@@ -158,7 +158,7 @@ class _ActivateScreenState extends ConsumerState<ActivateScreen> {
                     child: Text(
                       '$error',
                       textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.white),
+                      style: TextStyle(color: colorsOf(context).onScrim),
                     ),
                   ),
                 );
@@ -182,7 +182,7 @@ class _ActivateScreenState extends ConsumerState<ActivateScreen> {
                     l10n.activateScanHint,
                     textAlign: TextAlign.center,
                     style: theme.textTheme.small.copyWith(
-                      color: Colors.white,
+                      color: colorsOf(context).onScrim,
                       height: 1.5,
                     ),
                   ),
@@ -211,8 +211,8 @@ class _ActivateScreenState extends ConsumerState<ActivateScreen> {
                       child: ShadButton.outline(
                         width: double.infinity,
                         height: 48,
-                        foregroundColor: Colors.white,
-                        backgroundColor: Colors.white.withValues(alpha: 0.12),
+                        foregroundColor: colorsOf(context).onScrim,
+                        backgroundColor: colorsOf(context).onScrim.withValues(alpha: 0.12),
                         onPressed: _openCodeEntry,
                         child: Text(l10n.activateManualEntry),
                       ),

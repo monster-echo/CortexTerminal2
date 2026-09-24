@@ -18,6 +18,9 @@ class CortermColors extends ThemeExtension<CortermColors> {
     required this.success,
     required this.warning,
     required this.danger,
+    required this.onEmphasis,
+    required this.scrim,
+    required this.onScrim,
   });
 
   final Color background;
@@ -32,6 +35,15 @@ class CortermColors extends ThemeExtension<CortermColors> {
   final Color warning;
   final Color danger;
 
+  /// 强调底（accent / 黑底主按钮 / 彩色 hero）上的前景。
+  final Color onEmphasis;
+
+  /// 相机取景/遮罩类全屏黑底。
+  final Color scrim;
+
+  /// 遮罩上的前景。
+  final Color onScrim;
+
   static const light = CortermColors(
     background: Color(0xFFFFFFFF),
     surface: Color(0xFFF5F5F5),
@@ -44,6 +56,9 @@ class CortermColors extends ThemeExtension<CortermColors> {
     success: Color(0xFF34C759),
     warning: Color(0xFFFF9F0A),
     danger: Color(0xFFFF3B30),
+    onEmphasis: Color(0xFFFFFFFF),
+    scrim: Color(0xFF000000),
+    onScrim: Color(0xFFFFFFFF),
   );
 
   static const darkTool = CortermColors(
@@ -58,6 +73,9 @@ class CortermColors extends ThemeExtension<CortermColors> {
     success: Color(0xFF34C759),
     warning: Color(0xFFFF9F0A),
     danger: Color(0xFFFF453A),
+    onEmphasis: Color(0xFFFFFFFF),
+    scrim: Color(0xFF000000),
+    onScrim: Color(0xFFFFFFFF),
   );
 
   @override
@@ -73,6 +91,9 @@ class CortermColors extends ThemeExtension<CortermColors> {
     Color? success,
     Color? warning,
     Color? danger,
+    Color? onEmphasis,
+    Color? scrim,
+    Color? onScrim,
   }) {
     return CortermColors(
       background: background ?? this.background,
@@ -86,6 +107,9 @@ class CortermColors extends ThemeExtension<CortermColors> {
       success: success ?? this.success,
       warning: warning ?? this.warning,
       danger: danger ?? this.danger,
+      onEmphasis: onEmphasis ?? this.onEmphasis,
+      scrim: scrim ?? this.scrim,
+      onScrim: onScrim ?? this.onScrim,
     );
   }
 
@@ -104,6 +128,9 @@ class CortermColors extends ThemeExtension<CortermColors> {
       success: Color.lerp(success, other.success, t)!,
       warning: Color.lerp(warning, other.warning, t)!,
       danger: Color.lerp(danger, other.danger, t)!,
+      onEmphasis: Color.lerp(onEmphasis, other.onEmphasis, t)!,
+      scrim: Color.lerp(scrim, other.scrim, t)!,
+      onScrim: Color.lerp(onScrim, other.onScrim, t)!,
     );
   }
 }

@@ -25,7 +25,7 @@ class PrimaryButton extends StatelessWidget {
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
           backgroundColor: danger ? c.danger : c.textPrimary,
-          foregroundColor: Colors.white,
+          foregroundColor: c.onEmphasis,
           elevation: 0,
           shape: const RoundedRectangleBorder(
             borderRadius: BorderRadius.all(Radius.circular(24)),

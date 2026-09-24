@@ -96,12 +96,12 @@ class _BenefitsHero extends ConsumerWidget {
           Row(
             children: [
               Icon(LucideIcons.crown,
-                  size: 20, color: Colors.white),
+                  size: 20, color: colorsOf(context).onEmphasis),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(l10n.benefitsTitle,
                     style: theme.textTheme.large.copyWith(
-                      color: Colors.white,
+                      color: colorsOf(context).onEmphasis,
                       fontWeight: FontWeight.w700,
                     )),
               ),
@@ -111,7 +111,7 @@ class _BenefitsHero extends ConsumerWidget {
           Text(
             l10n.meBenefitsHint,
             style: theme.textTheme.muted.copyWith(
-                color: Colors.white.withValues(alpha: 0.85)),
+                color: colorsOf(context).onEmphasis.withValues(alpha: 0.85)),
           ),
           const SizedBox(height: 16),
           // Wrap 而非 Row+Expanded：按钮保持自然宽度并换行，
@@ -121,17 +121,17 @@ class _BenefitsHero extends ConsumerWidget {
             runSpacing: 10,
             children: [
               ShadButton(
-                backgroundColor: Colors.white,
+                backgroundColor: colorsOf(context).onEmphasis,
                 foregroundColor: c.accent,
                 // IAP / 会员购买：购买在 web 控制台完成，打开网关定价页。
                 onPressed: () => _openPricing(context, ref),
                 child: Text(l10n.meOpenMembership),
               ),
               ShadButton.outline(
-                foregroundColor: Colors.white,
+                foregroundColor: colorsOf(context).onEmphasis,
                 decoration: ShadDecoration(
                   border: ShadBorder.all(
-                    color: Colors.white.withValues(alpha: 0.5),
+                    color: colorsOf(context).onEmphasis.withValues(alpha: 0.5),
                     radius: BorderRadius.circular(8),
                   ),
                 ),

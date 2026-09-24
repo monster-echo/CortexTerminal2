@@ -282,7 +282,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
                   child: FilledButton(
                     style: FilledButton.styleFrom(
                       backgroundColor: c.accent,
-                      foregroundColor: Colors.white,
+                      foregroundColor: colorsOf(context).onEmphasis,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(24),
                       ),
@@ -383,7 +383,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
                   child: FilledButton(
                     style: FilledButton.styleFrom(
                       backgroundColor: c.accent,
-                      foregroundColor: Colors.white,
+                      foregroundColor: colorsOf(context).onEmphasis,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(24),
                       ),

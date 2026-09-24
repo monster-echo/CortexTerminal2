@@ -370,7 +370,7 @@ class _DisconnectedCard extends StatelessWidget {
               onPressed: onReconnect,
               style: FilledButton.styleFrom(
                 backgroundColor: colors.accent,
-                foregroundColor: Colors.white,
+                foregroundColor: colorsOf(context).onEmphasis,
                 minimumSize: const Size.fromHeight(44),
               ),
               child: const Text('重新连接'),

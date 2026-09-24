@@ -102,10 +102,10 @@ class _PairComputerScreenState extends ConsumerState<PairComputerScreen> {
 
   Widget _buildScanner() {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: colorsOf(context).scrim,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
-        foregroundColor: Colors.white,
+        foregroundColor: colorsOf(context).onScrim,
         title: const Text('新建电脑'),
         leading: context.canPop()
             ? BackButton(onPressed: () => context.pop())
@@ -132,7 +132,7 @@ class _PairComputerScreenState extends ConsumerState<PairComputerScreen> {
                 child: Text(
                   '$error',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.white),
+                  style: TextStyle(color: colorsOf(context).onScrim),
                 ),
               ),
             ),
@@ -146,14 +146,14 @@ class _PairComputerScreenState extends ConsumerState<PairComputerScreen> {
                   height: 240,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.white, width: 2),
+                    border: Border.all(color: colorsOf(context).onScrim, width: 2),
                   ),
                 ),
                 const SizedBox(height: 24),
-                const Text(
+                Text(
                   '扫描电脑端 Corterm 显示的二维码',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.white, height: 1.5),
+                  style: TextStyle(color: colorsOf(context).onScrim, height: 1.5),
                 ),
                 const Spacer(),
                 if (_error != null) ...[
@@ -162,7 +162,7 @@ class _PairComputerScreenState extends ConsumerState<PairComputerScreen> {
                     child: Text(
                       _error!,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(color: Color(0xFFFF3B30)),
+                      style: TextStyle(color: colorsOf(context).danger),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -181,9 +181,9 @@ class _PairComputerScreenState extends ConsumerState<PairComputerScreen> {
                       child: OutlinedButton(
                         onPressed: () => setState(() => _manual = true),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.white,
+                          foregroundColor: colorsOf(context).onScrim,
                           side: BorderSide(
-                            color: Colors.white.withValues(alpha: 0.4),
+                            color: colorsOf(context).onScrim.withValues(alpha: 0.4),
                           ),
                           shape: const RoundedRectangleBorder(
                             borderRadius: BorderRadius.all(Radius.circular(24)),

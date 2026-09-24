@@ -187,7 +187,7 @@ class _GroupCard extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: colorsOf(context).onEmphasis,
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Image.network(
@@ -254,7 +254,7 @@ class _GroupCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: colorsOf(context).onEmphasis,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Image.network(
