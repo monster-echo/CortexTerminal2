@@ -39,8 +39,10 @@ public sealed class WorkspaceFileServiceTests
     [Fact]
     public void CreateWorkspaceDirectory_EscapingHome_IsRejected()
     {
+        // GetTempPath 在 Windows 上位于 home 内，不能当“外部目录”用；
+        // 用 home 的同级目录，三平台语义一致。
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        var outside = Path.Combine(Path.GetTempPath(), "corterm-outside-test");
+        var outside = Path.Combine(Path.GetDirectoryName(home)!, "corterm-outside-test");
 
         var ack = NewService().CreateWorkspaceDirectory(
             new CreateWorkspaceDirectoryCommand("ws-1", outside));

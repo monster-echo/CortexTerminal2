@@ -84,15 +84,17 @@ class _ActivateScreenState extends ConsumerState<ActivateScreen> {
 
   /// 打开手动输入激活码页。返回 true 表示已在该页激活成功。
   Future<void> _openCodeEntry() async {
+    final navigator = Navigator.of(context);
     await _controller.stop();
-    final confirmed = await Navigator.of(
-      context,
-    ).push<bool>(MaterialPageRoute(builder: (_) => const _CodeEntryScreen()));
+    final confirmed = await navigator.push<bool>(
+      MaterialPageRoute(builder: (_) => const _CodeEntryScreen()),
+    );
     if (!mounted) return;
     if (confirmed == true) {
       setState(() => _confirmed = true);
       return;
     }
+    if (!mounted) return;
     await _controller.start();
   }
 

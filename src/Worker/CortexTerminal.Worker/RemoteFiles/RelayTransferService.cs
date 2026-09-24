@@ -242,7 +242,12 @@ public sealed class WorkspaceFileService(int maxListEntries, ILogger<WorkspaceFi
             : Path.GetFullPath(Path.Combine(home, expanded));
 
         var fullHome = Path.GetFullPath(home);
-        if (!candidate.StartsWith(fullHome, StringComparison.Ordinal))
+        // Windows 文件系统大小写不敏感：Ordinal 比较会误拒合法路径
+        // （如盘符大小写差异），故按平台选择比较方式（与 RemotePathValidator 一致）。
+        var comparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+        if (!candidate.StartsWith(fullHome, comparison))
         {
             error = new FileOperationError(FileTransferErrorCode.AccessDenied,
                 "workspace root must stay inside the user home");

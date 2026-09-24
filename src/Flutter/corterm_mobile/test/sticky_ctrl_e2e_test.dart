@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
 
@@ -42,14 +41,15 @@ void main() {
       ),
       prefs,
     );
-    TerminalSocketFactory factory = ({required sessionId, sinceSeq = 0}) {
+    Future<TerminalSocket> factory({required String sessionId, int sinceSeq = 0}) {
       return TerminalSocket.connect(
         gatewayBaseUrl: 'http://127.0.0.1:${server.port}',
         token: 'test-token',
         sessionId: sessionId,
         sinceSeq: sinceSeq,
       );
-    };
+    }
+
     return SessionController(repo, factory, prefs);
   }
 
