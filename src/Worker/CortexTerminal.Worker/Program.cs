@@ -15,6 +15,7 @@ using CortexTerminal.Worker.Registration;
 using CortexTerminal.Worker.RemoteFiles;
 using CortexTerminal.Worker.Runtime;
 using CortexTerminal.Worker.Tunnels;
+using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -563,6 +564,11 @@ rootCommand.SetAction(async (ParseResult parseResult, CancellationToken cancella
             {
                 options.AccessTokenProvider = () => Task.FromResult<string?>(currentToken);
                 options.Proxy = HttpClient.DefaultProxy;
+                // WebSocket 直连 + 跳过 negotiate：negotiate 是无超时 HTTP 请求，
+                // 代理黑洞时 StartAsync 永久挂起（真实事故：worker 永不上线）。
+                // WS 走 HandshakeTimeout（默认 15s），超时即 Closed → 重连循环接管。
+                options.Transports = HttpTransportType.WebSockets;
+                options.SkipNegotiation = true;
             })
             .AddMessagePackProtocol()
             .WithAutomaticReconnect()
