@@ -44,6 +44,52 @@ jobs:
       - name: Run Worker tests
         run: dotnet test tests/Worker/CortexTerminal.Worker.Tests --configuration Release --no-build --filter "Category!=Integration"
 
+  test-worker-cross-platform:
+    name: Worker Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Worker 常驻在 linux / osx / windows 三类宿主上：路径语义
+        # （Path.IsPathRooted、分隔符、home 解析）必须三平台一致。
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.202'
+
+      - name: Restore dependencies
+        run: dotnet restore tests/Worker/CortexTerminal.Worker.Tests/CortexTerminal.Worker.Tests.csproj
+
+      - name: Run Worker tests
+        run: dotnet test tests/Worker/CortexTerminal.Worker.Tests --configuration Release --no-build --filter "Category!=Integration"
+
+  test-flutter:
+    name: Flutter analyze & test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/Flutter/corterm_mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Pub get
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze lib test
+
+      - name: Unit tests
+        run: flutter test
+
   test-frontend:
     name: Build (Frontend)
     runs-on: ubuntu-latest
