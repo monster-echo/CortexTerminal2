@@ -45,9 +45,11 @@ class _NewWorkspaceScreenState extends ConsumerState<NewWorkspaceScreen> {
     super.dispose();
   }
 
-  void _selectWorker(String workerId) {
+  Future<void> _pickWorker() async {
+    final selected = await context.push<WorkerSummary>('/workers/select');
+    if (selected == null) return;
     setState(() {
-      _workerId = workerId;
+      _workerId = selected.workerId;
       _folder = null; // 换电脑后原文件夹无效
     });
   }
@@ -118,27 +120,13 @@ class _NewWorkspaceScreenState extends ConsumerState<NewWorkspaceScreen> {
       padding: const EdgeInsets.only(bottom: 24),
       children: [
         SectionHeader('电脑'),
-        if (worker != null)
-          ListRow(
-            title: worker.displayName,
-            subtitle: worker.hostname,
-            leading: const Icon(Icons.computer),
-            trailing: const Icon(Icons.edit_outlined, size: 18),
-            onTap: () => setState(() {
-              _workerId = null;
-              _folder = null;
-            }),
-          )
-        else
-          for (final w in workers)
-            ListRow(
-              title: w.displayName,
-              subtitle: w.hostname,
-              leading: const Icon(Icons.computer),
-              selected: false,
-              onTap: () => _selectWorker(w.workerId),
-              trailing: const Icon(Icons.chevron_right),
-            ),
+        ListRow(
+          title: worker?.displayName ?? '请选择电脑',
+          subtitle: worker?.hostname,
+          leading: const Icon(Icons.computer),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: _pickWorker,
+        ),
         SectionHeader('文件夹'),
         ListRow(
           title: _folder ?? '请选择文件夹',
