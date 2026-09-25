@@ -135,11 +135,11 @@ class _FolderPickerScreenState extends ConsumerState<FolderPickerScreen> {
         .firstOrNull;
 
     // workspaces 加载完成且尚在根目录时，应用恢复的上次位置。
-    final workspacesReady = workersAsync.hasValue && !_pendingRelAppliedYet;
+    final workspacesReady = workersAsync.hasValue && !_pendingRelApplied;
     if (workspacesReady && _pendingRel != null) {
       final hasMatchingRoot = (workersAsync.value ?? const [])
           .any((w) => w.workerId == widget.workerId);
-      _pendingRelAppliedYet = true;
+      _pendingRelApplied = true;
       // 只恢复「根未变」时的位置：有该电脑的工作区时根取其根，否则 '~'。
       // 简化：只要保存过位置就恢复（根差异场景由刷新兜底）。
       if (_rel.isEmpty) {
@@ -292,7 +292,5 @@ class _FolderPickerScreenState extends ConsumerState<FolderPickerScreen> {
     );
   }
 
-  bool get _pendingRelAppliedYet => _pendingRelApplied;
-  set _pendingRelAppliedYet(bool v) => _pendingRelApplied = v;
   bool _pendingRelApplied = false;
 }
