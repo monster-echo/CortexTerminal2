@@ -160,6 +160,17 @@ class SessionRepository {
     }
   }
 
+  /// 把会话移入工作区；[workspaceId] 传空字符串 = 移出为未分组。
+  Future<void> moveSessionWorkspace({
+    required String sessionId,
+    required String workspaceId,
+  }) async {
+    await _client.putMap(
+      '/api/me/sessions/$sessionId/workspace',
+      {'workspaceId': workspaceId},
+    );
+  }
+
   Future<void> rememberCurrent(String? sessionId) => _prefs.setLastSessionId(sessionId);
 
   static int _requestCounter = 0;

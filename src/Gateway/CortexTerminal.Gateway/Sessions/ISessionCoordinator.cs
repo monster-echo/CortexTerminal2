@@ -21,5 +21,8 @@ public interface ISessionCoordinator
     bool TryRebindSessionWorkerConnection(string sessionId, string workerConnectionId);
     bool TouchSessionActivity(string sessionId, DateTimeOffset nowUtc);
     Task<RenameSessionResult> RenameSessionAsync(string userId, string sessionId, string? name);
+
+    /// <summary>把会话移入工作区（workspaceId 为 null = 移出为未分组）。返回是否成功。</summary>
+    Task<bool> MoveSessionWorkspaceAsync(string userId, string sessionId, string? workspaceId);
     Task<IReadOnlyList<SessionRecord>> GetAllActiveSessions();
 }

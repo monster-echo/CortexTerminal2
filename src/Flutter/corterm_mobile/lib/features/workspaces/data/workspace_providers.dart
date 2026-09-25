@@ -14,6 +14,15 @@ final workspacesProvider = FutureProvider<List<Workspace>>((ref) async {
   });
 });
 
+/// 未分组会话（未关联任何工作区）。
+final ungroupedSessionsProvider = Provider<List<SessionSummary>>((ref) {
+  final sessions = ref.watch(sessionsProvider).value ?? const <SessionSummary>[];
+  return sessions
+      .where((s) => s.workspaceId.isEmpty)
+      .toList()
+    ..sort((a, b) => b.lastActivityAt.compareTo(a.lastActivityAt));
+});
+
 /// 某个工作区下的 Session（按最近活动倒序）。
 final workspaceSessionsProvider =
     Provider.family<List<SessionSummary>, String>((ref, workspaceId) {

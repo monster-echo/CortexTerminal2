@@ -31,6 +31,7 @@ import '../features/feedback/presentation/feedback_screen.dart';
 import '../features/tunnels/presentation/port_forwarding_screen.dart';
 import '../features/workspaces/presentation/folder_picker_screen.dart';
 import '../features/workspaces/presentation/new_session_flow_screen.dart';
+import '../features/workspaces/presentation/ungrouped_sessions_screen.dart';
 import '../features/workspaces/presentation/new_workspace_screen.dart';
 import '../features/workspaces/presentation/workspace_detail_screen.dart';
 import '../core/models/terminal_color_scheme.dart';
@@ -115,6 +116,9 @@ final routerProvider = Provider<GoRouter>((ref) {
           lockWorkspaceId: state.uri.queryParameters['workspaceId'],
         ),
       ),
+      GoRoute(
+          path: '/sessions/ungrouped',
+          builder: (_, _) => const UngroupedSessionsScreen()),
       GoRoute(
         path: '/sessions/:sessionId',
         builder: (context, state) => SessionTerminalScreen(

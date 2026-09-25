@@ -145,13 +145,25 @@ class _WorkspaceTab extends ConsumerWidget {
         final workerMap = <String, WorkerSummary>{
           for (final w in workers.value ?? const <WorkerSummary>[]) w.workerId: w,
         };
+        final ungrouped = ref.watch(ungroupedSessionsProvider);
         return RefreshIndicator(
           onRefresh: () async => ref.refresh(workspacesProvider.future),
-          child: ListView.builder(
+          child: ListView(
             physics: const AlwaysScrollableScrollPhysics(),
-            itemCount: list.length,
-            itemBuilder: (context, i) =>
-                _WorkspaceRow(workspace: list[i], worker: workerMap[list[i].workerId]),
+            children: [
+              for (final w in list)
+                _WorkspaceRow(workspace: w, worker: workerMap[w.workerId]),
+              if (ungrouped.isNotEmpty)
+                ListRow(
+                  title: '未分组会话',
+                  subtitle: '${ungrouped.length} 个会话未关联工作区',
+                  leading: const Icon(Icons.inbox_outlined,
+                      color: Color(0xFF6F6F6F)),
+                  trailing: const Icon(Icons.chevron_right,
+                      color: Color(0xFF6F6F6F)),
+                  onTap: () => context.push('/sessions/ungrouped'),
+                ),
+            ],
           ),
         );
       },

@@ -761,6 +761,34 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
         return RenameSessionResult.Success();
     }
 
+    public async Task<bool> MoveSessionWorkspaceAsync(string userId, string sessionId, string? workspaceId)
+    {
+        SessionRecord? staged;
+        lock (_sync)
+        {
+            if (!_sessions.TryGetValue(sessionId, out var session) || session.UserId != userId)
+            {
+                return false;
+            }
+            staged = session with { WorkspaceId = workspaceId };
+        }
+
+        await using var db = await _contextFactory.CreateDbContextAsync();
+        var entity = await db.Sessions.FindAsync(sessionId);
+        if (entity is not null && string.Equals(entity.UserId, userId, StringComparison.Ordinal))
+        {
+            entity.WorkspaceId = workspaceId;
+            await db.SaveChangesAsync();
+        }
+
+        lock (_sync)
+        {
+            if (_sessions.ContainsKey(sessionId)) _sessions[sessionId] = staged!;
+        }
+
+        return true;
+    }
+
     public async Task<IReadOnlyList<SessionRecord>> GetSessionsForUser(string userId)
     {
         await using var db = await _contextFactory.CreateDbContextAsync();

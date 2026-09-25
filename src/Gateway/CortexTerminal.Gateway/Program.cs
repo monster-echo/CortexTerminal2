@@ -2363,6 +2363,48 @@ var renameSessionHandler = async (string sessionId, RenameSessionRequest request
 app.MapPut("/api/me/sessions/{sessionId}", renameSessionHandler).RequireAuthorization();
 app.MapPatch("/api/me/sessions/{sessionId}", renameSessionHandler).RequireAuthorization();
 
+app.MapPut("/api/me/sessions/{sessionId}/workspace", async (
+    string sessionId,
+    MoveSessionWorkspaceRequest body,
+    ClaimsPrincipal user,
+    ISessionCoordinator sessions,
+    WorkspaceRegistry workspaces,
+    IAuditLogStore auditLog,
+    HttpContext httpContext) =>
+{
+    var userId = GetUserId(user);
+    var workspaceId = string.IsNullOrWhiteSpace(body.WorkspaceId) ? null : body.WorkspaceId.Trim();
+
+    // 目标工作区必须属于该用户（移出为未分组时无需校验）。
+    if (workspaceId is not null)
+    {
+        try
+        {
+            await workspaces.GetOwnedAsync(userId, workspaceId);
+        }
+        catch
+        {
+            return Results.NotFound(new { error = "workspace not found" });
+        }
+    }
+
+    var moved = await sessions.MoveSessionWorkspaceAsync(userId, sessionId, workspaceId);
+    if (!moved)
+    {
+        return Results.NotFound();
+    }
+
+    auditLog.Record(httpContext.CreateAuditEntry(
+        userId,
+        userId,
+        "session.workspace_moved",
+        "session",
+        sessionId
+    ));
+
+    return Results.Ok(new { sessionId, workspaceId });
+}).RequireAuthorization();
+
 // ---- Billing ----
 app.MapGet("/api/billing/plans", async (IServiceProvider serviceProvider) =>
 {
@@ -3850,3 +3892,5 @@ public sealed record VerifyIapPurchaseRequest(
 );
 
 public partial class Program;
+
+public sealed record MoveSessionWorkspaceRequest(string? WorkspaceId);
