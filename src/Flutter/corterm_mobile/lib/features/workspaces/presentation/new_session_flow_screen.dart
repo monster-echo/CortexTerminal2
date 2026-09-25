@@ -96,16 +96,23 @@ class _NewSessionFlowScreenState extends ConsumerState<NewSessionFlowScreen> {
               leading: const Icon(Icons.computer),
             )
           else
-            for (final w in workers)
+            for (final w in workers.toList()
+              ..sort((a, b) {
+                if (a.isOnline != b.isOnline) return a.isOnline ? -1 : 1;
+                return a.displayName.compareTo(b.displayName);
+              }))
               ListRow(
                 title: w.displayName,
-                subtitle: w.hostname,
-                leading: const Icon(Icons.computer),
+                subtitle: '${w.isOnline ? w.hostname : '离线（不可选） · ${w.hostname}'}',
+                leading: Icon(Icons.computer,
+                    color: w.isOnline ? null : colors.textSecondary.withValues(alpha: 0.4)),
                 selected: w.workerId == _workerId,
-                onTap: () => setState(() {
-                  _workerId = w.workerId;
-                  _workspaceId = null; // 换电脑后清空已选工作区
-                }),
+                onTap: w.isOnline
+                    ? () => setState(() {
+                          _workerId = w.workerId;
+                          _workspaceId = null; // 换电脑后清空已选工作区
+                        })
+                    : null, // 离线电脑无法启动会话
                 trailing: const Icon(Icons.chevron_right, size: 18),
               ),
           SectionHeader('工作区'),

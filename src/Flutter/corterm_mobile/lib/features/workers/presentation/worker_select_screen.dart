@@ -38,14 +38,24 @@ class WorkerSelectScreen extends ConsumerWidget {
                 icon: Icons.computer_outlined, message: '还没有配对电脑')
             : ListView(
                 children: [
-                  for (final w in value ?? const <WorkerSummary>[])
+                  for (final w in (value ?? const <WorkerSummary>[])
+                      .toList()
+                    ..sort((a, b) {
+                      if (a.isOnline != b.isOnline) return a.isOnline ? -1 : 1;
+                      return a.displayName.compareTo(b.displayName);
+                    }))
                     ListRow(
                       title: w.displayName,
                       subtitle:
-                          '${w.isOnline ? '在线' : '离线'} · ${w.hostname ?? ''}',
-                      leading: const Icon(Icons.computer_outlined),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () => Navigator.pop(context, w),
+                          '${w.isOnline ? '在线' : '离线（不可选）'} · ${w.hostname ?? ''}',
+                      leading: Icon(Icons.computer_outlined,
+                          color: w.isOnline
+                              ? colors.textSecondary
+                              : colors.textSecondary.withValues(alpha: 0.4)),
+                      trailing: w.isOnline
+                          ? const Icon(Icons.chevron_right)
+                          : null,
+                      onTap: w.isOnline ? () => Navigator.pop(context, w) : null, // 离线不可选
                     ),
                 ],
               ),
