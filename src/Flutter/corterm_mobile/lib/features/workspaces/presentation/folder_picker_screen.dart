@@ -14,8 +14,7 @@ import '../data/workspace_providers.dart';
 /// - 每次都从起点打开（该电脑工作区根，否则 "~"），不做记忆——记忆会让用户
 ///   困惑「为什么我从这个奇怪的地方开始」。
 /// - 「返回上级」在任何状态下都可用（含错误/空态），不存在走不出来的目录。
-/// - 顶部提供「回到起点」。
-/// - 错误态提供「重试」。
+/// - AppBar 提供「回到起点」；错误态提供「重试」。
 class FolderPickerScreen extends ConsumerStatefulWidget {
   const FolderPickerScreen({super.key, required this.workerId});
 
@@ -41,34 +40,51 @@ class _FolderPickerScreenState extends ConsumerState<FolderPickerScreen> {
   String _query = '';
   bool _creatingDir = false;
   int _loadSeq = 0; // 丢弃过期请求的响应（快速连续导航时）
+  FileListing? _listing;
+  Object? _error;
+  bool _loading = true;
 
   late final String _root =
       _startRoot(ref.read(workspacesProvider).value ?? const <Workspace>[]);
-  Future<FileListing>? _future;
 
   @override
   void initState() {
     super.initState();
-    _future = _load();
+    _load();
   }
 
-  Future<FileListing> _load() {
+  /// 加载当前目录；结果写入显式状态（loading/error/data）。
+  /// 错误是页面状态而不是 future 异常——错误态要保留导航出口，且可测试。
+  Future<void> _load() async {
     final seq = ++_loadSeq;
-    return ref
-        .read(fileRepositoryProvider)
-        .listForWorker(workerId: widget.workerId, root: _root, path: _rel)
-        .then((r) {
-      if (seq != _loadSeq) throw _StaleLoad();
-      return r;
-    });
+    if (mounted) setState(() => _loading = true);
+    try {
+      final listing = await ref.read(fileRepositoryProvider).listForWorker(
+            workerId: widget.workerId,
+            root: _root,
+            path: _rel,
+          );
+      if (seq != _loadSeq || !mounted) return;
+      setState(() {
+        _listing = listing;
+        _error = null;
+        _loading = false;
+      });
+    } catch (e) {
+      if (seq != _loadSeq || !mounted) return;
+      setState(() {
+        _error = e;
+        _loading = false;
+      });
+    }
   }
 
   void _open(String rel) {
     setState(() {
       _rel = rel;
       _query = '';
-      _future = _load();
     });
+    _load();
   }
 
   void _back() {
@@ -77,10 +93,6 @@ class _FolderPickerScreenState extends ConsumerState<FolderPickerScreen> {
   }
 
   void _toStart() => _open('');
-
-  Future<void> _retry() async {
-    setState(() => _future = _load());
-  }
 
   String get _absolute {
     final root = _root;
@@ -133,6 +145,69 @@ class _FolderPickerScreenState extends ConsumerState<FolderPickerScreen> {
     } finally {
       if (mounted) setState(() => _creatingDir = false);
     }
+  }
+
+  /// 目录列表主体：loading / error / data 三态。错误态保留导航出口
+  /// （返回上级 / 回到起点 / 重试），不存在走不出来的目录。
+  Widget _buildBody(CortermColors colors) {
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_error != null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('$_error',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: colors.danger, fontSize: 14)),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_rel.isNotEmpty)
+                  TextButton(onPressed: _back, child: const Text('返回上级')),
+                TextButton(onPressed: _toStart, child: const Text('回到起点')),
+                TextButton(onPressed: _load, child: const Text('重试')),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+    final q = _query.trim().toLowerCase();
+    final dirs = (_listing?.entries ?? const [])
+        .where((e) => e.isDirectory)
+        .where((e) => q.isEmpty || e.name.toLowerCase().contains(q))
+        .toList()
+      ..sort((a, b) => a.name.compareTo(b.name));
+    return RefreshIndicator(
+      onRefresh: () async => _open(_rel),
+      child: ListView(
+        children: [
+          if (_rel.isNotEmpty)
+            ListRow(
+              title: '..',
+              leading: const Icon(Icons.arrow_upward, size: 18),
+              onTap: _back,
+            ),
+          if (dirs.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 32),
+              child: EmptyState(
+                  icon: Icons.folder_open,
+                  message: q.isEmpty ? '没有子文件夹' : '无匹配「$_query」的文件夹'),
+            ),
+          for (final d in dirs)
+            ListRow(
+              title: d.name,
+              leading: const Icon(Icons.folder, size: 18),
+              onTap: () => _open(_rel.isEmpty ? d.name : '$_rel/${d.name}'),
+              trailing: const Icon(Icons.chevron_right, size: 18),
+            ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -192,9 +267,8 @@ class _FolderPickerScreenState extends ConsumerState<FolderPickerScreen> {
                   visualDensity: VisualDensity.compact,
                   icon: Icon(Icons.arrow_upward,
                       size: 20,
-                      color: _rel.isEmpty
-                          ? colors.divider
-                          : colors.textSecondary),
+                      color:
+                          _rel.isEmpty ? colors.divider : colors.textSecondary),
                   onPressed: _rel.isEmpty ? null : _back,
                 ),
                 IconButton(
@@ -225,91 +299,7 @@ class _FolderPickerScreenState extends ConsumerState<FolderPickerScreen> {
               ),
             ),
           ),
-          Expanded(
-            child: FutureBuilder<FileListing>(
-              future: _future,
-              builder: (context, snap) {
-                if (snap.connectionState != ConnectionState.done) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (snap.hasError) {
-                  if (snap.error is _StaleLoad) {
-                    return const SizedBox.shrink();
-                  }
-                  // 错误态仍保留导航出口：返回上级 / 回到起点 / 重试。
-                  return Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text('${snap.error}',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                                color: colors.danger, fontSize: 14)),
-                        const SizedBox(height: 16),
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (_rel.isNotEmpty)
-                              TextButton(
-                                onPressed: _back,
-                                child: const Text('返回上级'),
-                              ),
-                            TextButton(
-                              onPressed: _toStart,
-                              child: const Text('回到起点'),
-                            ),
-                            TextButton(
-                              onPressed: _retry,
-                              child: const Text('重试'),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  );
-                }
-                final q = _query.trim().toLowerCase();
-                final dirs = snap.data!.entries
-                    .where((e) => e.isDirectory)
-                    .where((e) =>
-                        q.isEmpty || e.name.toLowerCase().contains(q))
-                    .toList()
-                  ..sort((a, b) => a.name.compareTo(b.name));
-                return RefreshIndicator(
-                  onRefresh: () async => _open(_rel),
-                  child: ListView(
-                    children: [
-                      if (_rel.isNotEmpty)
-                        ListRow(
-                          title: '..',
-                          leading:
-                              const Icon(Icons.arrow_upward, size: 18),
-                          onTap: _back,
-                        ),
-                      if (dirs.isEmpty)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 32),
-                          child: EmptyState(
-                              icon: Icons.folder_open,
-                              message: q.isEmpty
-                                  ? '没有子文件夹'
-                                  : '无匹配「$_query」的文件夹'),
-                        ),
-                      for (final d in dirs)
-                        ListRow(
-                          title: d.name,
-                          leading: const Icon(Icons.folder, size: 18),
-                          onTap: () => _open(
-                              _rel.isEmpty ? d.name : '$_rel/${d.name}'),
-                          trailing: const Icon(Icons.chevron_right,
-                              size: 18),
-                        ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
+          Expanded(child: _buildBody(colors)),
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -324,6 +314,3 @@ class _FolderPickerScreenState extends ConsumerState<FolderPickerScreen> {
     );
   }
 }
-
-/// 过期的加载响应（用户已经导航走了）——静默丢弃。
-class _StaleLoad implements Exception {}

@@ -163,11 +163,13 @@ void main() {
 
     testWidgets('每次都从起点打开：不做位置记忆（回归：曾从上次目录开始）', (tester) async {
       await mountPicker(tester);
-      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(const Duration(milliseconds: 100));
 
       // 进入 a/
       await tester.tap(find.text('a'));
-      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(const Duration(milliseconds: 100));
       expect(repo.listForWorkerCalls.last.path, 'a');
 
       // 模拟离开页面再次进入：卸载（go 到空页）再挂载，起点必须是根（path=''）
@@ -175,26 +177,43 @@ void main() {
       router.go('/');
       await tester.pump(const Duration(milliseconds: 100));
       router.go('/pick');
-      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(const Duration(milliseconds: 100));
       expect(repo.listForWorkerCalls.last.path, '');
     });
 
     testWidgets('「返回上级」在任何列表状态下可用：空目录也能退出去', (tester) async {
-      repo.listingBuilder =
-          (root, path) => const FileListing(entries: [], truncated: false);
+      // 根有 a/b；a/ 目录为空
+      repo.listingBuilder = (root, path) => path == 'a'
+          ? const FileListing(entries: [], truncated: false)
+          : FileListing(entries: const [
+              FileEntry(
+                  name: 'a',
+                  isDirectory: true,
+                  sizeBytes: 0,
+                  modifiedUtc: null),
+              FileEntry(
+                  name: 'b',
+                  isDirectory: true,
+                  sizeBytes: 0,
+                  modifiedUtc: null),
+            ], truncated: false);
 
       await mountPicker(tester);
-      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(const Duration(milliseconds: 100));
 
       await tester.tap(find.text('a'));
-      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(const Duration(milliseconds: 100));
       // 空目录：显示空态，但仍有「..」行与返回上级按钮
       expect(find.text('没有子文件夹'), findsOneWidget);
       expect(find.text('..'), findsOneWidget);
       expect(find.byTooltip('返回上级'), findsOneWidget);
 
       await tester.tap(find.text('..'));
-      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(const Duration(milliseconds: 100));
       expect(repo.listForWorkerCalls.last.path, '');
     });
 
@@ -217,35 +236,43 @@ void main() {
       };
 
       await mountPicker(tester);
-      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(const Duration(milliseconds: 100));
 
       // 进入会抛错的目录
       await tester.tap(find.text('locked'));
-      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(const Duration(milliseconds: 100));
 
       expect(find.textContaining('access denied'), findsOneWidget);
       expect(find.text('返回上级'), findsOneWidget);
       expect(find.text('回到起点'), findsOneWidget);
       expect(find.text('重试'), findsOneWidget);
 
-      // 回到起点 → 恢复正常列表
+      // 回到起点 → 恢复正常列表（根下是 locked 目录）
       await tester.tap(find.text('回到起点'));
-      await tester.pump(const Duration(milliseconds: 200));
-      expect(find.text('a'), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.text('locked'), findsOneWidget);
+      expect(find.textContaining('access denied'), findsNothing);
     });
 
     testWidgets('「回到起点」一键返回浏览根', (tester) async {
       await mountPicker(tester);
-      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(const Duration(milliseconds: 100));
 
       await tester.tap(find.text('a'));
-      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(const Duration(milliseconds: 100));
       await tester.tap(find.text('deep'));
-      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(const Duration(milliseconds: 100));
       expect(repo.listForWorkerCalls.last.path, 'a/deep');
 
       await tester.tap(find.byTooltip('回到起点'));
-      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(const Duration(milliseconds: 100));
       expect(repo.listForWorkerCalls.last.path, '');
     });
   });

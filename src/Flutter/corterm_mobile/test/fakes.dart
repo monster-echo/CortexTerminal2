@@ -124,13 +124,17 @@ class FakeFileRepo implements FileRepository {
   final List<FileListingCall> listForWorkerCalls = [];
 
   /// 可注入的目录内容；缺省返回固定列表。
-  FileListing Function(String root, String path)? listingBuilder;
+  Object Function(String root, String path)? listingBuilder; // FileListing 或 Future<FileListing>
 
   @override
   Future<FileListing> listForWorker(
       {required String workerId, String root = '', String path = ''}) async {
     listForWorkerCalls.add(FileListingCall(root, path));
-    if (listingBuilder != null) return listingBuilder!(root, path);
+    if (listingBuilder != null) {
+      final out = listingBuilder!(root, path);
+      if (out is FileListing) return out;
+      if (out is Future<FileListing>) return out;
+    }
     return const FileListing(entries: [
       FileEntry(
           name: 'Projects',
