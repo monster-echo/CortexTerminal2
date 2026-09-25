@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../app/theme/corterm_theme.dart';
+import '../../../shared/utils/relative_time.dart';
 import '../../../shared/widgets/corterm_ui.dart';
 import '../../../core/models/session.dart';
 import '../../sessions/data/session_repository.dart';
@@ -100,7 +101,7 @@ class UngroupedSessionsScreen extends ConsumerWidget {
                     ListRow(
                       title: s.displayName,
                       subtitle:
-                          '${s.workerName ?? s.workerId} · ${s.status.isAlive ? '运行中' : '已结束'}',
+                          '${s.workerName ?? s.workerId} · ${s.status.isAlive ? '运行中' : '已结束'} · ${relativeTime(s.lastActivityAt)}',
                       leading: Icon(Icons.terminal_outlined,
                           color: colors.textSecondary),
                       trailing: IconButton(

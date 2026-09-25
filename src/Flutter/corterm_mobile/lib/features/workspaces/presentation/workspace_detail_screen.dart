@@ -5,30 +5,42 @@ import 'package:go_router/go_router.dart';
 import '../../../app/theme/corterm_theme.dart';
 import '../../../core/models/session.dart';
 import '../../../core/models/workspace.dart';
+import '../../../shared/utils/relative_time.dart';
 import '../../../shared/widgets/corterm_ui.dart';
 import '../../sessions/data/sessions_providers.dart';
 import '../data/workspace_providers.dart';
 
 /// 工作区详情（design/01 §5）：名称 + 电脑/路径 + Session 列表 + 操作入口。
-class WorkspaceDetailScreen extends ConsumerWidget {
+class WorkspaceDetailScreen extends ConsumerStatefulWidget {
   const WorkspaceDetailScreen({super.key, required this.workspaceId});
 
   final String workspaceId;
 
-  String _duration(SessionSummary s) {
-    final d = DateTime.now().toUtc().difference(s.createdAt);
-    final h = d.inHours;
-    final m = d.inMinutes % 60;
-    return h > 0 ? '${h}h ${m}m' : '${m}m';
-  }
+  @override
+  ConsumerState<WorkspaceDetailScreen> createState() =>
+      _WorkspaceDetailScreenState();
+}
+
+class _WorkspaceDetailScreenState extends ConsumerState<WorkspaceDetailScreen> {
+  bool _revalidated = false;
+
+  String get workspaceId => widget.workspaceId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  @override
+  Widget build(BuildContext context) {
     final colors = colorsOf(context);
     final wsAsync = ref.watch(workspacesProvider);
-    final workspace = (wsAsync.value ?? const <Workspace>[])
+    var workspace = (wsAsync.value ?? const <Workspace>[])
         .where((w) => w.workspaceId == workspaceId)
         .firstOrNull;
+    // 自愈：刚创建后缓存可能尚未包含本工作区（如热恢复/竞态），失效重取一次。
+    if (wsAsync.hasValue && workspace == null && !_revalidated) {
+      _revalidated = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref.invalidate(workspacesProvider);
+      });
+    }
     final sessions = ref.watch(workspaceSessionsProvider(workspaceId));
     final workers = ref.watch(workersProvider).value ?? const [];
     final workerName = workspace == null
@@ -86,7 +98,9 @@ class WorkspaceDetailScreen extends ConsumerWidget {
                 for (final s in sessions)
                   ListRow(
                     title: s.displayName,
-                    subtitle: s.status.isRunning ? '运行中 · ${_duration(s)}' : '已结束',
+                    subtitle: s.status.isRunning
+                        ? '运行中 · 最后活跃 ${relativeTime(s.lastActivityAt)}'
+                        : '已结束 · ${relativeTime(s.lastActivityAt)}',
                     leading: Icon(Icons.circle,
                         size: 10,
                         color: s.status.isRunning

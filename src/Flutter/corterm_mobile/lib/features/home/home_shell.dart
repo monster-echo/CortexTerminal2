@@ -7,6 +7,7 @@ import '../../core/models/session.dart';
 import '../../core/models/worker.dart';
 import '../../core/models/workspace.dart';
 import '../../shared/widgets/corterm_ui.dart';
+import '../../shared/utils/relative_time.dart';
 import '../sessions/data/sessions_providers.dart';
 import '../workspaces/data/workspace_providers.dart';
 
@@ -443,6 +444,10 @@ class _SidebarWorkspace extends ConsumerWidget {
                                           fontSize: 14,
                                           color: c.textSecondary)),
                                 ),
+                                Text(relativeTime(s.lastActivityAt),
+                                    style: TextStyle(
+                                        fontSize: 11,
+                                        color: c.textSecondary)),
                               ],
                             ),
                           ),

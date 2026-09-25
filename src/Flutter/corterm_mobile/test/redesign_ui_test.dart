@@ -164,7 +164,7 @@ void main() {
     expect(find.text('终端 1'), findsOneWidget);
     expect(find.textContaining('运行中'), findsOneWidget);
     expect(find.text('终端 2'), findsOneWidget);
-    expect(find.text('已结束'), findsOneWidget);
+    expect(find.textContaining('已结束'), findsOneWidget);
     // 不展示 Agent 类型。
     expect(find.text('Claude Code'), findsNothing);
     expect(find.text('Shell'), findsNothing);
