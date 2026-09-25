@@ -63,4 +63,5 @@ public static class FileTransferErrorCode
     public const string TransferFailed = "transfer_failed";
     public const string Timeout = "timeout";
     public const string WorkerOffline = "worker_offline";
+    public const string WorkerTooOld = "worker_too_old";
 }
