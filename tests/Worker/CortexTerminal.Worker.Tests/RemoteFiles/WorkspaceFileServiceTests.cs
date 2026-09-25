@@ -37,19 +37,12 @@ public sealed class WorkspaceFileServiceTests
     }
 
     [Fact]
-    public void CreateWorkspaceDirectory_OutsideHome_IsAllowed_Relaxed()
+    public void CreateWorkspaceDirectory_RelativePath_ResolvesAgainstHome()
     {
-        // 设计决策：根不再限制在 home 内（安全边界是工作区根本身）；
-        // 外部盘/挂载点上的项目目录是合法工作区。
-        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        var outside = Path.Combine(Path.GetDirectoryName(home)!, "corterm-outside-test");
-
-        var ack = NewService().CreateWorkspaceDirectory(
-            new CreateWorkspaceDirectoryCommand("ws-1", outside));
-        ack.Success.Should().BeTrue();
-
-        // 相对路径（../elsewhere）相对 home 解析；新策略下不再被拒——
+        // 相对路径（../elsewhere）相对 home 解析；新策略（根不限 home）下不再被拒——
         // 根本身就是沙箱边界，解析成什么路径就在什么路径内。
+        // 「根可在 home 外」这一策略点由 TildeRootTests.OutsideHome_IsAllowed_Relaxed 覆盖
+        // （不落盘，三平台等价；home 外目录在 CI 上通常不可写）。
         var traversal = NewService().CreateWorkspaceDirectory(
             new CreateWorkspaceDirectoryCommand("ws-2", "../elsewhere"));
         traversal.Success.Should().BeTrue();
