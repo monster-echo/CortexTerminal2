@@ -6,6 +6,7 @@ import '../../../app/theme/corterm_theme.dart';
 import '../../../core/models/worker.dart';
 import '../../../shared/widgets/corterm_ui.dart';
 import '../../sessions/data/sessions_providers.dart';
+import '../../workers/data/workspace_repository.dart';
 import '../../workers/data/workspace_repository.dart' show workerWorkspacesProvider;
 import '../data/workspace_providers.dart';
 
