@@ -6,7 +6,8 @@ import '../../../app/theme/corterm_theme.dart';
 import '../../../core/models/worker.dart';
 import '../../../shared/widgets/corterm_ui.dart';
 import '../../sessions/data/sessions_providers.dart';
-import '../../workers/data/workspace_repository.dart';
+import '../../workers/data/workspace_repository.dart' show workerWorkspacesProvider;
+import '../data/workspace_providers.dart';
 
 /// 新建工作区（design/02 §3）：电脑（必填）→ 文件夹（必填）→ 名称 → 创建。
 class NewWorkspaceScreen extends ConsumerStatefulWidget {
@@ -80,7 +81,11 @@ class _NewWorkspaceScreenState extends ConsumerState<NewWorkspaceScreen> {
             name: _nameController.text,
             rootPath: _folder!,
           );
-      if (mounted) context.pushReplacement('/workspaces/${ws.workspaceId}');
+      // 新工作区不在缓存列表里，先失效再进详情，否则详情页判为不存在。
+      if (mounted) {
+        ref.invalidate(workspacesProvider);
+        context.pushReplacement('/workspaces/${ws.workspaceId}');
+      }
     } catch (e) {
       setState(() {
         _error = '$e';

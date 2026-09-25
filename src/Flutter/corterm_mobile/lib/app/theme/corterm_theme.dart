@@ -19,6 +19,7 @@ class CortermColors extends ThemeExtension<CortermColors> {
     required this.warning,
     required this.danger,
     required this.onEmphasis,
+    required this.emphasis,
     required this.scrim,
     required this.onScrim,
   });
@@ -35,8 +36,11 @@ class CortermColors extends ThemeExtension<CortermColors> {
   final Color warning;
   final Color danger;
 
-  /// 强调底（accent / 黑底主按钮 / 彩色 hero）上的前景。
+  /// 强调底（accent / 主按钮 / 彩色 hero）上的前景。
   final Color onEmphasis;
+
+  /// 主按钮等“强调底”色：Light=黑底，Dark=白底（ChatGPT 风格）。
+  final Color emphasis;
 
   /// 相机取景/遮罩类全屏黑底。
   final Color scrim;
@@ -57,6 +61,26 @@ class CortermColors extends ThemeExtension<CortermColors> {
     warning: Color(0xFFFF9F0A),
     danger: Color(0xFFFF3B30),
     onEmphasis: Color(0xFFFFFFFF),
+    emphasis: Color(0xFF111111),
+    scrim: Color(0xFF000000),
+    onScrim: Color(0xFFFFFFFF),
+  );
+
+  /// Light App Context 的深色变体（用户切换 Dark 时全局使用）。
+  static const dark = CortermColors(
+    background: Color(0xFF0B0D0F),
+    surface: Color(0xFF171A1F),
+    surfaceSelected: Color(0xFF20242A),
+    surfaceElevated: Color(0xFF20242A),
+    textPrimary: Color(0xFFF5F5F5),
+    textSecondary: Color(0xFF9CA3AF),
+    divider: Color(0xFF2B3037),
+    accent: Color(0xFF3B82F6),
+    success: Color(0xFF34C759),
+    warning: Color(0xFFFF9F0A),
+    danger: Color(0xFFFF453A),
+    onEmphasis: Color(0xFF111111),
+    emphasis: Color(0xFFF5F5F5),
     scrim: Color(0xFF000000),
     onScrim: Color(0xFFFFFFFF),
   );
@@ -73,7 +97,8 @@ class CortermColors extends ThemeExtension<CortermColors> {
     success: Color(0xFF34C759),
     warning: Color(0xFFFF9F0A),
     danger: Color(0xFFFF453A),
-    onEmphasis: Color(0xFFFFFFFF),
+    onEmphasis: Color(0xFF111111),
+    emphasis: Color(0xFFF5F5F5),
     scrim: Color(0xFF000000),
     onScrim: Color(0xFFFFFFFF),
   );
@@ -92,6 +117,7 @@ class CortermColors extends ThemeExtension<CortermColors> {
     Color? warning,
     Color? danger,
     Color? onEmphasis,
+    Color? emphasis,
     Color? scrim,
     Color? onScrim,
   }) {
@@ -108,6 +134,7 @@ class CortermColors extends ThemeExtension<CortermColors> {
       warning: warning ?? this.warning,
       danger: danger ?? this.danger,
       onEmphasis: onEmphasis ?? this.onEmphasis,
+      emphasis: emphasis ?? this.emphasis,
       scrim: scrim ?? this.scrim,
       onScrim: onScrim ?? this.onScrim,
     );
@@ -129,6 +156,7 @@ class CortermColors extends ThemeExtension<CortermColors> {
       warning: Color.lerp(warning, other.warning, t)!,
       danger: Color.lerp(danger, other.danger, t)!,
       onEmphasis: Color.lerp(onEmphasis, other.onEmphasis, t)!,
+      emphasis: Color.lerp(emphasis, other.emphasis, t)!,
       scrim: Color.lerp(scrim, other.scrim, t)!,
       onScrim: Color.lerp(onScrim, other.onScrim, t)!,
     );

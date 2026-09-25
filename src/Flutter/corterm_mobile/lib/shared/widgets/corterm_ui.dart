@@ -24,7 +24,7 @@ class PrimaryButton extends StatelessWidget {
       child: ElevatedButton(
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
-          backgroundColor: danger ? c.danger : c.textPrimary,
+          backgroundColor: danger ? c.danger : c.emphasis,
           foregroundColor: c.onEmphasis,
           elevation: 0,
           shape: const RoundedRectangleBorder(

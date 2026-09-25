@@ -96,6 +96,11 @@ class _SessionTerminalScreenState extends ConsumerState<SessionTerminalScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
       ),
       builder: (sheetContext) {
+        // Modal 路由挂在 Navigator 根上，拿不到页面的 Dark Theme——
+        // 显式包一层，否则 colorsOf 解析为 Light token，深色底配深色字对比度极差。
+        return Theme(
+          data: cortermDarkToolTheme(),
+          child: Builder(builder: (sheetContext) {
         final colors = colorsOf(sheetContext);
         return SafeArea(
           top: false,
@@ -148,6 +153,8 @@ class _SessionTerminalScreenState extends ConsumerState<SessionTerminalScreen> {
               const SizedBox(height: 8),
             ],
           ),
+        );
+          }),
         );
       },
     );

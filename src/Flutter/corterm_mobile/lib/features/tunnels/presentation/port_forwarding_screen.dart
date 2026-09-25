@@ -334,25 +334,29 @@ class _RuleSheetState extends State<_RuleSheet> {
   Widget build(BuildContext context) {
     final canSubmit =
         _validPort(_localPortController.text) && _validPort(_remotePortController.text);
-    return Padding(
-      padding: EdgeInsets.only(
-        left: 24,
-        right: 24,
-        top: 24,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-      ),
+    // Modal 路由在 Navigator 根上，显式包 Dark Theme 保证弹层对比度。
+    return Theme(
+      data: cortermDarkToolTheme(),
+      child: Builder(builder: (context) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 24,
+            right: 24,
+            top: 24,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+          ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SectionHeader(widget.existing == null ? '新建转发规则' : '编辑转发规则'),
-          _field('名称（可选）', _nameController, keyboardType: TextInputType.text),
-          _field('本地端口', _localPortController,
+          _field(context, '名称（可选）', _nameController, keyboardType: TextInputType.text),
+          _field(context, '本地端口', _localPortController,
               keyboardType: TextInputType.number,
               onChanged: (_) => setState(() {})),
-          _field('远端地址', _remoteHostController,
+          _field(context, '远端地址', _remoteHostController,
               keyboardType: TextInputType.url),
-          _field('远端端口', _remotePortController,
+          _field(context, '远端端口', _remotePortController,
               keyboardType: TextInputType.number, onChanged: (v) {
             setState(() {});
             // 输入远端端口后，本地端口默认同值，用户可修改。
@@ -370,10 +374,13 @@ class _RuleSheetState extends State<_RuleSheet> {
           ),
         ],
       ),
-    );
+          );
+        }),
+      );
   }
 
   Widget _field(
+    BuildContext context,
     String label,
     TextEditingController controller, {
     required TextInputType keyboardType,

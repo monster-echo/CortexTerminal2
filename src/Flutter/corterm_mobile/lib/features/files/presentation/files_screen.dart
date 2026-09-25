@@ -222,6 +222,10 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
+        // Modal 路由在 Navigator 根上，需显式 Dark Theme。
+        return Theme(
+          data: cortermDarkToolTheme(),
+          child: Builder(builder: (sheetContext) {
         final c = colorsOf(sheetContext);
         return Padding(
           padding: EdgeInsets.only(
@@ -298,6 +302,8 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
             ),
           ),
         );
+          }),
+        );
       },
     );
   }
@@ -311,6 +317,10 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
+        // Modal 路由在 Navigator 根上，需显式 Dark Theme。
+        return Theme(
+          data: cortermDarkToolTheme(),
+          child: Builder(builder: (sheetContext) {
         final c = colorsOf(sheetContext);
         InputDecoration inputDecoration(String hint) => InputDecoration(
               hintText: hint,
@@ -402,6 +412,8 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
               ],
             ),
           ),
+        );
+          }),
         );
       },
     );
