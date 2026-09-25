@@ -7,7 +7,6 @@ import '../../../core/models/worker.dart';
 import '../../../shared/widgets/corterm_ui.dart';
 import '../../sessions/data/sessions_providers.dart';
 import '../../workers/data/workspace_repository.dart';
-import '../../workers/data/workspace_repository.dart' show workerWorkspacesProvider;
 import '../data/workspace_providers.dart';
 
 /// 新建工作区（design/02 §3）：电脑（必填）→ 文件夹（必填）→ 名称 → 创建。
