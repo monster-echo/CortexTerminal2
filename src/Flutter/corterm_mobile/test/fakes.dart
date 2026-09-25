@@ -112,7 +112,40 @@ class FakeMembershipRepo implements MembershipRepository {
       throw UnimplementedError('${invocation.memberName}');
 }
 
+/// 一次 listForWorker 调用记录（用于断言浏览导航）。
+class FileListingCall {
+  FileListingCall(this.root, this.path);
+  final String root;
+  final String path;
+}
+
 class FakeFileRepo implements FileRepository {
+  /// 记录 listForWorker 的调用（导航断言用）。
+  final List<FileListingCall> listForWorkerCalls = [];
+
+  /// 可注入的目录内容；缺省返回固定列表。
+  FileListing Function(String root, String path)? listingBuilder;
+
+  @override
+  Future<FileListing> listForWorker(
+      {required String workerId, String root = '', String path = ''}) async {
+    listForWorkerCalls.add(FileListingCall(root, path));
+    if (listingBuilder != null) return listingBuilder!(root, path);
+    return const FileListing(entries: [
+      FileEntry(
+          name: 'Projects',
+          isDirectory: true,
+          sizeBytes: 0,
+          modifiedUtc: null),
+    ], truncated: false);
+  }
+
+  @override
+  Future<Uint8List> downloadBytes(
+      {required String workspaceId, required String path}) async {
+    return Uint8List.fromList('hello corterm'.codeUnits);
+  }
+
   @override
   Future<FileListing> list(
       {required String workspaceId, required String path}) async {
@@ -131,24 +164,6 @@ class FakeFileRepo implements FileRepository {
           name: 'pubspec.yaml',
           isDirectory: false,
           sizeBytes: 567,
-          modifiedUtc: null),
-    ], truncated: false);
-  }
-
-  @override
-  Future<Uint8List> downloadBytes(
-      {required String workspaceId, required String path}) async {
-    return Uint8List.fromList('hello corterm'.codeUnits);
-  }
-
-  @override
-  Future<FileListing> listForWorker(
-      {required String workerId, String root = '', String path = ''}) async {
-    return const FileListing(entries: [
-      FileEntry(
-          name: 'Projects',
-          isDirectory: true,
-          sizeBytes: 0,
           modifiedUtc: null),
     ], truncated: false);
   }

@@ -187,7 +187,7 @@ class _WorkerStatsCard extends ConsumerWidget {
               label: l10n.meNoWorkers,
               value: l10n.workersTitle,
               chevron: true,
-              onTap: () => context.push('/workers?from=me'),
+              onTap: () => context.push('/computers/new'),
             )
           else ...[
             // 2×2 统计格：宽间距 + 上下分割，避免四格挤在一行。
@@ -229,14 +229,8 @@ class _WorkerStatsCard extends ConsumerWidget {
                 ),
                 label: w.displayName,
                 value: w.isOnline ? l10n.workerOnline : l10n.workerOffline,
-                onTap: () => context.push('/workers?from=me'),
+                onTap: () => context.push('/computers/${w.workerId}'),
               ),
-            AppRow(
-              label: l10n.meViewAllWorkers,
-              value: l10n.workersTitle,
-              chevron: true,
-              onTap: () => context.push('/workers?from=me'),
-            ),
           ],
         ]);
       },

@@ -854,7 +854,8 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
             entity.Name,
             entity.AgentKind,
             entity.AgentSessionId,
-            entity.InferredTitle);
+            entity.InferredTitle,
+            entity.WorkspaceId);
     }
 
     private async Task PersistSessionStateAsync(
