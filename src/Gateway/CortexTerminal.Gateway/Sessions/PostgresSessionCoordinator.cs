@@ -780,6 +780,26 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
             entity.WorkspaceId = workspaceId;
             await db.SaveChangesAsync();
         }
+        else
+        {
+            // 内存中存在但 DB 尚无行（持久化 fire-and-forget 滞后/失败）：补插一行，
+            // 否则列表（以 DB 为准）永远看不到移动结果。
+            var s = staged!;
+            db.Sessions.Add(new SessionRecordEntity
+            {
+                SessionId = sessionId,
+                UserId = userId,
+                WorkerId = s.WorkerId,
+                Columns = 80,
+                Rows = 24,
+                CreatedAtUtc = s.CreatedAtUtc,
+                LastActivityAtUtc = s.LastActivityAtUtc,
+                AttachmentState = s.AttachmentState.ToString(),
+                Name = s.Name,
+                WorkspaceId = workspaceId,
+            });
+            await db.SaveChangesAsync();
+        }
 
         lock (_sync)
         {
