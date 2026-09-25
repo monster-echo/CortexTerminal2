@@ -216,6 +216,25 @@ public sealed class RelayFileTransferService(
     /// 终端文件浏览：根目录由客户端给出（shell OSC 7 上报的实时 cwd，或工作区绝对路径），
     /// Worker 侧负责把根限制在用户 home 内。鉴权只看 worker 归属。
     /// </summary>
+    /// <summary>
+    /// 新建工作区前的文件夹选择页用：在给定根（如 "~"）下新建目录。
+    /// 旧版 worker 无 Mkdir RPC 时映射为 worker_too_old。
+    /// </summary>
+    public async Task MkdirForWorkerAsync(
+        string userId, string workerId, string rootPath, string path, CancellationToken ct)
+    {
+        var worker = OwnedOnlineWorkerOrThrow(userId, workerId);
+
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(TimeSpan.FromSeconds(15));
+        var result = GuardWorkerCapability(() => workerCommands.MkdirInRootAsync(
+            worker.ConnectionId, rootPath, path, timeout.Token).GetAwaiter().GetResult());
+        if (result.Error is not null)
+        {
+            throw new WorkspaceFileServiceException(result.Error.Code, result.Error.Message);
+        }
+    }
+
     public async Task<FileListing> ListForWorkerAsync(
         string userId, string workerId, string rootPath, string? path, CancellationToken ct)
     {

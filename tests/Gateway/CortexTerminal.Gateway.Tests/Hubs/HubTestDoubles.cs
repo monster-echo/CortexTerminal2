@@ -103,6 +103,9 @@ internal class NoOpWorkerCommandDispatcher : IWorkerCommandDispatcher
         => Task.FromResult(new ScrollbackDelta(Gap: true, LastSeq: 0, Items: []));
     public Task<FileListingResult> ListFilesAsync(string workerConnectionId, string rootDir, string relativePath, CancellationToken cancellationToken)
         => Task.FromResult(new FileListingResult(null, new FileOperationError(FileTransferErrorCode.TransferFailed, "no-op dispatcher")));
+
+    public Task<CortexTerminal.Contracts.Sessions.FileOpResult> MkdirInRootAsync(string workerConnectionId, string rootDir, string relativePath, CancellationToken cancellationToken)
+        => Task.FromResult(new CortexTerminal.Contracts.Sessions.FileOpResult(null));
     public virtual Task<FileOpResult> MkdirAsync(string workerConnectionId, string rootDir, string relativePath, CancellationToken cancellationToken)
         => Task.FromResult(new FileOpResult(new FileOperationError(FileTransferErrorCode.TransferFailed, "no-op dispatcher")));
     public virtual Task<FileOpResult> WriteTextFileAsync(string workerConnectionId, string rootDir, string relativePath, string content, CancellationToken cancellationToken)
@@ -167,6 +170,9 @@ internal sealed class NoOpSessionStatsService : ISessionStatsService
 
 internal sealed class ThrowingWorkerCommandDispatcher(string message) : IWorkerCommandDispatcher
 {
+    public Task<CortexTerminal.Contracts.Sessions.FileOpResult> MkdirInRootAsync(string workerConnectionId, string rootDir, string relativePath, CancellationToken cancellationToken)
+        => Task.FromException<CortexTerminal.Contracts.Sessions.FileOpResult>(new InvalidOperationException(message));
+
     public Task StartSessionAsync(string workerConnectionId, StartSessionCommand command, CancellationToken cancellationToken)
         => Task.FromException(new InvalidOperationException(message));
 

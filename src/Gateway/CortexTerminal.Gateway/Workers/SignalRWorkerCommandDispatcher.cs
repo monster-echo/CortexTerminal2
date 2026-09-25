@@ -34,6 +34,9 @@ public sealed class SignalRWorkerCommandDispatcher(IHubContext<WorkerHub> hubCon
     public Task<FileListingResult> ListFilesAsync(string workerConnectionId, string rootDir, string relativePath, CancellationToken cancellationToken)
         => hubContext.Clients.Client(workerConnectionId).InvokeAsync<FileListingResult>("ListFiles", rootDir, relativePath, cancellationToken);
 
+    public Task<FileOpResult> MkdirInRootAsync(string workerConnectionId, string rootDir, string relativePath, CancellationToken cancellationToken)
+        => hubContext.Clients.Client(workerConnectionId).InvokeAsync<FileOpResult>("Mkdir", rootDir, relativePath, cancellationToken);
+
     public Task<FileOpResult> MkdirAsync(string workerConnectionId, string rootDir, string relativePath, CancellationToken cancellationToken)
         => hubContext.Clients.Client(workerConnectionId).InvokeAsync<FileOpResult>("Mkdir", rootDir, relativePath, cancellationToken);
 

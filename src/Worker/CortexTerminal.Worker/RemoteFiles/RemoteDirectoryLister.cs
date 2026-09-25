@@ -67,13 +67,26 @@ public sealed class RemoteDirectoryLister(string root, int maxEntries)
             .ToArray();
 
         var truncated = ordered.Length > maxEntries;
+        // 逐条容错：列表与 stat 之间条目可能消失（如下载中的临时文件被清理）。
+        // 一条消失不应让整个目录浏览 500（懒 Select 在序列化期抛出会以 HubException 逃逸）。
         var mapped = ordered
             .Take(maxEntries)
-            .Select(e => new FileEntry(
-                Name: e.Name,
-                IsDirectory: e is DirectoryInfo,
-                SizeBytes: e is FileInfo file ? file.Length : 0,
-                ModifiedUtc: new DateTimeOffset(e.LastWriteTimeUtc)))
+            .Select(e =>
+            {
+                try
+                {
+                    return new FileEntry(
+                        Name: e.Name,
+                        IsDirectory: e is DirectoryInfo,
+                        SizeBytes: e is FileInfo file ? file.Length : 0,
+                        ModifiedUtc: new DateTimeOffset(e.LastWriteTimeUtc));
+                }
+                catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
+                {
+                    return (FileEntry?)null;
+                }
+            })
+            .OfType<FileEntry>()
             .ToArray();
 
         return new FileListingResult(

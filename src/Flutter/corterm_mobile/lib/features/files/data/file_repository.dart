@@ -60,6 +60,22 @@ class FileRepository {
     return FileListing.fromJson(json);
   }
 
+  /// 文件夹选择页「新建文件夹」：在 worker 根（如 "~"）下新建目录。
+  Future<void> mkdirForWorker({
+    required String workerId,
+    required String root,
+    required String path,
+  }) async {
+    try {
+      await _client.postMap(
+        '/api/workers/$workerId/files/mkdir',
+        {'root': root, 'path': path},
+      );
+    } on DioException catch (e) {
+      ApiClient.throwFor(e);
+    }
+  }
+
   Future<void> uploadForWorker({
     required String workerId,
     required String root,

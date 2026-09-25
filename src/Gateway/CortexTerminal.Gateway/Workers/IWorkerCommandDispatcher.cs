@@ -14,6 +14,7 @@ public interface IWorkerCommandDispatcher
     Task<IReadOnlyList<TerminalChunk>> RequestScrollbackAsync(string workerConnectionId, string sessionId, CancellationToken cancellationToken);
     Task<ScrollbackDelta> RequestScrollbackSinceAsync(string workerConnectionId, string sessionId, long sinceSeq, CancellationToken cancellationToken);
     Task<FileListingResult> ListFilesAsync(string workerConnectionId, string rootDir, string relativePath, CancellationToken cancellationToken);
+    Task<FileOpResult> MkdirInRootAsync(string workerConnectionId, string rootDir, string relativePath, CancellationToken cancellationToken);
     Task<FileOpResult> MkdirAsync(string workerConnectionId, string rootDir, string relativePath, CancellationToken cancellationToken);
     Task<FileOpResult> WriteTextFileAsync(string workerConnectionId, string rootDir, string relativePath, string content, CancellationToken cancellationToken);
     Task<FileOpResult> RenameAsync(string workerConnectionId, string rootDir, string relativePath, string newName, CancellationToken cancellationToken);

@@ -3406,6 +3406,19 @@ app.MapPost("/api/workers/{workerId}/files/uploads", async (string workerId, Wor
     catch (WorkspaceFileServiceException ex) { return MapFileError(ex); }
 }).RequireAuthorization();
 
+app.MapPost("/api/workers/{workerId}/files/mkdir", async (
+    string workerId, MkdirInRootRequest body, ClaimsPrincipal user, RelayFileTransferService files) =>
+{
+    var userId = GetUserId(user);
+    try
+    {
+        await files.MkdirForWorkerAsync(userId, workerId, body.Root, body.Path, CancellationToken.None);
+        return Results.Ok();
+    }
+    catch (UnauthorizedAccessException) { return Results.Forbid(); }
+    catch (WorkspaceFileServiceException ex) { return MapFileError(ex); }
+}).RequireAuthorization();
+
 app.MapPost("/api/workers/{workerId}/files/downloads", async (string workerId, WorkerFileDownloadRequest body, ClaimsPrincipal user, RelayFileTransferService files) =>
 {
     var userId = GetUserId(user);
@@ -3816,6 +3829,8 @@ public sealed record DeleteRequest(string Path);
 public sealed record WorkerFileUploadRequest(string Root, string DirPath, string Filename, long SizeBytes, string Sha256);
 
 /// <summary>终端文件下载请求：root 为绝对路径，path 为相对 root 的路径。</summary>
+public sealed record MkdirInRootRequest(string Root, string Path);
+
 public sealed record WorkerFileDownloadRequest(string Root, string Path);
 
 /// <summary>

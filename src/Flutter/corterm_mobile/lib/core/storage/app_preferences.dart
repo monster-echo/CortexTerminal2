@@ -82,6 +82,15 @@ class AppPreferences implements TerminalSnapshotStore {
     }
   }
 
+  static const _kFolderPickerPrefix = 'folder_picker.last_rel.';
+
+  /// 文件夹选择页：每台电脑记忆上次浏览的相对目录。
+  String? folderPickerLastRel(String workerId) =>
+      _prefs.getString('$_kFolderPickerPrefix$workerId');
+
+  Future<void> setFolderPickerLastRel(String workerId, String rel) =>
+      _prefs.setString('$_kFolderPickerPrefix$workerId', rel);
+
   /// 终端配色模式（§52 扩展）：'system'（跟随 App）/ 'dark' / 'light'，默认 system。
   String get terminalThemeMode =>
       switch (_prefs.getString(_kTerminalThemeMode)) {
