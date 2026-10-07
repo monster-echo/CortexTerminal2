@@ -5,25 +5,25 @@
         "name": "default",
         "type": "HarmonyOS",
         "material": {
-          "storeFile": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/.local/harmony-debug/cortexterminal-debug.p12",
+          "storeFile": "C:/Users/echo/.ohos/config/default_Harmony_5V026DJBq0PseY0pIcYzRFgnA-33Fy7piID7e1hzZF8=.p12",
           "storePassword": "0000001B0FD211F8A56CEF03CAF17C26D6D59B694A886CCDBDCFD97EA328A85EEA099AE804074C954099D2",
-          "keyAlias": "cortexterminal-debug",
+          "keyAlias": "debugKey",
           "keyPassword": "0000001BD33B14BD1AA45376E3D6BDBDD7D16E3C60DE997065123E46D5DEA8A65BCF49F1DE29F321C947E3",
           "signAlg": "SHA256withECDSA",
-          "profile": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/.local/harmony-debug/coterxterminal-debug.p7b",
-          "certpath": "/Volumes/MacMiniDisk/workspace/CortexTerminal2/.local/harmony-debug/cortexterminal-debug.cer"
+          "profile": "C:/Users/echo/.ohos/config/default_Harmony_5V026DJBq0PseY0pIcYzRFgnA-33Fy7piID7e1hzZF8=.p7b",
+          "certpath": "C:/Users/echo/.ohos/config/default_Harmony_5V026DJBq0PseY0pIcYzRFgnA-33Fy7piID7e1hzZF8=.cer"
         }
       },
       {
         "name": "release",
         "type": "HarmonyOS",
         "material": {
-          "certpath": "/Volumes/MacMiniDisk/Users/echo/.ohos/config/release_Harmony_HnF8a7Uyvrc5G0yM8GOeZcJ-u6-OowP91NxpDiMSmZM=.cer",
+          "certpath": "C:/Users/echo/.ohos/config/release_Harmony_HnF8a7Uyvrc5G0yM8GOeZcJ-u6-OowP91NxpDiMSmZM=.cer",
           "keyAlias": "debugKey",
           "keyPassword": "0000001B57155411FF8DCCE9B2896A5A48BA739911B5E989E618C54CACD30684B450470CD22C72B0A52EA3",
-          "profile": "/Volumes/MacMiniDisk/Users/echo/.ohos/config/release_Harmony_HnF8a7Uyvrc5G0yM8GOeZcJ-u6-OowP91NxpDiMSmZM=.p7b",
+          "profile": "C:/Users/echo/.ohos/config/release_Harmony_HnF8a7Uyvrc5G0yM8GOeZcJ-u6-OowP91NxpDiMSmZM=.p7b",
           "signAlg": "SHA256withECDSA",
-          "storeFile": "/Volumes/MacMiniDisk/Users/echo/.ohos/config/release_Harmony_HnF8a7Uyvrc5G0yM8GOeZcJ-u6-OowP91NxpDiMSmZM=.p12",
+          "storeFile": "C:/Users/echo/.ohos/config/release_Harmony_HnF8a7Uyvrc5G0yM8GOeZcJ-u6-OowP91NxpDiMSmZM=.p12",
           "storePassword": "0000001B33EA1A76A2BF40B3C467F60CADE2A6A69426CF821187877F9F4F57C9A7254CB54E6FCBD624A407"
         }
       }
@@ -33,7 +33,7 @@
         "name": "default",
         "bundleName": "top.rwecho.cortexterminal",
         "signingConfig": "default",
-        "compileSdkVersion": "6.0.1(21)",
+        "compileSdkVersion": "6.0.0(20)",
         "compatibleSdkVersion": "5.0.0(12)",
         "runtimeOS": "HarmonyOS"
       },
