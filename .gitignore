@@ -46,3 +46,5 @@ src/Flutter/**/.flutter-plugins-dependencies
 
 # Harmony hvigor 本地单测/构建产物
 .test/
+# Emulator smoke-test screenshots and temp signing artifacts
+.shots/

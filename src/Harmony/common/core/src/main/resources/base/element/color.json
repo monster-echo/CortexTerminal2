@@ -9,6 +9,7 @@
     { "name": "terminal_secondary_container", "value": "#1a8cd8" },
     { "name": "terminal_tertiary", "value": "#00ba7c" },
     { "name": "terminal_error", "value": "#ff5c5c" },
+    { "name": "terminal_warning", "value": "#F4B740" },
     { "name": "terminal_on_surface", "value": "#e7e9ea" },
     { "name": "terminal_on_surface_variant", "value": "#9aa4b0" },
     { "name": "terminal_on_secondary_container", "value": "#ffffff" },
