@@ -86,6 +86,13 @@ class AppPreferences implements TerminalSnapshotStore {
 
   static const _kFolderPickerPrefix = 'folder_picker.last_rel.';
 
+  /// 文件浏览页：按 workspaceId 记忆上次浏览的相对路径（'' = 工作区根）。
+  String? filesLastPath(String workspaceId) =>
+      _prefs.getString('files_last_path_$workspaceId');
+
+  Future<void> setFilesLastPath(String workspaceId, String path) =>
+      _prefs.setString('files_last_path_$workspaceId', path);
+
   /// 文件夹选择页：每台电脑记忆上次浏览的相对目录。
   String? folderPickerLastRel(String workerId) =>
       _prefs.getString('$_kFolderPickerPrefix$workerId');

@@ -6,6 +6,9 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../../core/api/api_client.dart';
 import '../../../core/api/api_exception.dart';
+import '../p2p/p2p_channel.dart';
+// Web 无 UDP socket，走 stub（抛 P2pException → 规格 §5 端点回落）。
+import '../p2p/p2p_stub.dart' if (dart.library.io) '../p2p/p2p_transfer.dart' as p2p_backend;
 
 /// 远程文件 v2（对齐 ArkTS FilesService / Gateway /api/workspaces*）：
 /// 文件管理以【工作区】为边界；上传/下载经 Relay（或直连端点）流式直传，
@@ -264,23 +267,56 @@ class FileRepository {
         .toList();
   }
 
-  /// 端点协商上传：逐个尝试 PUT，任一成功即返回；全部失败抛最后一次错误。
+  /// 端点协商上传：LAN → p2p → 公网 → Relay 逐个尝试 PUT，任一成功即返回；
+  /// 全部失败抛最后一次错误。
   /// Web 端不能用流式请求体（浏览器 XHR 不支持），必须整包 bytes 直传，
   /// 且 Content-Length 是浏览器禁用头，不能手动设置。
   Future<void> _putViaEndpoints(List<String> endpoints, Uint8List bytes) async {
+    // 规格 §1/§5：端点协商开始时【并行】启动 p2p 打洞准备。
+    final p2pReady = _startP2p(endpoints);
     Object? lastError;
-    for (final url in endpoints) {
+
+    Future<void> putHttp(String url) async {
+      final res = await _bareDio.put<void>(
+        url,
+        data: kIsWeb ? bytes : Stream.fromIterable([bytes]),
+        options: Options(
+          headers: kIsWeb ? null : {'Content-Length': bytes.length},
+          contentType: 'application/octet-stream',
+        ),
+      );
+      if (res.statusCode == null || res.statusCode! >= 300) {
+        throw ApiException(res.statusCode ?? 0, serverMessage: 'transfer failed (${res.statusCode})');
+      }
+    }
+
+    // 1) LAN（端点列表首位）。
+    if (endpoints.isNotEmpty) {
       try {
-        final res = await _bareDio.put<void>(
-          url,
-          data: kIsWeb ? bytes : Stream.fromIterable([bytes]),
-          options: Options(
-            headers: kIsWeb ? null : {'Content-Length': bytes.length},
-            contentType: 'application/octet-stream',
-          ),
-        );
-        if (res.statusCode != null && res.statusCode! < 300) return;
-        lastError = 'transfer failed (${res.statusCode})';
+        await putHttp(endpoints.first);
+        return;
+      } on DioException catch (e) {
+        lastError = e.message ?? e.error ?? e;
+      }
+    }
+    // 2) p2p（6s 内打通才算；失败是规格 §5 允许的唯一静默回落点）。
+    final channel = await p2pReady;
+    if (channel != null) {
+      try {
+        final target = _p2pTarget(endpoints)!;
+        await channel.upload(transferId: target.$1, token: target.$2, bytes: bytes);
+        return;
+      } on Object {
+        // p2p 传输失败（含流被 RST）→ 落下一端点（规格 §5 唯一允许的静默回落）。
+      } finally {
+        channel.close();
+      }
+    }
+    // 3/4) 公网 → Relay（跳过已试过的 LAN）。
+    for (final url in endpoints.skip(1)) {
+      try {
+        await putHttp(url);
+        return;
       } on DioException catch (e) {
         lastError = e.message ?? e.error ?? e;
       }
@@ -288,24 +324,80 @@ class FileRepository {
     throw ApiException(0, serverMessage: 'Transfer failed: $lastError');
   }
 
-  /// 端点协商下载：逐个尝试 GET，任一成功即返回。
+  /// 端点协商下载：LAN → p2p → 公网 → Relay 逐个尝试 GET，任一成功即返回。
   Future<Uint8List> _getViaEndpoints(List<String> endpoints) async {
+    // 规格 §1/§5：端点协商开始时【并行】启动 p2p 打洞准备。
+    final p2pReady = _startP2p(endpoints);
     Object? lastError;
-    for (final url in endpoints) {
+
+    Future<Uint8List> getHttp(String url) async {
+      final res = await _bareDio.get<List<int>>(
+        url,
+        options: Options(responseType: ResponseType.bytes),
+      );
+      if (res.statusCode != null && res.statusCode! < 300) {
+        return Uint8List.fromList(res.data ?? const <int>[]);
+      }
+      throw ApiException(res.statusCode ?? 0, serverMessage: 'transfer failed (${res.statusCode})');
+    }
+
+    // 1) LAN。
+    if (endpoints.isNotEmpty) {
       try {
-        final res = await _bareDio.get<List<int>>(
-          url,
-          options: Options(responseType: ResponseType.bytes),
-        );
-        if (res.statusCode != null && res.statusCode! < 300) {
-          return Uint8List.fromList(res.data ?? const <int>[]);
-        }
-        lastError = 'transfer failed (${res.statusCode})';
+        return await getHttp(endpoints.first);
+      } on DioException catch (e) {
+        lastError = e.message ?? e.error ?? e;
+      }
+    }
+    // 2) p2p（规格 §5 唯一允许的静默回落点）。
+    final channel = await p2pReady;
+    if (channel != null) {
+      try {
+        final target = _p2pTarget(endpoints)!;
+        return await channel.download(transferId: target.$1, token: target.$2);
+      } on Object {
+        // p2p 传输失败（含流被 RST）→ 落下一端点（规格 §5 唯一允许的静默回落）。
+      } finally {
+        channel.close();
+      }
+    }
+    // 3/4) 公网 → Relay。
+    for (final url in endpoints.skip(1)) {
+      try {
+        return await getHttp(url);
       } on DioException catch (e) {
         lastError = e.message ?? e.error ?? e;
       }
     }
     throw ApiException(0, serverMessage: 'Transfer failed: $lastError');
+  }
+
+  /// 并行 p2p 准备（规格 §1/§5，deadline 6s）：打通返回通道，未打通/失败返回 null。
+  /// p2p 的任何失败都属于规格允许的「静默落下一端点」，不向上抛。
+  Future<P2pChannel?> _startP2p(List<String> endpoints) async {
+    final target = _p2pTarget(endpoints);
+    if (target == null) return null;
+    try {
+      return await p2p_backend.openP2pChannel(
+        gatewayBaseUrl: _client.baseUrl,
+        transferId: target.$1,
+        token: target.$2,
+        jwt: _client.tokenStore.token,
+      );
+    } on Object {
+      return null;
+    }
+  }
+
+  /// 从端点 URL（…/transfer/{id}?token=…）取 p2p 所需 transferId + token。
+  (String transferId, String token)? _p2pTarget(List<String> endpoints) {
+    if (endpoints.isEmpty) return null;
+    final uri = Uri.parse(endpoints.first);
+    final segs = uri.pathSegments;
+    if (segs.length < 2 || segs[segs.length - 2] != 'transfer') return null;
+    final token = uri.queryParameters['token'];
+    if (token == null || token.isEmpty) return null;
+    return (segs.last, token);
   }
 
   String _sha256of(Uint8List bytes) => sha256.convert(bytes).toString();

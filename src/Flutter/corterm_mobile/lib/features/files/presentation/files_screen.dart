@@ -6,6 +6,8 @@ import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../app/theme/corterm_theme.dart';
+import '../../../core/api/api_exception.dart';
+import '../../../core/storage/app_preferences.dart';
 import '../../../shared/widgets/corterm_ui.dart';
 import '../../../shared/widgets/states.dart' show ErrorState, showAppToast;
 import '../data/file_repository.dart';
@@ -29,19 +31,42 @@ class FilesScreen extends ConsumerStatefulWidget {
 }
 
 class _FilesScreenState extends ConsumerState<FilesScreen> {
-  String _path = '';
+  // workspace 模式：按 workspaceId 恢复上次浏览路径（任务 A）。
+  late String _path;
   late Future<FileListing> _future = _load(_path);
   bool _busy = false;
 
-  Future<FileListing> _load(String path) => ref
-      .read(fileRepositoryProvider)
-      .list(workspaceId: widget.workspaceId, path: path);
+  @override
+  void initState() {
+    super.initState();
+    _path =
+        ref.read(appPreferencesProvider).filesLastPath(widget.workspaceId) ?? '';
+  }
+
+  Future<FileListing> _load(String path) async {
+    final repository = ref.read(fileRepositoryProvider);
+    try {
+      return await repository.list(workspaceId: widget.workspaceId, path: path);
+    } on ApiException catch (e) {
+      // 恢复的记忆路径已失效（产品行为）：清记忆、回根加载，并明确告知用户。
+      // 其余错误照常上抛（CLAUDE.md：禁止 fallback 吞错）。
+      if (path.isEmpty || !isStalePathError(e)) rethrow;
+      await ref
+          .read(appPreferencesProvider)
+          .setFilesLastPath(widget.workspaceId, '');
+      if (!mounted) rethrow;
+      showAppToast(context, '原目录已不存在，已返回根目录');
+      setState(() => _path = '');
+      return repository.list(workspaceId: widget.workspaceId, path: '');
+    }
+  }
 
   void _open(String path) {
     setState(() {
       _path = path;
       _future = _load(path);
     });
+    ref.read(appPreferencesProvider).setFilesLastPath(widget.workspaceId, path);
   }
 
   String _join(String dir, String name) => dir.isEmpty ? name : '$dir/$name';
@@ -441,7 +466,14 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Theme(
+    // 系统返回（左滑/返回键）：非根路径先逐级向上，到根才真正 pop（任务 B）。
+    return PopScope(
+      canPop: _path.isEmpty,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        _open(filesParentPath(_path));
+      },
+      child: Theme(
       data: cortermDarkToolTheme(),
       child: Builder(
         builder: (context) {
@@ -520,9 +552,23 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
           );
         },
       ),
+      ),
     );
   }
 }
+
+/// 上一级目录（任务 B）：'' 的上一级仍是 ''（根）。
+String filesParentPath(String path) {
+  final segments = path.split('/').where((s) => s.isNotEmpty).toList();
+  if (segments.isEmpty) return '';
+  return segments.sublist(0, segments.length - 1).join('/');
+}
+
+/// 恢复的记忆路径已失效（Gateway 错误码 path_not_found / path_invalid）。
+bool isStalePathError(Object error) =>
+    error is ApiException &&
+    (error.errorCode == 'path_not_found' ||
+        error.errorCode == 'path_invalid');
 
 class _EntryTile extends StatelessWidget {
   const _EntryTile({required this.entry, required this.screen});
