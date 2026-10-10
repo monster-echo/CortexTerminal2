@@ -124,22 +124,13 @@ export struct TunnelPanel {
             }
             .swipeAction({
               end: {
-                action: () => {
+                onAction: () => {
                   clickHaptic()
                   this.confirmRevoke(t)
                 },
                 // 左滑露出的删除区域：红色块 + 删除图标
                 builder: () => {
-                  Row() {
-                    SymbolGlyph($r('sys.symbol.trash'))
-                      .fontSize(22)
-                      .fontColor([$r('app.color.terminal_on_primary')])
-                  }
-                  .width(64)
-                  .height('100%')
-                  .borderRadius(10)
-                  .justifyContent(FlexAlign.Center)
-                  .backgroundColor($r('app.color.terminal_error'))
+                  this.RevokeAction()
                 }
               }
             })
@@ -154,6 +145,20 @@ export struct TunnelPanel {
     .width('100%')
     .height('100%')
     .backgroundColor(this.chrome().background)
+  }
+
+  @Builder
+  RevokeAction() {
+    Row() {
+      SymbolGlyph($r('sys.symbol.trash'))
+        .fontSize(22)
+        .fontColor([$r('app.color.terminal_on_primary')])
+    }
+    .width(64)
+    .height('100%')
+    .borderRadius(10)
+    .justifyContent(FlexAlign.Center)
+    .backgroundColor($r('app.color.terminal_error'))
   }
 
   @Builder
