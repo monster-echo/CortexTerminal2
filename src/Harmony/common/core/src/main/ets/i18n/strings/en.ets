@@ -184,6 +184,9 @@ export const enStrings: Record<string, string> = {
   'terminal.error.session_not_found': 'Session not found or access denied',
   'terminal.error.session_expired_create': 'Session expired, please create a new one',
   'terminal.error.session_state_error': 'Session state error, please retry',
+  'terminal.fork': 'Fork Session',
+  'terminal.fork_no_cwd': 'No cwd yet — press Enter first',
+  'terminal.copy_output': 'Copy All Output',
   'terminal.snapshot.save_failed': 'Failed to save terminal history locally',
   'terminal.snapshot.load_failed': 'Failed to restore terminal history',
 

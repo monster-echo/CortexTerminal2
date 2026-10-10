@@ -185,6 +185,9 @@ export const zhStrings: Record<string, string> = {
   'terminal.snapshot.save_failed': '终端历史本地保存失败',
   'terminal.snapshot.load_failed': '恢复终端历史失败',
   'terminal.error.session_state_error': '会话状态异常，请重试',
+  'terminal.fork': 'Fork 会话',
+  'terminal.fork_no_cwd': '尚未获取到当前目录，先按一次回车',
+  'terminal.copy_output': '复制全部输出',
 
   // ── Worker ────────────────────────────────────────────────────────
   'worker.list.title': '工作节点',

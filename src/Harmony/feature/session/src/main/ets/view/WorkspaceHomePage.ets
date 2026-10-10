@@ -7,7 +7,7 @@
  * 路由参数由 push 方传入：{ workspaceId, name }。
  */
 import { ApiService, SessionInfo, SessionCreateRequest, WorkspaceInfo, WorkerInfo, I18n, RouteName, TerminalNavParam,
-  showI18nToast, showToast, AnalyticsService, lightHaptic, clickHaptic } from '@rwecho/core'
+  showI18nToast, showToast, AnalyticsService, AnalyticsEvent, lightHaptic, clickHaptic } from '@rwecho/core'
 import { SessionCard } from './SessionCard'
 
 @Component
