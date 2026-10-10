@@ -1,24 +1,120 @@
 {
   "color": [
-    { "name": "terminal_surface", "value": "#f5f5f5" },
-    { "name": "terminal_surface_container", "value": "#ffffff" },
-    { "name": "terminal_surface_container_high", "value": "#f0f0f0" },
-    { "name": "terminal_surface_container_highest", "value": "#e8e8e8" },
-    { "name": "terminal_primary", "value": "#1a1a1a" },
-    { "name": "terminal_secondary", "value": "#0a6fc2" },
-    { "name": "terminal_secondary_container", "value": "#1a8cd8" },
-    { "name": "terminal_tertiary", "value": "#00824f" },
-    { "name": "terminal_error", "value": "#c81823" },
-    { "name": "terminal_on_surface", "value": "#1a1a1a" },
-    { "name": "terminal_on_surface_variant", "value": "#536471" },
-    { "name": "terminal_on_secondary_container", "value": "#ffffff" },
-    { "name": "terminal_outline", "value": "#7a8590" },
-    { "name": "terminal_outline_variant", "value": "#e0e0e0" },
-    { "name": "terminal_inverse_surface", "value": "#1a1a1a" },
-    { "name": "terminal_inverse_on_surface", "value": "#f5f5f5" },
-    { "name": "terminal_primary_container", "value": "#e8f3fc" },
-    { "name": "terminal_on_primary", "value": "#ffffff" },
-    { "name": "terminal_on_primary_container", "value": "#075a9a" },
-    { "name": "terminal_text_tertiary", "value": "#8a96a6" }
+    {
+      "name": "terminal_primary",
+      "value": "#0369A1"
+    },
+    {
+      "name": "terminal_secondary",
+      "value": "#5B6B7E"
+    },
+    {
+      "name": "terminal_accent",
+      "value": "#0369A1"
+    },
+    {
+      "name": "terminal_error",
+      "value": "#B91C1C"
+    },
+    {
+      "name": "terminal_warning",
+      "value": "#A16207"
+    },
+    {
+      "name": "terminal_success",
+      "value": "#15803D"
+    },
+    {
+      "name": "terminal_info",
+      "value": "#2563EB"
+    },
+    {
+      "name": "terminal_text",
+      "value": "#111827"
+    },
+    {
+      "name": "terminal_text_muted",
+      "value": "#64748B"
+    },
+    {
+      "name": "terminal_text_tertiary",
+      "value": "#94A3B8"
+    },
+    {
+      "name": "terminal_text_disabled",
+      "value": "#CBD5E1"
+    },
+    {
+      "name": "terminal_text_selected",
+      "value": "#0F172A"
+    },
+    {
+      "name": "terminal_background",
+      "value": "#F8FAFC"
+    },
+    {
+      "name": "terminal_background_panel",
+      "value": "#FFFFFF"
+    },
+    {
+      "name": "terminal_background_element",
+      "value": "#EEF2F6"
+    },
+    {
+      "name": "terminal_background_menu",
+      "value": "#E2E8F0"
+    },
+    {
+      "name": "terminal_background_message_user",
+      "value": "#E0F2FE"
+    },
+    {
+      "name": "terminal_border",
+      "value": "#CBD5E1"
+    },
+    {
+      "name": "terminal_border_active",
+      "value": "#0284C7"
+    },
+    {
+      "name": "terminal_border_subtle",
+      "value": "#E5E7EB"
+    },
+    {
+      "name": "terminal_primary_container",
+      "value": "#E0F2FE"
+    },
+    {
+      "name": "terminal_on_primary",
+      "value": "#FFFFFF"
+    },
+    {
+      "name": "terminal_on_primary_container",
+      "value": "#0C4A6E"
+    },
+    {
+      "name": "terminal_secondary_container",
+      "value": "#EEF2F6"
+    },
+    {
+      "name": "terminal_on_secondary",
+      "value": "#FFFFFF"
+    },
+    {
+      "name": "terminal_on_secondary_container",
+      "value": "#37414D"
+    },
+    {
+      "name": "terminal_inverse_surface",
+      "value": "#111827"
+    },
+    {
+      "name": "terminal_inverse_on_surface",
+      "value": "#F8FAFC"
+    },
+    {
+      "name": "terminal_status_idle",
+      "value": "#94A3B8"
+    }
   ]
 }

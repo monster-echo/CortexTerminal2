@@ -57,7 +57,7 @@ struct Index {
     .navDestination(this.pageMap)
     .mode(NavigationMode.Stack)
     .hideTitleBar(true)
-    .backgroundColor($r('app.color.terminal_surface'))
+    .backgroundColor($r('app.color.terminal_background'))
   }
 
   @Builder
@@ -67,27 +67,27 @@ struct Index {
         LoginPage()
       }
       .hideTitleBar(true)
-      .backgroundColor($r('app.color.terminal_surface'))
+      .backgroundColor($r('app.color.terminal_background'))
       .onBackPressed(() => true)
     } else if (name === RouteName.SESSION_HOME) {
       NavDestination() {
         ShellScaffold({ activeRoute: RouteName.SESSION_HOME })
       }
       .hideTitleBar(true)
-      .backgroundColor($r('app.color.terminal_surface'))
+      .backgroundColor($r('app.color.terminal_background'))
       .onBackPressed(() => true)
     } else if (name === RouteName.TERMINAL_SESSION) {
       NavDestination() {
         TerminalPage()
       }
       .hideTitleBar(true)
-      .backgroundColor('#0f1419')
+      .backgroundColor($r('app.color.terminal_background'))
     } else if (name === RouteName.WORKER_LIST) {
       NavDestination() {
         ShellScaffold({ activeRoute: RouteName.WORKER_LIST, subPage: !!param })
       }
       .hideTitleBar(true)
-      .backgroundColor($r('app.color.terminal_surface'))
+      .backgroundColor($r('app.color.terminal_background'))
       // 顶层进入（无 param）拦截返回；从「我的」带 param 压栈时放行 pop。
       .onBackPressed(() => !param)
     } else if (name === RouteName.WORKER_DETAIL) {
@@ -170,37 +170,37 @@ struct Index {
         MembershipPage()
       }
       .hideTitleBar(true)
-      .backgroundColor($r('app.color.terminal_surface'))
+      .backgroundColor($r('app.color.terminal_background'))
     } else if (name === RouteName.REDEEM) {
       NavDestination() {
         RedeemPage()
       }
       .hideTitleBar(true)
-      .backgroundColor($r('app.color.terminal_surface'))
+      .backgroundColor($r('app.color.terminal_background'))
     } else if (name === RouteName.REFERRAL) {
       NavDestination() {
         ReferralPage()
       }
       .hideTitleBar(true)
-      .backgroundColor($r('app.color.terminal_surface'))
+      .backgroundColor($r('app.color.terminal_background'))
     } else if (name === RouteName.PREFERENCES) {
       NavDestination() {
         PreferencesPage()
       }
       .hideTitleBar(true)
-      .backgroundColor($r('app.color.terminal_surface'))
+      .backgroundColor($r('app.color.terminal_background'))
     } else if (name === RouteName.TERMINAL_THEMES) {
       NavDestination() {
         TerminalThemesPage()
       }
       .hideTitleBar(true)
-      .backgroundColor($r('app.color.terminal_surface'))
+      .backgroundColor($r('app.color.terminal_background'))
     } else if (name === RouteName.ABOUT) {
       NavDestination() {
         AboutPage()
       }
       .hideTitleBar(true)
-      .backgroundColor($r('app.color.terminal_surface'))
+      .backgroundColor($r('app.color.terminal_background'))
     }
   }
 }

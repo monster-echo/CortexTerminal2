@@ -13,20 +13,20 @@ export struct SessionCard {
         Text(this.session.name || `session ${this.session.id.substring(0, 8)}`)
           .fontSize(14)
           .fontWeight(FontWeight.Medium)
-          .fontColor($r('app.color.terminal_primary'))
+          .fontColor($r('app.color.terminal_text'))
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
 
         if (this.session.workerName.length > 0) {
           Text(this.session.workerName)
             .fontSize(12)
-            .fontColor($r('app.color.terminal_on_surface_variant'))
+            .fontColor($r('app.color.terminal_text_muted'))
             .margin({ top: 2 })
         }
 
         Text(TimeUtils.formatRelativeTime(this.session.updatedAt || this.session.createdAt))
           .fontSize(12)
-          .fontColor($r('app.color.terminal_on_surface_variant'))
+          .fontColor($r('app.color.terminal_text_muted'))
           .margin({ top: 2 })
       }
       .alignItems(HorizontalAlign.Start)
@@ -37,17 +37,17 @@ export struct SessionCard {
         Circle().width(8).height(8).fill(this.getStatusColor())
         Text(this.getStatusLabel())
           .fontSize(11)
-          .fontColor($r('app.color.terminal_on_surface_variant'))
+          .fontColor($r('app.color.terminal_text_muted'))
           .margin({ left: 6 })
       }
       .padding({ left: 8, right: 8, top: 4, bottom: 4 })
       .borderRadius(8)
-      .backgroundColor($r('app.color.terminal_surface_container'))
+      .backgroundColor($r('app.color.terminal_background_panel'))
     }
     .width('100%')
     .padding(14)
     .borderRadius(12)
-    .backgroundColor($r('app.color.terminal_surface_container'))
+    .backgroundColor($r('app.color.terminal_background_panel'))
     .onClick(() => { if (this.onCardClick) { this.onCardClick() } })
   }
 
@@ -56,15 +56,15 @@ export struct SessionCard {
       case 'live':
       case 'connected':
       case 'running':
-        return $r('app.color.terminal_tertiary')
+        return $r('app.color.terminal_success')
       case 'reconnecting':
       case 'connecting':
-        return '#FFC107'
+        return $r('app.color.terminal_warning')
       case 'expired':
       case 'failed':
         return $r('app.color.terminal_error')
       default:
-        return $r('app.color.terminal_outline_variant')
+        return $r('app.color.terminal_status_idle')
     }
   }
 

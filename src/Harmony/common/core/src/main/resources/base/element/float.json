@@ -1,0 +1,80 @@
+{
+  "float": [
+    {
+      "name": "terminal_unit",
+      "value": "4"
+    },
+    {
+      "name": "terminal_spacing_sm",
+      "value": "8"
+    },
+    {
+      "name": "terminal_spacing_md",
+      "value": "16"
+    },
+    {
+      "name": "terminal_spacing_lg",
+      "value": "24"
+    },
+    {
+      "name": "terminal_edge_margin",
+      "value": "16"
+    },
+    {
+      "name": "terminal_touch_target",
+      "value": "44"
+    },
+    {
+      "name": "terminal_radius_input",
+      "value": "8"
+    },
+    {
+      "name": "terminal_radius_card",
+      "value": "12"
+    },
+    {
+      "name": "terminal_radius_button",
+      "value": "24"
+    },
+    {
+      "name": "terminal_radius_button_sm",
+      "value": "8"
+    },
+    {
+      "name": "terminal_radius_list_item",
+      "value": "10"
+    },
+    {
+      "name": "terminal_font_display",
+      "value": "28"
+    },
+    {
+      "name": "terminal_font_title",
+      "value": "20"
+    },
+    {
+      "name": "terminal_font_headline",
+      "value": "18"
+    },
+    {
+      "name": "terminal_font_body",
+      "value": "16"
+    },
+    {
+      "name": "terminal_font_label",
+      "value": "14"
+    },
+    {
+      "name": "terminal_font_caption",
+      "value": "13"
+    },
+    {
+      "name": "terminal_font_small",
+      "value": "12"
+    },
+    {
+      "name": "terminal_font_timestamp",
+      "value": "11"
+    }
+  ]
+}

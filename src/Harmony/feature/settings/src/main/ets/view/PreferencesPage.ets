@@ -76,7 +76,7 @@ export struct PreferencesPage {
           Row() {
             Text(this.tr('settings.theme'))
               .fontSize(16)
-              .fontColor($r('app.color.terminal_on_surface'))
+              .fontColor($r('app.color.terminal_text'))
               .layoutWeight(1)
 
             Row() {
@@ -89,13 +89,13 @@ export struct PreferencesPage {
           .height(52)
 
           Divider()
-            .color($r('app.color.terminal_outline_variant'))
+            .color($r('app.color.terminal_border_subtle'))
             .margin({ left: 16 })
 
           Row() {
             Text(this.tr('settings.language'))
               .fontSize(16)
-              .fontColor($r('app.color.terminal_on_surface'))
+              .fontColor($r('app.color.terminal_text'))
               .layoutWeight(1)
 
             Row() {
@@ -113,10 +113,10 @@ export struct PreferencesPage {
             Column() {
               Text(this.tr('terminalTheme.title'))
                 .fontSize(16)
-                .fontColor($r('app.color.terminal_on_surface'))
+                .fontColor($r('app.color.terminal_text'))
               Text(this.currentTerminalThemeLabel())
                 .fontSize(13)
-                .fontColor($r('app.color.terminal_on_surface_variant'))
+                .fontColor($r('app.color.terminal_text_muted'))
                 .margin({ top: 2 })
             }
             .alignItems(HorizontalAlign.Start)
@@ -124,7 +124,7 @@ export struct PreferencesPage {
 
             Text('›')
               .fontSize(20)
-              .fontColor($r('app.color.terminal_on_surface_variant'))
+              .fontColor($r('app.color.terminal_text_muted'))
           }
           .width('100%')
           .height(56)
@@ -141,7 +141,7 @@ export struct PreferencesPage {
           Row() {
             Text(this.tr('settings.scrollback'))
               .fontSize(16)
-              .fontColor($r('app.color.terminal_on_surface'))
+              .fontColor($r('app.color.terminal_text'))
               .layoutWeight(1)
 
             Row() {
@@ -157,7 +157,7 @@ export struct PreferencesPage {
             .width('100%')
             .maxLines(2)
             .fontSize(12)
-            .fontColor($r('app.color.terminal_on_surface_variant'))
+            .fontColor($r('app.color.terminal_text_muted'))
             .margin({ top: 4, bottom: 8 })
         }
         .prefCardStyle()
@@ -168,7 +168,7 @@ export struct PreferencesPage {
           Row() {
             Text('GPU Acceleration (WebGL)')
               .fontSize(16)
-              .fontColor($r('app.color.terminal_on_surface'))
+              .fontColor($r('app.color.terminal_text'))
               .layoutWeight(1)
 
             Checkbox()
@@ -194,7 +194,7 @@ export struct PreferencesPage {
     Text(this.tr(key))
       .fontSize(13)
       .fontWeight(FontWeight.Medium)
-      .fontColor($r('app.color.terminal_on_surface_variant'))
+      .fontColor($r('app.color.terminal_text_muted'))
       .textCase(TextCase.UpperCase)
       .width('calc(100% - 32vp)')
       .padding({ left: 16 })
@@ -208,7 +208,7 @@ export struct PreferencesPage {
       .fontWeight(this.currentTheme === value ? FontWeight.Medium : FontWeight.Normal)
       .fontColor(this.currentTheme === value ?
         $r('app.color.terminal_on_secondary_container') :
-        $r('app.color.terminal_on_surface_variant'))
+        $r('app.color.terminal_text_muted'))
       .padding({ left: 12, right: 12, top: 6, bottom: 6 })
       .borderRadius(8)
       .backgroundColor(this.currentTheme === value ?
@@ -246,7 +246,7 @@ export struct PreferencesPage {
       .fontWeight(this.currentLanguage === code ? FontWeight.Medium : FontWeight.Normal)
       .fontColor(this.currentLanguage === code ?
         $r('app.color.terminal_on_secondary_container') :
-        $r('app.color.terminal_on_surface_variant'))
+        $r('app.color.terminal_text_muted'))
       .padding({ left: 12, right: 12, top: 6, bottom: 6 })
       .borderRadius(8)
       .backgroundColor(this.currentLanguage === code ?
@@ -266,7 +266,7 @@ export struct PreferencesPage {
       .fontWeight(this.isActiveScrollback(value) ? FontWeight.Medium : FontWeight.Normal)
       .fontColor(this.isActiveScrollback(value) ?
         $r('app.color.terminal_on_secondary_container') :
-        $r('app.color.terminal_on_surface_variant'))
+        $r('app.color.terminal_text_muted'))
       .padding({ left: 10, right: 10, top: 6, bottom: 6 })
       .borderRadius(8)
       .backgroundColor(this.isActiveScrollback(value) ?
@@ -299,6 +299,6 @@ function prefCardStyle() {
   .width('calc(100% - 32vp)')
   .padding({ left: 16, right: 16, top: 4, bottom: 4 })
   .borderRadius(12)
-  .backgroundColor($r('app.color.terminal_surface_container'))
+  .backgroundColor($r('app.color.terminal_background_panel'))
   .margin({ bottom: 8 })
 }

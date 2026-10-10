@@ -96,7 +96,7 @@ export struct ShellScaffold {
     .clip(false)
     .width('100%')
     .height('100%')
-    .backgroundColor($r('app.color.terminal_surface'))
+    .backgroundColor($r('app.color.terminal_background'))
   }
 
   @Builder

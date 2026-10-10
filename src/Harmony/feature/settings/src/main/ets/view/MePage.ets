@@ -99,7 +99,7 @@ export struct MePage {
           Text(this.displayName || this.tr('me.title'))
             .fontSize(20)
             .fontWeight(FontWeight.Bold)
-            .fontColor($r('app.color.terminal_on_surface'))
+            .fontColor($r('app.color.terminal_text'))
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
             .margin({ left: 12 })
@@ -108,7 +108,7 @@ export struct MePage {
           Button() {
             SymbolGlyph($r('sys.symbol.gearshape'))
               .fontSize(22)
-              .fontColor([$r('app.color.terminal_primary')])
+              .fontColor([$r('app.color.terminal_text')])
           }
           .width(44)
           .height(44)
@@ -129,7 +129,7 @@ export struct MePage {
           Row() {
             SymbolGlyph($r('sys.symbol.checkmark_circle'))
               .fontSize(20)
-              .fontColor([$r('app.color.terminal_primary')])
+              .fontColor([$r('app.color.terminal_text')])
 
             Text(I18n.get('membership.title'))
               .fontSize(18)
@@ -151,12 +151,12 @@ export struct MePage {
               Text(this.tr('me.open_membership'))
                 .fontSize(14)
                 .fontWeight(FontWeight.Medium)
-                .fontColor($r('app.color.terminal_on_primary'))
+                .fontColor($r('app.color.terminal_inverse_on_surface'))
             }
             .layoutWeight(1)
             .height(40)
             .borderRadius(20)
-            .backgroundColor($r('app.color.terminal_primary'))
+            .backgroundColor($r('app.color.terminal_inverse_surface'))
             .onClick(() => {
               clickHaptic()
               // IAP / 会员购买页：定价与升级（购买在 web 控制台完成）。
@@ -173,7 +173,7 @@ export struct MePage {
             .height(40)
             .borderRadius(20)
             .backgroundColor(Color.Transparent)
-            .border({ width: 1, color: $r('app.color.terminal_primary') })
+            .border({ width: 1, color: $r('app.color.terminal_inverse_surface') })
             .margin({ left: 10 })
             .onClick(() => {
               clickHaptic()
@@ -195,7 +195,7 @@ export struct MePage {
           Text(this.tr('me.worker_section'))
             .fontSize(13)
             .fontWeight(FontWeight.Medium)
-            .fontColor($r('app.color.terminal_on_surface_variant'))
+            .fontColor($r('app.color.terminal_text_muted'))
             .layoutWeight(1)
 
           if (this.workers.length > 0) {
@@ -223,7 +223,7 @@ export struct MePage {
             LoadingProgress()
               .width(32)
               .height(32)
-              .color($r('app.color.terminal_on_surface_variant'))
+              .color($r('app.color.terminal_text_muted'))
           }
           .width('100%')
           .padding({ top: 24, bottom: 24 })
@@ -237,8 +237,8 @@ export struct MePage {
             Button(I18n.get('common.retry'))
               .height(32)
               .borderRadius(8)
-              .backgroundColor($r('app.color.terminal_surface_container_high'))
-              .fontColor($r('app.color.terminal_on_surface'))
+              .backgroundColor($r('app.color.terminal_background_element'))
+              .fontColor($r('app.color.terminal_text'))
               .margin({ top: 8 })
               .onClick(() => {
                 clickHaptic()
@@ -253,7 +253,7 @@ export struct MePage {
           Column() {
             Text(I18n.get('worker.list.empty'))
               .fontSize(14)
-              .fontColor($r('app.color.terminal_on_surface_variant'))
+              .fontColor($r('app.color.terminal_text_muted'))
           }
           .width('100%')
           .padding(16)
@@ -267,7 +267,7 @@ export struct MePage {
             .width('100%')
 
             Divider()
-              .color($r('app.color.terminal_outline_variant'))
+              .color($r('app.color.terminal_border_subtle'))
               .margin({ top: 14, bottom: 14 })
 
             Row() {
@@ -282,12 +282,12 @@ export struct MePage {
                   .width(8)
                   .height(8)
                   .fill(worker.isOnline ?
-                    $r('app.color.terminal_tertiary') :
+                    $r('app.color.terminal_success') :
                     $r('app.color.terminal_status_idle'))
 
                 Text(worker.name || worker.hostname || worker.id)
                   .fontSize(14)
-                  .fontColor($r('app.color.terminal_on_surface'))
+                  .fontColor($r('app.color.terminal_text'))
                   .maxLines(1)
                   .textOverflow({ overflow: TextOverflow.Ellipsis })
                   .margin({ left: 8 })
@@ -298,8 +298,8 @@ export struct MePage {
                   I18n.get('worker.detail.status_offline'))
                   .fontSize(12)
                   .fontColor(worker.isOnline ?
-                    $r('app.color.terminal_tertiary') :
-                    $r('app.color.terminal_on_surface_variant'))
+                    $r('app.color.terminal_success') :
+                    $r('app.color.terminal_text_muted'))
               }
               .width('100%')
               .height(40)
@@ -320,7 +320,7 @@ export struct MePage {
     }
     .width('100%')
     .layoutWeight(1)
-    .backgroundColor($r('app.color.terminal_surface'))
+    .backgroundColor($r('app.color.terminal_background'))
     .align(Alignment.Top)
     .scrollBar(BarState.Off)
   }
@@ -331,10 +331,10 @@ export struct MePage {
       Text(value)
         .fontSize(20)
         .fontWeight(FontWeight.Bold)
-        .fontColor($r('app.color.terminal_on_surface'))
+        .fontColor($r('app.color.terminal_text'))
       Text(this.tr(labelKey))
         .fontSize(12)
-        .fontColor($r('app.color.terminal_on_surface_variant'))
+        .fontColor($r('app.color.terminal_text_muted'))
         .margin({ top: 4 })
     }
     .alignItems(HorizontalAlign.Start)
@@ -348,6 +348,6 @@ export struct MePage {
 function meCardStyle() {
   .width('100%')
   .borderRadius(12)
-  .backgroundColor($r('app.color.terminal_surface_container'))
+  .backgroundColor($r('app.color.terminal_background_panel'))
   .margin({ bottom: 8 })
 }

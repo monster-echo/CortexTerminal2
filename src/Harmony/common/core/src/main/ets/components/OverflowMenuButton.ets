@@ -15,7 +15,7 @@ export struct OverflowMenuButton {
   items: PageMenuItem[] = []
   // 弹窗容器的背景/圆角走 MenuOptions——容器默认 outline 在深色下会露出一圈浅色边框
   private menuOptions: MenuOptions = {
-    backgroundColor: $r('app.color.terminal_surface_container_highest'),
+    backgroundColor: $r('app.color.terminal_background_menu'),
     borderRadius: 12,
     outlineColor: Color.Transparent,
   }
@@ -26,7 +26,7 @@ export struct OverflowMenuButton {
       ForEach(this.items, (item: PageMenuItem, idx: number) => {
         Text(item.value)
           .fontSize(15)
-          .fontColor($r('app.color.terminal_primary'))
+          .fontColor($r('app.color.terminal_text'))
           .constraintSize({ maxWidth: 220 })
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
@@ -38,7 +38,7 @@ export struct OverflowMenuButton {
           })
         if (idx < this.items.length - 1) {
           Divider()
-            .color($r('app.color.terminal_outline_variant'))
+            .color($r('app.color.terminal_border_subtle'))
             .margin({ left: 12, right: 12 })
         }
       }, (item: PageMenuItem) => item.value)
@@ -51,9 +51,9 @@ export struct OverflowMenuButton {
   build() {
     Button() {
       Row({ space: 3 }) {
-        Circle().width(4).height(4).fill($r('app.color.terminal_primary'))
-        Circle().width(4).height(4).fill($r('app.color.terminal_primary'))
-        Circle().width(4).height(4).fill($r('app.color.terminal_primary'))
+        Circle().width(4).height(4).fill($r('app.color.terminal_inverse_surface'))
+        Circle().width(4).height(4).fill($r('app.color.terminal_inverse_surface'))
+        Circle().width(4).height(4).fill($r('app.color.terminal_inverse_surface'))
       }
     }
     .width(40)

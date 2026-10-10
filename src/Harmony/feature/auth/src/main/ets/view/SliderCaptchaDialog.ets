@@ -53,11 +53,11 @@ export struct SliderCaptchaDialog {
         Text(I18n.get('auth.captcha.title'))
           .fontSize(18)
           .fontWeight(FontWeight.Bold)
-          .fontColor($r('app.color.terminal_primary'))
+          .fontColor($r('app.color.terminal_text'))
           .layoutWeight(1)
         Text('✕')
           .fontSize(18)
-          .fontColor($r('app.color.terminal_on_surface_variant'))
+          .fontColor($r('app.color.terminal_text_muted'))
           .onClick(() => {
             this.onCancel()
             this.controller.close()
@@ -93,7 +93,7 @@ export struct SliderCaptchaDialog {
           .height('100%')
           .justifyContent(FlexAlign.Center)
           .alignItems(HorizontalAlign.Center)
-          .backgroundColor($r('app.color.terminal_surface_container_high'))
+          .backgroundColor($r('app.color.terminal_background_element'))
         }
         if (this.loadError && !this.isLoading) {
           Column() {
@@ -115,7 +115,7 @@ export struct SliderCaptchaDialog {
           .height('100%')
           .justifyContent(FlexAlign.Center)
           .alignItems(HorizontalAlign.Center)
-          .backgroundColor($r('app.color.terminal_surface_container_high'))
+          .backgroundColor($r('app.color.terminal_background_element'))
         }
       }
       .width(IMAGE_WIDTH)
@@ -141,7 +141,7 @@ export struct SliderCaptchaDialog {
         }
         .width(PIECE_SIZE)
         .height(PIECE_SIZE)
-        .backgroundColor($r('app.color.terminal_surface_container_highest'))
+        .backgroundColor($r('app.color.terminal_background_menu'))
         .borderRadius(PIECE_SIZE / 2)
         .border({ width: 1.5, color: this.handleBorderColor() })
         .justifyContent(FlexAlign.Center)
@@ -175,7 +175,7 @@ export struct SliderCaptchaDialog {
       .width(IMAGE_WIDTH)
       .height(PIECE_SIZE)
       .borderRadius(PIECE_SIZE / 2)
-      .backgroundColor($r('app.color.terminal_surface_container_high'))
+      .backgroundColor($r('app.color.terminal_background_element'))
       .margin({ left: 18, right: 18, top: 16 })
 
       // ── Status text ──
@@ -187,30 +187,30 @@ export struct SliderCaptchaDialog {
       } else if (this.feedback === 'success') {
         Text(I18n.get('auth.captcha.success'))
           .fontSize(13)
-          .fontColor($r('app.color.terminal_tertiary'))
+          .fontColor($r('app.color.terminal_success'))
           .margin({ top: 12, bottom: 4 })
       } else if (this.isVerifying) {
         Row() {
           LoadingProgress()
             .width(14)
             .height(14)
-            .color($r('app.color.terminal_on_surface_variant'))
+            .color($r('app.color.terminal_text_muted'))
           Text(I18n.get('auth.captcha.verifying'))
             .fontSize(13)
-            .fontColor($r('app.color.terminal_on_surface_variant'))
+            .fontColor($r('app.color.terminal_text_muted'))
             .margin({ left: 6 })
         }
         .margin({ top: 12, bottom: 4 })
       } else if (!this.isLoading && !this.loadError) {
         Text(I18n.get('auth.captcha.hint'))
           .fontSize(13)
-          .fontColor($r('app.color.terminal_on_surface_variant'))
+          .fontColor($r('app.color.terminal_text_muted'))
           .margin({ top: 12, bottom: 4 })
       }
     }
     .width(DIALOG_WIDTH)
     .padding({ bottom: 24 })
-    .backgroundColor($r('app.color.terminal_surface_container_highest'))
+    .backgroundColor($r('app.color.terminal_background_menu'))
     .borderRadius(16)
     .alignItems(HorizontalAlign.Center)
   }
@@ -218,7 +218,7 @@ export struct SliderCaptchaDialog {
   // ── Visual state helpers ──
   private trackFillColor(): ResourceColor {
     if (this.feedback === 'success') {
-      return $r('app.color.terminal_tertiary')
+      return $r('app.color.terminal_success')
     }
     if (this.feedback === 'failed') {
       return $r('app.color.terminal_error')
@@ -228,7 +228,7 @@ export struct SliderCaptchaDialog {
 
   private handleBorderColor(): ResourceColor {
     if (this.feedback === 'success') {
-      return $r('app.color.terminal_tertiary')
+      return $r('app.color.terminal_success')
     }
     if (this.feedback === 'failed') {
       return $r('app.color.terminal_error')
@@ -238,12 +238,12 @@ export struct SliderCaptchaDialog {
 
   private handleIconColor(): ResourceColor {
     if (this.feedback === 'success') {
-      return $r('app.color.terminal_tertiary')
+      return $r('app.color.terminal_success')
     }
     if (this.feedback === 'failed') {
       return $r('app.color.terminal_error')
     }
-    return $r('app.color.terminal_on_surface_variant')
+    return $r('app.color.terminal_text_muted')
   }
 
   private handleIcon(): string {

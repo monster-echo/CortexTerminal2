@@ -32,7 +32,7 @@ export struct PageLayout {
         Button() {
           SymbolGlyph($r('sys.symbol.chevron_left'))
             .fontSize(20)
-            .fontColor([$r('app.color.terminal_primary')])
+            .fontColor([$r('app.color.terminal_text')])
         }
         .width(40)
         .height(40)
@@ -51,7 +51,7 @@ export struct PageLayout {
         Text(this.title)
           .fontSize(17)
           .fontWeight(FontWeight.Medium)
-          .fontColor($r('app.color.terminal_primary'))
+          .fontColor($r('app.color.terminal_text'))
           .layoutWeight(1)
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
@@ -76,7 +76,7 @@ export struct PageLayout {
     }
     .width('100%')
     .height('100%')
-    .backgroundColor($r('app.color.terminal_surface'))
+    .backgroundColor($r('app.color.terminal_background'))
     .alignItems(HorizontalAlign.Start)
     .justifyContent(FlexAlign.Start)
   }

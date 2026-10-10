@@ -37,12 +37,12 @@ export struct AboutPage {
           Text(this.tr('auth.login.tagline'))
             .fontSize(20)
             .fontWeight(FontWeight.Bold)
-            .fontColor($r('app.color.terminal_on_surface'))
+            .fontColor($r('app.color.terminal_text'))
             .margin({ top: 16 })
 
           Text(this.tr('settings.about_version').replace('{v}', this.appVersion))
             .fontSize(14)
-            .fontColor($r('app.color.terminal_on_surface_variant'))
+            .fontColor($r('app.color.terminal_text_muted'))
             .margin({ top: 4 })
         }
         .width('100%')
@@ -56,7 +56,7 @@ export struct AboutPage {
           Row() {
             Text(this.tr('settings.footer_terms'))
               .fontSize(16)
-              .fontColor($r('app.color.terminal_on_surface'))
+              .fontColor($r('app.color.terminal_text'))
               .layoutWeight(1)
 
             SymbolGlyph($r('sys.symbol.chevron_right'))
@@ -70,12 +70,12 @@ export struct AboutPage {
           })
 
           Divider()
-            .color($r('app.color.terminal_outline_variant'))
+            .color($r('app.color.terminal_border_subtle'))
 
           Row() {
             Text(this.tr('settings.footer_privacy'))
               .fontSize(16)
-              .fontColor($r('app.color.terminal_on_surface'))
+              .fontColor($r('app.color.terminal_text'))
               .layoutWeight(1)
 
             SymbolGlyph($r('sys.symbol.chevron_right'))
@@ -109,5 +109,5 @@ function aboutCardStyle() {
   .width('calc(100% - 32vp)')
   .padding({ left: 16, right: 16, top: 4, bottom: 4 })
   .borderRadius(12)
-  .backgroundColor($r('app.color.terminal_surface_container'))
+  .backgroundColor($r('app.color.terminal_background_panel'))
 }

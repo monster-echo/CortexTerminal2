@@ -24,12 +24,12 @@ export struct SidebarContent {
           Text(I18n.get('auth.login.tagline'))
             .fontSize(16)
             .fontWeight(FontWeight.Bold)
-            .fontColor($r('app.color.terminal_primary'))
+            .fontColor($r('app.color.terminal_text'))
             .maxLines(1)
 
           Text('云枢终端')
             .fontSize(11)
-            .fontColor($r('app.color.terminal_on_surface_variant'))
+            .fontColor($r('app.color.terminal_text_muted'))
             .margin({ top: 2 })
         }
         .alignItems(HorizontalAlign.Start)
@@ -45,7 +45,7 @@ export struct SidebarContent {
         this.activeRoute === RouteName.SESSION_HOME || this.activeRoute === RouteName.TERMINAL_SESSION)
 
       Divider()
-        .color($r('app.color.terminal_outline_variant'))
+        .color($r('app.color.terminal_border_subtle'))
         .margin({ left: 16, right: 16, top: 10, bottom: 10 })
 
       // Nav: Workers
@@ -82,13 +82,13 @@ export struct SidebarContent {
           Text(AuthState.getDisplayName() || I18n.get('auth.login.title'))
             .fontSize(14)
             .fontWeight(FontWeight.Medium)
-            .fontColor($r('app.color.terminal_primary'))
+            .fontColor($r('app.color.terminal_text'))
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
 
           Text(I18n.get('settings.account'))
             .fontSize(12)
-            .fontColor($r('app.color.terminal_on_surface_variant'))
+            .fontColor($r('app.color.terminal_text_muted'))
             .margin({ top: 2 })
         }
         .alignItems(HorizontalAlign.Start)
@@ -99,7 +99,7 @@ export struct SidebarContent {
       .height(60)
       .padding({ left: 16, right: 16 })
       .alignItems(VerticalAlign.Center)
-      .backgroundColor($r('app.color.terminal_surface_container'))
+      .backgroundColor($r('app.color.terminal_background_panel'))
       .onClick(() => {
         lightHaptic()
         this.navigate(RouteName.SETTINGS)
@@ -107,8 +107,8 @@ export struct SidebarContent {
     }
     .width('100%')
     .height('100%')
-    .backgroundColor($r('app.color.terminal_surface_container_high'))
-    .borderColor($r('app.color.terminal_outline_variant'))
+    .backgroundColor($r('app.color.terminal_background_panel'))
+    .borderColor($r('app.color.terminal_border_subtle'))
     .borderWidth({ right: 1 })
   }
 
@@ -118,7 +118,7 @@ export struct SidebarContent {
       Text(icon)
         .fontSize(16)
         .fontColor(selected ? $r('app.color.terminal_on_secondary_container') :
-          $r('app.color.terminal_on_surface_variant'))
+          $r('app.color.terminal_text_muted'))
         .width(28)
         .textAlign(TextAlign.Center)
 
@@ -126,7 +126,7 @@ export struct SidebarContent {
         .fontSize(14)
         .fontWeight(selected ? FontWeight.Medium : FontWeight.Normal)
         .fontColor(selected ? $r('app.color.terminal_on_secondary_container') :
-          $r('app.color.terminal_primary'))
+          $r('app.color.terminal_text'))
         .margin({ left: 8 })
     }
     .width('calc(100% - 24vp)')

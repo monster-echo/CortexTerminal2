@@ -14,6 +14,6 @@ export struct TerminalSessionRoute {
       TerminalPage()
     }
     .hideTitleBar(true)
-    .backgroundColor('#0f1419')
+    .backgroundColor($r('app.color.terminal_background'))
   }
 }

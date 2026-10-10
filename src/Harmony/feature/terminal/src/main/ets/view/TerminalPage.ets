@@ -117,8 +117,8 @@ struct SessionDetailDialog {
         .height(40)
         .margin({ top: 16 })
         .fontSize(15)
-        .fontColor($r('app.color.terminal_on_primary'))
-        .backgroundColor($r('app.color.terminal_primary'))
+        .fontColor($r('app.color.terminal_inverse_on_surface'))
+        .backgroundColor($r('app.color.terminal_inverse_surface'))
         .borderRadius(10)
         .onClick(() => {
           clickHaptic()
@@ -393,8 +393,8 @@ export struct TerminalPage {
             Button(I18n.get('terminal.error.retry_connection'))
               .height(32)
               .borderRadius(8)
-              .backgroundColor($r('app.color.terminal_primary'))
-              .fontColor($r('app.color.terminal_on_primary'))
+              .backgroundColor($r('app.color.terminal_inverse_surface'))
+              .fontColor($r('app.color.terminal_inverse_on_surface'))
               .fontSize(12)
               .margin({ top: 8 })
               .onClick(() => {
@@ -407,7 +407,7 @@ export struct TerminalPage {
         }
         .width('100%')
         .padding({ left: 16, right: 16, top: 10, bottom: 10 })
-        .backgroundColor(this.terminalColorMode === 'light' ? '#33D92D3A' : '#1AFF4444')
+        .backgroundColor(this.terminalColorMode === 'light' ? '#33B91C1C' : '#1AFCA5A5')
       }
 
       // Xterm webview (main terminal area) + context menu overlay.
@@ -1324,7 +1324,7 @@ export struct TerminalPage {
       case TerminalState.Live:
         if (this.latencyMs > 300) return $r('app.color.terminal_error')
         if (this.latencyMs > 100) return $r('app.color.terminal_warning')
-        return $r('app.color.terminal_tertiary')
+        return $r('app.color.terminal_success')
       case TerminalState.Connecting:
       case TerminalState.Reconnecting:
       case TerminalState.Replaying:

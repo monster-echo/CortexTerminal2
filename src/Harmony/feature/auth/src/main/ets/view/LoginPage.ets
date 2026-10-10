@@ -99,7 +99,7 @@ export struct LoginPage {
     }),
     autoCancel: false,
     alignment: DialogAlignment.Center,
-    backgroundColor: $r('app.color.terminal_surface_container'),
+    backgroundColor: $r('app.color.terminal_background_panel'),
     cornerRadius: 16
   })
 
@@ -154,7 +154,7 @@ export struct LoginPage {
     }
     .width('100%')
     .height('100%')
-    .backgroundColor($r('app.color.terminal_surface'))
+    .backgroundColor($r('app.color.terminal_background'))
   }
 
   // ── Brand Area ──────────────────────────────────────────────────
@@ -171,11 +171,11 @@ export struct LoginPage {
       Text($r('app.string.app_name'))
         .fontSize(28)
         .fontWeight(FontWeight.Bold)
-        .fontColor($r('app.color.terminal_primary'))
+        .fontColor($r('app.color.terminal_text'))
 
       Text($r('app.string.login_tagline'))
         .fontSize(14)
-        .fontColor($r('app.color.terminal_on_surface_variant'))
+        .fontColor($r('app.color.terminal_text_muted'))
         .margin({ top: 8 })
     }
     .width('100%')
@@ -192,7 +192,7 @@ export struct LoginPage {
         Text(this.anonymousPhone)
           .fontSize(32)
           .fontWeight(FontWeight.Bold)
-          .fontColor($r('app.color.terminal_primary'))
+          .fontColor($r('app.color.terminal_text'))
           .textAlign(TextAlign.Center)
           .margin({ bottom: 8 })
       }
@@ -213,12 +213,12 @@ export struct LoginPage {
             LoadingProgress()
               .width(24)
               .height(24)
-              .color($r('app.color.terminal_primary'))
+              .color($r('app.color.terminal_text'))
           }
           .width('100%')
           .height(48)
           .justifyContent(FlexAlign.Center)
-          .backgroundColor($r('app.color.terminal_surface_container'))
+          .backgroundColor($r('app.color.terminal_background_panel'))
           .opacity(0.7)
           .borderRadius(24)
           .constraintSize({ maxWidth: 400 })
@@ -256,7 +256,7 @@ export struct LoginPage {
         ForEach(this.privacyText, (item: loginComponentManager.PrivacyText, index?: number) => {
           if (item.type === loginComponentManager.TextType.PLAIN_TEXT) {
             Span(item.text)
-              .fontColor($r('app.color.terminal_on_surface_variant'))
+              .fontColor($r('app.color.terminal_text_muted'))
               .fontSize(12)
           } else {
             Span(item.text)
@@ -284,14 +284,14 @@ export struct LoginPage {
     Row() {
       Divider()
         .layoutWeight(1)
-        .color($r('app.color.terminal_outline_variant'))
+        .color($r('app.color.terminal_border_subtle'))
       Text(I18n.get('auth.login.other_methods'))
         .fontSize(14)
-        .fontColor($r('app.color.terminal_on_surface_variant'))
+        .fontColor($r('app.color.terminal_text_muted'))
         .margin({ left: 16, right: 16 })
       Divider()
         .layoutWeight(1)
-        .color($r('app.color.terminal_outline_variant'))
+        .color($r('app.color.terminal_border_subtle'))
     }
     .width('100%')
     .alignItems(VerticalAlign.Center)
@@ -309,8 +309,8 @@ export struct LoginPage {
         .height(48)
         .borderRadius(24)
         .backgroundColor(Color.Transparent)
-        .border({ width: 1, color: $r('app.color.terminal_outline_variant') })
-        .fontColor($r('app.color.terminal_primary'))
+        .border({ width: 1, color: $r('app.color.terminal_border_subtle') })
+        .fontColor($r('app.color.terminal_text'))
         .fontSize(14)
         .fontWeight(FontWeight.Medium)
         .onClick(() => {
@@ -335,8 +335,8 @@ export struct LoginPage {
         .height(48)
         .borderRadius(24)
         .backgroundColor(Color.Transparent)
-        .border({ width: 1, color: $r('app.color.terminal_outline_variant') })
-        .fontColor($r('app.color.terminal_primary'))
+        .border({ width: 1, color: $r('app.color.terminal_border_subtle') })
+        .fontColor($r('app.color.terminal_text'))
         .fontSize(14)
         .fontWeight(FontWeight.Medium)
         .onClick(() => {
@@ -358,7 +358,7 @@ export struct LoginPage {
     Column() {
       Text(I18n.get('auth.login.username_placeholder'))
         .fontSize(14)
-        .fontColor($r('app.color.terminal_on_surface_variant'))
+        .fontColor($r('app.color.terminal_text_muted'))
         .width('100%')
         .margin({ bottom: 8 })
 
@@ -366,9 +366,9 @@ export struct LoginPage {
         .width('100%')
         .height(48)
         .borderRadius(8)
-        .backgroundColor($r('app.color.terminal_surface_container_high'))
-        .fontColor($r('app.color.terminal_primary'))
-        .placeholderColor($r('app.color.terminal_on_surface_variant'))
+        .backgroundColor($r('app.color.terminal_background_element'))
+        .fontColor($r('app.color.terminal_text'))
+        .placeholderColor($r('app.color.terminal_text_muted'))
         .onChange((value: string) => {
           this.username = value
           this.errorMessage = ''
@@ -376,7 +376,7 @@ export struct LoginPage {
 
       Text(I18n.get('auth.login.password_placeholder'))
         .fontSize(14)
-        .fontColor($r('app.color.terminal_on_surface_variant'))
+        .fontColor($r('app.color.terminal_text_muted'))
         .width('100%')
         .margin({ top: 16, bottom: 8 })
 
@@ -385,9 +385,9 @@ export struct LoginPage {
         .width('100%')
         .height(48)
         .borderRadius(8)
-        .backgroundColor($r('app.color.terminal_surface_container_high'))
-        .fontColor($r('app.color.terminal_primary'))
-        .placeholderColor($r('app.color.terminal_on_surface_variant'))
+        .backgroundColor($r('app.color.terminal_background_element'))
+        .fontColor($r('app.color.terminal_text'))
+        .placeholderColor($r('app.color.terminal_text_muted'))
         .onChange((value: string) => {
           this.password = value
           this.errorMessage = ''
@@ -414,18 +414,18 @@ export struct LoginPage {
           LoadingProgress()
             .width(20)
             .height(20)
-            .color($r('app.color.terminal_on_secondary_container'))
+            .color($r('app.color.terminal_inverse_on_surface'))
         } else {
           Text(I18n.get('auth.login.button'))
             .fontSize(16)
             .fontWeight(FontWeight.Medium)
-            .fontColor($r('app.color.terminal_on_secondary_container'))
+            .fontColor($r('app.color.terminal_inverse_on_surface'))
         }
       }
       .width('100%')
       .height(48)
       .borderRadius(24)
-      .backgroundColor($r('app.color.terminal_secondary_container'))
+      .backgroundColor($r('app.color.terminal_inverse_surface'))
       .margin({ top: 20 })
       .enabled(this.username.length > 0 && this.password.length > 0 && !this.isPasswordLoading)
       .opacity(this.username.length > 0 && this.password.length > 0 ? 1 : 0.5)
@@ -571,7 +571,7 @@ struct AgreementDialog {
       Text(I18n.get('auth.login.agreement_title'))
         .fontSize(20)
         .fontWeight(FontWeight.Bold)
-        .fontColor($r('app.color.terminal_primary'))
+        .fontColor($r('app.color.terminal_text'))
         .width('100%')
         .textAlign(TextAlign.Center)
         .margin({ top: 24, bottom: 16 })
@@ -580,7 +580,7 @@ struct AgreementDialog {
         ForEach(this.privacyText, (item: loginComponentManager.PrivacyText, index?: number) => {
           if (item.type === loginComponentManager.TextType.PLAIN_TEXT) {
             Span(item.text)
-              .fontColor($r('app.color.terminal_on_surface_variant'))
+              .fontColor($r('app.color.terminal_text_muted'))
               .fontSize(14)
           } else {
             Span(item.text)
@@ -602,7 +602,7 @@ struct AgreementDialog {
           .height(40)
           .borderRadius(20)
           .backgroundColor(Color.Transparent)
-          .fontColor($r('app.color.terminal_primary'))
+          .fontColor($r('app.color.terminal_text'))
           .fontSize(14)
           .fontWeight(FontWeight.Medium)
           .onClick(() => {
@@ -624,7 +624,7 @@ struct AgreementDialog {
       .width('100%')
       .padding({ left: 24, right: 24, bottom: 24 })
     }
-    .backgroundColor($r('app.color.terminal_surface_container'))
+    .backgroundColor($r('app.color.terminal_background_panel'))
     .borderRadius(16)
   }
 }

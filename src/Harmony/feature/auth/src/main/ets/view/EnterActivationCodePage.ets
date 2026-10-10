@@ -29,7 +29,7 @@ export struct EnterActivationCodePage {
       Column() {
         Text($r('app.string.activate_subtitle'))
           .fontSize(14)
-          .fontColor($r('app.color.terminal_on_surface_variant'))
+          .fontColor($r('app.color.terminal_text_muted'))
           .textAlign(TextAlign.Center)
           .width('100%')
           .margin({ top: 8 })
@@ -39,11 +39,11 @@ export struct EnterActivationCodePage {
           Column() {
             Text('✓')
               .fontSize(48)
-              .fontColor($r('app.color.terminal_tertiary'))
+              .fontColor($r('app.color.terminal_success'))
             Text($r('app.string.activate_success'))
               .fontSize(16)
               .fontWeight(FontWeight.Medium)
-              .fontColor($r('app.color.terminal_tertiary'))
+              .fontColor($r('app.color.terminal_success'))
               .margin({ top: 12 })
           }
           .width('100%')
@@ -54,7 +54,7 @@ export struct EnterActivationCodePage {
           Column() {
             Text($r('app.string.activate_code_label'))
               .fontSize(14)
-              .fontColor($r('app.color.terminal_on_surface_variant'))
+              .fontColor($r('app.color.terminal_text_muted'))
               .width('100%')
               .margin({ bottom: 8 })
 
@@ -62,9 +62,9 @@ export struct EnterActivationCodePage {
               .width('100%')
               .height(48)
               .borderRadius(8)
-              .backgroundColor($r('app.color.terminal_surface_container_high'))
-              .fontColor($r('app.color.terminal_primary'))
-              .placeholderColor($r('app.color.terminal_on_surface_variant'))
+              .backgroundColor($r('app.color.terminal_background_element'))
+              .fontColor($r('app.color.terminal_text'))
+              .placeholderColor($r('app.color.terminal_text_muted'))
               .onChange((value: string) => {
                 this.activationCode = this.formatCode(value)
                 this.errorMessage = ''
@@ -96,13 +96,13 @@ export struct EnterActivationCodePage {
                 Text($r('app.string.activate_button'))
                   .fontSize(16)
                   .fontWeight(FontWeight.Medium)
-                  .fontColor($r('app.color.terminal_on_primary'))
+                  .fontColor($r('app.color.terminal_inverse_on_surface'))
               }
             }
             .width('100%')
             .height(48)
             .borderRadius(24)
-            .backgroundColor($r('app.color.terminal_primary'))
+            .backgroundColor($r('app.color.terminal_inverse_surface'))
             .margin({ top: 20 })
             .enabled(!this.isLoading && this.activationCode.length > 0)
             .onClick(() => {
@@ -113,7 +113,7 @@ export struct EnterActivationCodePage {
           .constraintSize({ maxWidth: 400 })
           .padding(20)
           .borderRadius(12)
-          .backgroundColor($r('app.color.terminal_surface_container'))
+          .backgroundColor($r('app.color.terminal_background_panel'))
           .margin({ top: 32 })
         }
       }

@@ -118,12 +118,12 @@ export struct SettingsPage {
           Text(this.displayName || this.tr('settings.profile'))
             .fontSize(18)
             .fontWeight(FontWeight.Bold)
-            .fontColor($r('app.color.terminal_on_surface'))
+            .fontColor($r('app.color.terminal_text'))
             .margin({ top: 12 })
 
           Text(this.tr('settings.profile'))
             .fontSize(13)
-            .fontColor($r('app.color.terminal_on_surface_variant'))
+            .fontColor($r('app.color.terminal_text_muted'))
             .margin({ top: 2 })
         }
         .width('100%')
@@ -193,13 +193,13 @@ export struct SettingsPage {
       .bindSheet(this.showEditProfile, this.EditProfileSheet(), {
         height: SheetSize.MEDIUM,
         showClose: true,
-        backgroundColor: $r('app.color.terminal_surface'),
+        backgroundColor: $r('app.color.terminal_background'),
         onDisappear: () => { this.showEditProfile = false }
       })
     }
     .width('100%')
     .layoutWeight(1)
-    .backgroundColor($r('app.color.terminal_surface'))
+    .backgroundColor($r('app.color.terminal_background'))
     .align(Alignment.Top)
   }
 
@@ -271,19 +271,19 @@ export struct SettingsPage {
         Column() {
           if (index > 0) {
             Divider()
-              .color($r('app.color.terminal_outline_variant'))
+              .color($r('app.color.terminal_border_subtle'))
               .margin({ left: 48 })
           }
           Row() {
             if (item.icon !== null) {
               SymbolGlyph(item.icon)
                 .fontSize(20)
-                .fontColor([$r('app.color.terminal_on_surface_variant')])
+                .fontColor([$r('app.color.terminal_text_muted')])
             }
 
             Text(this.tr(item.labelKey))
               .fontSize(16)
-              .fontColor($r('app.color.terminal_on_surface'))
+              .fontColor($r('app.color.terminal_text'))
               .margin({ left: item.icon !== null ? 12 : 0 })
               .layoutWeight(1)
 
@@ -309,7 +309,7 @@ export struct SettingsPage {
     Text(this.tr(key))
       .fontSize(13)
       .fontWeight(FontWeight.Medium)
-      .fontColor($r('app.color.terminal_on_surface_variant'))
+      .fontColor($r('app.color.terminal_text_muted'))
       .textCase(TextCase.UpperCase)
       .width('calc(100% - 32vp)')
       .padding({ left: 16 })
@@ -413,14 +413,14 @@ export struct SettingsPage {
         Text(this.tr('security.edit_profile'))
           .fontSize(18)
           .fontWeight(FontWeight.Bold)
-          .fontColor($r('app.color.terminal_on_surface'))
+          .fontColor($r('app.color.terminal_text'))
           .width('100%')
           .margin({ bottom: 16 })
 
         // Avatar (tap to pick from album)
         Column() {
           if (this.isUploadingAvatar) {
-            LoadingProgress().width(40).height(40).color($r('app.color.terminal_on_surface_variant'))
+            LoadingProgress().width(40).height(40).color($r('app.color.terminal_text_muted'))
           } else if (this.avatarDisplayUrl.length > 0) {
             Image(this.avatarDisplayUrl).width(72).height(72).borderRadius(36)
           } else {
@@ -449,7 +449,7 @@ export struct SettingsPage {
 
         Text(this.tr('security.display_name'))
           .fontSize(14)
-          .fontColor($r('app.color.terminal_on_surface_variant'))
+          .fontColor($r('app.color.terminal_text_muted'))
           .width('100%')
           .margin({ bottom: 6 })
 
@@ -457,9 +457,9 @@ export struct SettingsPage {
           .width('100%')
           .height(44)
           .borderRadius(8)
-          .backgroundColor($r('app.color.terminal_surface_container_high'))
-          .fontColor($r('app.color.terminal_on_surface'))
-          .placeholderColor($r('app.color.terminal_on_surface_variant'))
+          .backgroundColor($r('app.color.terminal_background_element'))
+          .fontColor($r('app.color.terminal_text'))
+          .placeholderColor($r('app.color.terminal_text_muted'))
           .onChange((value: string) => {
             this.editDisplayName = value
           })
@@ -479,13 +479,13 @@ export struct SettingsPage {
             Text(this.tr('common.save'))
               .fontSize(16)
               .fontWeight(FontWeight.Medium)
-              .fontColor($r('app.color.terminal_on_primary'))
+              .fontColor($r('app.color.terminal_inverse_on_surface'))
           }
         }
         .width('100%')
         .height(48)
         .borderRadius(24)
-        .backgroundColor($r('app.color.terminal_primary'))
+        .backgroundColor($r('app.color.terminal_inverse_surface'))
         .margin({ top: 20 })
         .enabled(!this.isSaving)
         .onClick(() => {
@@ -498,7 +498,7 @@ export struct SettingsPage {
     }
     .width('100%')
     .padding({ top: 16, bottom: 24 })
-    .backgroundColor($r('app.color.terminal_surface'))
+    .backgroundColor($r('app.color.terminal_background'))
   }
 }
 
@@ -508,6 +508,6 @@ function cardStyle() {
   .width('calc(100% - 32vp)')
   .padding({ left: 16, right: 16, top: 4, bottom: 4 })
   .borderRadius(12)
-  .backgroundColor($r('app.color.terminal_surface_container'))
+  .backgroundColor($r('app.color.terminal_background_panel'))
   .margin({ bottom: 8 })
 }

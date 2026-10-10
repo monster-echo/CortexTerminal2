@@ -23,7 +23,7 @@ export struct AppBar {
         Button() {
           SymbolGlyph($r('sys.symbol.open_sidebar'))
             .fontSize(22)
-            .fontColor([$r('app.color.terminal_primary')])
+            .fontColor([$r('app.color.terminal_text')])
         }
         .width(44)
         .height(44)
@@ -38,7 +38,7 @@ export struct AppBar {
         Button() {
           SymbolGlyph($r('sys.symbol.chevron_left'))
             .fontSize(22)
-            .fontColor([$r('app.color.terminal_primary')])
+            .fontColor([$r('app.color.terminal_text')])
         }
         .width(44)
         .height(44)
@@ -54,7 +54,7 @@ export struct AppBar {
       Text(this.title)
         .fontSize(20)
         .fontWeight(FontWeight.Bold)
-        .fontColor($r('app.color.terminal_primary'))
+        .fontColor($r('app.color.terminal_text'))
         .layoutWeight(1)
         .margin({ left: 8 })
         .maxLines(1)
@@ -64,7 +64,7 @@ export struct AppBar {
         Button() {
           SymbolGlyph($r('sys.symbol.plus'))
             .fontSize(22)
-            .fontColor([$r('app.color.terminal_primary')])
+            .fontColor([$r('app.color.terminal_text')])
         }
         .width(44)
         .height(44)

@@ -37,7 +37,7 @@ export struct ActivateWorkerPage {
 
             Text($r('app.string.activate_subtitle'))
               .fontSize(14)
-              .fontColor($r('app.color.terminal_on_surface_variant'))
+              .fontColor($r('app.color.terminal_text_muted'))
               .textAlign(TextAlign.Center)
               .margin({ top: 8 })
           }
@@ -50,11 +50,11 @@ export struct ActivateWorkerPage {
             Column() {
               Text('✓')
                 .fontSize(48)
-                .fontColor($r('app.color.terminal_tertiary'))
+                .fontColor($r('app.color.terminal_success'))
               Text($r('app.string.activate_success'))
                 .fontSize(16)
                 .fontWeight(FontWeight.Medium)
-                .fontColor($r('app.color.terminal_tertiary'))
+                .fontColor($r('app.color.terminal_success'))
                 .margin({ top: 12 })
             }
             .width('100%')
@@ -65,7 +65,7 @@ export struct ActivateWorkerPage {
             Column() {
               Text($r('app.string.activate_code_label'))
                 .fontSize(14)
-                .fontColor($r('app.color.terminal_on_surface_variant'))
+                .fontColor($r('app.color.terminal_text_muted'))
                 .width('100%')
                 .margin({ bottom: 8 })
 
@@ -73,9 +73,9 @@ export struct ActivateWorkerPage {
                 .width('100%')
                 .height(48)
                 .borderRadius(8)
-                .backgroundColor($r('app.color.terminal_surface_container_high'))
-                .fontColor($r('app.color.terminal_primary'))
-                .placeholderColor($r('app.color.terminal_on_surface_variant'))
+                .backgroundColor($r('app.color.terminal_background_element'))
+                .fontColor($r('app.color.terminal_text'))
+                .placeholderColor($r('app.color.terminal_text_muted'))
                 .onChange((value: string) => {
                   const cleaned = value.toUpperCase().replace(/[^A-Z0-9]/g, '')
                   let formatted = ''
@@ -154,7 +154,7 @@ export struct ActivateWorkerPage {
             .width('100%')
             .padding(20)
             .borderRadius(12)
-            .backgroundColor($r('app.color.terminal_surface_container'))
+            .backgroundColor($r('app.color.terminal_background_panel'))
             .margin({ top: 32 })
           }
         }

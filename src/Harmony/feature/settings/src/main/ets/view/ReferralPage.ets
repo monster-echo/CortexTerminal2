@@ -113,7 +113,7 @@ export struct ReferralPage {
             LoadingProgress()
               .width(40)
               .height(40)
-              .color($r('app.color.terminal_on_surface_variant'))
+              .color($r('app.color.terminal_text_muted'))
               .margin({ top: 48 })
           } else if (this.loadError.length > 0) {
             Text(this.loadError)
@@ -170,7 +170,7 @@ export struct ReferralPage {
 
             Text(this.tr('referral.subtitle').replace('{n}', `${this.rewardDaysConfig}`))
               .fontSize(13)
-              .fontColor($r('app.color.terminal_on_surface_variant'))
+              .fontColor($r('app.color.terminal_text_muted'))
               .margin({ top: 12 })
 
             // Stats row
@@ -179,25 +179,25 @@ export struct ReferralPage {
                 Text(`${this.invitedCount}`)
                   .fontSize(24)
                   .fontWeight(FontWeight.Bold)
-                  .fontColor($r('app.color.terminal_on_surface'))
+                  .fontColor($r('app.color.terminal_text'))
                 Text(this.tr('referral.stats_invited'))
                   .fontSize(12)
-                  .fontColor($r('app.color.terminal_on_surface_variant'))
+                  .fontColor($r('app.color.terminal_text_muted'))
                   .margin({ top: 4 })
               }
               .layoutWeight(1)
               Divider()
                 .vertical(true)
                 .height(32)
-                .color($r('app.color.terminal_outline_variant'))
+                .color($r('app.color.terminal_border_subtle'))
               Column() {
                 Text(`${this.totalRewardDays}`)
                   .fontSize(24)
                   .fontWeight(FontWeight.Bold)
-                  .fontColor($r('app.color.terminal_tertiary'))
+                  .fontColor($r('app.color.terminal_success'))
                 Text(this.tr('referral.stats_days'))
                   .fontSize(12)
-                  .fontColor($r('app.color.terminal_on_surface_variant'))
+                  .fontColor($r('app.color.terminal_text_muted'))
                   .margin({ top: 4 })
               }
               .layoutWeight(1)
@@ -205,38 +205,38 @@ export struct ReferralPage {
             .width('100%')
             .padding({ top: 16, bottom: 16 })
             .borderRadius(12)
-            .backgroundColor($r('app.color.terminal_surface_container'))
+            .backgroundColor($r('app.color.terminal_background_panel'))
             .margin({ top: 16 })
 
             // Reward history
             Text(this.tr('referral.rewards_title'))
               .fontSize(14)
               .fontWeight(FontWeight.Medium)
-              .fontColor($r('app.color.terminal_on_surface'))
+              .fontColor($r('app.color.terminal_text'))
               .width('100%')
               .margin({ top: 24, bottom: 8 })
             if (this.rewards.length === 0) {
               Text(this.tr('referral.rewards_empty'))
                 .fontSize(13)
-                .fontColor($r('app.color.terminal_on_surface_variant'))
+                .fontColor($r('app.color.terminal_text_muted'))
                 .width('100%')
                 .textAlign(TextAlign.Center)
                 .padding({ top: 16, bottom: 16 })
                 .borderRadius(12)
-                .backgroundColor($r('app.color.terminal_surface_container'))
+                .backgroundColor($r('app.color.terminal_background_panel'))
             } else {
               Column() {
                 ForEach(this.rewards, (item: RewardItem, index: number) => {
                   Column() {
                     if (index > 0) {
                       Divider()
-                        .color($r('app.color.terminal_outline_variant'))
+                        .color($r('app.color.terminal_border_subtle'))
                         .margin({ left: 12 })
                     }
                     Row() {
                       Text(this.tr('referral.reward_item').replace('{n}', `${item.rewardDays}`).replace('{name}', item.invitedUsername))
                         .fontSize(14)
-                        .fontColor($r('app.color.terminal_on_surface'))
+                        .fontColor($r('app.color.terminal_text'))
                         .layoutWeight(1)
                       Text(item.createdAtText)
                         .fontSize(11)
@@ -251,14 +251,14 @@ export struct ReferralPage {
               .width('100%')
               .padding({ left: 16, right: 16, top: 4, bottom: 4 })
               .borderRadius(12)
-              .backgroundColor($r('app.color.terminal_surface_container'))
+              .backgroundColor($r('app.color.terminal_background_panel'))
             }
 
             // Apply a friend's code
             Text(this.tr('referral.apply_title'))
               .fontSize(14)
               .fontWeight(FontWeight.Medium)
-              .fontColor($r('app.color.terminal_on_surface'))
+              .fontColor($r('app.color.terminal_text'))
               .width('100%')
               .margin({ top: 24, bottom: 8 })
             Row({ space: 8 }) {
@@ -266,10 +266,10 @@ export struct ReferralPage {
                 .layoutWeight(1)
                 .height(48)
                 .fontSize(16)
-                .backgroundColor($r('app.color.terminal_surface_container_high'))
+                .backgroundColor($r('app.color.terminal_background_element'))
                 .borderRadius(8)
-                .fontColor($r('app.color.terminal_primary'))
-                .placeholderColor($r('app.color.terminal_on_surface_variant'))
+                .fontColor($r('app.color.terminal_text'))
+                .placeholderColor($r('app.color.terminal_text_muted'))
                 .onChange((value: string) => {
                   this.applyCodeInput = value
                 })
@@ -277,11 +277,11 @@ export struct ReferralPage {
                 Text(this.isApplying ? '…' : this.tr('referral.apply_button'))
                   .fontSize(14)
                   .fontWeight(FontWeight.Medium)
-                  .fontColor($r('app.color.terminal_on_primary'))
+                  .fontColor($r('app.color.terminal_inverse_on_surface'))
               }
               .type(ButtonType.Capsule)
               .height(48)
-              .backgroundColor($r('app.color.terminal_primary'))
+              .backgroundColor($r('app.color.terminal_inverse_surface'))
               .enabled(this.applyCodeInput.trim().length > 0 && !this.isApplying)
               .opacity(this.applyCodeInput.trim().length > 0 && !this.isApplying ? 1 : 0.5)
               .onClick(() => {

@@ -28,7 +28,7 @@ export struct WorkerListPage {
             .margin({ top: 60 })
           Text(I18n.get('worker.list.loading'))
             .fontSize(14)
-            .fontColor($r('app.color.terminal_on_surface_variant'))
+            .fontColor($r('app.color.terminal_text_muted'))
             .margin({ top: 12 })
         }
         .width('100%')
@@ -61,31 +61,31 @@ export struct WorkerListPage {
                     .width(10)
                     .height(10)
                     .fill(worker.isOnline ?
-                      $r('app.color.terminal_tertiary') :
-                      $r('app.color.terminal_outline_variant'))
+                      $r('app.color.terminal_success') :
+                      $r('app.color.terminal_border_subtle'))
                     .margin({ right: 12 })
 
                   Column() {
                     Text(worker.name || worker.hostname || 'Unknown Worker')
                       .fontSize(15)
                       .fontWeight(FontWeight.Medium)
-                      .fontColor($r('app.color.terminal_primary'))
+                      .fontColor($r('app.color.terminal_text'))
                       .maxLines(1)
                       .textOverflow({ overflow: TextOverflow.Ellipsis })
 
                     Row() {
                       Text(worker.os || worker.operatingSystem || 'Unknown OS')
                         .fontSize(13)
-                        .fontColor($r('app.color.terminal_on_surface_variant'))
+                        .fontColor($r('app.color.terminal_text_muted'))
 
                       if (worker.version.length > 0) {
                         Text(' · ')
                           .fontSize(13)
-                          .fontColor($r('app.color.terminal_on_surface_variant'))
+                          .fontColor($r('app.color.terminal_text_muted'))
 
                         Text(`v${worker.version}`)
                           .fontSize(13)
-                          .fontColor($r('app.color.terminal_on_surface_variant'))
+                          .fontColor($r('app.color.terminal_text_muted'))
                           .fontFamily('monospace')
                       }
 
@@ -104,7 +104,7 @@ export struct WorkerListPage {
 
                   SymbolGlyph($r('sys.symbol.chevron_right'))
                     .fontSize(16)
-                    .fontColor([$r('app.color.terminal_on_surface_variant')])
+                    .fontColor([$r('app.color.terminal_text_muted')])
                 }
                 .width('100%')
                 .height(64)
@@ -120,7 +120,7 @@ export struct WorkerListPage {
           }
           .layoutWeight(1)
           .width('100%')
-          .divider({ strokeWidth: 1, color: $r('app.color.terminal_outline_variant'), startMargin: 0, endMargin: 0 })
+          .divider({ strokeWidth: 1, color: $r('app.color.terminal_border_subtle'), startMargin: 0, endMargin: 0 })
         }
         .onRefreshing(() => { this.loadWorkers() })
         .layoutWeight(1)
@@ -131,7 +131,7 @@ export struct WorkerListPage {
         Column() {
           Text(I18n.get('worker.list.empty'))
             .fontSize(16)
-            .fontColor($r('app.color.terminal_on_surface_variant'))
+            .fontColor($r('app.color.terminal_text_muted'))
             .margin({ top: 60 })
         }
         .width('100%')
@@ -140,7 +140,7 @@ export struct WorkerListPage {
     }
     .width('100%')
     .layoutWeight(1)
-    .backgroundColor($r('app.color.terminal_surface'))
+    .backgroundColor($r('app.color.terminal_background'))
     .bindSheet($$this.showWorkerSheet, this.WorkerSheetContent(), {
       height: SheetSize.MEDIUM,
       showClose: true,
@@ -157,8 +157,8 @@ export struct WorkerListPage {
             .width(12)
             .height(12)
             .fill(this.selectedWorker!.isOnline ?
-              $r('app.color.terminal_tertiary') :
-              $r('app.color.terminal_outline_variant'))
+              $r('app.color.terminal_success') :
+              $r('app.color.terminal_border_subtle'))
 
           Text(this.selectedWorker!.isOnline ?
             I18n.get('worker.detail.status_online') :
@@ -166,8 +166,8 @@ export struct WorkerListPage {
             .fontSize(14)
             .fontWeight(FontWeight.Medium)
             .fontColor(this.selectedWorker!.isOnline ?
-              $r('app.color.terminal_tertiary') :
-              $r('app.color.terminal_on_surface_variant'))
+              $r('app.color.terminal_success') :
+              $r('app.color.terminal_text_muted'))
             .margin({ left: 8 })
         }
 
@@ -194,14 +194,14 @@ export struct WorkerListPage {
         if (this.selectedWorker!.version.length > 0) {
           Text(`Version: ${this.selectedWorker!.version}`)
             .fontSize(12)
-            .fontColor($r('app.color.terminal_on_surface_variant'))
+            .fontColor($r('app.color.terminal_text_muted'))
             .margin({ top: 12 })
         }
 
         if (this.selectedWorker!.lastSeenAt.length > 0) {
           Text(`${I18n.get('worker.detail.last_seen')}：${this.formatTime(this.selectedWorker!.lastSeenAt)}`)
             .fontSize(12)
-            .fontColor($r('app.color.terminal_on_surface_variant'))
+            .fontColor($r('app.color.terminal_text_muted'))
             .margin({ top: 4 })
         }
 
@@ -222,7 +222,7 @@ export struct WorkerListPage {
     }
     .width('100%')
     .padding(24)
-    .backgroundColor($r('app.color.terminal_surface'))
+    .backgroundColor($r('app.color.terminal_background'))
   }
 
   @Builder
@@ -230,11 +230,11 @@ export struct WorkerListPage {
     Column() {
       Text(label)
         .fontSize(12)
-        .fontColor($r('app.color.terminal_on_surface_variant'))
+        .fontColor($r('app.color.terminal_text_muted'))
       Text(value)
         .fontSize(14)
         .fontWeight(FontWeight.Medium)
-        .fontColor($r('app.color.terminal_primary'))
+        .fontColor($r('app.color.terminal_text'))
         .margin({ top: 2 })
     }
     .alignItems(HorizontalAlign.Start)

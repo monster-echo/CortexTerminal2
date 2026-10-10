@@ -55,7 +55,7 @@ export struct ContactSupportPage {
       Column() {
         if (this.isLoading) {
           Column() {
-            LoadingProgress().width(40).height(40).color($r('app.color.terminal_on_surface_variant'))
+            LoadingProgress().width(40).height(40).color($r('app.color.terminal_text_muted'))
           }
           .width('100%')
           .padding({ top: 80 })
@@ -80,11 +80,11 @@ export struct ContactSupportPage {
         .fontColor([$r('app.color.terminal_error')])
       Text(I18n.get('support.load_failed'))
         .fontSize(14)
-        .fontColor($r('app.color.terminal_on_surface_variant'))
+        .fontColor($r('app.color.terminal_text_muted'))
         .margin({ top: 12 })
       Text(this.loadError)
         .fontSize(12)
-        .fontColor($r('app.color.terminal_on_surface_variant'))
+        .fontColor($r('app.color.terminal_text_muted'))
         .margin({ top: 4 })
         .textAlign(TextAlign.Center)
       Button(I18n.get('common.retry'))
@@ -137,7 +137,7 @@ export struct ContactSupportPage {
         Text(isTelegram ? group.name : I18n.get('support.qqGroupName'))
           .fontSize(16)
           .fontWeight(FontWeight.Medium)
-          .fontColor($r('app.color.terminal_primary'))
+          .fontColor($r('app.color.terminal_text'))
           .margin({ left: 8 })
           .layoutWeight(1)
       }
@@ -165,12 +165,12 @@ export struct ContactSupportPage {
           .width(160)
           .height(160)
           .borderRadius(12)
-          .backgroundColor($r('app.color.terminal_surface_container_high'))
+          .backgroundColor($r('app.color.terminal_background_element'))
           .objectRepeat(ImageRepeat.NoRepeat)
           .hitTestBehavior(HitTestMode.Transparent)
         Text(I18n.get('support.scan_to_join'))
           .fontSize(12)
-          .fontColor($r('app.color.terminal_on_surface_variant'))
+          .fontColor($r('app.color.terminal_text_muted'))
       }
       .width('100%')
       .alignItems(HorizontalAlign.Center)
@@ -198,7 +198,7 @@ export struct ContactSupportPage {
     .width('100%')
     .padding(16)
     .borderRadius(12)
-    .backgroundColor($r('app.color.terminal_surface_container'))
+    .backgroundColor($r('app.color.terminal_background_panel'))
     .margin({ bottom: 12 })
   }
 
@@ -212,7 +212,7 @@ export struct ContactSupportPage {
         Text(I18n.get('support.feishuGroupName'))
           .fontSize(16)
           .fontWeight(FontWeight.Medium)
-          .fontColor($r('app.color.terminal_primary'))
+          .fontColor($r('app.color.terminal_text'))
           .margin({ left: 8 })
           .layoutWeight(1)
       }
@@ -223,12 +223,12 @@ export struct ContactSupportPage {
           .width(160)
           .height(160)
           .borderRadius(12)
-          .backgroundColor($r('app.color.terminal_surface_container_high'))
+          .backgroundColor($r('app.color.terminal_background_element'))
           .objectRepeat(ImageRepeat.NoRepeat)
           .hitTestBehavior(HitTestMode.Transparent)
         Text(I18n.get('support.scan_to_join'))
           .fontSize(12)
-          .fontColor($r('app.color.terminal_on_surface_variant'))
+          .fontColor($r('app.color.terminal_text_muted'))
       }
       .width('100%')
       .alignItems(HorizontalAlign.Center)
@@ -254,7 +254,7 @@ export struct ContactSupportPage {
     .width('100%')
     .padding(16)
     .borderRadius(12)
-    .backgroundColor($r('app.color.terminal_surface_container'))
+    .backgroundColor($r('app.color.terminal_background_panel'))
     .margin({ bottom: 12 })
   }
 
@@ -266,17 +266,17 @@ export struct ContactSupportPage {
         .fontColor([$r('app.color.terminal_secondary')])
       Text(email)
         .fontSize(14)
-        .fontColor($r('app.color.terminal_primary'))
+        .fontColor($r('app.color.terminal_text'))
         .layoutWeight(1)
         .margin({ left: 8 })
       SymbolGlyph($r('sys.symbol.chevron_right'))
         .fontSize(16)
-        .fontColor([$r('app.color.terminal_on_surface_variant')])
+        .fontColor([$r('app.color.terminal_text_muted')])
     }
     .width('100%')
     .padding(16)
     .borderRadius(12)
-    .backgroundColor($r('app.color.terminal_surface_container'))
+    .backgroundColor($r('app.color.terminal_background_panel'))
     .onClick(() => {
       clickHaptic()
       this.openMail(email)

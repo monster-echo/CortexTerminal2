@@ -31,17 +31,17 @@ export struct AccountSecurityPage {
           Row() {
             Text(I18n.get('security.change_password'))
               .fontSize(14)
-              .fontColor($r('app.color.terminal_primary'))
+              .fontColor($r('app.color.terminal_text'))
               .layoutWeight(1)
 
             SymbolGlyph($r('sys.symbol.chevron_right'))
               .fontSize(16)
-              .fontColor([$r('app.color.terminal_on_surface_variant')])
+              .fontColor([$r('app.color.terminal_text_muted')])
           }
           .width('100%')
           .padding(14)
           .borderRadius(12)
-          .backgroundColor($r('app.color.terminal_surface_container'))
+          .backgroundColor($r('app.color.terminal_background_panel'))
           .margin({ bottom: 8 })
           .onClick(() => {
             lightHaptic()
@@ -57,12 +57,12 @@ export struct AccountSecurityPage {
 
             SymbolGlyph($r('sys.symbol.chevron_right'))
               .fontSize(16)
-              .fontColor([$r('app.color.terminal_on_surface_variant')])
+              .fontColor([$r('app.color.terminal_text_muted')])
           }
           .width('100%')
           .padding(14)
           .borderRadius(12)
-          .backgroundColor($r('app.color.terminal_surface_container'))
+          .backgroundColor($r('app.color.terminal_background_panel'))
           .onClick(() => {
             clickHaptic()
             this.confirmUsername = ''
@@ -75,7 +75,7 @@ export struct AccountSecurityPage {
         .bindSheet(this.showDeleteSheet, this.DeleteSheetContent(), {
           height: SheetSize.MEDIUM,
           showClose: true,
-          backgroundColor: $r('app.color.terminal_surface'),
+          backgroundColor: $r('app.color.terminal_background'),
           onDisappear: () => { this.showDeleteSheet = false }
         })
     }
@@ -94,7 +94,7 @@ export struct AccountSecurityPage {
 
         Text(I18n.get('security.delete_desc'))
           .fontSize(14)
-          .fontColor($r('app.color.terminal_on_surface_variant'))
+          .fontColor($r('app.color.terminal_text_muted'))
           .width('100%')
           .margin({ bottom: 16 })
 
@@ -102,9 +102,9 @@ export struct AccountSecurityPage {
           .width('100%')
           .height(48)
           .borderRadius(8)
-          .backgroundColor($r('app.color.terminal_surface_container_high'))
-          .fontColor($r('app.color.terminal_primary'))
-          .placeholderColor($r('app.color.terminal_on_surface_variant'))
+          .backgroundColor($r('app.color.terminal_background_element'))
+          .fontColor($r('app.color.terminal_text'))
+          .placeholderColor($r('app.color.terminal_text_muted'))
           .onChange((value: string) => {
             this.confirmUsername = value
             this.deleteError = ''
@@ -148,7 +148,7 @@ export struct AccountSecurityPage {
     }
     .width('100%')
     .padding({ top: 16, bottom: 24 })
-    .backgroundColor($r('app.color.terminal_surface'))
+    .backgroundColor($r('app.color.terminal_background'))
   }
 
   private async deleteAccount() {

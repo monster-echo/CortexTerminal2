@@ -12,7 +12,7 @@ export struct WorkerCard {
       Circle()
         .width(10)
         .height(10)
-        .fill(this.worker.isOnline ? $r('app.color.terminal_tertiary') : $r('app.color.terminal_outline_variant'))
+        .fill(this.worker.isOnline ? $r('app.color.terminal_success') : $r('app.color.terminal_border_subtle'))
         .margin({ right: 12 })
 
       // Worker info
@@ -20,13 +20,13 @@ export struct WorkerCard {
         Text(this.worker.name || this.worker.hostname || 'Unknown')
           .fontSize(15)
           .fontWeight(FontWeight.Medium)
-          .fontColor($r('app.color.terminal_primary'))
+          .fontColor($r('app.color.terminal_text'))
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
 
         Text(this.worker.os || this.worker.operatingSystem || '')
           .fontSize(12)
-          .fontColor($r('app.color.terminal_on_surface_variant'))
+          .fontColor($r('app.color.terminal_text_muted'))
           .margin({ top: 2 })
       }
       .alignItems(HorizontalAlign.Start)
@@ -56,7 +56,7 @@ export struct WorkerCard {
     .height(60)
     .padding({ left: 14, right: 14 })
     .borderRadius(12)
-    .backgroundColor($r('app.color.terminal_surface_container'))
+    .backgroundColor($r('app.color.terminal_background_panel'))
     .alignItems(VerticalAlign.Center)
     .margin({ bottom: 8 })
   }

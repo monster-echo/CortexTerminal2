@@ -30,7 +30,7 @@ export struct AuthComponent {
       .height('100%')
     }
     .hideTitleBar(true)
-    .backgroundColor($r('app.color.terminal_surface'))
+    .backgroundColor($r('app.color.terminal_background'))
     .onBackPressed(() => true)
   }
 }

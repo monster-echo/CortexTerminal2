@@ -32,7 +32,7 @@ struct LatchButton {
         this.chrome().surfaceHigh)
       .fontColor(this.latched ?
         this.chrome().onAccentContainer :
-        this.chrome().accent)
+        this.chrome().onSurface)
       .fontSize(12)
       .fontWeight(FontWeight.Medium)
       .margin({ left: 2, right: 2 })
@@ -126,8 +126,9 @@ export struct VirtualKeyBar {
         .height(36)
         .constraintSize({ minWidth: 52 })
         .borderRadius(8)
-        .backgroundColor(this.chrome().accentContainer)
-        .fontColor(this.chrome().onAccentContainer)
+        // Done：终端主题内的反色对（onSurface 作底、surface 作字），深浅模式下都是高强调。
+        .backgroundColor(this.chrome().onSurface)
+        .fontColor(this.chrome().surface)
         .fontSize(12)
         .fontWeight(FontWeight.Medium)
         .margin({ left: 4, right: 4 })
@@ -157,7 +158,7 @@ export struct VirtualKeyBar {
       .constraintSize({ minWidth: 36 })
       .borderRadius(8)
       .backgroundColor(this.chrome().surfaceHigh)
-      .fontColor(this.chrome().accent)
+      .fontColor(this.chrome().onSurface)
       .fontSize(12)
       .fontWeight(FontWeight.Medium)
       .margin({ left: 2, right: 2 })

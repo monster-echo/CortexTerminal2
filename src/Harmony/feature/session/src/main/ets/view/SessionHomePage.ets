@@ -1,4 +1,4 @@
-import { SessionInfo, WorkerInfo, I18n, RouteName, TerminalNavParam, showI18nToast, showToast, AnalyticsService, AnalyticsEvent, lightHaptic, clickHaptic, AppConstants, AnnouncementService, AnnouncementDialog, AnnouncementInfo } from '@rwecho/core'
+import { SessionInfo, WorkerInfo, I18n, RouteName, TerminalNavParam, showI18nToast, showToast, AnalyticsService, AnalyticsEvent, lightHaptic, clickHaptic, AppConstants, AnnouncementService, AnnouncementDialog, AnnouncementInfo, TerminalThemeProfile, TerminalThemes } from '@rwecho/core'
 import { SessionCard } from './SessionCard'
 import { CreateSessionSheet } from './CreateSessionSheet'
 import { SessionService } from '../service/SessionService'
@@ -30,15 +30,15 @@ struct RenameDialog {
       Text(I18n.get('session.rename_title'))
         .fontSize(18)
         .fontWeight(FontWeight.Bold)
-        .fontColor($r('app.color.terminal_primary'))
+        .fontColor($r('app.color.terminal_text'))
         .margin({ bottom: 16 })
 
       TextInput({ text: $$this.textInput, placeholder: I18n.get('session.rename_placeholder') })
         .height(48)
         .borderRadius(8)
-        .backgroundColor($r('app.color.terminal_surface_container_high'))
-        .fontColor($r('app.color.terminal_primary'))
-        .placeholderColor($r('app.color.terminal_on_surface_variant'))
+        .backgroundColor($r('app.color.terminal_background_element'))
+        .fontColor($r('app.color.terminal_text'))
+        .placeholderColor($r('app.color.terminal_text_muted'))
         .fontSize(16)
         .selectAll(true)
 
@@ -47,8 +47,8 @@ struct RenameDialog {
           .height(44)
           .borderRadius(8)
           .backgroundColor(Color.Transparent)
-          .fontColor($r('app.color.terminal_on_surface_variant'))
-          .border({ width: 1, color: $r('app.color.terminal_outline_variant') })
+          .fontColor($r('app.color.terminal_text_muted'))
+          .border({ width: 1, color: $r('app.color.terminal_border_subtle') })
           .layoutWeight(1)
           .onClick(() => { clickHaptic(); this.controller.close() })
 
@@ -68,7 +68,7 @@ struct RenameDialog {
     }
     .padding(24)
     .borderRadius(16)
-    .backgroundColor($r('app.color.terminal_surface_container_highest'))
+    .backgroundColor($r('app.color.terminal_background_menu'))
     .width('80%')
     .constraintSize({ maxWidth: 320 })
   }
@@ -76,6 +76,8 @@ struct RenameDialog {
 
 @Component
 export struct SessionHomePage {
+  /** 首页引导块是终端窗口预览，永远用内置 Default Dark 终端档案渲染，不跟随 App 深浅模式。 */
+  private guideTheme: TerminalThemeProfile = TerminalThemes.findById('default-dark', [])
   @State allSessions: SessionInfo[] = []
   @State workers: WorkerInfo[] = []
   @State isLoading: boolean = false
@@ -165,25 +167,25 @@ export struct SessionHomePage {
               Row() {
                 Column() {
                   Row().width(120).height(14).borderRadius(4)
-                    .backgroundColor($r('app.color.terminal_surface_container_high'))
+                    .backgroundColor($r('app.color.terminal_background_element'))
                   Row().width(80).height(10).borderRadius(4)
-                    .backgroundColor($r('app.color.terminal_surface_container_high'))
+                    .backgroundColor($r('app.color.terminal_background_element'))
                     .margin({ top: 6 })
                   Row().width(60).height(10).borderRadius(4)
-                    .backgroundColor($r('app.color.terminal_surface_container_high'))
+                    .backgroundColor($r('app.color.terminal_background_element'))
                     .margin({ top: 4 })
                 }
                 .alignItems(HorizontalAlign.Start)
                 .layoutWeight(1)
                 Blank()
                 Row().width(48).height(20).borderRadius(8)
-                  .backgroundColor($r('app.color.terminal_surface_container_high'))
+                  .backgroundColor($r('app.color.terminal_background_element'))
               }
               .width('100%')
               .height(72)
               .padding(14)
               .borderRadius(12)
-              .backgroundColor($r('app.color.terminal_surface_container'))
+              .backgroundColor($r('app.color.terminal_background_panel'))
               .margin({ bottom: 8 })
             }, (_: number, idx: number) => `${idx}`)
           }
@@ -199,7 +201,7 @@ export struct SessionHomePage {
 
             Text(this.errorMessage)
               .fontSize(13)
-              .fontColor($r('app.color.terminal_on_surface_variant'))
+              .fontColor($r('app.color.terminal_text_muted'))
               .textAlign(TextAlign.Center)
               .margin({ top: 8 })
               .padding({ left: 28, right: 28 })
@@ -224,7 +226,7 @@ export struct SessionHomePage {
                 Column() {
                   Text(I18n.get('session.home.empty_active_offline'))
                     .fontSize(14)
-                    .fontColor($r('app.color.terminal_on_surface_variant'))
+                    .fontColor($r('app.color.terminal_text_muted'))
                 }
                 .margin({ top: 40 })
               } else {
@@ -261,7 +263,7 @@ export struct SessionHomePage {
     }
     .width('100%')
     .layoutWeight(1)
-    .backgroundColor($r('app.color.terminal_surface'))
+    .backgroundColor($r('app.color.terminal_background'))
     .bindSheet($$this.showCreateSheet, this.CreateSheetContent(), {
       detents: ['66%', SheetSize.MEDIUM],
       preferType: SheetType.BOTTOM,
@@ -280,7 +282,7 @@ export struct SessionHomePage {
     .width(64)
     .height('100%')
     .borderRadius(12)
-    .backgroundColor($r('app.color.terminal_surface_container_high'))
+    .backgroundColor($r('app.color.terminal_background_element'))
     .onClick(() => { clickHaptic(); this.confirmDelete(session) })
   }
 
@@ -295,7 +297,7 @@ export struct SessionHomePage {
       .width(64)
       .height('100%')
       .borderRadius(12)
-      .backgroundColor($r('app.color.terminal_surface_container_high'))
+      .backgroundColor($r('app.color.terminal_background_element'))
       .onClick(() => { clickHaptic(); this.openRenameDialog(session) })
 
       Button() {
@@ -306,7 +308,7 @@ export struct SessionHomePage {
       .width(64)
       .height('100%')
       .borderRadius(12)
-      .backgroundColor($r('app.color.terminal_surface_container_high'))
+      .backgroundColor($r('app.color.terminal_background_element'))
       .onClick(() => { clickHaptic(); this.confirmDelete(session) })
     }
   }
@@ -491,13 +493,13 @@ export struct SessionHomePage {
         Row().width(8).height(8).borderRadius(4).backgroundColor('#28c840').margin({ left: 6 })
         Text(title)
           .fontSize(11)
-          .fontColor($r('app.color.terminal_on_surface_variant'))
+          .fontColor(this.guideTheme.brightBlack)
           .margin({ left: 12 })
           .layoutWeight(1)
       }
       .padding({ left: 12, right: 12, top: 8, bottom: 8 })
 
-      Divider().color('#21262d')
+      Divider().color(this.guideTheme.black)
 
       Column() {
         ForEach(lines, (line: TerminalLine) => {
@@ -505,17 +507,17 @@ export struct SessionHomePage {
             Row() {
               Text('$ ')
                 .fontSize(12)
-                .fontColor('#58a6ff')
+                .fontColor(this.guideTheme.blue)
                 .fontFamily('monospace')
               Text(line.text)
                 .fontSize(12)
-                .fontColor('#c9d1d9')
+                .fontColor(this.guideTheme.foreground)
                 .fontFamily('monospace')
                 .layoutWeight(1)
                 .copyOption(CopyOptions.InApp)
               Text('📋')
                 .fontSize(14)
-                .fontColor($r('app.color.terminal_on_surface_variant'))
+                .fontColor(this.guideTheme.brightBlack)
                 .onClick(() => { this.copyToClipboard(line.text) })
             }
             .width('100%')
@@ -523,19 +525,19 @@ export struct SessionHomePage {
           } else if (line.type === 'comment') {
             Text(line.text)
               .fontSize(12)
-              .fontColor('#8b949e')
+              .fontColor(this.guideTheme.brightBlack)
               .fontFamily('monospace')
               .width('100%')
           } else if (line.type === 'success') {
             Text(line.text)
               .fontSize(12)
-              .fontColor('#3fb950')
+              .fontColor(this.guideTheme.green)
               .fontFamily('monospace')
               .width('100%')
           } else if (line.type === 'link') {
             Text(line.text)
               .fontSize(12)
-              .fontColor('#58a6ff')
+              .fontColor(this.guideTheme.blue)
               .fontFamily('monospace')
               .width('100%')
           }
@@ -545,7 +547,7 @@ export struct SessionHomePage {
       .alignItems(HorizontalAlign.Start)
     }
     .borderRadius(10)
-    .backgroundColor('#0d1117')
+    .backgroundColor(this.guideTheme.background)
     .clip(true)
   }
 

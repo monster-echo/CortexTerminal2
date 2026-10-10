@@ -26,6 +26,22 @@
 
   </style>
   <link rel="stylesheet" href="xterm.css" />
+  <script>
+    // 首帧主题：在 xterm 初始化之前就把页面底色设对，消灭「先 dark 后 light」闪屏。
+    // 优先级：宿主注入的 __INITIAL_THEME__（当次会话最准）→ localStorage 上次主题 → dark。
+    (function () {
+      var t = null;
+      try { t = localStorage.getItem('terminalTheme'); } catch (e) {}
+      if (t !== 'light' && t !== 'dark') {
+        t = (window.__INITIAL_THEME__ === 'light' || window.__INITIAL_THEME__ === 'dark')
+          ? window.__INITIAL_THEME__ : 'dark';
+      }
+      window.__START_THEME__ = t;
+      var bg = (t === 'light') ? '#FAFAFA' : '#121414';
+      document.documentElement.style.backgroundColor = bg;
+      document.body.style.backgroundColor = bg;
+    })();
+  </script>
 </head>
 <body>
   <div id="terminal-container"></div>
@@ -117,6 +133,7 @@
       if (container) {
         container.style.background = theme.background;
       }
+      try { localStorage.setItem('terminalTheme', theme.background === '#FAFAFA' ? 'light' : 'dark'); } catch (e) {}
     }
 
     /**

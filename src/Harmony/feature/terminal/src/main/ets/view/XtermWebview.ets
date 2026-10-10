@@ -95,6 +95,11 @@ export struct XtermWebview {
         .backgroundColor(this.chrome().background)
         .javaScriptAccess(true)
         .domStorageAccess(true)
+        // 在页面任何脚本执行前注入当前终端主题，配合 index.html 消除首帧深色闪屏。
+        .javaScriptOnDocumentStart([{
+          script: "window.__INITIAL_THEME__='" + (this.terminalColorMode === 'light' ? 'light' : 'dark') + "';",
+          scriptRules: ['*']
+        }])
         .mixedMode(MixedMode.All)
         .onlineImageAccess(true)
         .zoomAccess(false)

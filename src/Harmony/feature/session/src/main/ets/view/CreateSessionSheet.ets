@@ -29,7 +29,7 @@ export struct CreateSessionSheet {
       Text(I18n.get('session.create.title'))
         .fontSize(18)
         .fontWeight(FontWeight.Bold)
-        .fontColor($r('app.color.terminal_primary'))
+        .fontColor($r('app.color.terminal_text'))
         .width('100%')
         .margin({ bottom: 16 })
 
@@ -38,7 +38,7 @@ export struct CreateSessionSheet {
           LoadingProgress().width(32).height(32).color($r('app.color.terminal_secondary'))
           Text(I18n.get('session.create.loading'))
             .fontSize(13)
-            .fontColor($r('app.color.terminal_on_surface_variant'))
+            .fontColor($r('app.color.terminal_text_muted'))
             .margin({ top: 8 })
         }
         .width('100%')
@@ -51,7 +51,7 @@ export struct CreateSessionSheet {
             .fontColor($r('app.color.terminal_error'))
           Text(this.errorMessage)
             .fontSize(13)
-            .fontColor($r('app.color.terminal_on_surface_variant'))
+            .fontColor($r('app.color.terminal_text_muted'))
             .margin({ top: 4 })
         }
         .width('100%')
@@ -61,7 +61,7 @@ export struct CreateSessionSheet {
         Column() {
           Text(I18n.get('session.create.empty'))
             .fontSize(15)
-            .fontColor($r('app.color.terminal_on_surface_variant'))
+            .fontColor($r('app.color.terminal_text_muted'))
         }
         .width('100%')
         .alignItems(HorizontalAlign.Center)
@@ -71,19 +71,19 @@ export struct CreateSessionSheet {
           ForEach(this.modalWorkers.filter(w => w.isOnline), (worker: WorkerInfo) => {
             ListItem() {
               Row() {
-                Circle().width(10).height(10).fill($r('app.color.terminal_tertiary')).margin({ right: 12 })
+                Circle().width(10).height(10).fill($r('app.color.terminal_success')).margin({ right: 12 })
 
                 Column() {
                   Text(worker.name || worker.hostname || 'Unknown')
                     .fontSize(15)
                     .fontWeight(FontWeight.Medium)
-                    .fontColor($r('app.color.terminal_primary'))
+                    .fontColor($r('app.color.terminal_text'))
                     .maxLines(1)
                     .textOverflow({ overflow: TextOverflow.Ellipsis })
 
                   Text(worker.os || worker.operatingSystem || '')
                     .fontSize(12)
-                    .fontColor($r('app.color.terminal_on_surface_variant'))
+                    .fontColor($r('app.color.terminal_text_muted'))
                     .margin({ top: 2 })
                 }
                 .alignItems(HorizontalAlign.Start)
@@ -109,7 +109,7 @@ export struct CreateSessionSheet {
         }
         .width('100%')
         .layoutWeight(1)
-        .divider({ strokeWidth: 1, color: $r('app.color.terminal_outline_variant'), startMargin: 0, endMargin: 0 })
+        .divider({ strokeWidth: 1, color: $r('app.color.terminal_border_subtle'), startMargin: 0, endMargin: 0 })
       }
     }
     .padding({ left: 20, right: 20, top: 16, bottom: 20 })

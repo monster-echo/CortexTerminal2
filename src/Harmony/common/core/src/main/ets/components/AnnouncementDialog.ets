@@ -22,12 +22,12 @@ export struct AnnouncementDialog {
       Text(this.announcement.title)
         .fontSize(18)
         .fontWeight(FontWeight.Bold)
-        .fontColor($r('app.color.terminal_on_surface'))
+        .fontColor($r('app.color.terminal_text'))
         .width('100%')
 
       Text(this.announcement.body)
         .fontSize(14)
-        .fontColor($r('app.color.terminal_on_surface_variant'))
+        .fontColor($r('app.color.terminal_text_muted'))
         .lineHeight(22)
         .width('100%')
         .margin({ top: 12 })
@@ -36,8 +36,8 @@ export struct AnnouncementDialog {
         .type(ButtonType.Capsule)
         .height(44)
         .width('100%')
-        .backgroundColor($r('app.color.terminal_primary'))
-        .fontColor($r('app.color.terminal_on_primary'))
+        .backgroundColor($r('app.color.terminal_inverse_surface'))
+        .fontColor($r('app.color.terminal_inverse_on_surface'))
         .fontSize(16)
         .fontWeight(FontWeight.Medium)
         .margin({ top: 24 })
@@ -53,7 +53,7 @@ export struct AnnouncementDialog {
         .height(40)
         .width('100%')
         .backgroundColor(Color.Transparent)
-        .fontColor($r('app.color.terminal_on_surface_variant'))
+        .fontColor($r('app.color.terminal_text_muted'))
         .fontSize(14)
         .margin({ top: 8 })
         .onClick(() => {
@@ -64,7 +64,7 @@ export struct AnnouncementDialog {
     }
     .padding(24)
     .borderRadius(16)
-    .backgroundColor($r('app.color.terminal_surface_container_highest'))
+    .backgroundColor($r('app.color.terminal_background_menu'))
     .width('80%')
     .constraintSize({ maxWidth: 320 })
   }

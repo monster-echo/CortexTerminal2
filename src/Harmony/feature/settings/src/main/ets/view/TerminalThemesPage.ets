@@ -281,7 +281,7 @@ export struct TerminalThemesPage {
     Text(this.tr(key))
       .fontSize(13)
       .fontWeight(FontWeight.Medium)
-      .fontColor($r('app.color.terminal_on_surface_variant'))
+      .fontColor($r('app.color.terminal_text_muted'))
       .textCase(TextCase.UpperCase)
       .width('calc(100% - 32vp)')
       .padding({ left: 16 })
@@ -297,7 +297,7 @@ export struct TerminalThemesPage {
           .height(24)
           .borderRadius(6)
           .backgroundColor(this.colorOf(profile, key))
-          .border({ width: 1, color: $r('app.color.terminal_outline_variant') })
+          .border({ width: 1, color: $r('app.color.terminal_border_subtle') })
       }, (key: string) => key)
     }
   }
@@ -308,7 +308,7 @@ export struct TerminalThemesPage {
       Column() {
         Text(this.displayName(profile))
           .fontSize(16)
-          .fontColor($r('app.color.terminal_on_surface'))
+          .fontColor($r('app.color.terminal_text'))
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
         this.SwatchRow(profile, PREVIEW_KEYS)
@@ -320,7 +320,7 @@ export struct TerminalThemesPage {
         Text('✓')
           .fontSize(16)
           .fontWeight(FontWeight.Bold)
-          .fontColor($r('app.color.terminal_primary'))
+          .fontColor($r('app.color.terminal_text'))
           .margin({ right: custom ? 4 : 0 })
       }
       if (custom) {
@@ -345,12 +345,12 @@ export struct TerminalThemesPage {
     .width('100%')
     .padding({ left: 16, right: 12, top: 12, bottom: 12 })
     .borderRadius(10)
-    .backgroundColor($r('app.color.terminal_surface_container'))
+    .backgroundColor($r('app.color.terminal_background_panel'))
     .border({
       width: this.terminalTheme === profile.id ? 2 : 1,
       color: this.terminalTheme === profile.id
-        ? $r('app.color.terminal_primary')
-        : $r('app.color.terminal_outline_variant')
+        ? $r('app.color.terminal_inverse_surface')
+        : $r('app.color.terminal_border_subtle')
     })
     .margin({ bottom: 8 })
     .onClick(() => {
@@ -385,8 +385,8 @@ export struct TerminalThemesPage {
           .width('calc(100% - 32vp)')
           .height(48)
           .margin({ top: 16 })
-          .backgroundColor($r('app.color.terminal_primary'))
-          .fontColor($r('app.color.terminal_on_primary'))
+          .backgroundColor($r('app.color.terminal_inverse_surface'))
+          .fontColor($r('app.color.terminal_inverse_on_surface'))
           .fontSize(16)
           .fontWeight(FontWeight.Medium)
           .borderRadius(24)
@@ -408,7 +408,7 @@ export struct TerminalThemesPage {
     Row() {
       Text(this.tr('terminalTheme.color.' + TerminalThemes.COLOR_KEYS[index]))
         .fontSize(14)
-        .fontColor($r('app.color.terminal_on_surface_variant'))
+        .fontColor($r('app.color.terminal_text_muted'))
         .layoutWeight(1)
 
       Row()
@@ -418,16 +418,16 @@ export struct TerminalThemesPage {
         .backgroundColor(this.editorValid[index]
           ? this.editorColors[index]
           : Color.Transparent)
-        .border({ width: 1, color: $r('app.color.terminal_outline') })
+        .border({ width: 1, color: $r('app.color.terminal_border') })
 
       TextInput({ text: this.editorColors[index] })
         .width(120)
         .height(40)
         .fontSize(14)
         .fontColor(this.editorValid[index]
-          ? $r('app.color.terminal_on_surface')
+          ? $r('app.color.terminal_text')
           : $r('app.color.terminal_error'))
-        .backgroundColor($r('app.color.terminal_surface_container_high'))
+        .backgroundColor($r('app.color.terminal_background_element'))
         .borderRadius(8)
         .onChange((value: string) => {
           this.onEditorColorChange(index, value)
@@ -452,23 +452,23 @@ export struct TerminalThemesPage {
           : this.tr('terminalTheme.custom.new'))
           .fontSize(18)
           .fontWeight(FontWeight.Bold)
-          .fontColor($r('app.color.terminal_on_surface'))
+          .fontColor($r('app.color.terminal_text'))
           .width('calc(100% - 32vp)')
           .margin({ top: 16, bottom: 12 })
 
         Column() {
           Text(this.tr('terminalTheme.custom.nameLabel'))
             .fontSize(14)
-            .fontColor($r('app.color.terminal_on_surface_variant'))
+            .fontColor($r('app.color.terminal_text_muted'))
             .margin({ bottom: 8 })
           TextInput({ text: this.editorName, placeholder: this.tr('terminalTheme.custom.namePlaceholder') })
             .width('100%')
             .height(48)
             .fontSize(16)
-            .fontColor($r('app.color.terminal_on_surface'))
-            .placeholderColor($r('app.color.terminal_on_surface_variant'))
+            .fontColor($r('app.color.terminal_text'))
+            .placeholderColor($r('app.color.terminal_text_muted'))
             .placeholderFont({ size: 14 })
-            .backgroundColor($r('app.color.terminal_surface_container_high'))
+            .backgroundColor($r('app.color.terminal_background_element'))
             .borderRadius(8)
             .onChange((value: string) => {
               this.editorName = value
@@ -489,8 +489,8 @@ export struct TerminalThemesPage {
           .width('calc(100% - 32vp)')
           .height(48)
           .margin({ top: 24 })
-          .backgroundColor($r('app.color.terminal_primary'))
-          .fontColor($r('app.color.terminal_on_primary'))
+          .backgroundColor($r('app.color.terminal_inverse_surface'))
+          .fontColor($r('app.color.terminal_inverse_on_surface'))
           .fontSize(16)
           .fontWeight(FontWeight.Medium)
           .borderRadius(24)
@@ -504,8 +504,8 @@ export struct TerminalThemesPage {
           .height(48)
           .margin({ top: 8 })
           .backgroundColor(Color.Transparent)
-          .border({ width: 1, color: $r('app.color.terminal_outline_variant') })
-          .fontColor($r('app.color.terminal_on_surface'))
+          .border({ width: 1, color: $r('app.color.terminal_border_subtle') })
+          .fontColor($r('app.color.terminal_text'))
           .fontSize(14)
           .fontWeight(FontWeight.Medium)
           .borderRadius(8)

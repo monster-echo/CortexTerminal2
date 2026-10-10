@@ -14,6 +14,6 @@ export struct WorkerListRoute {
       WorkerListPage()
     }
     .hideTitleBar(true)
-    .backgroundColor($r('app.color.terminal_surface'))
+    .backgroundColor($r('app.color.terminal_background'))
   }
 }

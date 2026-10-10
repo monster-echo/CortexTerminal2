@@ -159,7 +159,7 @@ export struct SessionSwitcherSheet {
       case 'live':
       case 'connected':
       case 'running':
-        return $r('app.color.terminal_tertiary')
+        return $r('app.color.terminal_success')
       case 'expired':
       case 'failed':
       case 'error':

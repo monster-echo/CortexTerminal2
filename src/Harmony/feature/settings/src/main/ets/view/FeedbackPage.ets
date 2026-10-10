@@ -51,7 +51,7 @@ export struct FeedbackPage {
       Column() {
         Text(I18n.get('feedback.content') + (this.currentLanguage ? '' : ''))
           .fontSize(14)
-          .fontColor($r('app.color.terminal_on_surface_variant'))
+          .fontColor($r('app.color.terminal_text_muted'))
           .width('100%')
           .margin({ bottom: 8 })
 
@@ -59,9 +59,9 @@ export struct FeedbackPage {
           .width('100%')
           .height(120)
           .borderRadius(8)
-          .backgroundColor($r('app.color.terminal_surface_container_high'))
-          .fontColor($r('app.color.terminal_primary'))
-          .placeholderColor($r('app.color.terminal_on_surface_variant'))
+          .backgroundColor($r('app.color.terminal_background_element'))
+          .fontColor($r('app.color.terminal_text'))
+          .placeholderColor($r('app.color.terminal_text_muted'))
           .fontSize(14)
           .onChange((value: string) => {
             this.content = value
@@ -69,7 +69,7 @@ export struct FeedbackPage {
 
         Text(I18n.get('feedback.contact') + (this.currentLanguage ? '' : ''))
           .fontSize(14)
-          .fontColor($r('app.color.terminal_on_surface_variant'))
+          .fontColor($r('app.color.terminal_text_muted'))
           .width('100%')
           .margin({ top: 16, bottom: 8 })
 
@@ -77,9 +77,9 @@ export struct FeedbackPage {
           .width('100%')
           .height(44)
           .borderRadius(8)
-          .backgroundColor($r('app.color.terminal_surface_container_high'))
-          .fontColor($r('app.color.terminal_primary'))
-          .placeholderColor($r('app.color.terminal_on_surface_variant'))
+          .backgroundColor($r('app.color.terminal_background_element'))
+          .fontColor($r('app.color.terminal_text'))
+          .placeholderColor($r('app.color.terminal_text_muted'))
           .fontSize(14)
           .onChange((value: string) => {
             this.contact = value
@@ -87,7 +87,7 @@ export struct FeedbackPage {
 
         Text(I18n.get('feedback.attachments') + (this.currentLanguage ? '' : ''))
           .fontSize(14)
-          .fontColor($r('app.color.terminal_on_surface_variant'))
+          .fontColor($r('app.color.terminal_text_muted'))
           .width('100%')
           .margin({ top: 16, bottom: 8 })
 
@@ -106,13 +106,13 @@ export struct FeedbackPage {
                     .fontSize(10)
                     .maxLines(2)
                     .textOverflow({ overflow: TextOverflow.Ellipsis })
-                    .fontColor($r('app.color.terminal_on_surface_variant'))
+                    .fontColor($r('app.color.terminal_text_muted'))
                     .textAlign(TextAlign.Center)
                 }
                 .width(72)
                 .height(72)
                 .borderRadius(8)
-                .backgroundColor($r('app.color.terminal_surface_container_high'))
+                .backgroundColor($r('app.color.terminal_background_element'))
                 .justifyContent(FlexAlign.Center)
                 .alignItems(HorizontalAlign.Center)
                 .padding(4)
@@ -139,17 +139,17 @@ export struct FeedbackPage {
           if (this.attachments.length < 3) {
             Column() {
               if (this.attaching) {
-                LoadingProgress().width(24).height(24).color($r('app.color.terminal_on_surface_variant'))
+                LoadingProgress().width(24).height(24).color($r('app.color.terminal_text_muted'))
               } else {
                 Text('+')
                   .fontSize(24)
-                  .fontColor($r('app.color.terminal_on_surface_variant'))
+                  .fontColor($r('app.color.terminal_text_muted'))
               }
             }
             .width(72)
             .height(72)
             .borderRadius(8)
-            .backgroundColor($r('app.color.terminal_surface_container_high'))
+            .backgroundColor($r('app.color.terminal_background_element'))
             .justifyContent(FlexAlign.Center)
             .alignItems(HorizontalAlign.Center)
             .onClick(() => {
