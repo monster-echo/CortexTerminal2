@@ -576,6 +576,22 @@ app.UseStaticFiles(new StaticFileOptions
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+// HarmonyOS http API 不支持 PATCH，客户端以 POST + X-HTTP-Method-Override 发送。
+// 仅放行 PATCH/PUT/DELETE 三个安全白名单动词，防止任意方法改写。
+app.Use(async (context, next) =>
+{
+    if (context.Request.Headers.TryGetValue("X-HTTP-Method-Override", out var overrideMethod))
+    {
+        var method = overrideMethod.ToString().ToUpperInvariant();
+        if (method is "PATCH" or "PUT" or "DELETE")
+        {
+            context.Request.Method = method;
+        }
+    }
+    await next();
+});
+
 app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(30) });
 app.UseMiddleware<TerminalWebSocketMiddleware>();
 app.MapControllers();
