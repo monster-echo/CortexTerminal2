@@ -358,9 +358,13 @@
 
         container.addEventListener('touchstart', function(e) {
           if (e.touches.length !== 1) return;
-          // Take the gesture over from the browser: no synthetic mouse events, no
-          // native page gestures. Everything below is what the terminal receives.
-          e.preventDefault();
+          // 这里**不能** preventDefault：ArkWeb 的软键盘只有在它自己的点击手势
+          // 没有被取消时才会为可编辑元素建立输入会话。之前为了"避免 mouse 事件
+          // 重复上报"在这里调用 preventDefault()，把原生点击整条链路掐掉，系统键盘
+          // 从此再也弹不出来（回归）。
+          // 现在的分工：点击（tap）交给原生 → ArkWeb 聚焦 .xterm-helper-textarea
+          // 并拉起输入法；拖拽/滚动与长按选择仍由本层接管（见 touchmove）。
+          // 为避免重复上报，touchend 里不再自己发 mouse report。
           // Any new touch dismisses the host context menu.
           sendToHost({ type: 'contextmenuhide' });
           if (st && st.rafId) cancelAnimationFrame(st.rafId);
@@ -401,7 +405,7 @@
           }, LONG_PRESS_MS);
 
           st = s;
-        }, { passive: false });
+        }, { passive: true });
 
         container.addEventListener('touchmove', function(e) {
           if (!st || e.touches.length !== 1) return;
@@ -455,14 +459,12 @@
 
           // Mouse mode: a tap is a left click for the foreground app, which is what
           // expands a collapsed tool row or drops the input cursor at that cell.
+          // 点击不再自己发 mouse report：touchstart 不 preventDefault 之后，ArkWeb 会
+          // 为这次点击合成 mousedown/mouseup/click，xterm 的 mouse service 会自己上报
+          // 一次（这也是软键盘能被拉起的同一条原生链路）。这里再发一遍就会重复。
           if (s.mouseMode && s.totalDelta <= MOVE_THRESHOLD) {
             st = null;
-            var tapCell = cellAtClamped(s.startX, s.startY);
             focusTerminalTextarea();
-            if (tapCell) {
-              sendMouseReport(MOUSE_BUTTON_LEFT, tapCell.col, tapCell.row, true);
-              sendMouseReport(MOUSE_BUTTON_LEFT, tapCell.col, tapCell.row, false);
-            }
             return;
           }
 
