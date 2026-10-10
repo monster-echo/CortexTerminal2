@@ -9,7 +9,9 @@ final sessionsProvider = FutureProvider<List<SessionSummary>>((ref) {
   return ref.watch(sessionRepositoryProvider).list();
 });
 
-final workersProvider = FutureProvider<List<WorkerSummary>>((ref) {
+/// worker 列表（含实时在线状态）。autoDispose：所有页面离开后缓存销毁，
+/// 再次进入任一页面都会重新拉取——isOnline 是强时效数据，不能长期缓存快照。
+final workersProvider = FutureProvider.autoDispose<List<WorkerSummary>>((ref) {
   return ref.watch(sessionRepositoryProvider).workers();
 });
 
