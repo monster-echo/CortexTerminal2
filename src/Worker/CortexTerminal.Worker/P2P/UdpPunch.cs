@@ -37,6 +37,13 @@ public static class UdpPunch
         return probe;
     }
 
+    /// <summary>
+    /// 探包判定（规格 §1.3）：收包方与对端各自生成 txid、事先不知道对方 txid，
+    /// 因此收到 "PT" 前缀且长度 14 的包即视为探包——接受任意 txid。
+    /// </summary>
+    public static bool IsProbe(ReadOnlySpan<byte> datagram)
+        => datagram.Length == ProbeLength && datagram[0] == 0x50 && datagram[1] == 0x54;
+
     public static bool IsProbe(ReadOnlySpan<byte> datagram, ReadOnlySpan<byte> transactionId)
     {
         if (datagram.Length != ProbeLength || transactionId.Length != 12) return false;
@@ -82,7 +89,7 @@ public static class UdpPunch
                     // 吞掉继续等，直到打洞窗口耗尽由统一转为 TimeoutException。
                     continue;
                 }
-                if (!IsProbe(result.Buffer, transactionId))
+                if (!IsProbe(result.Buffer))
                 {
                     continue;
                 }

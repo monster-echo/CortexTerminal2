@@ -331,6 +331,7 @@ public sealed class RelayTransferService(long maxTransferBytes, ILogger<RelayTra
         };
         SweepExpired();
         _local[command.TransferId] = pending;
+        RaiseTransferPrepared(command.TransferId, command.Token, isReceive: true);
         _ = Task.Run(() => ReceivePipelineAsync(command, targetPath, pending, pending.RelayCts.Token), CancellationToken.None);
         return Task.FromResult(new FileOperationAck(true, null));
     }
@@ -376,12 +377,42 @@ public sealed class RelayTransferService(long maxTransferBytes, ILogger<RelayTra
         };
         SweepExpired();
         _local[command.TransferId] = pending;
+        RaiseTransferPrepared(command.TransferId, command.Token, isReceive: false);
         _ = Task.Run(() => SendPipelineAsync(command, filePath, size, pending, pending.RelayCts.Token), CancellationToken.None);
         return Task.FromResult(new PrepareFileSendAck(true, null, size, filename));
     }
 
     /// <summary>pending 本地传输的最长寿命（本地与 Relay 通道都未完成时到期作废）。</summary>
     private const int PendingTtlSeconds = 600;
+
+    /// <summary>
+    /// 传输 prepare 成功后触发（transferId, token, isReceive），供 P2P 打洞准备等
+    /// 并行通道挂接。处理器不得阻塞 prepare 应答 —— 实现为 fire-and-forget。
+    /// </summary>
+    public event Func<string, string, bool, Task>? TransferPrepared;
+
+    private void RaiseTransferPrepared(string transferId, string token, bool isReceive)
+    {
+        var handlers = TransferPrepared;
+        if (handlers is null)
+        {
+            return;
+        }
+        foreach (Func<string, string, bool, Task> handler in handlers.GetInvocationList())
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await handler(transferId, token, isReceive);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Transfer {TransferId} parallel-channel preparation failed.", transferId);
+                }
+            });
+        }
+    }
 
     /// <summary>惰性清扫：每次 Prepare 时顺手清掉两条通道都没接手且已过期的 pending。</summary>
     private void SweepExpired()

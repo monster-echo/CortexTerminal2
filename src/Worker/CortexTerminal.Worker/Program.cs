@@ -629,6 +629,17 @@ rootCommand.SetAction(async (ParseResult parseResult, CancellationToken cancella
     // 注册顺序即启动顺序：监听器先于运行时宿主绑定端口，LAN 端点才能随首个信息帧上报。
     builder.Services.AddHostedService(sp => sp.GetRequiredService<LocalTransferListener>());
 
+    // P2P 打洞传输（规格 §1/§6）：prepare 应答后后台启动 —— UDP socket + STUN + Gateway
+    // 介绍人 + 加密可靠流上的精简 HTTP。Enabled 缺省视为 true。
+    if (builder.Configuration.GetValue("P2P:Enabled", true))
+    {
+        builder.Services.AddSingleton(sp => new CortexTerminal.Worker.P2P.PunchTransferService(
+            gatewayUrl,
+            sp.GetRequiredService<IConfiguration>()["P2P:StunServer"] ?? "stun.l.google.com:19302",
+            sp.GetRequiredService<RelayTransferService>(),
+            sp.GetRequiredService<ILogger<CortexTerminal.Worker.P2P.PunchTransferService>>()));
+    }
+
     builder.Services.AddHostedService(services => new WorkerRuntimeHost(
         workerId,
         services.GetRequiredService<IWorkerGatewayClient>(),

@@ -107,9 +107,24 @@ public static class StunClient
         var server = serverAddresses.FirstOrDefault(a => a.AddressFamily == AddressFamily.InterNetwork)
                      ?? throw new InvalidOperationException($"STUN server {stunServerHost} has no IPv4 address");
 
+        return await DiscoverAsync(socket, new IPEndPoint(server, stunServerPort), transactionId, timeout, ct);
+    }
+
+    /// <summary>
+    /// 在既有 socket 上做 Binding（P2P 打洞必须复用同一 socket：NAT 映射端口与探包端口一致）。
+    /// socket 保持未连接状态（SendTo/ReceiveFrom），不影响后续打洞。
+    /// </summary>
+    public static async Task<StunResult> DiscoverAsync(
+        Socket socket, IPEndPoint stunServer, byte[] transactionId, TimeSpan timeout, CancellationToken ct)
+    {
+        if (socket.AddressFamily != AddressFamily.InterNetwork)
+        {
+            throw new ArgumentException("p2p punch requires an IPv4 UDP socket", nameof(socket));
+        }
+
         var request = BuildBindingRequest(transactionId);
         var started = Stopwatch.GetTimestamp();
-        await socket.SendToAsync(request, SocketFlags.None, new IPEndPoint(server, stunServerPort), ct);
+        await socket.SendToAsync(request, SocketFlags.None, stunServer, ct);
 
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeoutCts.CancelAfter(timeout);
