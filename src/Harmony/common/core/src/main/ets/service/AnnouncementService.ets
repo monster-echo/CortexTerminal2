@@ -33,6 +33,8 @@ export class AnnouncementService {
     dismissed.push(id)
     const store = preferences.getPreferencesSync(ctx, { name: AnnouncementService.STORE_NAME })
     store.putSync(AnnouncementService.KEY_DISMISSED, JSON.stringify(dismissed))
+    // putSync 只写内存，必须 flush 才会落盘，否则冷启动后公告会再次弹出
+    store.flushSync()
   }
 
   private static readDismissed(ctx: common.UIAbilityContext): string[] {

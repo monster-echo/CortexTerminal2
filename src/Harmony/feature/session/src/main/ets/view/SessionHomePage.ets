@@ -90,6 +90,14 @@ export struct SessionHomePage {
     alignment: DialogAlignment.Center,
     customStyle: true
   })
+  // CustomDialogController 必须是 struct 的成员变量，@CustomDialog 的 controller 才会被注入；
+  // 局部变量会导致弹窗里 this.controller 为 undefined，按钮 close() 抛异常、弹窗关不掉。
+  private announcementDialog: CustomDialogController = new CustomDialogController({
+    builder: AnnouncementDialog({ announcement: new AnnouncementInfo() }),
+    autoCancel: true,
+    alignment: DialogAlignment.Center,
+    customStyle: true
+  })
 
   onCreateTriggered() {
     if (this.createTrigger) {
@@ -104,7 +112,7 @@ export struct SessionHomePage {
     this.loadAnnouncement()
   }
 
-  /** 拉取网关公告，有未关闭的公告则弹窗（每条公告每台设备只弹一次）。 */
+  /** 拉取网关公告；弹过一次即记为已读，之后不再弹。 */
   private async loadAnnouncement() {
     const ctx = this.getUIContext()?.getHostContext() as common.UIAbilityContext
     try {
@@ -112,7 +120,7 @@ export struct SessionHomePage {
       if (pending === null) {
         return
       }
-      const dialog = new CustomDialogController({
+      this.announcementDialog = new CustomDialogController({
         builder: AnnouncementDialog({
           announcement: pending,
           onJoin: (url: string) => {
@@ -126,7 +134,9 @@ export struct SessionHomePage {
         alignment: DialogAlignment.Center,
         customStyle: true
       })
-      dialog.open()
+      this.announcementDialog.open()
+      // 弹出即已读：点按钮、点遮罩、返回键、直接杀进程都不会再弹第二次
+      AnnouncementService.dismiss(ctx, pending.id)
     } catch (e) {
       showToast((e as Error).message || I18n.get('announcement.load_failed'))
     }
