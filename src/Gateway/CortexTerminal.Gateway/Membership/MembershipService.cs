@@ -159,6 +159,80 @@ public sealed class MembershipService(IDbContextFactory<AppDbContext> dbFactory)
     }
 
     /// <summary>
+    /// Applies a server-verified Huawei purchase to the same membership catalog and entitlement
+    /// state used by Apple, redeem codes, and manual grants. The stable Huawei purchase token is
+    /// the subscription idempotency key; new renewal order IDs create order history rows while
+    /// updating the existing subscription expiry.
+    /// </summary>
+    public async Task<Subscription> GrantFromHuaweiIapAsync(
+        string userId, HuaweiVerifiedTransaction verified, string planCode, CancellationToken ct)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var plan = await db.Plans.FirstOrDefaultAsync(p => p.Code == planCode && p.IsActive, ct)
+            ?? throw new ArgumentException($"Plan not found: {planCode}");
+        var user = await db.Users.FindAsync(new object?[] { userId }, ct)
+            ?? await db.Users.FirstOrDefaultAsync(u => u.Username == userId, ct)
+            ?? throw new ArgumentException($"User not found: {userId}");
+
+        var source = SubscriptionSources.IapHuawei;
+        var existing = await db.Subscriptions.FirstOrDefaultAsync(
+            s => s.Source == source && s.PlatformTransactionId == verified.PurchaseToken, ct);
+        if (existing is not null && existing.UserId != userId)
+            throw new ArgumentException("This Huawei purchase is already linked to another Corterm account.");
+
+        DateTimeOffset? expires = verified.ExpiresDateMs is long ms && ms > 0
+            ? DateTimeOffset.FromUnixTimeMilliseconds(ms)
+            : null;
+        var now = DateTimeOffset.UtcNow;
+
+        // A subscription purchase token remains stable across renewals. Keep one subscription
+        // row, but preserve each distinct Huawei order in MembershipOrders.
+        var order = await db.MembershipOrders.FirstOrDefaultAsync(
+            o => o.Channel == OrderChannels.IapHuawei && o.ProviderOrderId == verified.PurchaseOrderId, ct);
+        if (order is not null && order.UserId != userId)
+            throw new ArgumentException("This Huawei order is already linked to another Corterm account.");
+        if (order is null)
+        {
+            order = new MembershipOrder
+            {
+                UserId = userId, PlanId = plan.Id, BillingPeriod = plan.BillingPeriod,
+                Amount = plan.PriceAmount, Currency = plan.PriceCurrency,
+                Channel = OrderChannels.IapHuawei, Status = OrderStatuses.Completed,
+                CompletedAtUtc = now, ProviderOrderId = verified.PurchaseOrderId,
+            };
+            db.MembershipOrders.Add(order);
+        }
+
+        if (existing is null)
+        {
+            existing = new Subscription
+            {
+                UserId = userId, PlanId = plan.Id, Status = SubscriptionStatuses.Active,
+                Period = plan.BillingPeriod, StartAtUtc = now, ExpiresAtUtc = expires,
+                Source = source, SourceOrderId = order.Id,
+                PlatformTransactionId = verified.PurchaseToken,
+            };
+            db.Subscriptions.Add(existing);
+        }
+        else
+        {
+            existing.PlanId = plan.Id;
+            existing.Period = plan.BillingPeriod;
+            existing.Status = SubscriptionStatuses.Active;
+            existing.ExpiresAtUtc = expires;
+            existing.SourceOrderId = order.Id;
+            existing.UpdatedAtUtc = now;
+        }
+
+        user.MembershipTier = plan.Tier;
+        user.MembershipPlanId = plan.Id;
+        user.MembershipExpiresAtUtc = plan.BillingPeriod == BillingPeriods.Lifetime ? null : expires;
+        user.UpdatedAtUtc = now;
+        await db.SaveChangesAsync(ct);
+        return existing;
+    }
+
+    /// <summary>
     /// Extends the expiry of the existing active IAP subscription for
     /// <paramref name="verified.OriginalTransactionId"/> to the renewed transaction's expiry, and
     /// refreshes the user's Pro tier + expiry to match. Used by the webhook on a

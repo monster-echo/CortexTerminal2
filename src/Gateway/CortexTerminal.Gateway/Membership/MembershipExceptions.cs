@@ -35,6 +35,7 @@ public sealed class IapReceiptInvalidException : InvalidOperationException
 {
     public const string ErrorCode = "iap_receipt_invalid";
     public IapReceiptInvalidException(string message) : base(message) { }
+    public IapReceiptInvalidException(string message, Exception innerException) : base(message, innerException) { }
 }
 
 /// <summary>

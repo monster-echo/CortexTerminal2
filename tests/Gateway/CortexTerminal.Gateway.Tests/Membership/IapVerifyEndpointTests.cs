@@ -56,6 +56,34 @@ public sealed class IapVerifyEndpointTests
         }
     }
 
+    private sealed class HuaweiFactory : GatewayApplicationFactory
+    {
+        public HuaweiVerifiedTransaction Stub { get; set; } = new(
+            "huawei-token-1", "huawei-order-1", "corterm.pro.lifetime", 0, 1, null, null);
+        public bool ValidatorThrows { get; set; }
+
+        protected override void ConfigureWebHost(IWebHostBuilder builder)
+        {
+            base.ConfigureWebHost(builder);
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IHuaweiIapValidator>();
+                services.AddSingleton<IHuaweiIapValidator>(new HuaweiStubValidator(this));
+            });
+        }
+    }
+
+    private sealed class HuaweiStubValidator : IHuaweiIapValidator
+    {
+        private readonly HuaweiFactory _factory;
+        public HuaweiStubValidator(HuaweiFactory factory) => _factory = factory;
+        public Task<HuaweiVerifiedTransaction> VerifyAsync(string purchaseToken, string productId, CancellationToken ct)
+        {
+            if (_factory.ValidatorThrows) throw new IapReceiptInvalidException("stub: invalid Huawei token");
+            return Task.FromResult(_factory.Stub);
+        }
+    }
+
     private sealed class StubValidator : IAppleReceiptValidator
     {
         private readonly Factory _owner;
@@ -88,7 +116,7 @@ public sealed class IapVerifyEndpointTests
             => Task.FromResult(_tx);
     }
 
-    private static async Task<string> SeedUserAsync(Factory factory)
+    private static async Task<string> SeedUserAsync(GatewayApplicationFactory factory)
     {
         var username = $"u-{Guid.NewGuid():N}".Substring(0, 16);
         await factory.SeedAsync(async db =>
@@ -131,6 +159,50 @@ public sealed class IapVerifyEndpointTests
             return user.MembershipTier;
         });
         tier.Should().Be(MembershipTiers.Pro);
+    }
+
+    [Fact]
+    public async Task Verify_HuaweiLifetime_GrantsProAndIsIdempotent()
+    {
+        using var factory = new HuaweiFactory();
+        var username = await SeedUserAsync(factory);
+        using var client = factory.CreateAuthenticatedClient(username);
+
+        async Task<HttpResponseMessage> Verify() => await client.PostAsJsonAsync("/api/iap/purchase/verify", new
+        {
+            platform = "huawei", productId = "corterm.pro.lifetime", purchaseToken = "huawei-token-1"
+        });
+
+        using var first = await Verify();
+        using var duplicate = await Verify();
+        first.StatusCode.Should().Be(HttpStatusCode.OK);
+        duplicate.StatusCode.Should().Be(HttpStatusCode.OK);
+        var state = await factory.QueryAsync(async db => new
+        {
+            User = await db.Users.AsNoTracking().FirstAsync(u => u.Username == username),
+            Subs = await db.Subscriptions.AsNoTracking().CountAsync(s => s.PlatformTransactionId == "huawei-token-1"),
+            Orders = await db.MembershipOrders.AsNoTracking().CountAsync(o => o.ProviderOrderId == "huawei-order-1")
+        });
+        state.User.MembershipTier.Should().Be(MembershipTiers.Pro);
+        state.Subs.Should().Be(1);
+        state.Orders.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Verify_HuaweiRejectedToken_DoesNotGrantMembership()
+    {
+        using var factory = new HuaweiFactory { ValidatorThrows = true };
+        var username = await SeedUserAsync(factory);
+        using var client = factory.CreateAuthenticatedClient(username);
+        using var response = await client.PostAsJsonAsync("/api/iap/purchase/verify", new
+        {
+            platform = "huawei", productId = "corterm.pro.lifetime", purchaseToken = "invalid"
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var tier = await factory.QueryAsync(async db =>
+            (await db.Users.AsNoTracking().FirstAsync(u => u.Username == username)).MembershipTier);
+        tier.Should().Be(MembershipTiers.Free);
     }
 
     /// <summary>

@@ -451,6 +451,7 @@ builder.Services.AddSingleton<IAppleReceiptValidator, AppleReceiptValidator>();
 // Legacy /verifyReceipt validator (StoreKit 1 / MAUI). Typed HttpClient via the factory so the
 // handler is pooled and the validator itself can stay a singleton.
 builder.Services.AddHttpClient<IAppleLegacyReceiptValidator, AppleLegacyReceiptValidator>();
+builder.Services.AddHttpClient<IHuaweiIapValidator, HuaweiIapValidator>();
 builder.Services.AddSingleton<CortexTerminal.Gateway.Membership.Iap.AppleWebhookService>();
 
 var useInMemory = builder.Configuration.GetValue<bool>("Database:UseInMemory");
@@ -2498,42 +2499,61 @@ app.MapPost("/api/referral/apply", async (ApplyReferralRequest body, ClaimsPrinc
     return Results.Ok(new { applied = true });
 }).RequireAuthorization();
 
-// Client calls this after a successful StoreKit purchase. We verify the Apple-signed JWS,
-// then idempotently grant the entitlement. Only Apple is wired today; google/huawei are
-// future channels — anything else is a 400 so the client shows a clear error, not a 404.
+// Client submits completed App Store or Huawei purchases here. Provider verification remains
+// server-side; only verified transactions reach the shared membership grant path.
 app.MapPost("/api/iap/purchase/verify", async (VerifyIapPurchaseRequest body, ClaimsPrincipal user, IServiceProvider serviceProvider, IAuditLogStore auditLog) =>
 {
     var userId = GetUserId(user);
-    if (body.Platform != "apple")
-        return Results.BadRequest(new { errorCode = "iap_unsupported_platform", message = "Only Apple platform is supported." });
-
-    // Route by receipt format: StoreKit 2 JWS (native iOS) vs StoreKit 1 legacy base64 blob
-    // (.NET MAUI / Plugin.InAppBilling). Both validators yield the same AppleVerifiedTransaction
-    // shape, so GrantFromIapAsync is format-agnostic.
-    var receiptFormat = string.IsNullOrWhiteSpace(body.ReceiptFormat) ? "jws" : body.ReceiptFormat.ToLowerInvariant();
-    AppleVerifiedTransaction verified;
-    try
-    {
-        if (receiptFormat == "legacy")
-        {
-            var legacyValidator = serviceProvider.GetRequiredService<IAppleLegacyReceiptValidator>();
-            verified = await legacyValidator.VerifyAsync(body.SignedTransaction, CancellationToken.None);
-        }
-        else
-        {
-            var validator = serviceProvider.GetRequiredService<IAppleReceiptValidator>();
-            verified = await validator.VerifyAsync(body.SignedTransaction, CancellationToken.None);
-        }
-    }
-    catch (IapReceiptInvalidException ex) { return Results.BadRequest(new { errorCode = IapReceiptInvalidException.ErrorCode, message = ex.Message }); }
-
     var membership = serviceProvider.GetRequiredService<MembershipService>();
     Subscription sub;
-    try
+    if (string.Equals(body.Platform, "huawei", StringComparison.OrdinalIgnoreCase))
     {
-        sub = await membership.GrantFromIapAsync(userId, verified, OrderChannels.IapApple, CancellationToken.None);
+        if (string.IsNullOrWhiteSpace(body.PurchaseToken))
+            return Results.BadRequest(new { errorCode = "iap_receipt_invalid", message = "Huawei purchase token is required." });
+        var options = serviceProvider.GetRequiredService<IapOptions>().Huawei;
+        var planCode = HuaweiProductIds.ToPlanCode(options, body.ProductId);
+        if (planCode is null)
+            return Results.BadRequest(new { errorCode = "iap_invalid_product", message = "Huawei product id is not configured for membership." });
+        try
+        {
+            var validator = serviceProvider.GetRequiredService<IHuaweiIapValidator>();
+            var verified = await validator.VerifyAsync(body.PurchaseToken, body.ProductId, CancellationToken.None);
+            sub = await membership.GrantFromHuaweiIapAsync(userId, verified, planCode, CancellationToken.None);
+        }
+        catch (IapReceiptInvalidException ex) { return Results.BadRequest(new { errorCode = IapReceiptInvalidException.ErrorCode, message = ex.Message }); }
+        catch (ArgumentException ex) { return Results.BadRequest(new { errorCode = "iap_invalid_product", message = ex.Message }); }
     }
-    catch (ArgumentException ex) { return Results.BadRequest(new { errorCode = "iap_invalid_product", message = ex.Message }); }
+    else if (string.Equals(body.Platform, "apple", StringComparison.OrdinalIgnoreCase))
+    {
+        if (string.IsNullOrWhiteSpace(body.SignedTransaction))
+            return Results.BadRequest(new { errorCode = "iap_receipt_invalid", message = "Apple signed transaction is required." });
+
+        // Route by receipt format: StoreKit 2 JWS vs StoreKit 1 legacy receipt.
+        var receiptFormat = string.IsNullOrWhiteSpace(body.ReceiptFormat) ? "jws" : body.ReceiptFormat.ToLowerInvariant();
+        AppleVerifiedTransaction verified;
+        try
+        {
+            if (receiptFormat == "legacy")
+            {
+                var legacyValidator = serviceProvider.GetRequiredService<IAppleLegacyReceiptValidator>();
+                verified = await legacyValidator.VerifyAsync(body.SignedTransaction, CancellationToken.None);
+            }
+            else
+            {
+                var validator = serviceProvider.GetRequiredService<IAppleReceiptValidator>();
+                verified = await validator.VerifyAsync(body.SignedTransaction, CancellationToken.None);
+            }
+        }
+        catch (IapReceiptInvalidException ex) { return Results.BadRequest(new { errorCode = IapReceiptInvalidException.ErrorCode, message = ex.Message }); }
+
+        try
+        {
+            sub = await membership.GrantFromIapAsync(userId, verified, OrderChannels.IapApple, CancellationToken.None);
+        }
+        catch (ArgumentException ex) { return Results.BadRequest(new { errorCode = "iap_invalid_product", message = ex.Message }); }
+    }
+    else
+        return Results.BadRequest(new { errorCode = "iap_unsupported_platform", message = "Unsupported IAP platform." });
 
     auditLog.Record(new AuditLogEntry(
         Id: Guid.NewGuid().ToString("N"), Timestamp: DateTimeOffset.UtcNow,
@@ -3887,8 +3907,9 @@ public sealed record WorkerFileDownloadRequest(string Root, string Path);
 public sealed record VerifyIapPurchaseRequest(
     string Platform,
     string ProductId,
-    string SignedTransaction,
-    string ReceiptFormat = "jws"
+    string SignedTransaction = "",
+    string ReceiptFormat = "jws",
+    string? PurchaseToken = null
 );
 
 public partial class Program;

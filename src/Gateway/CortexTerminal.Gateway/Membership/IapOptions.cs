@@ -4,6 +4,25 @@ public sealed class IapOptions
 {
     public const string SectionName = "Iap";
     public AppleIapOptions Apple { get; set; } = new();
+    public HuaweiIapOptions Huawei { get; set; } = new();
+}
+
+public sealed class HuaweiIapOptions
+{
+    /// <summary>AppGallery Connect app id (same value as appId/client_id).</summary>
+    public string ClientId { get; set; } = "";
+    /// <summary>AppGallery Connect app secret. Supply through Iap__Huawei__ClientSecret.</summary>
+    public string ClientSecret { get; set; } = "";
+    /// <summary>Regional Huawei IAP order service root, without a trailing slash.</summary>
+    public string OrderRootUrl { get; set; } = "";
+    /// <summary>Regional Huawei IAP subscription service root, without a trailing slash.</summary>
+    public string SubscriptionRootUrl { get; set; } = "";
+    /// <summary>IAP payment public key from AppGallery Connect, base64-encoded SPKI.</summary>
+    public string PaymentPublicKey { get; set; } = "";
+    public string ProMonthProductId { get; set; } = "corterm.pro.month";
+    public string ProYearProductId { get; set; } = "corterm.pro.year";
+    public string ProLifetimeProductId { get; set; } = "corterm.pro.lifetime";
+    public string TokenUrl { get; set; } = "https://oauth-login.cloud.huawei.com/oauth2/v3/token";
 }
 
 public sealed class AppleIapOptions
