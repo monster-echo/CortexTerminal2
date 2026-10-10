@@ -25,8 +25,8 @@ export struct WorkspaceHomePage {
   aboutToAppear() {
     AnalyticsService.onPageStart('workspace/Home')
     const params = this.pageStack.getParamByName(RouteName.WORKSPACE_HOME) as Record<string, string>[]
-    const param = params[params.length - 1]
-    this.workspaceId = param['workspaceId'] as string
+    // 页面可能被无参重建（如路由恢复）：此时找不到 param，workspaceId 留空走 workspace===null 空态。
+    this.workspaceId = params.length > 0 ? (params[params.length - 1]['workspaceId'] as string) : ''
     this.loadData()
   }
 
@@ -99,7 +99,8 @@ export struct WorkspaceHomePage {
         this.SessionSection()
       }
       .width('100%')
-      .padding({ left: 20, right: 20, top: 8, bottom: 24 })
+      // subPage 顶部间距对齐 WorkerDetailPage（区域间距 24），内容不再紧贴 AppBar。
+      .padding({ left: 20, right: 20, top: 24, bottom: 24 })
     }
     .width('100%')
     .layoutWeight(1)
@@ -293,7 +294,9 @@ export struct WorkspaceHomePage {
       this.workers = await ApiService.listWorkers()
       const allWorkspaces = await ApiService.listWorkspaceInfos()
       const found: WorkspaceInfo[] = allWorkspaces.filter((ws: WorkspaceInfo) => ws.id === this.workspaceId)
-      this.workspace = found[0]
+      // 工作区可能已被删除/不在列表中：置回 null 走空态分支，禁止把 undefined 赋给 @State
+      // （undefined !== null 会让渲染走 WorkspaceContent 的 workspace! 强解包 → 渲染期抛异常黑屏）。
+      this.workspace = found.length > 0 ? found[0] : null
       await this.loadSessions()
     } catch (e) {
       this.errorMessage = (e as Error).message

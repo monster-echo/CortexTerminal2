@@ -268,7 +268,12 @@ export struct SidebarContent {
     AppStorage.setOrCreate('navWorkspaceId', ws.id)
     AppStorage.setOrCreate('navWorkspaceName', ws.name)
     const param: Record<string, string> = { 'workspaceId': ws.id, 'name': ws.name }
-    this.navigate(RouteName.WORKSPACE_HOME, param)
+    if (this.onNavigate) {
+      this.onNavigate()
+    }
+    // workspace/Home 是 subPage（AppBar 带返回键）：必须压栈而不是替换，
+    // 否则 SESSION_HOME 被顶掉，pop 时栈空 → Navigation 空内容黑屏。
+    this.pageStack.pushPath({ name: RouteName.WORKSPACE_HOME, param: param })
   }
 
   @Builder
