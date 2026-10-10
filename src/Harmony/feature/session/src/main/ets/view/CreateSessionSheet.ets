@@ -10,6 +10,14 @@ export struct CreateSessionSheet {
   @Link @Watch('onSheetVisibilityChanged') showSheet: boolean
   onSessionCreated?: (sessionId: string, sessionName: string, workerId: string) => void
 
+  // bindSheet 内容懒构建：首次打开时组件以 showSheet=true 初始化，@Watch 不会触发
+  // （它只在值变化时回调），必须由 aboutToAppear 兜住首次加载。
+  aboutToAppear(): void {
+    if (this.showSheet) {
+      this.loadWorkers()
+    }
+  }
+
   onSheetVisibilityChanged() {
     if (this.showSheet) {
       this.loadWorkers()
