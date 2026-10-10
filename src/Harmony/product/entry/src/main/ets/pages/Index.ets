@@ -9,6 +9,7 @@ import { LoginPage, ActivateWorkerPage, EnterActivationCodePage } from '@rwecho/
 import { TerminalPage } from '@rwecho/terminal'
 import { FilesPageRoute, FilePreviewPage } from '@rwecho/files'
 import { ShellScaffold } from '../shell/ShellScaffold'
+import { WorkspaceHomePage } from '@rwecho/session'
 import { AccountSecurityPage, ChangePasswordPage, WebPage, ContactSupportPage, FeedbackPage, ImagePreviewPage, MembershipPage, RedeemPage, ReferralPage, PreferencesPage, TerminalThemesPage, AboutPage } from '@rwecho/settings'
 
 @Entry
@@ -93,6 +94,12 @@ struct Index {
     } else if (name === RouteName.WORKER_DETAIL) {
       NavDestination() {
         ShellScaffold({ activeRoute: RouteName.WORKER_DETAIL })
+      }
+      .hideTitleBar(true)
+      .backgroundColor($r('app.color.terminal_background'))
+    } else if (name === RouteName.WORKSPACE_HOME) {
+      NavDestination() {
+        ShellScaffold({ activeRoute: RouteName.WORKSPACE_HOME, subPage: true })
       }
       .hideTitleBar(true)
       .backgroundColor($r('app.color.terminal_background'))

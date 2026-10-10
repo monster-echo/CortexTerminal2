@@ -4,6 +4,7 @@ export class RouteName {
   static readonly TERMINAL_SESSION: string = 'terminal/Session'
   static readonly WORKER_LIST: string = 'worker/List'
   static readonly WORKER_DETAIL: string = 'worker/Detail'
+  static readonly WORKSPACE_HOME: string = 'workspace/Home'
   static readonly SETTINGS: string = 'settings/Page'
   static readonly SETTINGS_ROOT: string = 'settings/Root'
   static readonly ACCOUNT_SECURITY: string = 'AccountSecurity'

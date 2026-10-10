@@ -7,7 +7,7 @@
  * Sub-pages (WorkerDetail, AccountSecurity, ActivateWorker) get back arrow.
  */
 import { RouteName, I18n, AppBar } from '@rwecho/core'
-import { SessionHomePage } from '@rwecho/session'
+import { SessionHomePage, WorkspaceHomePage } from '@rwecho/session'
 import { TerminalPage } from '@rwecho/terminal'
 import { WorkerListPage, WorkerDetailPage } from '@rwecho/worker'
 import { SettingsPage, MePage } from '@rwecho/settings'
@@ -21,6 +21,7 @@ export struct ShellScaffold {
   @State sidebarOpen: boolean = false
   @StorageLink('sidebarOpen') @Watch('onSidebarChanged') sidebarTrigger: boolean = false
   @StorageLink('navWorkerName') navWorkerName: string = 'Worker'
+  @StorageLink('navWorkspaceName') navWorkspaceName: string = ''
   // 顶层页通过压栈带 param 进入时为 true：AppBar 显示返回键而不是汉堡按钮。
   subPage: boolean = false
 
@@ -52,7 +53,8 @@ export struct ShellScaffold {
   private showBack(): boolean {
     return this.subPage
       && (this.activeRoute === RouteName.WORKER_LIST
-        || this.activeRoute === RouteName.SETTINGS_ROOT)
+        || this.activeRoute === RouteName.SETTINGS_ROOT
+        || this.activeRoute === RouteName.WORKSPACE_HOME)
   }
 
   build() {
@@ -118,6 +120,8 @@ export struct ShellScaffold {
   ActivePage() {
     if (this.activeRoute === RouteName.SESSION_HOME) {
       SessionHomePage()
+    } else if (this.activeRoute === RouteName.WORKSPACE_HOME) {
+      WorkspaceHomePage()
     } else if (this.activeRoute === RouteName.TERMINAL_SESSION) {
       TerminalPage()
     } else if (this.activeRoute === RouteName.WORKER_LIST) {
@@ -145,6 +149,8 @@ export struct ShellScaffold {
         return I18n.get('settings.title')
       case RouteName.WORKER_DETAIL:
         return this.navWorkerName
+      case RouteName.WORKSPACE_HOME:
+        return this.navWorkspaceName
       case RouteName.ACCOUNT_SECURITY:
         return I18n.get('security.title')
       case RouteName.ACTIVATE_WORKER:

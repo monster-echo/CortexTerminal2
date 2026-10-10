@@ -1,4 +1,4 @@
-import { SessionInfo, WorkerInfo, I18n, RouteName, TerminalNavParam, showI18nToast, showToast, AnalyticsService, AnalyticsEvent, lightHaptic, clickHaptic, AppConstants, AnnouncementService, AnnouncementDialog, AnnouncementInfo, TerminalThemeProfile, TerminalThemes } from '@rwecho/core'
+import { SessionInfo, WorkspaceInfo, WorkerInfo, ApiService, I18n, RouteName, TerminalNavParam, showI18nToast, showToast, AnalyticsService, AnalyticsEvent, lightHaptic, clickHaptic, AppConstants, AnnouncementService, AnnouncementDialog, AnnouncementInfo, TerminalThemeProfile, TerminalThemes } from '@rwecho/core'
 import { SessionCard } from './SessionCard'
 import { CreateSessionSheet } from './CreateSessionSheet'
 import { SessionService } from '../service/SessionService'
@@ -12,6 +12,14 @@ class TerminalLine {
     this.type = type
     this.text = text
   }
+}
+
+/** 首页会话分组：组头 = 工作区名；workspaceId 空串 = 未分组。 */
+@Observed
+class SessionGroup {
+  workspaceId: string = ''
+  title: string = ''
+  sessions: SessionInfo[] = []
 }
 
 @CustomDialog
@@ -80,6 +88,8 @@ export struct SessionHomePage {
   private guideTheme: TerminalThemeProfile = TerminalThemes.findById('default-dark', [])
   @State allSessions: SessionInfo[] = []
   @State workers: WorkerInfo[] = []
+  @State workspaces: WorkspaceInfo[] = []
+  @State groups: SessionGroup[] = []
   @State isLoading: boolean = false
   @State errorMessage: string = ''
   @State isRefreshing: boolean = false
@@ -217,7 +227,8 @@ export struct SessionHomePage {
           .width('100%')
           .alignItems(HorizontalAlign.Center)
           .padding({ left: 20, right: 20 })
-        } else if (this.allSessions.length === 0) {
+        } else if (this.workers.length === 0
+          || (this.allSessions.length === 0 && this.workspaces.length === 0)) {
           Scroll() {
             Column() {
               if (this.workers.length === 0) {
@@ -245,12 +256,39 @@ export struct SessionHomePage {
           .scrollBar(BarState.Off)
         } else {
           List({ space: 8 }) {
-            ForEach(this.allSessions, (session: SessionInfo) => {
+            // 工作区为主：每个 workspace 一张卡片（名称 / worker 在线状态 / 会话数）。
+            ForEach(this.workspaces, (ws: WorkspaceInfo) => {
               ListItem() {
-                SessionCard({ session: session, onCardClick: () => { lightHaptic(); this.resumeSession(session) } })
+                this.WorkspaceCard(ws)
               }
-              .swipeAction({ end: this.SwipeActions(session) })
-            }, (session: SessionInfo) => session.id)
+            }, (ws: WorkspaceInfo) => ws.id)
+
+            // 未分组分组：无 workspaceId 的会话以「未分组」组头呈现在下方 groups 中。
+
+            // 会话按 workspace 分组：组头 = 工作区名，只显示有会话的组。
+            ForEach(this.groups, (group: SessionGroup) => {
+              ListItem() {
+                Row() {
+                  Text(group.title)
+                    .fontSize(14)
+                    .fontWeight(FontWeight.Medium)
+                    .fontColor($r('app.color.terminal_text_muted'))
+                  Blank()
+                  Text(I18n.getWithArgs('workspace.home.session_count',
+                    this.countArgs(group.sessions.length)))
+                    .fontSize(12)
+                    .fontColor($r('app.color.terminal_text_tertiary'))
+                }
+                .width('100%')
+                .padding({ left: 4, right: 4, top: 8 })
+              }
+              ForEach(group.sessions, (session: SessionInfo) => {
+                ListItem() {
+                  SessionCard({ session: session, onCardClick: () => { lightHaptic(); this.resumeSession(session) } })
+                }
+                .swipeAction({ end: this.SwipeActions(session) })
+              }, (session: SessionInfo) => session.id)
+            }, (group: SessionGroup) => group.workspaceId)
           }
           .width('100%')
           .layoutWeight(1)
@@ -314,6 +352,63 @@ export struct SessionHomePage {
   }
 
   @Builder
+  WorkspaceCard(ws: WorkspaceInfo) {
+    Row() {
+      SymbolGlyph($r('sys.symbol.folder_fill'))
+        .fontSize(22)
+        .fontColor([$r('app.color.terminal_secondary')])
+
+      Column() {
+        Text(ws.name)
+          .fontSize(15)
+          .fontWeight(FontWeight.Medium)
+          .fontColor($r('app.color.terminal_text'))
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+
+        Row({ space: 6 }) {
+          Circle()
+            .width(7)
+            .height(7)
+            .fill(this.onlineOf(ws.workerId)
+              ? $r('app.color.terminal_success')
+              : $r('app.color.terminal_status_idle'))
+          Text(this.workerName(ws.workerId))
+            .fontSize(12)
+            .fontColor($r('app.color.terminal_text_muted'))
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+          Text(this.onlineOf(ws.workerId)
+            ? I18n.get('workspace.home.status_online')
+            : I18n.get('workspace.home.status_offline'))
+            .fontSize(11)
+            .fontColor($r('app.color.terminal_text_muted'))
+        }
+        .margin({ top: 3 })
+      }
+      .alignItems(HorizontalAlign.Start)
+      .layoutWeight(1)
+      .margin({ left: 10 })
+
+      Text(I18n.getWithArgs('workspace.home.session_count', this.countArgs(this.sessionCountOf(ws.id))))
+        .fontSize(12)
+        .fontColor($r('app.color.terminal_text_tertiary'))
+
+      SymbolGlyph($r('sys.symbol.chevron_right'))
+        .fontSize(14)
+        .fontColor([$r('app.color.terminal_text_muted')])
+        .margin({ left: 6 })
+    }
+    .width('100%')
+    .padding(14)
+    .borderRadius(12)
+    .backgroundColor($r('app.color.terminal_background_panel'))
+    // worker 离线：置灰但可见、可进入概览页查看（只有新建等写操作被禁）。
+    .opacity(this.onlineOf(ws.workerId) ? 1 : 0.55)
+    .onClick(() => { lightHaptic(); this.openWorkspace(ws) })
+  }
+
+  @Builder
   CreateSheetContent() {
     CreateSessionSheet({
       showSheet: $showCreateSheet,
@@ -326,6 +421,49 @@ export struct SessionHomePage {
         this.pageStack.pushPath({ name: RouteName.TERMINAL_SESSION, param: param })
       }
     })
+  }
+
+  private countArgs(count: number): Record<string, string> {
+    const args: Record<string, string> = { 'count': `${count}` }
+    return args
+  }
+
+  /** workerId 与 id 都可能是网关侧主键，任一匹配即可。 */
+  private onlineOf(workerId: string): boolean {
+    for (let i = 0; i < this.workers.length; i++) {
+      const w = this.workers[i]
+      if (w.workerId === workerId || w.id === workerId) {
+        return w.isOnline
+      }
+    }
+    return false
+  }
+
+  private workerName(workerId: string): string {
+    for (let i = 0; i < this.workers.length; i++) {
+      const w = this.workers[i]
+      if (w.workerId === workerId || w.id === workerId) {
+        return w.name || w.hostname || workerId
+      }
+    }
+    return workerId
+  }
+
+  private sessionCountOf(workspaceId: string): number {
+    let count = 0
+    for (let i = 0; i < this.allSessions.length; i++) {
+      if (this.allSessions[i].workspaceId === workspaceId) {
+        count++
+      }
+    }
+    return count
+  }
+
+  private openWorkspace(ws: WorkspaceInfo) {
+    // AppBar 标题走 AppStorage（同 navWorkerName 模式）。
+    AppStorage.setOrCreate('navWorkspaceName', ws.name)
+    const param: Record<string, string> = { 'workspaceId': ws.id, 'name': ws.name }
+    this.pageStack.pushPath({ name: RouteName.WORKSPACE_HOME, param: param })
   }
 
   private resumeSession(session: SessionInfo) {
@@ -357,6 +495,7 @@ export struct SessionHomePage {
     try {
       await SessionService.deleteSession(session.id)
       this.allSessions = this.allSessions.filter(s => s.id !== session.id)
+      this.rebuildGroups()
       AnalyticsService.onEvent(AnalyticsEvent.SESSION_DELETE)
       showI18nToast('session.deleted')
     } catch (e) {
@@ -429,12 +568,46 @@ export struct SessionHomePage {
       })
       this.allSessions = all
       this.workers = data.workers
+      this.workspaces = await ApiService.listWorkspaceInfos()
+      this.rebuildGroups()
     } catch (e) {
       this.errorMessage = (e as Error).message
     } finally {
       this.isLoading = false
       this.isRefreshing = false
     }
+  }
+
+  /** 按 workspace 分组（默认工作区在前），无 workspaceId 的会话落到「未分组」组。 */
+  private rebuildGroups() {
+    const sorted = this.workspaces.slice().sort((a: WorkspaceInfo, b: WorkspaceInfo): number => {
+      if (a.isDefault !== b.isDefault) {
+        return a.isDefault ? -1 : 1
+      }
+      return a.name.localeCompare(b.name)
+    })
+    const groups: SessionGroup[] = []
+    for (let i = 0; i < sorted.length; i++) {
+      const ws = sorted[i]
+      const inWs = this.allSessions.filter((s: SessionInfo) => s.workspaceId === ws.id)
+      if (inWs.length === 0) {
+        continue
+      }
+      const group = new SessionGroup()
+      group.workspaceId = ws.id
+      group.title = ws.name
+      group.sessions = inWs
+      groups.push(group)
+    }
+    const ungrouped = this.allSessions.filter((s: SessionInfo) => s.workspaceId.length === 0)
+    if (ungrouped.length > 0) {
+      const group = new SessionGroup()
+      group.workspaceId = ''
+      group.title = I18n.get('workspace.home.ungrouped')
+      group.sessions = ungrouped
+      groups.push(group)
+    }
+    this.groups = groups
   }
 
   // ── Terminal Install Guide ─────────────────────────────────────

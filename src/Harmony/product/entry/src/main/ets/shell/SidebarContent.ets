@@ -42,7 +42,8 @@ export struct SidebarContent {
 
       // Nav: Terminal Sessions
       this.NavItem('⌘', I18n.get('sidebar.sessions'), RouteName.SESSION_HOME,
-        this.activeRoute === RouteName.SESSION_HOME || this.activeRoute === RouteName.TERMINAL_SESSION)
+        this.activeRoute === RouteName.SESSION_HOME || this.activeRoute === RouteName.WORKSPACE_HOME
+          || this.activeRoute === RouteName.TERMINAL_SESSION)
 
       Divider()
         .color($r('app.color.terminal_border_subtle'))

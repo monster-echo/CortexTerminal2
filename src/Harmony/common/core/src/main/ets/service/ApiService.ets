@@ -6,7 +6,7 @@
  * and data mapping for sessions, workers, and user profiles.
  */
 import { http } from '@kit.NetworkKit'
-import { SessionInfo, SessionCreateRequest, SessionCreateResponse } from '../model/SessionModels'
+import { SessionInfo, SessionCreateRequest, SessionCreateResponse, WorkspaceInfo } from '../model/SessionModels'
 import { WorkerInfo, GatewayInfo, SupportInfo, SupportGroupInfo, TunnelInfo, AnnouncementInfo } from '../model/SharedModels'
 import { AuthError, AuthErrorKind } from './AuthError'
 
@@ -71,6 +71,23 @@ export class ApiService {
 
   static async listWorkspaces(): Promise<Object[]> {
     return await ApiService.get('/api/workspaces') as Object[]
+  }
+
+  /** 工作区列表（已映射为 WorkspaceInfo），供首页/工作区概览/新建会话使用。 */
+  static async listWorkspaceInfos(): Promise<WorkspaceInfo[]> {
+    const all = await ApiService.listWorkspaces()
+    const items: WorkspaceInfo[] = []
+    for (let i = 0; i < all.length; i++) {
+      const item = all[i] as Record<string, Object>
+      const ws = new WorkspaceInfo()
+      ws.id = (item['id'] as string) ?? ''
+      ws.name = (item['name'] as string) ?? ''
+      ws.workerId = (item['workerId'] as string) ?? ''
+      ws.rootPath = (item['rootPath'] as string) ?? ''
+      ws.isDefault = (item['isDefault'] as boolean) ?? false
+      items.push(ws)
+    }
+    return items
   }
 
   static async createWorkspace(workerId: string, name: string, rootPath: string): Promise<Record<string, Object>> {

@@ -303,10 +303,10 @@ export struct WorkerDetailPage {
           this.StatItem(I18n.get('worker.detail.os'), this.worker!.os || '-')
         }
         GridItem() {
-          this.StatItem(I18n.get('worker.detail.cpu'), `${this.worker!.cpuUsage ?? 0}%`)
+          this.StatItem(I18n.get('worker.detail.cpu'), `${Math.round(this.worker!.cpuUsage ?? 0)}%`)
         }
         GridItem() {
-          this.StatItem(I18n.get('worker.detail.memory'), `${this.worker!.memoryUsage ?? 0}%`)
+          this.StatItem(I18n.get('worker.detail.memory'), `${Math.round(this.worker!.memoryUsage ?? 0)}%`)
         }
       }
       .columnsTemplate('1fr 1fr')

@@ -179,10 +179,10 @@ export struct WorkerListPage {
             this.StatItem(I18n.get('worker.detail.os'), this.selectedWorker!.os || '-')
           }
           GridItem() {
-            this.StatItem(I18n.get('worker.detail.cpu'), `${this.selectedWorker!.cpuUsage ?? 0}%`)
+            this.StatItem(I18n.get('worker.detail.cpu'), `${Math.round(this.selectedWorker!.cpuUsage ?? 0)}%`)
           }
           GridItem() {
-            this.StatItem(I18n.get('worker.detail.memory'), `${this.selectedWorker!.memoryUsage ?? 0}%`)
+            this.StatItem(I18n.get('worker.detail.memory'), `${Math.round(this.selectedWorker!.memoryUsage ?? 0)}%`)
           }
         }
         .columnsTemplate('1fr 1fr')

@@ -67,7 +67,8 @@ export {
   SessionInfo,
   SessionListResponse,
   SessionCreateRequest,
-  SessionCreateResponse
+  SessionCreateResponse,
+  WorkspaceInfo
 } from './src/main/ets/model/SessionModels'
 
 // Terminal Theme Profiles

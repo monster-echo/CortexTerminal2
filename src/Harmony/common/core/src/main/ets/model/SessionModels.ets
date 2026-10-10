@@ -5,6 +5,19 @@
  * Shared across session, terminal, worker, and settings modules.
  */
 
+/**
+ * A workspace (project directory on a worker). Sessions may be bound to one;
+ * 会话的 workspaceId 为空串表示未分组。
+ */
+@Observed
+export class WorkspaceInfo {
+  id: string = ''
+  name: string = ''
+  workerId: string = ''
+  rootPath: string = ''
+  isDefault: boolean = false
+}
+
 @Observed
 export class SessionInfo {
   id: string = ''
