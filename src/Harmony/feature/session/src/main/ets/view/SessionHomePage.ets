@@ -1,6 +1,7 @@
 import { SessionInfo, WorkspaceInfo, WorkerInfo, ApiService, I18n, RouteName, TerminalNavParam, showI18nToast, showToast, AnalyticsService, AnalyticsEvent, lightHaptic, clickHaptic, AppConstants, AnnouncementService, AnnouncementDialog, AnnouncementInfo, TerminalThemeProfile, TerminalThemes } from '@rwecho/core'
 import { SessionCard } from './SessionCard'
 import { CreateSessionSheet } from './CreateSessionSheet'
+import { NewWorkspaceFlow } from './NewWorkspaceFlow'
 import { SessionService } from '../service/SessionService'
 import { pasteboard } from '@kit.BasicServicesKit'
 import { common, Want } from '@kit.AbilityKit'
@@ -94,6 +95,10 @@ export struct SessionHomePage {
   @State errorMessage: string = ''
   @State isRefreshing: boolean = false
   @State showCreateSheet: boolean = false
+  @State showNewWorkspaceSheet: boolean = false
+  // 侧边栏「未分组会话」入口置位：本次进入把「未分组」组置顶（实现最简方案）。
+  @StorageLink('focusUngrouped') focusUngrouped: boolean = false
+  private ungroupedFirst: boolean = false
   @Consume('pageStack') pageStack: NavPathStack
   @StorageLink('triggerCreateSession') @Watch('onCreateTriggered') createTrigger: boolean = false
   private renameDialog: CustomDialogController = new CustomDialogController({
@@ -120,6 +125,10 @@ export struct SessionHomePage {
 
   aboutToAppear() {
     AnalyticsService.onPageStart('session/Home')
+    if (this.focusUngrouped) {
+      this.ungroupedFirst = true
+      this.focusUngrouped = false
+    }
     this.loadData()
     this.loadAnnouncement()
   }
@@ -227,6 +236,35 @@ export struct SessionHomePage {
           .width('100%')
           .alignItems(HorizontalAlign.Center)
           .padding({ left: 20, right: 20 })
+        } else if (this.workers.length > 0 && this.workspaces.length === 0) {
+          // 零工作区空态：引导创建第一个工作区（会话必须归属工作区）。
+          Scroll() {
+            Column() {
+              Text(I18n.get('session.home.empty_no_workspace'))
+                .fontSize(14)
+                .fontColor($r('app.color.terminal_text_muted'))
+                .textAlign(TextAlign.Center)
+                .margin({ top: 48 })
+
+              Button(I18n.get('workspaces.create_first'))
+                .width('100%')
+                .height(48)
+                .borderRadius(24)
+                .backgroundColor($r('app.color.terminal_inverse_surface'))
+                .fontColor($r('app.color.terminal_inverse_on_surface'))
+                .fontSize(16)
+                .fontWeight(FontWeight.Medium)
+                .margin({ top: 20 })
+                .onClick(() => {
+                  clickHaptic()
+                  this.showNewWorkspaceSheet = true
+                })
+            }
+            .width('100%')
+            .padding({ left: 32, right: 32 })
+          }
+          .layoutWeight(1)
+          .scrollBar(BarState.Off)
         } else if (this.workers.length === 0
           || (this.allSessions.length === 0 && this.workspaces.length === 0)) {
           Scroll() {
@@ -308,6 +346,26 @@ export struct SessionHomePage {
       showClose: true,
       onDisappear: () => { this.showCreateSheet = false }
     })
+    .bindSheet($$this.showNewWorkspaceSheet, this.NewWorkspaceSheetContent(), {
+      detents: ['80%', SheetSize.LARGE],
+      preferType: SheetType.BOTTOM,
+      showClose: true,
+      onDisappear: () => { this.showNewWorkspaceSheet = false }
+    })
+  }
+
+  @Builder
+  NewWorkspaceSheetContent() {
+    Column() {
+      NewWorkspaceFlow({
+        onCreated: (_workspaceId: string, _workspaceName: string) => {
+          this.showNewWorkspaceSheet = false
+          this.loadData()
+        }
+      })
+    }
+    .padding({ left: 20, right: 20, top: 16, bottom: 20 })
+    .width('100%')
   }
 
   @Builder
@@ -460,7 +518,8 @@ export struct SessionHomePage {
   }
 
   private openWorkspace(ws: WorkspaceInfo) {
-    // AppBar 标题走 AppStorage（同 navWorkerName 模式）。
+    // AppBar 标题与侧边栏选中态走 AppStorage（同 navWorkerName 模式）。
+    AppStorage.setOrCreate('navWorkspaceId', ws.id)
     AppStorage.setOrCreate('navWorkspaceName', ws.name)
     const param: Record<string, string> = { 'workspaceId': ws.id, 'name': ws.name }
     this.pageStack.pushPath({ name: RouteName.WORKSPACE_HOME, param: param })
@@ -605,7 +664,12 @@ export struct SessionHomePage {
       group.workspaceId = ''
       group.title = I18n.get('workspace.home.ungrouped')
       group.sessions = ungrouped
-      groups.push(group)
+      // 侧边栏「未分组会话」入口进入时置顶该组（收纳区，无新建入口）。
+      if (this.ungroupedFirst) {
+        groups.unshift(group)
+      } else {
+        groups.push(group)
+      }
     }
     this.groups = groups
   }

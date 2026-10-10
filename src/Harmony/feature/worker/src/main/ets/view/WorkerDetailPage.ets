@@ -7,6 +7,7 @@
  * or connecting to existing ones.
  */
 import { ApiService, I18n, RouteName, WorkerInfo, WorkerSessionInfo, SessionCreateRequest, showI18nToast, showToast, AnalyticsService, lightHaptic, clickHaptic } from '@rwecho/core'
+import { NewWorkspaceFlow } from '@rwecho/session'
 
 interface WorkspaceItem {
   id: string;
@@ -25,8 +26,6 @@ export struct WorkerDetailPage {
   @State isLoading: boolean = false
   @State errorMessage: string = ''
   @State showCreateWorkspace: boolean = false
-  @State newWorkspaceName: string = ''
-  @State newWorkspacePath: string = ''
   @State moveTargetSession: WorkerSessionInfo | null = null
   @State showMoveSheet: boolean = false
   @Consume('pageStack') pageStack: NavPathStack
@@ -224,53 +223,18 @@ export struct WorkerDetailPage {
   @Builder
   CreateWorkspaceSheet() {
     Column() {
-      Text(I18n.get('workspaces.create'))
-        .fontSize(18)
-        .fontWeight(FontWeight.Bold)
-        .fontColor($r('app.color.terminal_text'))
-        .width('100%')
-
-      Text(I18n.get('workspaces.name'))
-        .fontSize(14)
-        .fontColor($r('app.color.terminal_text_muted'))
-        .width('100%')
-        .margin({ top: 16, bottom: 8 })
-      TextInput({ text: this.newWorkspaceName, placeholder: I18n.get('workspaces.name') })
-        .height(48)
-        .borderRadius(8)
-        .backgroundColor($r('app.color.terminal_background_element'))
-        .fontColor($r('app.color.terminal_text'))
-        .placeholderColor($r('app.color.terminal_text_muted'))
-        .onChange((value: string) => { this.newWorkspaceName = value })
-
-      Text(I18n.get('workspaces.path'))
-        .fontSize(14)
-        .fontColor($r('app.color.terminal_text_muted'))
-        .width('100%')
-        .margin({ top: 16, bottom: 8 })
-      TextInput({ text: this.newWorkspacePath, placeholder: I18n.get('workspaces.path') })
-        .height(48)
-        .borderRadius(8)
-        .backgroundColor($r('app.color.terminal_background_element'))
-        .fontColor($r('app.color.terminal_text'))
-        .placeholderColor($r('app.color.terminal_text_muted'))
-        .onChange((value: string) => { this.newWorkspacePath = value })
-
-      Button(I18n.get('workspaces.create'))
-        .width('100%')
-        .height(48)
-        .borderRadius(24)
-        .backgroundColor($r('app.color.terminal_secondary_container'))
-        .fontColor($r('app.color.terminal_on_secondary_container'))
-        .fontSize(16)
-        .fontWeight(FontWeight.Medium)
-        .margin({ top: 24 })
-        .onClick(() => {
-          this.submitCreateWorkspace()
-        })
+      // 可复用新建工作区流程（design/02 §3-§4）：电脑锁定为当前 worker，
+      // 只选文件夹 → 名称（自动填 basename）→ 创建。
+      NewWorkspaceFlow({
+        lockWorkerId: this.workerId,
+        onCreated: (_workspaceId: string, _workspaceName: string) => {
+          this.showCreateWorkspace = false
+          this.loadWorkspaces()
+        }
+      })
     }
-    .width('100%')
     .padding(24)
+    .width('100%')
   }
 
   @Builder
@@ -576,24 +540,6 @@ export struct WorkerDetailPage {
       })
     }
     this.workspaces = items
-  }
-
-  private async submitCreateWorkspace() {
-    const name = this.newWorkspaceName.trim()
-    if (name.length === 0) {
-      showToast(I18n.get('workspaces.name'))
-      return
-    }
-    try {
-      lightHaptic()
-      await ApiService.createWorkspace(this.workerId, name, this.newWorkspacePath.trim())
-      this.showCreateWorkspace = false
-      this.newWorkspaceName = ''
-      this.newWorkspacePath = ''
-      await this.loadWorkspaces()
-    } catch (e) {
-      showToast((e as Error).message || I18n.get('workspaces.create_failed'))
-    }
   }
 
   private confirmDeleteWorkspace(ws: WorkspaceItem): void {

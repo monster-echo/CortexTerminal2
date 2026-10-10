@@ -1,8 +1,10 @@
-import { WorkerInfo, WorkspaceInfo, SessionCreateRequest, ApiService, I18n, AnalyticsService, AnalyticsEvent } from '@rwecho/core'
+import { WorkerInfo, WorkspaceInfo, SessionCreateRequest, ApiService, I18n, AnalyticsService, AnalyticsEvent, clickHaptic } from '@rwecho/core'
+import { NewWorkspaceFlow } from './NewWorkspaceFlow'
 
 /**
- * 新建会话 sheet：选 worker → 选工作区（默认该 worker 的默认工作区，可选
- * 「不放入工作区」）→ 创建。workspaceId 随 createSession 请求体下发。
+ * 新建会话 sheet（design/02 §5）：选 worker → 从该 worker 已有工作区选一个
+ * （默认工作区排最前）→ 创建。会话必须归属工作区，没有「不放入工作区」；
+ * 该 worker 无工作区时内嵌引导新建工作区（NewWorkspaceFlow）。
  */
 @Component
 export struct CreateSessionSheet {
@@ -14,6 +16,8 @@ export struct CreateSessionSheet {
   @State isModalLoading: boolean = false
   @State errorMessage: string = ''
   @State isCreating: boolean = false
+  // 'pick' = 选工作区；'newWorkspace' = 内嵌新建工作区流程。
+  @State mode: string = 'pick'
   @Link @Watch('onSheetVisibilityChanged') showSheet: boolean
   onSessionCreated?: (sessionId: string, sessionName: string, workerId: string) => void
 
@@ -27,6 +31,7 @@ export struct CreateSessionSheet {
 
   onSheetVisibilityChanged() {
     if (this.showSheet) {
+      this.mode = 'pick'
       this.loadData()
     }
   }
@@ -45,48 +50,73 @@ export struct CreateSessionSheet {
 
   build() {
     Column() {
-      Text(I18n.get('session.create.title'))
-        .fontSize(18)
-        .fontWeight(FontWeight.Bold)
-        .fontColor($r('app.color.terminal_text'))
+      if (this.mode === 'newWorkspace') {
+        // 内嵌新建工作区：创建成功后回到选工作区并选中新建的那个。
+        Row() {
+          SymbolGlyph($r('sys.symbol.chevron_left'))
+            .fontSize(16)
+            .fontColor([$r('app.color.terminal_text')])
+          Text(I18n.get('workspaces.back_to_pick'))
+            .fontSize(14)
+            .fontColor($r('app.color.terminal_text'))
+        }
         .width('100%')
-        .margin({ bottom: 16 })
+        .height(36)
+        .onClick(() => {
+          clickHaptic()
+          this.mode = 'pick'
+        })
 
-      if (this.isModalLoading) {
-        Column() {
-          LoadingProgress().width(32).height(32).color($r('app.color.terminal_secondary'))
-          Text(I18n.get('session.create.loading'))
-            .fontSize(13)
-            .fontColor($r('app.color.terminal_text_muted'))
-            .margin({ top: 8 })
-        }
-        .width('100%')
-        .alignItems(HorizontalAlign.Center)
-        .margin({ top: 24 })
-      } else if (this.errorMessage.length > 0) {
-        Column() {
-          Text(I18n.get('session.create.error'))
-            .fontSize(15)
-            .fontColor($r('app.color.terminal_error'))
-          Text(this.errorMessage)
-            .fontSize(13)
-            .fontColor($r('app.color.terminal_text_muted'))
-            .margin({ top: 4 })
-        }
-        .width('100%')
-        .alignItems(HorizontalAlign.Center)
-        .margin({ top: 24 })
-      } else if (this.modalWorkers.filter(w => w.isOnline).length === 0) {
-        Column() {
-          Text(I18n.get('session.create.empty'))
-            .fontSize(15)
-            .fontColor($r('app.color.terminal_text_muted'))
-        }
-        .width('100%')
-        .alignItems(HorizontalAlign.Center)
-        .margin({ top: 24 })
+        NewWorkspaceFlow({
+          lockWorkerId: this.selectedWorkerId,
+          onCreated: (workspaceId: string, _workspaceName: string) => {
+            this.onWorkspaceCreated(workspaceId)
+          }
+        })
       } else {
-        this.PickerContent()
+        Text(I18n.get('session.create.title'))
+          .fontSize(18)
+          .fontWeight(FontWeight.Bold)
+          .fontColor($r('app.color.terminal_text'))
+          .width('100%')
+          .margin({ bottom: 16 })
+
+        if (this.isModalLoading) {
+          Column() {
+            LoadingProgress().width(32).height(32).color($r('app.color.terminal_secondary'))
+            Text(I18n.get('session.create.loading'))
+              .fontSize(13)
+              .fontColor($r('app.color.terminal_text_muted'))
+              .margin({ top: 8 })
+          }
+          .width('100%')
+          .alignItems(HorizontalAlign.Center)
+          .margin({ top: 24 })
+        } else if (this.errorMessage.length > 0) {
+          Column() {
+            Text(I18n.get('session.create.error'))
+              .fontSize(15)
+              .fontColor($r('app.color.terminal_error'))
+            Text(this.errorMessage)
+              .fontSize(13)
+              .fontColor($r('app.color.terminal_text_muted'))
+              .margin({ top: 4 })
+          }
+          .width('100%')
+          .alignItems(HorizontalAlign.Center)
+          .margin({ top: 24 })
+        } else if (this.modalWorkers.filter(w => w.isOnline).length === 0) {
+          Column() {
+            Text(I18n.get('session.create.empty'))
+              .fontSize(15)
+              .fontColor($r('app.color.terminal_text_muted'))
+          }
+          .width('100%')
+          .alignItems(HorizontalAlign.Center)
+          .margin({ top: 24 })
+        } else {
+          this.PickerContent()
+        }
       }
     }
     .padding({ left: 20, right: 20, top: 16, bottom: 20 })
@@ -160,6 +190,29 @@ export struct CreateSessionSheet {
           .fontSize(13)
           .fontColor($r('app.color.terminal_text_tertiary'))
           .width('100%')
+      } else if (this.workerWorkspaces().length === 0) {
+        // 会话必须归属工作区（design/00）：该电脑没有工作区时引导新建。
+        Column() {
+          Text(I18n.get('workspaces.empty_for_worker'))
+            .fontSize(13)
+            .fontColor($r('app.color.terminal_text_muted'))
+            .width('100%')
+
+          Button(I18n.get('workspaces.create'))
+            .width('100%')
+            .height(40)
+            .borderRadius(8)
+            .backgroundColor($r('app.color.terminal_secondary_container'))
+            .fontColor($r('app.color.terminal_on_secondary_container'))
+            .fontSize(14)
+            .fontWeight(FontWeight.Medium)
+            .margin({ top: 12 })
+            .onClick(() => {
+              clickHaptic()
+              this.mode = 'newWorkspace'
+            })
+        }
+        .width('100%')
       } else {
         List() {
           ForEach(this.workerWorkspaces(), (ws: WorkspaceInfo) => {
@@ -207,38 +260,6 @@ export struct CreateSessionSheet {
               })
             }
           }, (ws: WorkspaceInfo) => ws.id)
-
-          // 不放入工作区：创建未分组会话（workspaceId 空串）。
-          ListItem() {
-            Row() {
-              SymbolGlyph($r('sys.symbol.folder'))
-                .fontSize(18)
-                .fontColor([$r('app.color.terminal_text_muted')])
-
-              Text(I18n.get('session.create.no_workspace'))
-                .fontSize(15)
-                .fontColor($r('app.color.terminal_text'))
-                .layoutWeight(1)
-                .margin({ left: 10 })
-
-              if (this.workspaceChosen && this.selectedWorkspaceId.length === 0) {
-                SymbolGlyph($r('sys.symbol.checkmark'))
-                  .fontSize(16)
-                  .fontColor([$r('app.color.terminal_text')])
-              }
-            }
-            .width('100%')
-            .height(52)
-            .padding({ left: 12, right: 12 })
-            .borderRadius(10)
-            .backgroundColor(this.workspaceChosen && this.selectedWorkspaceId.length === 0
-              ? $r('app.color.terminal_secondary_container')
-              : $r('app.color.terminal_background_element'))
-            .onClick(() => {
-              this.selectedWorkspaceId = ''
-              this.workspaceChosen = true
-            })
-          }
         }
         .width('100%')
         .scrollBar(BarState.Off)
@@ -261,6 +282,14 @@ export struct CreateSessionSheet {
         })
     }
     .width('100%')
+  }
+
+  /** 内嵌新建工作区成功：刷新列表、选中新工作区、回到选工作区。 */
+  private async onWorkspaceCreated(workspaceId: string) {
+    this.mode = 'pick'
+    await this.loadData()
+    this.selectedWorkspaceId = workspaceId
+    this.workspaceChosen = true
   }
 
   private async loadData() {

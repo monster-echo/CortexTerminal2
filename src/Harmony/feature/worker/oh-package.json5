@@ -4,6 +4,7 @@
   "main": "Index.ets",
   "dependencies": {
     "@rwecho/core": "file:../../common/core",
+    "@rwecho/session": "file:../../feature/session",
     "routermodule": "file:../../common/routermodule"
   }
 }

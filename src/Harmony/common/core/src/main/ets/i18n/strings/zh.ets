@@ -400,8 +400,9 @@ export const zhStrings: Record<string, string> = {
 
   // ── Sidebar ───────────────────────────────────────────────────────
   'sidebar.sessions': '终端会话',
-  'sidebar.workers': '工作节点',
-  'sidebar.settings': '设置',
+  'sidebar.ungrouped': '未分组会话',
+  'sidebar.computers': '计算机',
+  'sidebar.no_workspaces': '还没有工作区',
 
   // ── Time ──────────────────────────────────────────────────────────
   'time.just_now': '刚刚',
@@ -439,9 +440,19 @@ export const zhStrings: Record<string, string> = {
   'workspaces.title': '工作区',
   'workspaces.create': '新建工作区',
   'workspaces.name': '名称',
-  'workspaces.path': '路径（相对于主目录，可留空）',
   'workspaces.empty': '暂无工作区',
   'workspaces.create_session': '在此工作区新建会话',
+  'workspaces.pick_worker': '电脑',
+  'workspaces.pick_folder': '文件夹',
+  'workspaces.folder_current_position': '当前位置',
+  'workspaces.folder_current': '使用当前文件夹',
+  'workspaces.folder_chosen': '已选文件夹',
+  'workspaces.folder_empty': '无子目录',
+  'workspaces.folder_pick_worker_hint': '先选择电脑',
+  'workspaces.create_first': '创建第一个工作区',
+  'workspaces.create_success': '工作区已创建',
+  'workspaces.empty_for_worker': '该电脑还没有工作区，先创建一个',
+  'workspaces.back_to_pick': '返回选择工作区',
   'workspaces.open_files': '文件',
   'workspaces.create_failed': '创建工作区失败',
 
@@ -466,8 +477,8 @@ export const zhStrings: Record<string, string> = {
   'workspace.home.create_session_failed': '创建会话失败',
   'session.create.pick_worker': '选择工作节点',
   'session.create.pick_workspace': '选择工作区',
-  'session.create.no_workspace': '不放入工作区',
   'session.create.worker_empty_hint': '先选择工作节点',
+  'session.home.empty_no_workspace': '还没有工作区。工作区决定会话的电脑与目录，先创建一个再开始。',
   'files.empty': '此文件夹为空',
   'files.home': '主目录',
   'files.folder': '文件夹',
