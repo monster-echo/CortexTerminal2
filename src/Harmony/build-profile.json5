@@ -5,26 +5,26 @@
         "name": "default",
         "type": "HarmonyOS",
         "material": {
-          "storeFile": "C:/Users/echo/.ohos/config/default_Harmony_5V026DJBq0PseY0pIcYzRFgnA-33Fy7piID7e1hzZF8=.p12",
-          "storePassword": "0000001B0FD211F8A56CEF03CAF17C26D6D59B694A886CCDBDCFD97EA328A85EEA099AE804074C954099D2",
+          "certpath": "C:\\Users\\echo\\.ohos\\config\\default_Harmony_5V026DJBq0PseY0pIcYzRFgnA-33Fy7piID7e1hzZF8=.cer",
           "keyAlias": "debugKey",
-          "keyPassword": "0000001BD33B14BD1AA45376E3D6BDBDD7D16E3C60DE997065123E46D5DEA8A65BCF49F1DE29F321C947E3",
+          "keyPassword": "0000001BFF4800CB0122A0FB5F6C8DDF79CFFF059DAC5157DBF1804C7E69C0DF176D81A38FFFFA188BC51A",
+          "profile": "C:\\Users\\echo\\.ohos\\config\\default_Harmony_5V026DJBq0PseY0pIcYzRFgnA-33Fy7piID7e1hzZF8=.p7b",
           "signAlg": "SHA256withECDSA",
-          "profile": "C:/Users/echo/.ohos/config/default_Harmony_5V026DJBq0PseY0pIcYzRFgnA-33Fy7piID7e1hzZF8=.p7b",
-          "certpath": "C:/Users/echo/.ohos/config/default_Harmony_5V026DJBq0PseY0pIcYzRFgnA-33Fy7piID7e1hzZF8=.cer"
+          "storeFile": "C:\\Users\\echo\\.ohos\\config\\default_Harmony_5V026DJBq0PseY0pIcYzRFgnA-33Fy7piID7e1hzZF8=.p12",
+          "storePassword": "0000001B83AC045F7270B44E6907C9E6BD9E4DE6CC3B7963C73ED8DAC55FB55790CD413F7C3BA66D79A6FC"
         }
       },
       {
         "name": "release",
         "type": "HarmonyOS",
         "material": {
-          "certpath": "C:/Users/echo/.ohos/config/release_Harmony_HnF8a7Uyvrc5G0yM8GOeZcJ-u6-OowP91NxpDiMSmZM=.cer",
+          "certpath": "C:\\Users\\echo\\.ohos\\config\\release_Harmony_5V026DJBq0PseY0pIcYzRFgnA-33Fy7piID7e1hzZF8=.cer",
           "keyAlias": "debugKey",
-          "keyPassword": "0000001B57155411FF8DCCE9B2896A5A48BA739911B5E989E618C54CACD30684B450470CD22C72B0A52EA3",
-          "profile": "C:/Users/echo/.ohos/config/release_Harmony_HnF8a7Uyvrc5G0yM8GOeZcJ-u6-OowP91NxpDiMSmZM=.p7b",
+          "keyPassword": "0000001BC2019126FB3B15B9FD12EA33F78CF362C584CFB0DFF2A0ACAA84A47FDD2805231D6D1A784B6399",
+          "profile": "C:\\Users\\echo\\.ohos\\config\\release_Harmony_5V026DJBq0PseY0pIcYzRFgnA-33Fy7piID7e1hzZF8=.p7b",
           "signAlg": "SHA256withECDSA",
-          "storeFile": "C:/Users/echo/.ohos/config/release_Harmony_HnF8a7Uyvrc5G0yM8GOeZcJ-u6-OowP91NxpDiMSmZM=.p12",
-          "storePassword": "0000001B33EA1A76A2BF40B3C467F60CADE2A6A69426CF821187877F9F4F57C9A7254CB54E6FCBD624A407"
+          "storeFile": "C:\\Users\\echo\\.ohos\\config\\release_Harmony_5V026DJBq0PseY0pIcYzRFgnA-33Fy7piID7e1hzZF8=.p12",
+          "storePassword": "0000001B33B4436B2F342FF06E7216B798C54E8BBB1CF182793733489E0B55ECBBA68C083659B7D1E71661"
         }
       }
     ],
@@ -33,7 +33,6 @@
         "name": "default",
         "bundleName": "top.rwecho.cortexterminal",
         "signingConfig": "default",
-        "compileSdkVersion": "6.0.0(20)",
         "compatibleSdkVersion": "5.0.0(12)",
         "runtimeOS": "HarmonyOS"
       },
@@ -41,10 +40,8 @@
         "name": "release",
         "bundleName": "top.rwecho.cortexterminal",
         "signingConfig": "release",
-        "compileSdkVersion": "6.1.0(23)",
         "compatibleSdkVersion": "5.0.0(12)",
-        "runtimeOS": "HarmonyOS",
-        "targetSdkVersion": "6.1.0(23)"
+        "runtimeOS": "HarmonyOS"
       }
     ],
     "buildModeSet": [
