@@ -18,6 +18,17 @@ export { AnalyticsService, AnalyticsEvent } from './src/main/ets/service/Analyti
 export { CrashService } from './src/main/ets/service/CrashService'
 export { AnnouncementService } from './src/main/ets/service/AnnouncementService'
 
+// P2P 打洞传输（规格 docs/notes/p2p-protocol-spec.md）
+export { StunClient, StunMappedAddress, P2pRandom } from './src/main/ets/service/p2p/StunClient'
+export { P2pCrypto } from './src/main/ets/service/p2p/P2pCrypto'
+export { ReliableStream, P2pFrame } from './src/main/ets/service/p2p/ReliableStream'
+export {
+  P2pTransfer,
+  P2pChannel,
+  P2pPreparation,
+  UdpSocketBox
+} from './src/main/ets/service/p2p/P2pTransfer'
+
 // i18n
 export { I18n } from './src/main/ets/i18n/I18n'
 
@@ -33,6 +44,7 @@ export { AnnouncementDialog } from './src/main/ets/components/AnnouncementDialog
 
 // Utils
 export { Logger } from './src/main/ets/utils/Logger'
+export { PreferencesUtil } from './src/main/ets/utils/PreferencesUtil'
 export { showToast, showI18nToast } from './src/main/ets/utils/Toast'
 export { lightHaptic, clickHaptic, heavyHaptic } from './src/main/ets/utils/HapticUtils'
 

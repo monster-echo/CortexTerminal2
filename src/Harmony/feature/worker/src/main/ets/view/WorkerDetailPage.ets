@@ -27,6 +27,8 @@ export struct WorkerDetailPage {
   @State showCreateWorkspace: boolean = false
   @State newWorkspaceName: string = ''
   @State newWorkspacePath: string = ''
+  @State moveTargetSession: WorkerSessionInfo | null = null
+  @State showMoveSheet: boolean = false
   @Consume('pageStack') pageStack: NavPathStack
 
   aboutToAppear() {
@@ -80,7 +82,7 @@ export struct WorkerDetailPage {
               Text(I18n.get('workspaces.title'))
                 .fontSize(16)
                 .fontWeight(FontWeight.Medium)
-                .fontColor($r('app.color.terminal_primary'))
+                .fontColor($r('app.color.terminal_text'))
                 .layoutWeight(1)
 
               Button(I18n.get('workspaces.create'))
@@ -100,7 +102,7 @@ export struct WorkerDetailPage {
             if (this.workspaces.length === 0) {
               Text(I18n.get('workspaces.empty'))
                 .fontSize(14)
-                .fontColor($r('app.color.terminal_on_surface_variant'))
+                .fontColor($r('app.color.terminal_text_muted'))
             } else {
               ForEach(this.workspaces, (ws: WorkspaceItem) => {
                 this.WorkspaceCard(ws)
@@ -115,14 +117,14 @@ export struct WorkerDetailPage {
             Text(I18n.get('worker.detail.sessions'))
               .fontSize(16)
               .fontWeight(FontWeight.Medium)
-              .fontColor($r('app.color.terminal_primary'))
+              .fontColor($r('app.color.terminal_text'))
               .width('100%')
               .margin({ bottom: 12 })
 
             if (this.sessions.length === 0) {
               Text(I18n.get('session.home.empty_history'))
                 .fontSize(14)
-                .fontColor($r('app.color.terminal_on_surface_variant'))
+                .fontColor($r('app.color.terminal_text_muted'))
             } else {
               ForEach(this.sessions, (session: WorkerSessionInfo) => {
                 this.SessionCard(session)
@@ -155,12 +157,67 @@ export struct WorkerDetailPage {
     }
     .width('100%')
     .layoutWeight(1)
-    .backgroundColor($r('app.color.terminal_surface'))
+    .backgroundColor($r('app.color.terminal_background'))
     .bindSheet(this.showCreateWorkspace, this.CreateWorkspaceSheet(), {
       detents: ['66%', SheetSize.MEDIUM],
       preferType: SheetType.BOTTOM,
-      backgroundColor: $r('app.color.terminal_surface'),
+      backgroundColor: $r('app.color.terminal_background'),
       onDisappear: () => { this.showCreateWorkspace = false }
+    })
+    .bindSheet(this.showMoveSheet, this.MoveSessionSheet(), {
+      detents: ['50%', SheetSize.MEDIUM],
+      preferType: SheetType.BOTTOM,
+      backgroundColor: $r('app.color.terminal_background'),
+      onDisappear: () => { this.showMoveSheet = false }
+    })
+  }
+
+  @Builder
+  MoveSessionSheet() {
+    Column() {
+      Text(I18n.get('session.move_title'))
+        .fontSize(18)
+        .fontWeight(FontWeight.Bold)
+        .fontColor($r('app.color.terminal_text'))
+        .width('100%')
+        .margin({ bottom: 12 })
+
+      List() {
+        ListItem() {
+          this.MoveTargetRow(I18n.get('session.move_ungrouped'), '')
+        }
+        ForEach(this.workspaces, (ws: WorkspaceItem) => {
+          ListItem() {
+            this.MoveTargetRow(ws.name, ws.id)
+          }
+        }, (ws: WorkspaceItem) => `move-${ws.id}`)
+      }
+      .width('100%')
+      .scrollBar(BarState.Off)
+    }
+    .width('100%')
+    .padding(24)
+  }
+
+  @Builder
+  MoveTargetRow(label: string, workspaceId: string) {
+    Row() {
+      Text(label)
+        .fontSize(16)
+        .fontColor($r('app.color.terminal_text'))
+        .layoutWeight(1)
+        .maxLines(1)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
+    }
+    .width('100%')
+    .height(48)
+    .padding({ left: 12, right: 12 })
+    .borderRadius(10)
+    .backgroundColor($r('app.color.terminal_background_element'))
+    .margin({ bottom: 8 })
+    .onClick(() => {
+      clickHaptic()
+      this.submitMoveSession(workspaceId)
     })
   }
 
@@ -170,33 +227,33 @@ export struct WorkerDetailPage {
       Text(I18n.get('workspaces.create'))
         .fontSize(18)
         .fontWeight(FontWeight.Bold)
-        .fontColor($r('app.color.terminal_primary'))
+        .fontColor($r('app.color.terminal_text'))
         .width('100%')
 
       Text(I18n.get('workspaces.name'))
         .fontSize(14)
-        .fontColor($r('app.color.terminal_on_surface_variant'))
+        .fontColor($r('app.color.terminal_text_muted'))
         .width('100%')
         .margin({ top: 16, bottom: 8 })
       TextInput({ text: this.newWorkspaceName, placeholder: I18n.get('workspaces.name') })
         .height(48)
         .borderRadius(8)
-        .backgroundColor($r('app.color.terminal_surface_container_high'))
-        .fontColor($r('app.color.terminal_primary'))
-        .placeholderColor($r('app.color.terminal_on_surface_variant'))
+        .backgroundColor($r('app.color.terminal_background_element'))
+        .fontColor($r('app.color.terminal_text'))
+        .placeholderColor($r('app.color.terminal_text_muted'))
         .onChange((value: string) => { this.newWorkspaceName = value })
 
       Text(I18n.get('workspaces.path'))
         .fontSize(14)
-        .fontColor($r('app.color.terminal_on_surface_variant'))
+        .fontColor($r('app.color.terminal_text_muted'))
         .width('100%')
         .margin({ top: 16, bottom: 8 })
       TextInput({ text: this.newWorkspacePath, placeholder: I18n.get('workspaces.path') })
         .height(48)
         .borderRadius(8)
-        .backgroundColor($r('app.color.terminal_surface_container_high'))
-        .fontColor($r('app.color.terminal_primary'))
-        .placeholderColor($r('app.color.terminal_on_surface_variant'))
+        .backgroundColor($r('app.color.terminal_background_element'))
+        .fontColor($r('app.color.terminal_text'))
+        .placeholderColor($r('app.color.terminal_text_muted'))
         .onChange((value: string) => { this.newWorkspacePath = value })
 
       Button(I18n.get('workspaces.create'))
@@ -225,15 +282,15 @@ export struct WorkerDetailPage {
           .width(12)
           .height(12)
           .fill(this.worker!.isOnline ?
-            $r('app.color.terminal_tertiary') :
-            $r('app.color.terminal_outline_variant'))
+            $r('app.color.terminal_success') :
+            $r('app.color.terminal_border_subtle'))
 
         Text(this.worker!.isOnline ? I18n.get('worker.detail.status_online') : I18n.get('worker.detail.status_offline'))
           .fontSize(14)
           .fontWeight(FontWeight.Medium)
           .fontColor(this.worker!.isOnline ?
-            $r('app.color.terminal_tertiary') :
-            $r('app.color.terminal_on_surface_variant'))
+            $r('app.color.terminal_success') :
+            $r('app.color.terminal_text_muted'))
           .margin({ left: 8 })
       }
 
@@ -262,14 +319,14 @@ export struct WorkerDetailPage {
       if (this.worker!.lastSeenAt.length > 0) {
         Text(`${I18n.get('worker.detail.last_seen')}：${this.formatTime(this.worker!.lastSeenAt)}`)
           .fontSize(12)
-          .fontColor($r('app.color.terminal_on_surface_variant'))
+          .fontColor($r('app.color.terminal_text_muted'))
           .margin({ top: 12 })
       }
     }
     .width('100%')
     .padding(16)
     .borderRadius(12)
-    .backgroundColor($r('app.color.terminal_surface_container'))
+    .backgroundColor($r('app.color.terminal_background_panel'))
   }
 
   @Builder
@@ -277,11 +334,11 @@ export struct WorkerDetailPage {
     Column() {
       Text(label)
         .fontSize(12)
-        .fontColor($r('app.color.terminal_on_surface_variant'))
+        .fontColor($r('app.color.terminal_text_muted'))
       Text(value)
         .fontSize(14)
         .fontWeight(FontWeight.Medium)
-        .fontColor($r('app.color.terminal_primary'))
+        .fontColor($r('app.color.terminal_text'))
         .margin({ top: 2 })
     }
     .alignItems(HorizontalAlign.Start)
@@ -294,17 +351,31 @@ export struct WorkerDetailPage {
         Text(session.name || `Session ${session.id.substring(0, 8)}`)
           .fontSize(14)
           .fontWeight(FontWeight.Medium)
-          .fontColor($r('app.color.terminal_primary'))
+          .fontColor($r('app.color.terminal_text'))
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
 
         Text(session.status)
           .fontSize(12)
-          .fontColor($r('app.color.terminal_on_surface_variant'))
+          .fontColor($r('app.color.terminal_text_muted'))
           .margin({ top: 2 })
       }
       .alignItems(HorizontalAlign.Start)
       .layoutWeight(1)
+
+      Button(I18n.get('session.move'))
+        .height(32)
+        .borderRadius(8)
+        .backgroundColor(Color.Transparent)
+        .border({ width: 1, color: $r('app.color.terminal_border_subtle') })
+        .fontColor($r('app.color.terminal_text'))
+        .fontSize(13)
+        .margin({ right: 8 })
+        .onClick(() => {
+          clickHaptic()
+          this.moveTargetSession = session
+          this.showMoveSheet = true
+        })
 
       Button(I18n.get('session.card.resume'))
         .height(32)
@@ -322,7 +393,7 @@ export struct WorkerDetailPage {
     .width('100%')
     .padding(12)
     .borderRadius(8)
-    .backgroundColor($r('app.color.terminal_surface_container_high'))
+    .backgroundColor($r('app.color.terminal_background_element'))
     .margin({ bottom: 8 })
   }
 
@@ -337,12 +408,12 @@ export struct WorkerDetailPage {
         Text(ws.name)
           .fontSize(14)
           .fontWeight(FontWeight.Medium)
-          .fontColor($r('app.color.terminal_primary'))
+          .fontColor($r('app.color.terminal_text'))
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
         Text(ws.rootPath)
           .fontSize(11)
-          .fontColor($r('app.color.terminal_on_surface_variant'))
+          .fontColor($r('app.color.terminal_text_muted'))
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .margin({ top: 2 })
@@ -355,12 +426,12 @@ export struct WorkerDetailPage {
         .height(32)
         .borderRadius(8)
         .backgroundColor(Color.Transparent)
-        .border({ width: 1, color: $r('app.color.terminal_outline_variant') })
-        .fontColor($r('app.color.terminal_primary'))
+        .border({ width: 1, color: $r('app.color.terminal_border_subtle') })
+        .fontColor($r('app.color.terminal_text'))
         .fontSize(13)
         .onClick(() => {
           clickHaptic()
-          const param: Record<string, string> = { 'workerId': this.workerId, 'rootDir': ws.rootPath }
+          const param: Record<string, string> = { 'workerId': this.workerId, 'rootDir': ws.rootPath, 'workspaceId': ws.id }
           this.pageStack.pushPath({ name: RouteName.FILES_PAGE, param })
         })
 
@@ -375,11 +446,26 @@ export struct WorkerDetailPage {
           clickHaptic()
           this.createSessionInWorkspace(ws.id)
         })
+
+      if (!ws.isDefault) {
+        Button(I18n.get('workspaces.delete'))
+          .height(32)
+          .borderRadius(8)
+          .backgroundColor(Color.Transparent)
+          .border({ width: 1, color: $r('app.color.terminal_border_subtle') })
+          .fontColor($r('app.color.terminal_error'))
+          .fontSize(13)
+          .margin({ left: 8 })
+          .onClick(() => {
+            clickHaptic()
+            this.confirmDeleteWorkspace(ws)
+          })
+      }
     }
     .width('100%')
     .padding(12)
     .borderRadius(8)
-    .backgroundColor($r('app.color.terminal_surface_container_high'))
+    .backgroundColor($r('app.color.terminal_background_element'))
     .margin({ bottom: 8 })
   }
 
@@ -507,6 +593,52 @@ export struct WorkerDetailPage {
       await this.loadWorkspaces()
     } catch (e) {
       showToast((e as Error).message || I18n.get('workspaces.create_failed'))
+    }
+  }
+
+  private confirmDeleteWorkspace(ws: WorkspaceItem): void {
+    const msgArgs: Record<string, string> = { 'name': ws.name }
+    this.getUIContext()?.showAlertDialog({
+      title: I18n.get('workspaces.delete_confirm_title'),
+      message: I18n.getWithArgs('workspaces.delete_confirm_message', msgArgs),
+      primaryButton: {
+        value: I18n.get('common.cancel'),
+        action: () => {}
+      },
+      secondaryButton: {
+        value: I18n.get('workspaces.delete'),
+        fontColor: $r('app.color.terminal_error'),
+        action: () => { this.deleteWorkspace(ws) }
+      }
+    })
+  }
+
+  private async deleteWorkspace(ws: WorkspaceItem): Promise<void> {
+    try {
+      lightHaptic()
+      await ApiService.deleteWorkspace(ws.id)
+      showToast(I18n.get('workspaces.delete_success'))
+      await this.loadWorkspaces()
+    } catch (e) {
+      // 默认工作区/仍有会话绑定时网关返回 400，把具体原因展示给用户，不吞
+      showToast((e as Error).message || I18n.get('workspaces.delete_failed'))
+    }
+  }
+
+  private async submitMoveSession(workspaceId: string): Promise<void> {
+    const session = this.moveTargetSession
+    if (!session) {
+      return
+    }
+    try {
+      lightHaptic()
+      await ApiService.moveSessionToWorkspace(session.id, workspaceId)
+      this.showMoveSheet = false
+      this.moveTargetSession = null
+      showToast(I18n.get('session.move_success'))
+      await this.loadWorkerDetail()
+    } catch (e) {
+      showToast((e as Error).message || I18n.get('session.move_failed'))
     }
   }
 }

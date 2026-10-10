@@ -7,7 +7,7 @@ import { AuthInterceptorExecute } from '../interceptor/AuthInterceptor'
 import { AuthService, RouteName } from '@rwecho/core'
 import { LoginPage, ActivateWorkerPage, EnterActivationCodePage } from '@rwecho/auth'
 import { TerminalPage } from '@rwecho/terminal'
-import { FileBrowserPage, FilePreviewPage } from '@rwecho/files'
+import { FilesPageRoute, FilePreviewPage } from '@rwecho/files'
 import { ShellScaffold } from '../shell/ShellScaffold'
 import { AccountSecurityPage, ChangePasswordPage, WebPage, ContactSupportPage, FeedbackPage, ImagePreviewPage, MembershipPage, RedeemPage, ReferralPage, PreferencesPage, TerminalThemesPage, AboutPage } from '@rwecho/settings'
 
@@ -95,74 +95,70 @@ struct Index {
         ShellScaffold({ activeRoute: RouteName.WORKER_DETAIL })
       }
       .hideTitleBar(true)
-      .backgroundColor($r('app.color.terminal_surface'))
+      .backgroundColor($r('app.color.terminal_background'))
     } else if (name === RouteName.ACCOUNT_SECURITY) {
       NavDestination() {
         AccountSecurityPage()
       }
       .hideTitleBar(true)
-      .backgroundColor($r('app.color.terminal_surface'))
+      .backgroundColor($r('app.color.terminal_background'))
     } else if (name === RouteName.CHANGE_PASSWORD) {
       NavDestination() {
         ChangePasswordPage()
       }
       .hideTitleBar(true)
-      .backgroundColor($r('app.color.terminal_surface'))
+      .backgroundColor($r('app.color.terminal_background'))
     } else if (name === RouteName.SETTINGS) {
       NavDestination() {
         ShellScaffold({ activeRoute: RouteName.SETTINGS })
       }
       .hideTitleBar(true)
-      .backgroundColor($r('app.color.terminal_surface'))
+      .backgroundColor($r('app.color.terminal_background'))
       .onBackPressed(() => true)
     } else if (name === RouteName.SETTINGS_ROOT) {
       NavDestination() {
         ShellScaffold({ activeRoute: RouteName.SETTINGS_ROOT, subPage: true })
       }
       .hideTitleBar(true)
-      .backgroundColor($r('app.color.terminal_surface'))
+      .backgroundColor($r('app.color.terminal_background'))
     } else if (name === RouteName.ACTIVATE_WORKER) {
       NavDestination() {
         ActivateWorkerPage()
       }
       .hideTitleBar(true)
-      .backgroundColor($r('app.color.terminal_surface'))
+      .backgroundColor($r('app.color.terminal_background'))
     } else if (name === RouteName.ACTIVATE_CODE) {
       NavDestination() {
         EnterActivationCodePage({ initialCode: param as string })
       }
       .hideTitleBar(true)
-      .backgroundColor($r('app.color.terminal_surface'))
+      .backgroundColor($r('app.color.terminal_background'))
     } else if (name === RouteName.WEB_PAGE) {
       NavDestination() {
         WebPage()
       }
       .hideTitleBar(true)
-      .backgroundColor($r('app.color.terminal_surface'))
+      .backgroundColor($r('app.color.terminal_background'))
     } else if (name === RouteName.FILES_PAGE) {
-      NavDestination() {
-        FileBrowserPage()
-      }
-      .hideTitleBar(true)
-      .backgroundColor($r('app.color.terminal_surface'))
+      FilesPageRoute()
     } else if (name === RouteName.FILE_PREVIEW) {
       NavDestination() {
         FilePreviewPage()
       }
       .hideTitleBar(true)
-      .backgroundColor($r('app.color.terminal_surface'))
+      .backgroundColor($r('app.color.terminal_background'))
     } else if (name === RouteName.CONTACT_SUPPORT) {
       NavDestination() {
         ContactSupportPage()
       }
       .hideTitleBar(true)
-      .backgroundColor($r('app.color.terminal_surface'))
+      .backgroundColor($r('app.color.terminal_background'))
     } else if (name === RouteName.FEEDBACK) {
       NavDestination() {
         FeedbackPage()
       }
       .hideTitleBar(true)
-      .backgroundColor($r('app.color.terminal_surface'))
+      .backgroundColor($r('app.color.terminal_background'))
     } else if (name === RouteName.IMAGE_PREVIEW) {
       NavDestination() {
         ImagePreviewPage()

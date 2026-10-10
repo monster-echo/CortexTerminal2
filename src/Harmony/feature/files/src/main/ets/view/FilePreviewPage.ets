@@ -90,7 +90,7 @@ export struct FilePreviewPage {
 
       const init = await FilesService.startDownload(this.workerId, this.rootDir, this.remotePath)
       this.localPath = `${previewDir}/${this.fileName}`
-      await FilesService.downloadViaEndpoints(context, this.localPath, init.endpoints)
+      await FilesService.downloadViaEndpoints(context, this.localPath, init.transferId, init.endpoints)
 
       this.kind = FilePreviewPage.classify(this.fileName, this.fileSize)
       if (this.kind === 'image') {
@@ -193,7 +193,7 @@ export struct FilePreviewPage {
       Column() {
         if (this.isLoading) {
           Column() {
-            LoadingProgress().width(40).height(40).color($r('app.color.terminal_on_surface_variant'))
+            LoadingProgress().width(40).height(40).color($r('app.color.terminal_text_muted'))
           }
           .width('100%')
           .padding({ top: 80 })
@@ -226,11 +226,11 @@ export struct FilePreviewPage {
         .fontColor([$r('app.color.terminal_error')])
       Text(I18n.get('files.preview_failed'))
         .fontSize(14)
-        .fontColor($r('app.color.terminal_on_surface_variant'))
+        .fontColor($r('app.color.terminal_text_muted'))
         .margin({ top: 12 })
       Text(this.loadError)
         .fontSize(12)
-        .fontColor($r('app.color.terminal_on_surface_variant'))
+        .fontColor($r('app.color.terminal_text_muted'))
         .margin({ top: 4 })
         .textAlign(TextAlign.Center)
     }
@@ -251,7 +251,7 @@ export struct FilePreviewPage {
       }
       Text(`${FilePreviewPage.formatSize(this.fileSize)}`)
         .fontSize(12)
-        .fontColor($r('app.color.terminal_on_surface_variant'))
+        .fontColor($r('app.color.terminal_text_muted'))
         .margin({ top: 8 })
     }
     .width('100%')
@@ -285,17 +285,17 @@ export struct FilePreviewPage {
       Text(this.fileName)
         .fontSize(15)
         .fontWeight(FontWeight.Medium)
-        .fontColor($r('app.color.terminal_primary'))
+        .fontColor($r('app.color.terminal_text'))
         .margin({ top: 16 })
         .maxLines(2)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
       Text(FilePreviewPage.formatSize(this.fileSize))
         .fontSize(12)
-        .fontColor($r('app.color.terminal_on_surface_variant'))
+        .fontColor($r('app.color.terminal_text_muted'))
         .margin({ top: 4 })
       Text(I18n.get('files.preview_audio_playing'))
         .fontSize(12)
-        .fontColor($r('app.color.terminal_on_surface_variant'))
+        .fontColor($r('app.color.terminal_text_muted'))
         .margin({ top: 20 })
     }
     .width('100%')
@@ -311,7 +311,7 @@ export struct FilePreviewPage {
         Text(this.textContent)
           .fontSize(13)
           .fontFamily('monospace')
-          .fontColor($r('app.color.terminal_primary'))
+          .fontColor($r('app.color.terminal_text'))
           .textAlign(TextAlign.Start)
           .width('100%')
       }
@@ -323,7 +323,7 @@ export struct FilePreviewPage {
       if (this.textTruncated) {
         Text(I18n.get('files.preview_truncated'))
           .fontSize(11)
-          .fontColor($r('app.color.terminal_on_surface_variant'))
+          .fontColor($r('app.color.terminal_text_muted'))
           .margin({ top: 8 })
       }
     }
@@ -337,20 +337,20 @@ export struct FilePreviewPage {
     Column() {
       SymbolGlyph($r('sys.symbol.doc'))
         .fontSize(48)
-        .fontColor([$r('app.color.terminal_outline')])
+        .fontColor([$r('app.color.terminal_border')])
       Text(I18n.get('files.preview_unsupported'))
         .fontSize(14)
-        .fontColor($r('app.color.terminal_on_surface_variant'))
+        .fontColor($r('app.color.terminal_text_muted'))
         .margin({ top: 16 })
         .textAlign(TextAlign.Center)
       Row() {
         Text(I18n.get('files.preview_size'))
           .fontSize(13)
-          .fontColor($r('app.color.terminal_on_surface_variant'))
+          .fontColor($r('app.color.terminal_text_muted'))
           .layoutWeight(1)
         Text(FilePreviewPage.formatSize(this.fileSize))
           .fontSize(13)
-          .fontColor($r('app.color.terminal_primary'))
+          .fontColor($r('app.color.terminal_text'))
       }
       .width('100%')
       .margin({ top: 24 })

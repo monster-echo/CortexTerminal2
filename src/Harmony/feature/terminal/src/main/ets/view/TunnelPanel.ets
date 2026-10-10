@@ -1,11 +1,11 @@
 /**
  * @file TunnelPanel.ets
- * @brief Port forwarding bindSheet panel for a terminal session.
+ * @brief Port forwarding bindSheet panel, workspace-scoped.
  *
- * Lists the session's active tunnels, lets the user create a new forward
- * from a local port, copy the public link, preview it in a web page, or
- * revoke an existing forward. Mirrors ArtifactsPage / SessionHomePage
- * styling. Failures surface in the in-panel error banner, never silently.
+ * 面板从所在会话解析出 workspaceId，再走 workspace 级 tunnels API
+ * （GET/POST /api/me/workspaces/{id}/tunnels、DELETE /api/me/tunnels/{id}）。
+ * 创建表单支持 name（可选）/localPort/remoteAddress（可选）/remotePort。
+ * Failures surface in the in-panel error banner, never silently.
  */
 import { pasteboard } from '@kit.BasicServicesKit'
 import { I18n, ApiService, RouteName, TunnelInfo, showToast, clickHaptic, TerminalChrome } from '@rwecho/core'
@@ -13,8 +13,12 @@ import { I18n, ApiService, RouteName, TunnelInfo, showToast, clickHaptic, Termin
 @Component
 export struct TunnelPanel {
   sessionId: string = ''
+  @State workspaceId: string = ''
   @State tunnels: TunnelInfo[] = []
-  @State portInput: string = ''
+  @State nameInput: string = ''
+  @State localPortInput: string = ''
+  @State remotePortInput: string = ''
+  @State remoteAddressInput: string = ''
   @State isLoading: boolean = false
   @State errorMessage: string = ''
   @Consume('pageStack') pageStack: NavPathStack
@@ -25,14 +29,33 @@ export struct TunnelPanel {
   }
 
   aboutToAppear() {
-    this.loadTunnels()
+    this.initWorkspace()
+  }
+
+  /** 会话已绑定 workspace：解析 workspaceId 后加载该工作区的转发规则。 */
+  private async initWorkspace(): Promise<void> {
+    this.isLoading = true
+    this.errorMessage = ''
+    try {
+      const session = await ApiService.getSession(this.sessionId)
+      this.workspaceId = session.workspaceId
+      if (this.workspaceId.length === 0) {
+        this.errorMessage = I18n.get('tunnel.no_workspace')
+        this.isLoading = false
+        return
+      }
+      await this.loadTunnels()
+    } catch (e) {
+      this.errorMessage = (e as Error).message || I18n.get('common.error')
+      this.isLoading = false
+    }
   }
 
   async loadTunnels(): Promise<void> {
     this.isLoading = true
     this.errorMessage = ''
     try {
-      this.tunnels = await ApiService.listTunnels(this.sessionId)
+      this.tunnels = await ApiService.listWorkspaceTunnels(this.workspaceId)
     } catch (e) {
       this.errorMessage = (e as Error).message || I18n.get('common.error')
     } finally {
@@ -40,17 +63,27 @@ export struct TunnelPanel {
     }
   }
 
+  private static parsePort(text: string): number {
+    const port = parseInt(text.trim(), 10)
+    return Number.isNaN(port) || port < 1 || port > 65535 ? 0 : port
+  }
+
   async createTunnel(): Promise<void> {
-    const port = parseInt(this.portInput.trim(), 10)
-    if (Number.isNaN(port) || port < 1 || port > 65535) {
+    const localPort = TunnelPanel.parsePort(this.localPortInput)
+    const remotePort = TunnelPanel.parsePort(this.remotePortInput)
+    if (localPort === 0 || remotePort === 0) {
       this.errorMessage = I18n.get('tunnel.port_invalid')
       return
     }
     this.isLoading = true
     this.errorMessage = ''
     try {
-      await ApiService.createTunnel(this.sessionId, port)
-      this.portInput = ''
+      await ApiService.createWorkspaceTunnel(
+        this.workspaceId, this.nameInput.trim(), localPort, this.remoteAddressInput.trim(), remotePort)
+      this.nameInput = ''
+      this.localPortInput = ''
+      this.remotePortInput = ''
+      this.remoteAddressInput = ''
       showToast(I18n.get('tunnel.created'))
       await this.loadTunnels()
     } catch (e) {
@@ -181,29 +214,67 @@ export struct TunnelPanel {
 
   @Builder
   CreateBar() {
-    Row({ space: 8 }) {
+    Column({ space: 8 }) {
       TextInput({
-        text: $$this.portInput,
-        placeholder: I18n.get('tunnel.port_placeholder')
+        text: $$this.nameInput,
+        placeholder: I18n.get('tunnel.name_placeholder')
       })
-        .type(InputType.Number)
-        .layoutWeight(1)
         .height(48)
         .borderRadius(8)
         .backgroundColor(this.chrome().surfaceHigh)
-        .fontColor(this.chrome().accent)
+        .fontColor(this.chrome().onSurface)
+        .placeholderColor(this.chrome().onSurfaceVariant)
+        .fontSize(16)
+
+      Row({ space: 8 }) {
+        TextInput({
+          text: $$this.localPortInput,
+          placeholder: I18n.get('tunnel.local_port')
+        })
+          .type(InputType.Number)
+          .layoutWeight(1)
+          .height(48)
+          .borderRadius(8)
+          .backgroundColor(this.chrome().surfaceHigh)
+          .fontColor(this.chrome().accent)
+          .placeholderColor(this.chrome().onSurfaceVariant)
+          .fontSize(16)
+
+        TextInput({
+          text: $$this.remotePortInput,
+          placeholder: I18n.get('tunnel.remote_port')
+        })
+          .type(InputType.Number)
+          .layoutWeight(1)
+          .height(48)
+          .borderRadius(8)
+          .backgroundColor(this.chrome().surfaceHigh)
+          .fontColor(this.chrome().accent)
+          .placeholderColor(this.chrome().onSurfaceVariant)
+          .fontSize(16)
+      }
+      .width('100%')
+
+      TextInput({
+        text: $$this.remoteAddressInput,
+        placeholder: I18n.get('tunnel.remote_address')
+      })
+        .height(48)
+        .borderRadius(8)
+        .backgroundColor(this.chrome().surfaceHigh)
+        .fontColor(this.chrome().onSurface)
         .placeholderColor(this.chrome().onSurfaceVariant)
         .fontSize(16)
 
       Button(I18n.get('tunnel.create'))
+        .width('100%')
         .height(48)
-        .padding({ left: 24, right: 24 })
         .borderRadius(24)
         .backgroundColor(this.chrome().accentContainer)
         .fontColor(this.chrome().onAccentContainer)
         .fontSize(15)
         .fontWeight(FontWeight.Medium)
-        .enabled(!this.isLoading)
+        .enabled(!this.isLoading && this.workspaceId.length > 0)
         .onClick(() => {
           clickHaptic()
           this.createTunnel()
@@ -230,7 +301,11 @@ export struct TunnelPanel {
         .height(32)
         .onClick(() => {
           clickHaptic()
-          this.loadTunnels()
+          if (this.workspaceId.length === 0) {
+            this.initWorkspace()
+          } else {
+            this.loadTunnels()
+          }
         })
     }
     .width('100%')
@@ -274,10 +349,12 @@ export struct TunnelPanel {
   TunnelCard(t: TunnelInfo) {
     Column() {
       Row() {
-        Text(`${t.port}`)
+        Text(t.name.length > 0 ? t.name : `${t.localPort > 0 ? t.localPort : t.port} → ${t.remotePort}`)
           .fontSize(16)
           .fontWeight(FontWeight.Bold)
           .fontColor(this.chrome().accent)
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
         Text(this.localTime(t.expiresAtUtc))
           .fontSize(12)
           .fontColor(this.chrome().onSurfaceVariant)
@@ -288,6 +365,14 @@ export struct TunnelPanel {
       }
       .width('100%')
       .alignItems(VerticalAlign.Center)
+
+      Text(`${t.localPort > 0 ? t.localPort : t.port} → ${t.remoteAddress}:${t.remotePort}`)
+        .fontSize(12)
+        .fontColor(this.chrome().onSurfaceVariant)
+        .width('100%')
+        .maxLines(1)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
+        .margin({ top: 2 })
 
       Text(t.url)
         .fontSize(12)

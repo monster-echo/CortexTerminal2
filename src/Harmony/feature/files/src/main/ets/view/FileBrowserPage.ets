@@ -15,11 +15,14 @@ import { window } from '@kit.ArkUI'
 import { ApiService, I18n, RouteName, showToast, lightHaptic, clickHaptic } from '@rwecho/core'
 import { FileEntryModel, FileListingModel } from '../model/FileModels'
 import { FilesService } from '../service/FilesService'
+import { BrowseMemory } from '../service/BrowseMemory'
+import { TransferRouteLog, RouteEntry } from '../service/TransferRouteLog'
 import { FilePicker, FilePickerResult } from '../service/FilePicker'
 
 interface FileNavParam {
   workerId: string;
   rootDir: string;
+  workspaceId: string;
 }
 
 interface PreviewNavParam {
@@ -34,7 +37,11 @@ interface PreviewNavParam {
 export struct FileBrowserPage {
   @State workerId: string = ''
   @State rootDir: string = ''
-  @State pathSegments: string[] = []
+  @State workspaceId: string = ''
+  @Link pathSegments: string[]
+  // 路由层回退信号：FilesPageRoute 在系统返回手势里自增它，页面据此回上一级目录
+  @Link @Watch('onGoUpRequested') goUpTick: number
+  private restoredFromMemory: boolean = false
   @State entries: FileEntryModel[] = []
   @State truncated: boolean = false
   @State loading: boolean = true
@@ -44,18 +51,39 @@ export struct FileBrowserPage {
   @State transferName: string = ''
   @State transferState: string = ''
   @State transferMessage: string = ''
+  @State showNameSheet: boolean = false
+  @State showRouteSheet: boolean = false
+  @State nameSheetMode: string = ''
+  @State nameSheetValue: string = ''
+  @State renameTarget: FileEntryModel | null = null
   @Consume('pageStack') pageStack: NavPathStack
+
+  /** 有 workspaceId 时使用 workspace 级 API（浏览 + 新建文件夹/重命名/删除）。 */
+  private get hasWorkspace(): boolean {
+    return this.workspaceId.length > 0
+  }
 
   aboutToAppear() {
     const params = this.pageStack.getParamByName('files/Page') as FileNavParam[]
     if (params && params.length > 0) {
       this.workerId = params[params.length - 1].workerId
       this.rootDir = params[params.length - 1].rootDir
+      this.workspaceId = params[params.length - 1].workspaceId || ''
     }
     if (this.workerId.length === 0 || this.rootDir.length === 0) {
       throw new Error('FileBrowserPage requires workerId and rootDir in nav params')
     }
     this.applyStatusBar(AppStorage.get<string>('colorMode') !== 'light')
+    // workspace 模式下恢复上次浏览位置；终端 cwd 入口不记忆。
+    // 恢复的路径若在远端已不存在（path_not_found / path_invalid），
+    // loadListing 会清掉记忆、回根加载并 toast 明确告知，不静默回退。
+    if (this.hasWorkspace) {
+      const restored = BrowseMemory.load(getContext(this) as common.UIAbilityContext, this.workspaceId)
+      if (restored.length > 0) {
+        this.pathSegments = restored
+        this.restoredFromMemory = true
+      }
+    }
     this.loadListing()
   }
 
@@ -98,11 +126,25 @@ export struct FileBrowserPage {
     this.loading = this.entries.length === 0
     this.loadError = ''
     try {
-      const listing = await FilesService.listFiles(this.workerId, this.rootDir, this.currentPath())
+      const listing = this.hasWorkspace
+        ? await FilesService.listWorkspaceFiles(this.workspaceId, this.currentPath())
+        : await FilesService.listFiles(this.workerId, this.rootDir, this.currentPath())
       this.entries = listing.entries
       this.truncated = listing.truncated
+      this.restoredFromMemory = false
+      BrowseMemory.save(getContext(this) as common.UIAbilityContext, this.workspaceId, this.pathSegments)
     } catch (e) {
-      this.loadError = (e as Error).message || I18n.get('common.error')
+      const message = (e as Error).message || I18n.get('common.error')
+      // 记忆的目录在远端已被删除/改名：清掉记忆、回根重新加载，并明确告知用户
+      if (this.restoredFromMemory && (message === 'path_not_found' || message === 'path_invalid')) {
+        this.restoredFromMemory = false
+        BrowseMemory.clear(getContext(this) as common.UIAbilityContext, this.workspaceId)
+        this.pathSegments = []
+        showToast(I18n.get('files.last_path_gone'))
+        this.loadListing()
+        return
+      }
+      this.loadError = message
       this.entries = []
     } finally {
       this.loading = false
@@ -121,6 +163,22 @@ export struct FileBrowserPage {
     // index 0 = 主目录;index i ≥ 1 = 保留前 i-1 个段后进入第 i-1 段所在目录
     this.pathSegments = index === 0 ? [] : this.pathSegments.slice(0, index)
     this.loadListing()
+  }
+
+  /** 系统返回手势（Files RouteServiceProvider 拦截后）逐级向上；根目录时放行 pop。 */
+  private onGoUpRequested(): void {
+    if (this.pathSegments.length > 0) {
+      this.jumpToBreadcrumb(this.pathSegments.length - 1)
+    }
+  }
+
+  /** 页内返回按钮与系统手势保持一致：非根回上一级，根目录才退出页面。 */
+  private handleGoBack(): void {
+    if (this.pathSegments.length > 0) {
+      this.onGoUpRequested()
+    } else {
+      this.pageStack.pop()
+    }
   }
 
   build() {
@@ -147,7 +205,7 @@ export struct FileBrowserPage {
                 ListItem() {
                   Text(I18n.get('files.list_truncated'))
                     .fontSize(12)
-                    .fontColor($r('app.color.terminal_on_surface_variant'))
+                    .fontColor($r('app.color.terminal_text_muted'))
                     .width('100%')
                     .textAlign(TextAlign.Center)
                     .padding(12)
@@ -173,7 +231,82 @@ export struct FileBrowserPage {
     }
     .width('100%')
     .height('100%')
-    .backgroundColor($r('app.color.terminal_surface'))
+    .backgroundColor($r('app.color.terminal_background'))
+    .bindSheet(this.showNameSheet, this.NameSheet(), {
+      detents: ['40%', SheetSize.MEDIUM],
+      preferType: SheetType.BOTTOM,
+      backgroundColor: $r('app.color.terminal_background'),
+      onDisappear: () => { this.showNameSheet = false }
+    })
+    .bindSheet(this.showRouteSheet, this.RouteSheet(), {
+      detents: ['40%', SheetSize.MEDIUM],
+      preferType: SheetType.BOTTOM,
+      backgroundColor: $r('app.color.terminal_background'),
+      onDisappear: () => { this.showRouteSheet = false }
+    })
+  }
+
+  @Builder
+  NameSheet() {
+    Column() {
+      Text(this.nameSheetMode === 'rename'
+        ? I18n.get('files.rename_prompt_title')
+        : I18n.get('files.name_prompt_title'))
+        .fontSize(18)
+        .fontWeight(FontWeight.Bold)
+        .fontColor($r('app.color.terminal_text'))
+        .width('100%')
+
+      TextInput({
+        text: this.nameSheetValue,
+        placeholder: I18n.get('files.name_placeholder')
+      })
+        .height(48)
+        .borderRadius(8)
+        .backgroundColor($r('app.color.terminal_background_element'))
+        .fontColor($r('app.color.terminal_text'))
+        .placeholderColor($r('app.color.terminal_text_muted'))
+        .fontSize(16)
+        .margin({ top: 16 })
+        .onChange((value: string) => { this.nameSheetValue = value })
+
+      Button(this.nameSheetMode === 'rename'
+        ? I18n.get('files.rename')
+        : I18n.get('files.mkdir'))
+        .width('100%')
+        .height(48)
+        .borderRadius(24)
+        .backgroundColor($r('app.color.terminal_inverse_surface'))
+        .fontColor($r('app.color.terminal_inverse_on_surface'))
+        .fontSize(16)
+        .fontWeight(FontWeight.Medium)
+        .margin({ top: 24 })
+        .onClick(() => {
+          clickHaptic()
+          this.submitNameSheet()
+        })
+    }
+    .width('100%')
+    .padding(24)
+  }
+
+  @Builder
+  EntryMenu(item: FileEntryModel) {
+    if (this.hasWorkspace) {
+      Menu() {
+        MenuItem({ content: I18n.get('files.rename') })
+          .onClick(() => {
+            clickHaptic()
+            this.openRenameSheet(item)
+          })
+
+        MenuItem({ content: I18n.get('files.delete') })
+          .onClick(() => {
+            clickHaptic()
+            this.confirmDeleteEntry(item)
+          })
+      }
+    }
   }
 
   @Builder
@@ -182,7 +315,7 @@ export struct FileBrowserPage {
       Button() {
         SymbolGlyph($r('sys.symbol.chevron_left'))
           .fontSize(20)
-          .fontColor([$r('app.color.terminal_on_surface')])
+          .fontColor([$r('app.color.terminal_text')])
       }
       .width(40)
       .height(40)
@@ -190,17 +323,51 @@ export struct FileBrowserPage {
       .backgroundColor(Color.Transparent)
       .onClick(() => {
         clickHaptic()
-        this.pageStack.pop()
+        this.handleGoBack()
       })
 
       Text(I18n.get('files.title'))
         .fontSize(18)
         .fontWeight(FontWeight.Bold)
-        .fontColor($r('app.color.terminal_on_surface'))
+        .fontColor($r('app.color.terminal_text'))
         .layoutWeight(1)
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
         .margin({ left: 8 })
+
+      if (this.hasWorkspace) {
+        Button() {
+          SymbolGlyph($r('sys.symbol.folder_badge_plus'))
+            .fontSize(18)
+            .fontColor([$r('app.color.terminal_on_secondary_container')])
+        }
+        .width(40)
+        .height(40)
+        .borderRadius(20)
+        .backgroundColor($r('app.color.terminal_secondary_container'))
+        .margin({ left: 8 })
+        .onClick(() => {
+          clickHaptic()
+          this.openMkdirSheet()
+        })
+      }
+
+      Button() {
+        SymbolGlyph($r('sys.symbol.link'))
+          .fontSize(18)
+          .fontColor([TransferRouteLog.lastSuccessRoute() === 'p2p'
+            ? $r('app.color.terminal_success')
+            : $r('app.color.terminal_on_secondary_container')])
+      }
+      .width(40)
+      .height(40)
+      .borderRadius(20)
+      .backgroundColor($r('app.color.terminal_secondary_container'))
+      .margin({ left: 8 })
+      .onClick(() => {
+        clickHaptic()
+        this.showRouteSheet = true
+      })
 
       Button() {
         SymbolGlyph($r('sys.symbol.arrow_up'))
@@ -222,6 +389,93 @@ export struct FileBrowserPage {
     .alignItems(VerticalAlign.Center)
   }
 
+  /** 通道显示名。 */
+  private routeLabel(route: string): string {
+    if (route === 'lan') {
+      return I18n.get('files.route_lan')
+    }
+    if (route === 'p2p') {
+      return I18n.get('files.route_p2p')
+    }
+    if (route === 'public') {
+      return I18n.get('files.route_public')
+    }
+    return I18n.get('files.route_relay')
+  }
+
+  private static formatTime(timeMs: number): string {
+    const d = new Date(timeMs)
+    const pad = (n: number): string => n < 10 ? `0${n}` : `${n}`
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+  }
+
+  @Builder
+  RouteSheet() {
+    Column() {
+      Text(I18n.get('files.p2p_title'))
+        .fontSize(18)
+        .fontWeight(FontWeight.Bold)
+        .fontColor($r('app.color.terminal_text'))
+        .width('100%')
+
+      Row() {
+        Text(I18n.get('files.p2p_last'))
+          .fontSize(14)
+          .fontColor($r('app.color.terminal_text_muted'))
+          .layoutWeight(1)
+        Text(TransferRouteLog.lastSuccessRoute().length > 0
+          ? this.routeLabel(TransferRouteLog.lastSuccessRoute())
+          : I18n.get('files.p2p_empty'))
+          .fontSize(14)
+          .fontWeight(FontWeight.Medium)
+          .fontColor(TransferRouteLog.lastSuccessRoute() === 'p2p'
+            ? $r('app.color.terminal_success')
+            : $r('app.color.terminal_text'))
+      }
+      .width('100%')
+      .margin({ top: 16 })
+
+      if (TransferRouteLog.history().length === 0) {
+        Text(I18n.get('files.p2p_empty'))
+          .fontSize(13)
+          .fontColor($r('app.color.terminal_text_muted'))
+          .width('100%')
+          .textAlign(TextAlign.Center)
+          .margin({ top: 32 })
+      } else {
+        List() {
+          ForEach(TransferRouteLog.history(), (entry: RouteEntry) => {
+            ListItem() {
+              Row() {
+                Text(entry.ok ? '✓' : '✗')
+                  .fontSize(14)
+                  .fontWeight(FontWeight.Bold)
+                  .fontColor(entry.ok
+                    ? $r('app.color.terminal_success')
+                    : $r('app.color.terminal_error'))
+                  .width(24)
+                Text(this.routeLabel(entry.route))
+                  .fontSize(14)
+                  .fontColor($r('app.color.terminal_text'))
+                  .layoutWeight(1)
+                Text(FileBrowserPage.formatTime(entry.timeMs))
+                  .fontSize(12)
+                  .fontColor($r('app.color.terminal_text_tertiary'))
+              }
+              .width('100%')
+              .padding({ top: 10, bottom: 10 })
+            }
+          }, (entry: RouteEntry, idx: number) => `${idx}_${entry.route}_${entry.ok}`)
+        }
+        .width('100%')
+        .scrollBar(BarState.Off)
+        .margin({ top: 8 })
+      }
+    }
+    .width('100%')
+    .padding(24)
+  }
+
   @Builder
   Breadcrumb() {
     Scroll() {
@@ -230,12 +484,12 @@ export struct FileBrowserPage {
           if (idx > 0) {
             Text('/')
               .fontSize(13)
-              .fontColor($r('app.color.terminal_outline'))
+              .fontColor($r('app.color.terminal_border'))
               .margin({ left: 4, right: 4 })
           }
           Text(label)
             .fontSize(13)
-            .fontColor(idx === this.pathSegments.length ? $r('app.color.terminal_primary') : $r('app.color.terminal_secondary'))
+            .fontColor(idx === this.pathSegments.length ? $r('app.color.terminal_text') : $r('app.color.terminal_text_muted'))
             .fontWeight(idx === this.pathSegments.length ? FontWeight.Medium : FontWeight.Normal)
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
@@ -259,20 +513,20 @@ export struct FileBrowserPage {
     Row() {
       SymbolGlyph(item.isDirectory ? $r('sys.symbol.folder_fill') : $r('sys.symbol.doc'))
         .fontSize(22)
-        .fontColor([item.isDirectory ? $r('app.color.terminal_secondary') : $r('app.color.terminal_on_surface_variant')])
+        .fontColor([item.isDirectory ? $r('app.color.terminal_secondary') : $r('app.color.terminal_text_muted')])
         .width(40)
         .height(40)
       Column() {
         Text(item.name)
           .fontSize(15)
-          .fontColor($r('app.color.terminal_primary'))
+          .fontColor($r('app.color.terminal_text'))
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
         Text(item.isDirectory
           ? I18n.get('files.folder')
           : `${FileBrowserPage.formatSize(item.sizeBytes)} · ${this.formatTime(item.modifiedMs)}`)
           .fontSize(11)
-          .fontColor($r('app.color.terminal_on_surface_variant'))
+          .fontColor($r('app.color.terminal_text_muted'))
           .margin({ top: 2 })
       }
       .alignItems(HorizontalAlign.Start)
@@ -282,7 +536,7 @@ export struct FileBrowserPage {
       if (!item.isDirectory) {
         SymbolGlyph($r('sys.symbol.chevron_right'))
           .fontSize(16)
-          .fontColor([$r('app.color.terminal_on_surface_variant')])
+          .fontColor([$r('app.color.terminal_text_muted')])
       }
     }
     .width('100%')
@@ -296,6 +550,7 @@ export struct FileBrowserPage {
         this.openPreview(item)
       }
     })
+    .bindContextMenu(this.EntryMenu(item), ResponseType.LongPress)
   }
 
   @Builder
@@ -312,10 +567,21 @@ export struct FileBrowserPage {
         .borderRadius(8)
         .height(32)
         .onClick(() => this.loadListing())
+      // 记忆的路径在远端已被删除时，提供显式回根入口（不静默回退）
+      if (this.hasWorkspace && this.pathSegments.length > 0) {
+        Button(I18n.get('files.back_to_root'))
+          .fontSize(13)
+          .fontColor($r('app.color.terminal_on_secondary_container'))
+          .backgroundColor($r('app.color.terminal_secondary_container'))
+          .borderRadius(8)
+          .height(32)
+          .margin({ left: 8 })
+          .onClick(() => this.jumpToBreadcrumb(0))
+      }
     }
     .width('100%')
     .padding(12)
-    .backgroundColor($r('app.color.terminal_surface_container'))
+    .backgroundColor($r('app.color.terminal_background_panel'))
     .margin({ left: 16, right: 16, bottom: 8 })
   }
 
@@ -324,16 +590,16 @@ export struct FileBrowserPage {
     Column() {
       SymbolGlyph($r('sys.symbol.folder'))
         .fontSize(40)
-        .fontColor([$r('app.color.terminal_outline')])
+        .fontColor([$r('app.color.terminal_border')])
         .margin({ bottom: 16 })
       Text(I18n.get('files.description'))
         .fontSize(13)
-        .fontColor($r('app.color.terminal_on_surface_variant'))
+        .fontColor($r('app.color.terminal_text_muted'))
         .textAlign(TextAlign.Center)
         .margin({ bottom: 8 })
       Text(I18n.get('files.empty'))
         .fontSize(13)
-        .fontColor($r('app.color.terminal_on_surface_variant'))
+        .fontColor($r('app.color.terminal_text_muted'))
         .textAlign(TextAlign.Center)
     }
     .width('100%')
@@ -346,12 +612,12 @@ export struct FileBrowserPage {
       ForEach([0, 1, 2, 3], (_: number, idx: number) => {
         Row() {
           Row().width(40).height(40).borderRadius(8)
-            .backgroundColor($r('app.color.terminal_surface_container_high'))
+            .backgroundColor($r('app.color.terminal_background_element'))
           Column() {
             Row().width(160).height(14).borderRadius(4)
-              .backgroundColor($r('app.color.terminal_surface_container_high'))
+              .backgroundColor($r('app.color.terminal_background_element'))
             Row().width(90).height(10).borderRadius(4)
-              .backgroundColor($r('app.color.terminal_surface_container_high'))
+              .backgroundColor($r('app.color.terminal_background_element'))
               .margin({ top: 6 })
           }
           .alignItems(HorizontalAlign.Start)
@@ -362,7 +628,7 @@ export struct FileBrowserPage {
         .height(64)
         .padding(14)
         .borderRadius(12)
-        .backgroundColor($r('app.color.terminal_surface_container'))
+        .backgroundColor($r('app.color.terminal_background_panel'))
         .margin({ bottom: 8 })
       }, (_: number, idx: number) => `${idx}`)
     }
@@ -376,7 +642,7 @@ export struct FileBrowserPage {
       if (this.transferState === 'done') {
         SymbolGlyph($r('sys.symbol.checkmark_circle'))
           .fontSize(18)
-          .fontColor([$r('app.color.terminal_tertiary')])
+          .fontColor([$r('app.color.terminal_success')])
       } else if (this.transferState === 'failed') {
         SymbolGlyph($r('sys.symbol.exclamationmark_circle'))
           .fontSize(18)
@@ -390,14 +656,14 @@ export struct FileBrowserPage {
       Column() {
         Text(this.transferName)
           .fontSize(13)
-          .fontColor($r('app.color.terminal_primary'))
+          .fontColor($r('app.color.terminal_text'))
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
         Text(this.transferMessage)
           .fontSize(11)
           .fontColor(this.transferState === 'failed'
             ? $r('app.color.terminal_error')
-            : $r('app.color.terminal_on_surface_variant'))
+            : $r('app.color.terminal_text_muted'))
           .margin({ top: 2 })
       }
       .alignItems(HorizontalAlign.Start)
@@ -406,7 +672,73 @@ export struct FileBrowserPage {
     }
     .width('100%')
     .padding({ left: 16, right: 16, top: 10, bottom: 10 })
-    .backgroundColor($r('app.color.terminal_surface_container'))
+    .backgroundColor($r('app.color.terminal_background_panel'))
+  }
+
+  // ── Workspace file mutations (mkdir / rename / delete) ────────────
+
+  private openMkdirSheet(): void {
+    this.nameSheetMode = 'mkdir'
+    this.renameTarget = null
+    this.nameSheetValue = ''
+    this.showNameSheet = true
+  }
+
+  private openRenameSheet(item: FileEntryModel): void {
+    this.nameSheetMode = 'rename'
+    this.renameTarget = item
+    this.nameSheetValue = item.name
+    this.showNameSheet = true
+  }
+
+  private async submitNameSheet(): Promise<void> {
+    const name = this.nameSheetValue.trim()
+    if (name.length === 0) {
+      showToast(I18n.get('files.name_required'))
+      return
+    }
+    try {
+      if (this.nameSheetMode === 'rename' && this.renameTarget) {
+        await FilesService.rename(this.workspaceId, this.entryPath(this.renameTarget.name), name)
+      } else {
+        const segments = this.currentPath().length > 0
+          ? `${this.currentPath()}/${name}`
+          : name
+        await FilesService.mkdir(this.workspaceId, segments)
+      }
+      this.showNameSheet = false
+      this.renameTarget = null
+      await this.loadListing()
+    } catch (e) {
+      // 重命名/新建失败必须把原因展示出来，不静默
+      showToast((e as Error).message || I18n.get('files.op_failed'))
+    }
+  }
+
+  private confirmDeleteEntry(item: FileEntryModel): void {
+    const msgArgs: Record<string, string> = { 'name': item.name }
+    this.getUIContext()?.showAlertDialog({
+      title: I18n.get('files.delete_confirm_title'),
+      message: I18n.getWithArgs('files.delete_confirm_message', msgArgs),
+      primaryButton: {
+        value: I18n.get('common.cancel'),
+        action: () => {}
+      },
+      secondaryButton: {
+        value: I18n.get('files.delete'),
+        fontColor: $r('app.color.terminal_error'),
+        action: () => { this.deleteEntry(item) }
+      }
+    })
+  }
+
+  private async deleteEntry(item: FileEntryModel): Promise<void> {
+    try {
+      await FilesService.deleteFile(this.workspaceId, this.entryPath(item.name))
+      await this.loadListing()
+    } catch (e) {
+      showToast((e as Error).message || I18n.get('files.op_failed'))
+    }
   }
 
   // ── Upload flow ───────────────────────────────────────────────────
@@ -476,7 +808,7 @@ export struct FileBrowserPage {
       }
 
       const init = await FilesService.beginUpload(this.workerId, this.rootDir, dirPath, picked.filename, sizeBytes, sha256)
-      await FilesService.uploadViaEndpoints(init.endpoints, buffer)
+      await FilesService.uploadViaEndpoints(init.transferId, init.endpoints, buffer)
     } finally {
       fs.unlinkSync(sandboxPath)
     }

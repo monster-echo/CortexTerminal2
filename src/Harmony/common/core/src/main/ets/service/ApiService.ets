@@ -82,6 +82,50 @@ export class ApiService {
     return await ApiService.post('/api/workspaces', body as Object) as Record<string, Object>
   }
 
+  /** 删除工作区。默认工作区/仍有会话绑定时网关返回 400，错误信息抛给调用方展示。 */
+  static async deleteWorkspace(workspaceId: string): Promise<void> {
+    await ApiService.del(`/api/workspaces/${encodeURIComponent(workspaceId)}`)
+  }
+
+  /**
+   * 移动会话到工作区。workspaceId 传空串表示移出（未分组）——网关把空/空白
+   * WorkspaceId 规整为 null（移出）。
+   */
+  static async moveSessionToWorkspace(sessionId: string, workspaceId: string): Promise<void> {
+    const body: Record<string, string> = { 'workspaceId': workspaceId }
+    await ApiService.put(`/api/me/sessions/${encodeURIComponent(sessionId)}/workspace`, body as Object)
+  }
+
+  // ── Workspace 级文件写操作（走 Worker RPC，错误直接抛出） ─────────
+  // body 字段与网关 MkdirRequest/WriteTextRequest/RenameRequest/DeleteRequest 一致：
+  // mkdir: { path }  write-text: { path, content }  rename: { path, newName }  delete: { path }
+
+  static async workspaceMkdir(workspaceId: string, path: string): Promise<void> {
+    const body: Record<string, string> = { 'path': path }
+    await ApiService.post(`/api/workspaces/${encodeURIComponent(workspaceId)}/files/mkdir`, body as Object)
+  }
+
+  static async workspaceWriteText(workspaceId: string, path: string, content: string): Promise<void> {
+    const body: Record<string, string> = { 'path': path, 'content': content }
+    await ApiService.post(`/api/workspaces/${encodeURIComponent(workspaceId)}/files/write-text`, body as Object)
+  }
+
+  static async workspaceRename(workspaceId: string, path: string, newName: string): Promise<void> {
+    const body: Record<string, string> = { 'path': path, 'newName': newName }
+    await ApiService.post(`/api/workspaces/${encodeURIComponent(workspaceId)}/files/rename`, body as Object)
+  }
+
+  static async workspaceDeleteFile(workspaceId: string, path: string): Promise<void> {
+    const body: Record<string, string> = { 'path': path }
+    await ApiService.post(`/api/workspaces/${encodeURIComponent(workspaceId)}/files/delete`, body as Object)
+  }
+
+  /** 工作区级目录列表（相对工作区根，'' = 根目录）。响应形状与 worker 级列表一致。 */
+  static async listWorkspaceFiles(workspaceId: string, path: string): Promise<Object> {
+    return await ApiService.get(
+      `/api/workspaces/${encodeURIComponent(workspaceId)}/files?path=${encodeURIComponent(path)}`)
+  }
+
   static async listFiles(workerId: string, root: string, path: string): Promise<Object> {
     return await ApiService.get(
       `/api/workers/${encodeURIComponent(workerId)}/files?root=${encodeURIComponent(root)}&path=${encodeURIComponent(path)}`)
@@ -154,6 +198,52 @@ export class ApiService {
     await ApiService.del(`/api/me/tunnels/${encodeURIComponent(tunnelId)}`)
   }
 
+  // ── Workspace 级 Tunnel APIs ──────────────────────────────────────
+  // 创建 body: WorkspaceCreateTunnelRequest { name?, localPort, remoteAddress?, remotePort }
+  // 编辑 body: WorkspaceUpdateTunnelRequest { name?, localPort?, remoteAddress?, remotePort? }（null = 不修改）
+
+  static async listWorkspaceTunnels(workspaceId: string): Promise<TunnelInfo[]> {
+    const resp = await ApiService.get(
+      `/api/me/workspaces/${encodeURIComponent(workspaceId)}/tunnels`) as Record<string, Object>
+    const arr = (resp['tunnels'] as Object[]) ?? []
+    return arr.map((item: Object) => ApiService.mapTunnel(item as Record<string, Object>))
+  }
+
+  static async createWorkspaceTunnel(workspaceId: string, name: string, localPort: number,
+    remoteAddress: string, remotePort: number): Promise<TunnelInfo> {
+    const body: Record<string, Object> = { 'localPort': localPort, 'remotePort': remotePort }
+    if (name.length > 0) {
+      body['name'] = name
+    }
+    if (remoteAddress.length > 0) {
+      body['remoteAddress'] = remoteAddress
+    }
+    const resp = await ApiService.post(
+      `/api/me/workspaces/${encodeURIComponent(workspaceId)}/tunnels`, body as Object) as Record<string, Object>
+    return ApiService.mapTunnel(resp)
+  }
+
+  static async updateWorkspaceTunnel(workspaceId: string, tunnelId: string, name: string,
+    localPort: number, remoteAddress: string, remotePort: number): Promise<TunnelInfo> {
+    const body: Record<string, Object> = {}
+    if (name.length > 0) {
+      body['name'] = name
+    }
+    if (localPort > 0) {
+      body['localPort'] = localPort
+    }
+    if (remoteAddress.length > 0) {
+      body['remoteAddress'] = remoteAddress
+    }
+    if (remotePort > 0) {
+      body['remotePort'] = remotePort
+    }
+    const resp = await ApiService.patch(
+      `/api/me/workspaces/${encodeURIComponent(workspaceId)}/tunnels/${encodeURIComponent(tunnelId)}`,
+      body as Object) as Record<string, Object>
+    return ApiService.mapTunnel(resp)
+  }
+
   private static mapTunnel(item: Record<string, Object>): TunnelInfo {
     const t = new TunnelInfo()
     t.tunnelId = (item['tunnelId'] as string) ?? ''
@@ -165,6 +255,11 @@ export class ApiService {
     t.secret = (item['secret'] as string) ?? ''
     t.expiresAtUtc = (item['expiresAtUtc'] as string) ?? ''
     t.createdAtUtc = (item['createdAtUtc'] as string) ?? ''
+    t.name = (item['name'] as string) ?? ''
+    t.localPort = (item['localPort'] as number) ?? 0
+    t.remoteAddress = (item['remoteAddress'] as string) ?? ''
+    t.remotePort = (item['remotePort'] as number) ?? 0
+    t.workspaceId = (item['workspaceId'] as string) ?? ''
     return t
   }
 
@@ -247,6 +342,16 @@ export class ApiService {
   static async listPlans(): Promise<Object[]> {
     // Public endpoint — pricing is visible without a token.
     return await ApiService.get('/api/billing/plans', false) as Object[]
+  }
+
+  static async verifyHuaweiIap(productId: string, purchaseToken: string): Promise<Record<string, Object>> {
+    const body: Record<string, Object> = {
+      'platform': 'huawei',
+      'productId': productId,
+      'signedTransaction': '',
+      'purchaseToken': purchaseToken
+    }
+    return await ApiService.post('/api/iap/purchase/verify', body) as Record<string, Object>
   }
 
   static async redeemCode(code: string): Promise<Record<string, Object>> {
@@ -522,7 +627,9 @@ export class ApiService {
             reject(retryErr)
           }
         } else {
-          reject(new Error(`Request failed (${data.responseCode})`))
+          const resultRecord = data.result as Record<string, string>
+          const errField = resultRecord?.error || resultRecord?.message || ''
+          reject(new Error(errField.length > 0 ? errField : `Request failed (${data.responseCode})`))
         }
         httpRequest.destroy()
       })
@@ -563,14 +670,59 @@ export class ApiService {
             reject(retryErr)
           }
         } else {
-          reject(new Error(`Request failed (${data.responseCode})`))
+          const resultRecord = data.result as Record<string, string>
+          const errField = resultRecord?.error || resultRecord?.message || ''
+          reject(new Error(errField.length > 0 ? errField : `Request failed (${data.responseCode})`))
         }
         httpRequest.destroy()
       })
     })
   }
 
-  // ── 401 handling ──────────────────────────────────────────────────
+  private static async patch(path: string, body: Object, requiresAuth: boolean = true,
+    isRetry: boolean = false): Promise<Object> {
+    const url = `${ApiService.gatewayUrl}${path}`
+    const headers: Record<string, string> = ApiService.buildHeaders(requiresAuth)
+    headers['Content-Type'] = 'application/json'
+    // HarmonyOS http API 不支持 PATCH，网关按 X-HTTP-Method-Override 翻译为 PATCH。
+    headers['X-HTTP-Method-Override'] = 'PATCH'
+
+    return new Promise<Object>((resolve, reject) => {
+      const httpRequest = http.createHttp()
+      httpRequest.request(url, {
+        method: http.RequestMethod.POST,
+        header: headers,
+        extraData: JSON.stringify(body),
+        expectDataType: http.HttpDataType.OBJECT,
+        connectTimeout: 15000,
+        readTimeout: 15000
+      }, async (err, data) => {
+        if (err) {
+          reject(new Error(err.message || 'Network request failed'))
+          return
+        }
+        if (data.responseCode === 200) {
+          if (ApiService.isNonJsonResult(data.result as Object)) {
+            reject(new Error(`${ApiService.badJsonMessage}：PATCH ${path}`))
+          } else {
+            resolve(data.result as Object)
+          }
+        } else if (data.responseCode === 401 && requiresAuth && !isRetry) {
+          try {
+            const retried = await ApiService.handle401AndRetry('PATCH', path, body, requiresAuth)
+            resolve(retried)
+          } catch (retryErr) {
+            reject(retryErr)
+          }
+        } else {
+          const resultRecord = data.result as Record<string, string>
+          const errField = resultRecord?.error || resultRecord?.message || ''
+          reject(new Error(errField.length > 0 ? errField : `Request failed (${data.responseCode})`))
+        }
+        httpRequest.destroy()
+      })
+    })
+  }
 
   private static async handle401AndRetry(method: string, path: string, body: Object | null,
     requiresAuth: boolean): Promise<Object> {
@@ -597,6 +749,8 @@ export class ApiService {
         return await ApiService.del(path, requiresAuth, true)
       } else if (method === 'PUT') {
         return await ApiService.put(path, body!, requiresAuth, true)
+      } else if (method === 'PATCH') {
+        return await ApiService.patch(path, body!, requiresAuth, true)
       } else {
         return await ApiService.post(path, body!, requiresAuth, undefined, true)
       }

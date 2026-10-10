@@ -135,4 +135,14 @@ export class TunnelInfo {
   secret: string = ''
   expiresAtUtc: string = ''
   createdAtUtc: string = ''
+  /** 规则名称（可选，workspace 级转发才有）。 */
+  name: string = ''
+  /** 访问入口端口。 */
+  localPort: number = 0
+  /** Worker 侧目标地址（默认 127.0.0.1）。 */
+  remoteAddress: string = ''
+  /** Worker 侧目标端口（与 port 同义）。 */
+  remotePort: number = 0
+  /** 归属工作区；session 级快捷隧道为空串。 */
+  workspaceId: string = ''
 }
