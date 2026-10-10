@@ -23,7 +23,6 @@ public sealed class WorkerHub(
     IHubContext<TerminalHub> terminalHubContext,
     IGatewayStatsService stats,
     ISessionStatsService sessionStats,
-    WorkspaceRegistry workspaceRegistry,
     RelayOptions relayOptions,
     AgentActivityService agentActivity,
     ILogger<WorkerHub> logger) : Hub
@@ -105,19 +104,6 @@ public sealed class WorkerHub(
             worker.WorkerId,
             info.LanEndpoints ?? Array.Empty<string>(),
             info.PublicTransferBaseUrl);
-
-        // Worker 首次上报 home 时幂等创建默认工作区（后续上报同 worker 已有工作区则跳过）
-        if (!string.IsNullOrEmpty(info.HomePath) && !string.IsNullOrEmpty(worker.OwnerUserId))
-        {
-            try
-            {
-                await workspaceRegistry.EnsureDefaultAsync(worker.OwnerUserId!, worker.WorkerId, info.HomePath!);
-            }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex, "Failed to ensure default workspace for worker {WorkerId}.", worker.WorkerId);
-            }
-        }
 
         logger.LogInformation("Worker {WorkerId} updated info: hostname={Hostname}, os={OS}, arch={Arch}, version={Version}, cpu={Cpu}%, mem={Mem}%.",
             worker.WorkerId, info.Hostname, info.OperatingSystem, info.Architecture, info.Version,

@@ -246,9 +246,6 @@ public sealed class WorkerHubTests
         IReadOnlyDictionary<string, IClientProxy> terminalClients)
     {
         var hub = new CortexTerminal.Gateway.Tests.Sessions.Fakes.ArtifactTestHubContext();
-        var workspaces = new WorkspaceRegistry(
-            TestSessionFactory.CreateContextFactoryPublic(),
-            new FixedTimeProvider(DateTimeOffset.UtcNow));
         var agentActivity = TestSessionFactory.CreateAgentActivityService(hub);
         return (WorkerHub)Activator.CreateInstance(
             typeof(WorkerHub),
@@ -259,7 +256,6 @@ public sealed class WorkerHubTests
             new TestHubContext<TerminalHub>(terminalClients),
             new NoOpStatsService(),
             new NoOpSessionStatsService(),
-            workspaces,
             Microsoft.Extensions.Options.Options.Create(new CortexTerminal.Gateway.Workspaces.RelayOptions()).Value,
             agentActivity,
             NullLogger<WorkerHub>.Instance)!;

@@ -55,29 +55,6 @@ public sealed class WorkspaceRegistry(IDbContextFactory<AppDbContext> dbFactory,
         return entity;
     }
 
-    /// <summary>Worker 首次上报 home 时幂等创建默认工作区（同 worker 已有任何工作区则跳过）。</summary>
-    public async Task EnsureDefaultAsync(string userId, string workerId, string homePath)
-    {
-        await using var db = await dbFactory.CreateDbContextAsync();
-        var exists = await db.Workspaces.AsNoTracking()
-            .AnyAsync(w => w.WorkerId == workerId && w.DeletedAtUtc == null);
-        if (exists)
-        {
-            return;
-        }
-        db.Workspaces.Add(new WorkspaceEntity
-        {
-            Id = $"ws_{Guid.NewGuid():N}",
-            OwnerUserId = userId,
-            WorkerId = workerId,
-            Name = "Home",
-            RootPath = homePath,
-            IsDefault = true,
-            CreatedAtUtc = timeProvider.GetUtcNow(),
-        });
-        await db.SaveChangesAsync();
-    }
-
     /// <summary>软删除。默认工作区与仍有会话绑定的工作区拒绝删除。</summary>
     public async Task DeleteAsync(string userId, string workspaceId, int boundSessionCount)
     {

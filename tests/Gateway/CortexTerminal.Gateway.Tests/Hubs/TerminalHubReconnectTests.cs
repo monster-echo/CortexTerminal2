@@ -169,9 +169,6 @@ public sealed class TerminalHubReconnectTests
         IReadOnlyDictionary<string, IClientProxy>? terminalClients = null)
     {
         var hub = new CortexTerminal.Gateway.Tests.Sessions.Fakes.ArtifactTestHubContext();
-        var workspaces = new WorkspaceRegistry(
-            TestSessionFactory.CreateContextFactoryPublic(),
-            new FixedTimeProvider(DateTimeOffset.UtcNow));
         var agentActivity = TestSessionFactory.CreateAgentActivityService(hub);
         return (WorkerHub)Activator.CreateInstance(
             typeof(WorkerHub),
@@ -182,7 +179,6 @@ public sealed class TerminalHubReconnectTests
             new TestHubContext<TerminalHub>(terminalClients ?? new Dictionary<string, IClientProxy>()),
             new NoOpStatsService(),
             new NoOpSessionStatsService(),
-            workspaces,
             Microsoft.Extensions.Options.Options.Create(new CortexTerminal.Gateway.Workspaces.RelayOptions()).Value,
             agentActivity,
             NullLogger<WorkerHub>.Instance)!;
