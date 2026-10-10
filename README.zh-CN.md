@@ -39,6 +39,8 @@ graph LR
 - **Gateway** -- 中心服务器，负责认证、会话路由和实时通信。
 - **Worker** -- 轻量级代理，运行在被管理机器上，负责 PTY 会话管理和 I/O 流转发。
 - **Console** -- 浏览器终端界面，同时提供 iOS 和 Android 原生客户端。
+  > [!WARNING]
+  > 浏览器版 Console（`src/Gateway/CortexTerminal.Console`）**已停止维护**，请使用 Flutter（iOS / Android）或 HarmonyOS 客户端。
 
 ## 功能
 

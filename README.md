@@ -39,6 +39,8 @@ graph LR
 - **Gateway** -- Central server handling authentication, session routing, and real-time communication.
 - **Worker** -- Lightweight agent that runs on your machines, manages PTY sessions, and streams I/O back to the Gateway.
 - **Console** -- Browser-based terminal UI served by the Gateway. Also available as native iOS and Android apps.
+  > [!WARNING]
+  > The browser Console (`src/Gateway/CortexTerminal.Console`) is **no longer maintained**. Please use the Flutter (iOS / Android) or HarmonyOS clients.
 
 ## Features
 
