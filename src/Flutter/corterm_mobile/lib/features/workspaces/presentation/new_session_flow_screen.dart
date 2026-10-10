@@ -67,6 +67,16 @@ class _NewSessionFlowScreenState extends ConsumerState<NewSessionFlowScreen> {
     }
   }
 
+  /// 电脑无工作区（或列表底部）时的捷径：内联新建工作区，
+  /// 成功后带回新工作区并直接继续创建会话。
+  Future<void> _newWorkspace() async {
+    final ws = await context
+        .push<Workspace>('/workspaces/new?workerId=$_workerId&returnResult=1');
+    if (ws == null || !mounted) return;
+    setState(() => _workspaceId = ws.workspaceId);
+    await _create(ws);
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = colorsOf(context);
@@ -122,7 +132,7 @@ class _NewSessionFlowScreenState extends ConsumerState<NewSessionFlowScreen> {
               subtitle: lockedWorkspace.rootPath,
               leading: const Icon(Icons.folder),
             )
-          else if (_workerId != null)
+          else if (_workerId != null) ...[
             for (final ws in workspaces.where((w) => w.workerId == _workerId))
               ListRow(
                 title: ws.displayName,
@@ -131,7 +141,14 @@ class _NewSessionFlowScreenState extends ConsumerState<NewSessionFlowScreen> {
                 selected: ws.workspaceId == _workspaceId,
                 onTap: () => setState(() => _workspaceId = ws.workspaceId),
                 trailing: const Icon(Icons.chevron_right, size: 18),
-              )
+              ),
+            ListRow(
+              title: '新建工作区…',
+              leading: const Icon(Icons.create_new_folder),
+              onTap: _newWorkspace,
+              trailing: const Icon(Icons.chevron_right, size: 18),
+            ),
+          ]
           else
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 16),

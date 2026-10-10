@@ -24,6 +24,7 @@ class _NewWorkspaceScreenState extends ConsumerState<NewWorkspaceScreen> {
   bool _creating = false;
   String? _error;
   bool _queryRead = false;
+  bool _returnResult = false;
 
   final _nameController = TextEditingController();
 
@@ -34,9 +35,11 @@ class _NewWorkspaceScreenState extends ConsumerState<NewWorkspaceScreen> {
     // GoRouterState 是继承组件：只能在 didChangeDependencies/build 里读。
     if (_workerId == null && !_queryRead) {
       _queryRead = true;
-      final preselect =
-          GoRouterState.of(context).uri.queryParameters['workerId'];
+      final params = GoRouterState.of(context).uri.queryParameters;
+      final preselect = params['workerId'];
       if (preselect != null && preselect.isNotEmpty) _workerId = preselect;
+      // returnResult=1：由调用方（新建会话流程）push 进入，创建成功后带回结果。
+      _returnResult = params['returnResult'] == '1';
     }
   }
 
@@ -81,10 +84,14 @@ class _NewWorkspaceScreenState extends ConsumerState<NewWorkspaceScreen> {
             name: _nameController.text,
             rootPath: _folder!,
           );
-      // 新工作区不在缓存列表里，先失效再进详情，否则详情页判为不存在。
+      // 新工作区不在缓存列表里，先失效；流程内调用时把结果带回调用方。
       if (mounted) {
         ref.invalidate(workspacesProvider);
-        context.pushReplacement('/workspaces/${ws.workspaceId}');
+        if (_returnResult) {
+          context.pop(ws);
+        } else {
+          context.pushReplacement('/workspaces/${ws.workspaceId}');
+        }
       }
     } catch (e) {
       setState(() {
