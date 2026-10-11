@@ -68,6 +68,7 @@ jobs:
             ln -sfn "$PWD/common/routermodule" feature/$mod/oh_modules/routermodule
           done
           ln -sfn "$PWD/common/signalr" feature/terminal/oh_modules/@rwecho/signalr
+          ln -sfn "$PWD/feature/session" feature/worker/oh_modules/@rwecho/session
 
       - name: Build unsigned HAP and APP
         run: |
