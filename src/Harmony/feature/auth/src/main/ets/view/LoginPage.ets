@@ -462,14 +462,9 @@ export struct LoginPage {
   // ── Handlers ────────────────────────────────────────────────────
 
   private handlePrivacyTagClick(tag: string) {
-    if (tag === TERMS_TAG) {
-      const url = (this.getUIContext()?.getHostContext() as common.UIAbilityContext)
-        .resourceManager.getStringByNameSync('terms_of_service_url')
-      this.openExternal(url)
-    } else if (tag === PRIVACY_TAG) {
-      const url = (this.getUIContext()?.getHostContext() as common.UIAbilityContext)
-        .resourceManager.getStringByNameSync('privacy_policy_url')
-      this.openExternal(url)
+    if (tag === TERMS_TAG || tag === PRIVACY_TAG) {
+      const param: Record<string, string> = { 'kind': tag === PRIVACY_TAG ? 'privacy' : 'terms' }
+      this.pageStack.pushPath({ name: RouteName.LEGAL_DOCUMENT, param: param })
     } else if (tag === HUAWEI_AUTH_TAG) {
       this.openExternal(this.getHuaweiAuthTermsUrl())
     }

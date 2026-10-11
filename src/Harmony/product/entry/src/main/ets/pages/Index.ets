@@ -10,7 +10,7 @@ import { TerminalPage } from '@rwecho/terminal'
 import { FilesPageRoute, FilePreviewPage } from '@rwecho/files'
 import { ShellScaffold } from '../shell/ShellScaffold'
 import { WorkspaceHomePage } from '@rwecho/session'
-import { AccountSecurityPage, ChangePasswordPage, WebPage, ContactSupportPage, FeedbackPage, ImagePreviewPage, MembershipPage, RedeemPage, ReferralPage, PreferencesPage, TerminalThemesPage, AboutPage } from '@rwecho/settings'
+import { AccountSecurityPage, ChangePasswordPage, LegalDocumentPage, WebPage, ContactSupportPage, FeedbackPage, ImagePreviewPage, MembershipPage, RedeemPage, ReferralPage, PreferencesPage, TerminalThemesPage, AboutPage } from '@rwecho/settings'
 
 @Entry
 @Component
@@ -144,6 +144,12 @@ struct Index {
     } else if (name === RouteName.ACTIVATE_CODE) {
       NavDestination() {
         EnterActivationCodePage({ initialCode: param as string })
+      }
+      .hideTitleBar(true)
+      .backgroundColor($r('app.color.terminal_background'))
+    } else if (name === RouteName.LEGAL_DOCUMENT) {
+      NavDestination() {
+        LegalDocumentPage({ documentKind: (param as Record<string, string>)['kind'] || 'terms' })
       }
       .hideTitleBar(true)
       .backgroundColor($r('app.color.terminal_background'))

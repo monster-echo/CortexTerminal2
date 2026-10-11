@@ -12,6 +12,7 @@ export class RouteName {
   static readonly CHANGE_PASSWORD: string = 'ChangePassword'
   static readonly ACTIVATE_WORKER: string = 'ActivateWorker'
   static readonly ACTIVATE_CODE: string = 'ActivateCode'
+  static readonly LEGAL_DOCUMENT: string = 'legal/Document'
   static readonly WEB_PAGE: string = 'web/Page'
   static readonly FILES_PAGE: string = 'files/Page'
   static readonly FILE_PREVIEW: string = 'files/Preview'

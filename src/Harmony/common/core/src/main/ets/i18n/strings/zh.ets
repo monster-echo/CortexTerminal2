@@ -251,6 +251,7 @@ export const zhStrings: Record<string, string> = {
   'settings.general': '通用设置',
   'settings.about_version': '版本号: {v}',
   'settings.copyright': 'CortexTerminal · 移动端 AI Agent 工作区',
+  'legal.account_deletion': '账户删除说明',
   'settings.footer_terms': '服务条款',
   'settings.footer_privacy': '隐私政策',
   'security.title': '账号安全',

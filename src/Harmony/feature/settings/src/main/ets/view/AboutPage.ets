@@ -20,10 +20,8 @@ export struct AboutPage {
 
   private openLegal(resourceKey: string) {
     lightHaptic()
-    const url = (this.getUIContext()?.getHostContext() as common.UIAbilityContext)
-      .resourceManager.getStringByNameSync(resourceKey)
-    const navParam: Record<string, string> = { 'url': url }
-    this.pageStack.pushPath({ name: RouteName.WEB_PAGE, param: navParam })
+    const param: Record<string, string> = { 'kind': resourceKey === 'privacy_policy_url' ? 'privacy' : 'terms' }
+    this.pageStack.pushPath({ name: RouteName.LEGAL_DOCUMENT, param: param })
   }
 
   private async shareApp() {

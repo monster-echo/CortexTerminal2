@@ -20,3 +20,5 @@ export { ReferralPage } from './src/main/ets/view/ReferralPage'
 export { PreferencesPage } from './src/main/ets/view/PreferencesPage'
 export { TerminalThemesPage } from './src/main/ets/view/TerminalThemesPage'
 export { AboutPage } from './src/main/ets/view/AboutPage'
+
+export { LegalDocumentPage } from './src/main/ets/view/LegalDocumentPage'

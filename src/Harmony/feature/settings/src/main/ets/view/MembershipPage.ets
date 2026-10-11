@@ -128,9 +128,8 @@ export struct MembershipPage {
   }
 
   private openLegal(key: string) {
-    const context = this.getUIContext().getHostContext() as common.UIAbilityContext
-    const param: Record<string, string> = { 'url': context.resourceManager.getStringByNameSync(key) }
-    this.pageStack.pushPath({ name: RouteName.WEB_PAGE, param })
+    const param: Record<string, string> = { 'kind': key === 'privacy_policy_url' ? 'privacy' : 'terms' }
+    this.pageStack.pushPath({ name: RouteName.LEGAL_DOCUMENT, param: param })
   }
 
   private async purchaseSelectedPlan() {

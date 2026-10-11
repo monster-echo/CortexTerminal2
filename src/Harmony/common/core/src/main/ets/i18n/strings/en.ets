@@ -251,6 +251,7 @@ export const enStrings: Record<string, string> = {
   'settings.general': 'General',
   'settings.about_version': 'Version: {v}',
   'settings.copyright': 'CortexTerminal · Mobile AI Agent Workspace',
+  'legal.account_deletion': 'Account deletion',
   'settings.footer_terms': 'Terms of Service',
   'settings.footer_privacy': 'Privacy Policy',
   'security.title': 'Account Security',
