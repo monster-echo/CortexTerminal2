@@ -11,10 +11,11 @@ RUN dotnet publish src/Relay/CortexTerminal.Relay/CortexTerminal.Relay.csproj \
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
-EXPOSE 8090
-ENV ASPNETCORE_URLS=http://+:8090
+EXPOSE 8092
+ENV ASPNETCORE_URLS=http://+:8092
 ENV ASPNETCORE_ENVIRONMENT=Production
 COPY --from=build /app/publish .
 RUN useradd --system --create-home appuser && chown -R appuser:appuser /app
 USER appuser
-ENTRYPOINT ["dotnet", "corterm-relay.dll"]
+# 程序集名 = 项目名 CortexTerminal.Relay,不是镜像名 corterm-relay
+ENTRYPOINT ["dotnet", "CortexTerminal.Relay.dll"]
