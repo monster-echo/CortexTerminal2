@@ -72,10 +72,21 @@ jobs:
       - name: Build unsigned HAP and APP
         run: |
           cd src/Harmony
-          chmod +x hvigorw
-          ./hvigorw clean --no-daemon
-          ./hvigorw assembleHap --mode module -p product=default --no-daemon
-          ./hvigorw assembleApp --mode project -p product=default --no-daemon
+          # Signing is performed explicitly in the following step.
+          python3 - <<'PYCONFIG'
+          import json
+          from pathlib import Path
+          profile = Path('build-profile.json5')
+          config = json.loads(profile.read_text())
+          config['app']['signingConfigs'] = []
+          for product in config['app']['products']:
+              product.pop('signingConfig', None)
+          profile.write_text(json.dumps(config, indent=2))
+          PYCONFIG
+          HVIGOR="/Applications/DevEco-Studio.app/Contents/tools/hvigor/hvigor/bin/hvigor.js"
+          node "$HVIGOR" clean --no-daemon
+          node "$HVIGOR" assembleHap --mode module -p module=entry@default -p product=default --no-daemon
+          node "$HVIGOR" assembleApp --mode project -p product=default --no-daemon
 
       - name: Sign APP with release certificate
         env:
