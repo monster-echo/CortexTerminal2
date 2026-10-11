@@ -1,13 +1,17 @@
-import { SessionInfo } from '@rwecho/core'
+import { SessionInfo, I18n } from '@rwecho/core'
 import { TimeUtils } from '../utils/TimeUtils'
 
 @Component
 export struct SessionCard {
+  @Prop workspaceStyle: boolean = false
   @Prop session: SessionInfo = new SessionInfo()
   onCardClick?: () => void
 
   build() {
     Row() {
+      if (this.workspaceStyle) {
+        Image($r('app.media.ws_terminal')).width(22).height(22).fillColor($r('app.color.terminal_text')).margin({ right: 12 })
+      }
       // Session info
       Column() {
         Text(this.session.name || `session ${this.session.id.substring(0, 8)}`)
@@ -17,7 +21,7 @@ export struct SessionCard {
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
 
-        if (this.session.workerName.length > 0) {
+        if (!this.workspaceStyle && this.session.workerName.length > 0) {
           Text(this.session.workerName)
             .fontSize(12)
             .fontColor($r('app.color.terminal_text_muted'))
@@ -45,7 +49,9 @@ export struct SessionCard {
       .backgroundColor($r('app.color.terminal_background_panel'))
     }
     .width('100%')
-    .padding(14)
+    .padding(this.workspaceStyle ? 16 : 14)
+    .constraintSize({ minHeight: this.workspaceStyle ? 80 : 0 })
+    .border({ width: this.workspaceStyle ? 1 : 0, color: $r('app.color.terminal_border_subtle') })
     .borderRadius(12)
     .backgroundColor($r('app.color.terminal_background_panel'))
     .onClick(() => { if (this.onCardClick) { this.onCardClick() } })
@@ -73,10 +79,10 @@ export struct SessionCard {
       case 'live':
       case 'connected':
       case 'running':
-        return 'Live'
+        return I18n.get('workspace.ui.running')
       case 'idle':
       case 'detached':
-        return 'Idle'
+        return I18n.get('workspace.ui.idle')
       case 'expired':
         return 'Expired'
       case 'exited':

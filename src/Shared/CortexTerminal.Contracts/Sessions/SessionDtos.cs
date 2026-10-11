@@ -9,7 +9,10 @@ public sealed record CreateSessionRequest(
     [property: Key(2)] int Rows,
     [property: Key(3)] string? ClientRequestId = null,
     [property: Key(4)] string? WorkerId = null,
-    [property: Key(5)] string? WorkspaceId = null);
+    [property: Key(5)] string? WorkspaceId = null,
+    /// <summary>Fork 语义：新 PTY 的起始目录（客户端持源会话的 OSC 7 实时 cwd）。
+    /// 目录不存在时 PTY 启动失败并上报（不静默回退 home）。</summary>
+    [property: Key(6)] string? Cwd = null);
 
 [MessagePackObject]
 public sealed record CreateSessionResponse(

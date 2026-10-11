@@ -19,6 +19,9 @@ export class PageMenuItem {
 @Component
 export struct PageLayout {
   title: string = ''
+  actionTitle: string = ''
+  actionEnabled: boolean = true
+  onAction: () => void = () => {}
   onBack?: (() => void) | null = null
   /** Optional AppBar "···" overflow menu entries. Rendered only when non-empty. */
   moreMenuItems: PageMenuItem[] | null = null
@@ -56,6 +59,12 @@ export struct PageLayout {
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .margin({ left: 8 })
+
+        if (this.actionTitle.length > 0) {
+          Button(this.actionTitle).height(44).fontSize(14)
+            .backgroundColor(Color.Transparent).fontColor($r('app.color.terminal_on_primary_container'))
+            .enabled(this.actionEnabled).onClick(() => this.onAction())
+        }
 
         if (this.moreMenuItems !== null && this.moreMenuItems.length > 0) {
           OverflowMenuButton({ items: this.moreMenuItems })

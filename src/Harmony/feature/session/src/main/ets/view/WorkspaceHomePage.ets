@@ -12,6 +12,10 @@ import { SessionCard } from './SessionCard'
 
 @Component
 export struct WorkspaceHomePage {
+  @StorageLink('language') currentLanguage: string = 'en'
+  @StorageLink('workspaceRefreshTick') @Watch('refreshSessions') refreshTick: number = 0
+  @StorageLink('triggerWorkspaceSession') @Watch('onCreateTriggered') createTrigger: boolean = false
+  @State isCreating: boolean = false
   @State workspace: WorkspaceInfo | null = null
   @State sessions: SessionInfo[] = []
   @State workers: WorkerInfo[] = []
@@ -21,6 +25,25 @@ export struct WorkspaceHomePage {
   @Consume('pageStack') pageStack: NavPathStack
 
   private workspaceId: string = ''
+  private sessionsRequest: number = 0
+
+  async refreshSessions() {
+    if (this.workspaceId.length === 0) return
+    try {
+      await this.loadSessions()
+    } catch (e) {
+      showToast((e as Error).message)
+    }
+  }
+
+  onCreateTriggered() {
+    if (this.createTrigger) {
+      this.createTrigger = false
+      if (this.workspace !== null && this.boundWorker()?.isOnline && !this.isCreating) this.createSessionInWorkspace()
+    }
+  }
+
+  private tr(key: string): string { return I18n.get(key) + (this.currentLanguage ? '' : '') }
 
   aboutToAppear() {
     AnalyticsService.onPageStart('workspace/Home')
@@ -92,129 +115,61 @@ export struct WorkspaceHomePage {
 
   @Builder
   WorkspaceContent() {
-    Scroll() {
-      Column() {
-        this.InfoCard()
-        this.ActionRow()
-        this.SessionSection()
-      }
-      .width('100%')
-      // subPage 顶部间距对齐 WorkerDetailPage（区域间距 24），内容不再紧贴 AppBar。
-      .padding({ left: 20, right: 20, top: 24, bottom: 24 })
-    }
-    .width('100%')
-    .layoutWeight(1)
-    .scrollBar(BarState.Off)
+    Column() {
+      Scroll() {
+        Column({ space: 16 }) {
+          this.InfoCard()
+          Row({ space: 12 }) {
+            SymbolGlyph($r('sys.symbol.folder')).fontSize(22).fontColor([$r('app.color.terminal_text')])
+            Text(this.tr('workspace.home.open_files')).fontSize(16).fontWeight(FontWeight.Medium).fontColor($r('app.color.terminal_text')).layoutWeight(1)
+            SymbolGlyph($r('sys.symbol.chevron_right')).fontSize(14).fontColor([$r('app.color.terminal_text_muted')])
+          }.width('100%').height(60).padding(16).borderRadius(12)
+            .backgroundColor($r('app.color.terminal_background_panel')).border({ width: 1, color: $r('app.color.terminal_border_subtle') })
+            .onClick(() => { this.openFiles() })
+          this.SessionSection()
+        }.width('100%').padding({ left: 16, right: 16, top: 16, bottom: 24 })
+      }.width('100%').layoutWeight(1).align(Alignment.Top).scrollBar(BarState.Off)
+      Button(this.isCreating ? this.tr('membership.processing') : `＋ ${this.tr('workspace.home.new_session')}`)
+        .width('calc(100% - 32vp)').height(48).borderRadius(12).fontSize(16).fontWeight(FontWeight.Medium)
+        .backgroundColor($r('app.color.terminal_inverse_surface')).fontColor($r('app.color.terminal_inverse_on_surface'))
+        .enabled(this.boundWorker()?.isOnline === true && !this.isCreating)
+        .margin({ left: 16, right: 16, top: 8, bottom: 24 })
+        .onClick(() => { this.createSessionInWorkspace() })
+    }.width('100%').height('100%')
   }
 
   @Builder
   InfoCard() {
-    Column() {
-      Text(this.workspace!.name)
-        .fontSize(20)
-        .fontWeight(FontWeight.Bold)
-        .fontColor($r('app.color.terminal_text'))
-        .width('100%')
-        .maxLines(1)
-        .textOverflow({ overflow: TextOverflow.Ellipsis })
-
-      Row() {
-        Circle()
-          .width(10)
-          .height(10)
-          .fill(this.boundWorker() !== null && this.boundWorker()!.isOnline
-            ? $r('app.color.terminal_success')
-            : $r('app.color.terminal_status_idle'))
-        Text(`${I18n.get('workspace.home.info_worker')}：${this.workerDisplayName()}`)
-          .fontSize(13)
-          .fontColor($r('app.color.terminal_text_muted'))
-          .margin({ left: 8 })
-        Text(this.boundWorker() !== null && this.boundWorker()!.isOnline
-          ? I18n.get('workspace.home.status_online')
-          : I18n.get('workspace.home.status_offline'))
-          .fontSize(12)
-          .fontColor($r('app.color.terminal_text_muted'))
-          .padding({ left: 8, right: 8, top: 2, bottom: 2 })
-          .borderRadius(8)
-          .backgroundColor($r('app.color.terminal_background_element'))
-          .margin({ left: 8 })
-      }
-      .margin({ top: 10 })
-
-      if (this.workspace!.rootPath.length > 0) {
-        Text(`${I18n.get('workspace.home.info_path')}：${this.workspace!.rootPath}`)
-          .fontSize(13)
-          .fontColor($r('app.color.terminal_text_muted'))
-          .width('100%')
-          .maxLines(2)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-          .margin({ top: 6 })
-      }
-    }
-    .alignItems(HorizontalAlign.Start)
-    .width('100%')
-    .padding(16)
-    .borderRadius(12)
-    .backgroundColor($r('app.color.terminal_background_panel'))
-  }
-
-  @Builder
-  ActionRow() {
-    Row({ space: 12 }) {
-      // 主操作：黑白反色胶囊（对齐设计规范主按钮）。
-      Button(I18n.get('workspace.home.new_session'))
-        .height(44)
-        .borderRadius(24)
-        .backgroundColor($r('app.color.terminal_inverse_surface'))
-        .fontColor($r('app.color.terminal_inverse_on_surface'))
-        .fontSize(15)
-        .fontWeight(FontWeight.Medium)
-        .layoutWeight(1)
-        .enabled(this.boundWorker() !== null && this.boundWorker()!.isOnline)
-        .opacity(this.boundWorker() !== null && this.boundWorker()!.isOnline ? 1 : 0.5)
-        .onClick(() => { clickHaptic(); this.createSessionInWorkspace() })
-
-      Button(I18n.get('workspace.home.open_files'))
-        .height(44)
-        .borderRadius(12)
-        .backgroundColor($r('app.color.terminal_secondary_container'))
-        .fontColor($r('app.color.terminal_on_secondary_container'))
-        .fontSize(15)
-        .fontWeight(FontWeight.Medium)
-        .layoutWeight(1)
-        .onClick(() => { clickHaptic(); this.openFiles() })
-    }
-    .width('100%')
-    .margin({ top: 16 })
+    Column({ space: 8 }) {
+      Row({ space: 8 }) {
+        Circle().width(8).height(8).fill(this.boundWorker()?.isOnline ? $r('app.color.terminal_success') : $r('app.color.terminal_status_idle'))
+        Text(`${this.workerDisplayName()} · ${this.tr(this.boundWorker()?.isOnline ? 'workspace.home.status_online' : 'workspace.home.status_offline')}`)
+          .fontSize(14).fontColor($r('app.color.terminal_text')).maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis }).layoutWeight(1)
+      }.width('100%')
+      Text(this.workspace!.rootPath).fontSize(12).fontFamily('monospace').fontColor($r('app.color.terminal_text_muted'))
+        .width('100%').maxLines(2).textOverflow({ overflow: TextOverflow.Ellipsis })
+    }.width('100%').padding({ top: 4, bottom: 4 }).alignItems(HorizontalAlign.Start)
   }
 
   @Builder
   SessionSection() {
-    Column() {
-      Text(I18n.get('workspace.home.sessions'))
-        .fontSize(16)
-        .fontWeight(FontWeight.Medium)
-        .fontColor($r('app.color.terminal_text'))
-        .width('100%')
-        .margin({ top: 24, bottom: 12 })
-
+    Column({ space: 12 }) {
+      Row() {
+        Text(this.tr('workspace.home.sessions')).fontSize(16).fontWeight(FontWeight.Medium).fontColor($r('app.color.terminal_text')).layoutWeight(1)
+        Text(I18n.getWithArgs('workspace.home.session_count', { 'count': `${this.sessions.length}` })).fontSize(12).fontColor($r('app.color.terminal_text_muted'))
+      }.width('100%').height(36)
       if (this.sessions.length === 0) {
-        Text(I18n.get('workspace.home.empty_sessions'))
-          .fontSize(14)
-          .fontColor($r('app.color.terminal_text_muted'))
-          .width('100%')
+        Text(this.tr('workspace.home.empty_sessions')).fontSize(14).fontColor($r('app.color.terminal_text_muted')).width('100%').padding({ top: 12, bottom: 12 })
       } else {
         ForEach(this.sessions, (session: SessionInfo) => {
           Column() {
-            SessionCard({ session: session, onCardClick: () => { lightHaptic(); this.resumeSession(session) } })
-          }
-          // 长按会话卡片 → 移出工作区（moveSessionToWorkspace 空串 = 移出）。
-          .gesture(LongPressGesture({ repeat: false })
-            .onAction(() => { this.confirmMoveOut(session) }))
-        }, (session: SessionInfo) => session.id)
+            SessionCard({ session: session, workspaceStyle: true, onCardClick: () => { lightHaptic(); this.resumeSession(session) } })
+          }.width('100%').gesture(LongPressGesture({ repeat: false }).onAction(() => { this.confirmMoveOut(session) }))
+        }, (session: SessionInfo) => JSON.stringify([session.id, session.name, session.status,
+          session.updatedAt, session.lastActivityAt, session.lastActiveAt]))
+        Text(this.tr('workspace.ui.move_hint')).fontSize(12).fontColor($r('app.color.terminal_text_muted')).width('100%').margin({ top: 4 })
       }
-    }
-    .width('100%')
+    }.width('100%')
   }
 
   private workerDisplayName(): string {
@@ -253,6 +208,7 @@ export struct WorkspaceHomePage {
     try {
       lightHaptic()
       await ApiService.moveSessionToWorkspace(session.id, '')
+      AppStorage.setOrCreate('workspaceRefreshTick', Date.now())
       showI18nToast('workspace.home.move_out_success')
       await this.loadSessions()
     } catch (e) {
@@ -270,12 +226,28 @@ export struct WorkspaceHomePage {
   }
 
   private async createSessionInWorkspace() {
+    if (this.isCreating || this.workspace === null || !this.boundWorker()?.isOnline) return
+    this.isCreating = true
     try {
       clickHaptic()
       const request = new SessionCreateRequest()
       request.workerId = this.workspace!.workerId
       request.workspaceId = this.workspace!.id
       const response = await ApiService.createSession(request)
+      // Keep the created session in the retained page immediately, even when
+      // the user returns before the background refresh finishes.
+      this.sessionsRequest++
+      const created = new SessionInfo()
+      created.id = response.sessionId
+      created.sessionId = response.sessionId
+      created.name = response.name
+      created.workerId = response.workerId
+      created.workspaceId = this.workspace!.id
+      created.status = response.status
+      created.createdAt = response.createdAt
+      created.updatedAt = response.createdAt
+      this.sessions = [created, ...this.sessions.filter((s: SessionInfo) => s.id !== created.id)]
+      AppStorage.setOrCreate('workspaceRefreshTick', Date.now())
       AnalyticsService.onEvent(AnalyticsEvent.SESSION_CREATE)
       const param = new TerminalNavParam()
       param.sessionId = response.sessionId
@@ -284,7 +256,7 @@ export struct WorkspaceHomePage {
       this.pageStack.pushPath({ name: RouteName.TERMINAL_SESSION, param: param })
     } catch (e) {
       showToast((e as Error).message || I18n.get('workspace.home.create_session_failed'))
-    }
+    } finally { this.isCreating = false }
   }
 
   private async loadData() {
@@ -307,7 +279,9 @@ export struct WorkspaceHomePage {
   }
 
   private async loadSessions() {
+    const request = ++this.sessionsRequest
     const all = await ApiService.listSessions()
+    if (request !== this.sessionsRequest) return
     const sorted = all.filter((s: SessionInfo) => s.workspaceId === this.workspaceId)
     sorted.sort((a: SessionInfo, b: SessionInfo) => {
       const timeA = new Date(a.updatedAt || a.createdAt).getTime()

@@ -99,11 +99,16 @@ class SessionRepository {
 
   /// 创建 shell 会话。`clientRequestId` 幂等键，防重复点击造成双开。
   /// `workspaceId` 决定 PTY cwd = 工作区根（IA 约定：会话必属工作区）。
+  /// `cwd`（Fork 用，CreateSessionRequest.Key(6)）：非空时 PTY 以该目录启动，
+  /// 优先于 workspace 根；为 null 时不序列化，网关按默认规则取目录。
+  /// `name`：非空时创建即命名（免二次 rename 往返）。
   Future<SessionSummary> create({
     required int columns,
     required int rows,
     String? workerId,
     String? workspaceId,
+    String? cwd,
+    String? name,
   }) async {
     Map<String, dynamic> json;
     try {
@@ -114,6 +119,8 @@ class SessionRepository {
         'clientRequestId': _newRequestId(),
         'workerId': ?workerId,
         'workspaceId': ?workspaceId,
+        'cwd': ?cwd,
+        'name': ?name,
       });
     } on ApiException {
       rethrow;

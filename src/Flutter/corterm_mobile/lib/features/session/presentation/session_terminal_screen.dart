@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
@@ -144,6 +145,22 @@ class _SessionTerminalScreenState extends ConsumerState<SessionTerminalScreen> {
               ],
               Divider(height: 1, color: colors.divider),
               _MenuItem(
+                label: 'Fork 会话',
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _forkSession(session);
+                },
+              ),
+              Divider(height: 1, color: colors.divider),
+              _MenuItem(
+                label: '复制全部输出',
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _copyAllOutput();
+                },
+              ),
+              Divider(height: 1, color: colors.divider),
+              _MenuItem(
                 label: '端口转发',
                 onTap: () {
                   Navigator.pop(sheetContext);
@@ -158,6 +175,35 @@ class _SessionTerminalScreenState extends ConsumerState<SessionTerminalScreen> {
         );
       },
     );
+  }
+
+  /// Fork：以当前会话为模板新建 shell（同 worker + OSC 7 实时 cwd）。
+  /// 失败（cwd 未上报 / 创建失败）原样 toast 展示，不静默回退。
+  Future<void> _forkSession(SessionSummary? session) async {
+    try {
+      await ref.read(sessionControllerProvider.notifier).forkSession(
+            widget.sessionId,
+            sourceName: session?.name ?? '',
+          );
+    } catch (e) {
+      if (!mounted) return;
+      showAppToast(context, '$e', destructive: true);
+    }
+  }
+
+  /// 复制当前 buffer 全部文本到系统剪贴板。
+  void _copyAllOutput() {
+    try {
+      final text = ref
+          .read(sessionControllerProvider.notifier)
+          .bufferText(widget.sessionId);
+      Clipboard.setData(ClipboardData(text: text));
+      if (!mounted) return;
+      showAppToast(context, '已复制');
+    } catch (e) {
+      if (!mounted) return;
+      showAppToast(context, '$e', destructive: true);
+    }
   }
 
   @override

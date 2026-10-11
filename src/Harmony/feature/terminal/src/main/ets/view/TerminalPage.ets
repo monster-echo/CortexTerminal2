@@ -11,7 +11,7 @@ import { common } from '@kit.AbilityKit'
 import { window } from '@kit.ArkUI'
 import { webview } from '@kit.ArkWeb'
 import { pasteboard } from '@kit.BasicServicesKit'
-import { ApiService, SessionInfo, TerminalNavParam, RouteName, I18n, AnalyticsService, lightHaptic, clickHaptic, showToast, PageMenuItem, OverflowMenuButton, TerminalChrome } from '@rwecho/core'
+import { ApiService, SessionInfo, SessionCreateRequest, TerminalNavParam, RouteName, I18n, AnalyticsService, lightHaptic, clickHaptic, showToast, PageMenuItem, OverflowMenuButton, TerminalChrome } from '@rwecho/core'
 import { TerminalCache, TerminalCacheEntry } from '../service/TerminalCache'
 import { SnapshotStore } from '../service/SnapshotStore'
 import { TerminalStateManager } from '../service/TerminalStateManager'
@@ -199,14 +199,14 @@ export struct TerminalPage {
   private pendingBatch: string[] = []
   private flushScheduled: boolean = false
   private connectTimer: number = -1
+  private exitTimer: number = -1
   private resizeDebounceTimer: number = -1
   private pageVisible: boolean = true
-  // Scrollback snapshot (serialize → device file, keyed by WORKER so a new
-  // session on the same machine restores the old history and appends below
-  // it — Windows-Terminal-style concat). hasRestoredSnapshot marks a page
-  // whose painted content came from the snapshot: the server's authoritative
-  // full replay must not swap it away (for a new session that replay is
-  // empty; for a re-opened dead session the snapshot already contains it).
+  // Scrollback snapshot (serialize → device file, keyed by SESSION): a session
+  // restores only its own history; a NEW session starts blank. hasRestoredSnapshot
+  // marks a page whose painted content came from the snapshot: the server's
+  // authoritative full replay must not swap it away (for a re-opened dead session
+  // the snapshot already contains it).
   private snapshotKey: string = ''
   private hasRestoredSnapshot: boolean = false
   private snapshotIdleTimer: number = -1
@@ -249,10 +249,9 @@ export struct TerminalPage {
       // Stored (server-side) name — used to detect the default `session xxxxxxxx`
       // placeholder so the first OSC title can upgrade it to something meaningful.
       this.storedName = this.sessionName
-      // Snapshot key: the WORKER when known — every session on the same
-      // machine shares one rolling history. Worker-less navigation falls
-      // back to the session id (per-session snapshot, no cross concat).
-      this.snapshotKey = lastParam.workerId.length > 0 ? lastParam.workerId : this.sessionId
+      // Snapshot key: the SESSION itself — a session restores only its own
+      // history; a new session starts blank.
+      this.snapshotKey = this.sessionId
       console.info(`[snapshot] key=${this.snapshotKey} session=${this.sessionId}`)
     }
     TerminalCache.getInstance().init(getContext(this).filesDir)
@@ -273,6 +272,10 @@ export struct TerminalPage {
     AppStorage.setOrCreate('terminalPageActive', false)
     this.applyStatusBar(this.terminalColorMode !== 'light')
     this.pageVisible = false
+    if (this.exitTimer !== -1) {
+      clearTimeout(this.exitTimer)
+      this.exitTimer = -1
+    }
     if (this.connectTimer !== -1) {
       clearTimeout(this.connectTimer)
       this.connectTimer = -1
@@ -447,6 +450,12 @@ export struct TerminalPage {
           },
           onSnapshotFailed: (message: string) => {
             this.onSnapshotFailed(message)
+          },
+          onPlainTextExported: (content: string) => {
+            this.onPlainTextExported(content)
+          },
+          onPlainTextExportFailed: (message: string) => {
+            this.onPlainTextExportFailed(message)
           },
           onTitleChange: (title: string) => {
             // Remote shell reported its title (OSC 0/2). Update the page title
@@ -702,9 +711,7 @@ export struct TerminalPage {
         // webview may not survive long enough for the aboutToDisappear save.
         this.captureSnapshot()
         this.stateManager.setState(TerminalState.Expired)
-        setTimeout(() => {
-          this.pageStack.replacePath({ name: RouteName.SESSION_HOME })
-        }, 2000)
+        this.scheduleReturnToSource()
         break
 
       case 'exited':
@@ -712,9 +719,7 @@ export struct TerminalPage {
         TerminalCache.getInstance().clear(this.sessionId)
         this.captureSnapshot()
         this.stateManager.setState(TerminalState.Exited)
-        setTimeout(() => {
-          this.pageStack.replacePath({ name: RouteName.SESSION_HOME })
-        }, 2000)
+        this.scheduleReturnToSource()
         break
     }
   }
@@ -881,6 +886,7 @@ export struct TerminalPage {
         this.autoNamed = true
         this.autoRenameInFlight = false
         this.storedName = friendly
+        AppStorage.setOrCreate('workspaceRefreshTick', Date.now())
       })
       .catch((_e: Error) => {
         // Leave autoNamed=false — the next prompt's title retries the upgrade.
@@ -947,6 +953,11 @@ export struct TerminalPage {
     if (name.length === 0 || name === 'Terminal') {
       return true
     }
+    // ApiService.shortSessionTitle uses the actual ID, whose `sess_` prefix
+    // leaves only three hex characters in the eight-character placeholder.
+    if (name === this.sessionId || name === `session ${this.sessionId.substring(0, 8)}`) {
+      return true
+    }
     // 网关占位名两种形态：`session 2e1a4f5b`（空格）/ `session_2e1a4f5b`（下划线）。
     return /^session[_\s-]?[0-9a-f]{4,}$/i.test(name)
   }
@@ -1003,6 +1014,22 @@ export struct TerminalPage {
   private onSnapshotFailed(message: string) {
     console.error('Terminal snapshot capture failed: ' + message)
     showToast(I18n.get('terminal.snapshot.save_failed'))
+  }
+
+  /** 复制全部输出：buffer 纯文本 → 系统剪贴板（不新建任何东西）。 */
+  private copyAllOutput() {
+    this.webviewController.runJavaScript('startPlainTextExport()')
+      .catch((_e: Error) => {})
+  }
+
+  private onPlainTextExported(content: string) {
+    const pasteData = pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, content)
+    pasteboard.getSystemPasteboard().setData(pasteData)
+    showToast(I18n.get('terminal.copy_done'))
+  }
+
+  private onPlainTextExportFailed(message: string) {
+    console.error('Terminal text export failed: ' + message)
   }
 
   private flushPendingOutput() {
@@ -1414,13 +1441,76 @@ export struct TerminalPage {
     }
     items.push(files)
 
+    const fork = new PageMenuItem()
+    fork.value = I18n.get('terminal.fork')
+    fork.action = () => {
+      this.forkSession()
+    }
+    items.push(fork)
+
+    const copyAll = new PageMenuItem()
+    copyAll.value = I18n.get('terminal.copy_output')
+    copyAll.action = () => {
+      this.copyAllOutput()
+    }
+    items.push(copyAll)
+
     return items
+  }
+
+  /**
+   * Fork 会话：以当前运行中会话为模板，在同一 worker 上新建 shell。
+   * 继承 worker + OSC 7 实时 cwd（经 CreateSessionRequest.Cwd 下发，PTY 直接
+   * 以该目录启动）；不继承会话历史（新会话空屏，不复制快照）。
+   */
+  private async forkSession() {
+    // 与文件浏览同源：shell OSC 7 上报的实时 cwd。
+    const cwd = AppStorage.get<string>('terminalCwd') ?? ''
+    if (cwd.length === 0) {
+      showToast(I18n.get('terminal.fork_no_cwd'))
+      return
+    }
+    try {
+      clickHaptic()
+      const session = await ApiService.getSession(this.sessionId)
+      const request = new SessionCreateRequest()
+      request.workerId = session.workerId
+      request.cwd = cwd
+      request.name = `${this.sessionName} fork`
+      const response = await ApiService.createSession(request)
+      const param = new TerminalNavParam()
+      param.sessionId = response.sessionId
+      param.sessionName = response.name
+      param.workerId = response.workerId
+      this.pageStack.replacePath({ name: RouteName.TERMINAL_SESSION, param: param })
+    } catch (e) {
+      // pty-start-failed（如 cwd 已被删除）等错误原样展示，不静默回退。
+      showToast((e as Error).message)
+    }
   }
 
   private handleBack() {
     this.transport.sendDetach()
     this.stateManager.setState(TerminalState.Detached)
-    this.pageStack.replacePath({ name: RouteName.SESSION_HOME })
+    if (this.pageStack.size() > 1) {
+      this.pageStack.pop()
+    } else {
+      this.pageStack.replacePath({ name: RouteName.SESSION_HOME })
+    }
+  }
+
+  private scheduleReturnToSource() {
+    if (this.exitTimer !== -1) clearTimeout(this.exitTimer)
+    const expectedSessionId = this.sessionId
+    this.exitTimer = setTimeout(() => {
+      this.exitTimer = -1
+      const top = this.pageStack.size() - 1
+      const names = this.pageStack.getAllPathName()
+      if (!this.pageVisible || top < 0 || names[top] !== RouteName.TERMINAL_SESSION) return
+      const param = this.pageStack.getParamByIndex(top) as TerminalNavParam
+      // An old session's delayed event must not pop a replacement session or files page.
+      if (param && param.sessionId === expectedSessionId) this.handleBack()
+    }, 2000) as number
   }
 
   private async openFiles() {

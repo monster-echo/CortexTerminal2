@@ -219,7 +219,7 @@ export default class EntryAbility extends UIAbility {
         PersistentStorage.persistProp('webglEnabled', true)
         PersistentStorage.persistProp('showDevOptions', false)
         PersistentStorage.persistProp('firstLaunchDone', false)
-        this.syncTerminalColorMode()
+        this.syncColorMode()
 
         hilog.info(DOMAIN, TAG, `[STARTUP] token=${AppStorage.get<string>('authToken') || '(empty)'} isLoggedIn=${AppStorage.get<boolean>('isLoggedIn') ?? false} language=${AppStorage.get<string>('language') || 'en'}`)
 

@@ -8,7 +8,6 @@ import {
   ApiService,
   I18n,
   PageLayout,
-  PageMenuItem,
   RouteName,
   clickHaptic,
   showI18nToast
@@ -44,6 +43,7 @@ export struct MembershipPage {
   @State storeReady: boolean = false
   @State storeError: string = ''
   @State storePrices: HuaweiStorePrice[] = []
+  @State planCode: string = ''
   @State username: string = ''
 
   onRefreshTick() {
@@ -56,11 +56,12 @@ export struct MembershipPage {
   }
 
   private async loadMembership() {
-    this.isLoading = true
+    this.isLoading = this.plans.length === 0
     this.loadError = ''
     try {
       const sub = await ApiService.getSubscription()
       this.isActive = (sub['isActive'] as boolean) ?? false
+      this.planCode = sub['planCode'] as string
       this.expiresAtUtc = (sub['expiresAtUtc'] as string) ?? ''
       this.maxWorkers = (sub['maxWorkers'] as number) ?? 1
       this.maxScrollbackMegabytes = (sub['maxScrollbackMegabytes'] as number) ?? 10
@@ -81,6 +82,7 @@ export struct MembershipPage {
         })
       }
       this.plans = mapped
+      this.applyStorePrices()
       if (!this.hasPlan(this.selectedPlanCode, mapped)) {
         this.selectedPlanCode = this.defaultSelection(mapped)
       }
@@ -100,26 +102,40 @@ export struct MembershipPage {
       this.storePrices = await HuaweiIapService.queryPrices(context)
       this.storeReady = this.storePrices.length > 0
       this.storePrices = this.storePrices.slice()
-      for (let i = 0; i < this.plans.length; i++) {
-        const productId = HuaweiIapService.productForPlan(this.plans[i].code)
-        for (let j = 0; j < this.storePrices.length; j++) {
-          if (this.storePrices[j].productId === productId) {
-            this.plans[i].storePrice = this.storePrices[j].localPrice
-            this.plans[i].subscriptionGroupId = this.storePrices[j].subscriptionGroupId
-            break
-          }
-        }
-      }
-      this.plans = this.plans.slice()
+      this.applyStorePrices()
     } catch (e) {
       this.storeReady = false
       this.storeError = (e as Error).message || I18n.get('membership.store_unavailable')
     }
   }
 
+  private applyStorePrices() {
+    for (let i = 0; i < this.plans.length; i++) {
+      const productId = HuaweiIapService.productForPlan(this.plans[i].code)
+      for (let j = 0; j < this.storePrices.length; j++) {
+        if (this.storePrices[j].productId === productId) {
+          this.plans[i].storePrice = this.storePrices[j].localPrice
+          this.plans[i].subscriptionGroupId = this.storePrices[j].subscriptionGroupId
+        }
+      }
+    }
+    this.plans = this.plans.slice()
+  }
+
+  private canPurchase(): boolean {
+    const plan = this.selectedPlan()
+    return plan !== null && plan.storePrice.length > 0 && !this.isPurchasing && !this.isRestoring
+  }
+
+  private openLegal(key: string) {
+    const context = this.getUIContext().getHostContext() as common.UIAbilityContext
+    const param: Record<string, string> = { 'url': context.resourceManager.getStringByNameSync(key) }
+    this.pageStack.pushPath({ name: RouteName.WEB_PAGE, param })
+  }
+
   private async purchaseSelectedPlan() {
     const plan = this.selectedPlan()
-    if (plan === null || this.isPurchasing || !this.storeReady) return
+    if (plan === null || !this.canPurchase()) return
     this.isPurchasing = true
     try {
       const context = this.getUIContext()?.getHostContext() as common.UIAbilityContext
@@ -139,7 +155,7 @@ export struct MembershipPage {
   }
 
   private async restorePurchases() {
-    if (this.isRestoring) return
+    if (this.isRestoring || this.isPurchasing) return
     this.isRestoring = true
     try {
       const context = this.getUIContext()?.getHostContext() as common.UIAbilityContext
@@ -213,7 +229,7 @@ export struct MembershipPage {
 
   private price(plan: BillingPlan): string {
     if (plan.tier === 'free') return I18n.get('membership.price_free')
-    return plan.storePrice.length > 0 ? plan.storePrice : `${this.currencySymbol(plan.priceCurrency)}${plan.priceAmount}`
+    return plan.storePrice.length > 0 ? plan.storePrice : I18n.get('account.price_pending')
   }
 
   private period(plan: BillingPlan): string {
@@ -232,443 +248,127 @@ export struct MembershipPage {
     this.pageStack.pushPath({ name: RouteName.REDEEM })
   }
 
-  private buildMoreMenu(): PageMenuItem[] {
-    const item = new PageMenuItem()
-    item.value = I18n.get('membership.menu_redeem')
-    item.action = (): void => {
-      this.openRedeem()
-    }
-    return [item]
-  }
-
   build() {
     PageLayout({
       title: I18n.get('membership.title'),
-      moreMenuItems: this.buildMoreMenu()
+      actionTitle: I18n.get(this.isRestoring ? 'membership.processing' : 'membership.restore_purchase'),
+      actionEnabled: !this.isPurchasing && !this.isRestoring,
+      onAction: () => { this.restorePurchases() }
     }) {
-      if (this.isLoading) {
-        Column() {
-          LoadingProgress().width(36).height(36).color($r('app.color.terminal_text'))
+      Column({ space: 20 }) {
+        if (this.isLoading) {
+          LoadingProgress().width(32).height(32).color($r('app.color.terminal_text_muted'))
+        } else if (this.loadError.length > 0) {
+          Text(this.loadError).fontSize(14).fontColor($r('app.color.terminal_error'))
+          Button(I18n.get('common.retry')).backgroundColor($r('app.color.terminal_background_panel')).fontColor($r('app.color.terminal_text')).onClick(() => this.loadMembership())
+        } else if (this.isActive) {
+          this.MemberDetails()
+        } else {
+          this.UpgradeContent()
         }
-        .width('100%')
-        .height('100%')
-        .justifyContent(FlexAlign.Center)
-        .alignItems(HorizontalAlign.Center)
-      } else if (this.loadError.length > 0) {
-        this.ErrorState()
-      } else {
-        this.Content()
-      }
+        if (this.storeError.length > 0) {
+          Text(I18n.get('account.store_unavailable')).fontSize(14).fontColor($r('app.color.terminal_error')).width('100%')
+          Button(I18n.get('common.retry')).backgroundColor($r('app.color.terminal_background_panel')).fontColor($r('app.color.terminal_text')).onClick(() => this.loadStoreProducts())
+        }
+        this.RedeemRow()
+        Row({ space: 24 }) {
+          Text(I18n.get('settings.footer_terms')).fontSize(13).fontColor($r('app.color.terminal_on_primary_container'))
+            .onClick(() => this.openLegal('terms_of_service_url'))
+          Text(I18n.get('settings.footer_privacy')).fontSize(13).fontColor($r('app.color.terminal_on_primary_container'))
+            .onClick(() => this.openLegal('privacy_policy_url'))
+        }.justifyContent(FlexAlign.Center).width('100%').padding({ top: 8, bottom: 24 })
+      }.width('100%').padding({ left: 16, right: 16, top: 16 })
     }
   }
 
   @Builder
-  ErrorState() {
-    Column() {
-      SymbolGlyph($r('sys.symbol.exclamationmark_triangle'))
-        .fontSize(38)
-        .fontColor([$r('app.color.terminal_error')])
-      Text(I18n.get('membership.load_failed'))
-        .fontSize(16)
-        .fontWeight(FontWeight.Medium)
-        .fontColor($r('app.color.terminal_text'))
-        .margin({ top: 12 })
-      Text(this.loadError)
-        .fontSize(12)
-        .fontColor($r('app.color.terminal_text_muted'))
-        .textAlign(TextAlign.Center)
-        .margin({ top: 6 })
-      Button(I18n.get('common.retry'))
-        .type(ButtonType.Capsule)
-        .height(42)
-        .backgroundColor($r('app.color.terminal_inverse_surface'))
-        .fontColor($r('app.color.terminal_inverse_on_surface'))
-        .margin({ top: 18 })
-        .onClick(() => this.loadMembership())
-    }
-    .width('100%')
-    .height('100%')
-    .padding(24)
-    .alignItems(HorizontalAlign.Center)
-    .justifyContent(FlexAlign.Center)
-  }
-
-  @Builder
-  Content() {
-    Scroll() {
-      Column({ space: 18 }) {
-        this.Hero()
-        this.CurrentPlan()
-        this.Benefits()
-        this.PlanPicker()
-        if (this.isActive) {
-          Button(I18n.get('membership.manage_subscription'))
-            .type(ButtonType.Normal)
-            .width('100%')
-            .height(42)
-            .backgroundColor($r('app.color.terminal_background_panel'))
-            .fontColor($r('app.color.terminal_text'))
-            .onClick(() => this.manageSubscription())
-        }
-        this.TrustNote()
-      }
-      .width('100%')
-      .padding({ left: 20, right: 20, top: 8, bottom: 126 })
-    }
-    .width('100%')
-    .layoutWeight(1)
-    .scrollBar(BarState.Off)
-    .align(Alignment.Top)
-    .overlay(this.PurchaseBar(), { align: Alignment.Bottom })
-  }
-
-  @Builder
-  Hero() {
-    Column() {
-      Row() {
-        Row({ space: 5 }) {
-          Circle().width(6).height(6).fill('#76D7A8')
-          Text(I18n.get('membership.hero_eyebrow'))
-            .fontSize(11)
-            .fontWeight(FontWeight.Bold)
-            .fontColor('#B9C7FF')
-            .letterSpacing(1.2)
-        }
-        .padding({ left: 10, right: 10, top: 7, bottom: 7 })
-        .borderRadius(20)
-        .backgroundColor('#28365D')
-        Blank()
-        if (this.isActive) {
-          Text(I18n.get('membership.current_tier_pro'))
-            .fontSize(11)
-            .fontWeight(FontWeight.Medium)
-            .fontColor('#B8F1D0')
-        }
-      }
-
-      Text(I18n.get('membership.hero_title'))
-        .fontSize(27)
-        .fontWeight(FontWeight.Bold)
-        .fontColor(Color.White)
-        .lineHeight(34)
-        .width('100%')
-        .margin({ top: 17 })
-      Text(I18n.get('membership.hero_subtitle'))
-        .fontSize(13)
-        .fontColor('#C1C9DA')
-        .lineHeight(20)
-        .width('100%')
-        .margin({ top: 8 })
-
-      Row() {
-        Column() {
-          Text('~/corterm')
-            .fontSize(10)
-            .fontColor('#A7B4D0')
-          Row({ space: 5 }) {
-            Text('›')
-              .fontSize(16)
-              .fontWeight(FontWeight.Bold)
-              .fontColor('#80E1B0')
-            Text(I18n.get('membership.hero_terminal_line'))
-              .fontSize(12)
-              .fontFamily('monospace')
-              .fontColor('#F3F6FC')
-              .maxLines(1)
-              .textOverflow({ overflow: TextOverflow.Ellipsis })
-            Blank()
-            Circle().width(6).height(6).fill('#80E1B0')
-          }
-          .width('100%')
-          .margin({ top: 7 })
-        }
-        .alignItems(HorizontalAlign.Start)
-        .layoutWeight(1)
-      }
-      .width('100%')
-      .padding(13)
-      .borderRadius(13)
-      .backgroundColor('#11192B')
-      .margin({ top: 19 })
-
-      Row({ space: 7 }) {
-        this.MachinePill('01')
-        Text('···').fontSize(13).fontColor('#7C8BAA')
-        this.MachinePill('02')
-        Text('···').fontSize(13).fontColor('#7C8BAA')
-        this.MachinePill('∞')
-        Blank()
-        Text(I18n.get('membership.hero_network_label'))
-          .fontSize(10)
-          .fontColor('#A7B4D0')
-      }
-      .width('100%')
-      .margin({ top: 12 })
-    }
-    .width('100%')
-    .padding(20)
-    .borderRadius(22)
-    .backgroundColor('#19233A')
-  }
-
-  @Builder
-  MachinePill(index: string) {
-    Row({ space: 5 }) {
-      Circle().width(5).height(5).fill('#78D9AA')
-      Text(index)
-        .fontSize(10)
-        .fontColor('#DCE5F6')
-        .fontFamily('monospace')
-    }
-    .padding({ left: 8, right: 8, top: 5, bottom: 5 })
-    .borderRadius(9)
-    .backgroundColor('#283550')
-  }
-
-  @Builder
-  CurrentPlan() {
-    Row({ space: 10 }) {
-      SymbolGlyph(this.isActive ? $r('sys.symbol.checkmark_circle') : $r('sys.symbol.person_2'))
-        .fontSize(18)
-        .fontColor([this.isActive ? $r('app.color.terminal_success') : $r('app.color.terminal_text_muted')])
+  UpgradeContent() {
+    Column({ space: 20 }) {
+      Column({ space: 8 }) {
+        Text('Corterm Pro').fontSize(28).fontWeight(FontWeight.Bold).fontColor($r('app.color.terminal_text'))
+        Text(I18n.get('account.pro_description')).fontSize(15).fontColor($r('app.color.terminal_text_muted')).lineHeight(22)
+      }.width('100%').alignItems(HorizontalAlign.Start)
       Column() {
-        Text(this.isActive ? I18n.get('membership.current_tier_pro') : I18n.get('membership.current_tier_free'))
-          .fontSize(12)
-          .fontWeight(FontWeight.Medium)
-          .fontColor($r('app.color.terminal_text'))
-        Text(this.isActive && this.expiresAtUtc.length > 0
-          ? I18n.getWithArgs('membership.renews_expire', { 'date': this.expiresAtUtc.substring(0, 10) })
-          : `${this.workersLabel(this.maxWorkers)} · ${I18n.getWithArgs('membership.benefit_scrollback', { 'n': `${this.maxScrollbackMegabytes}` })}`)
-          .fontSize(10)
-          .fontColor($r('app.color.terminal_text_muted'))
-          .margin({ top: 2 })
-      }
-      .alignItems(HorizontalAlign.Start)
-      .layoutWeight(1)
-      Text(I18n.get('membership.current_plan_label'))
-        .fontSize(10)
-        .fontColor($r('app.color.terminal_text_muted'))
-    }
-    .width('100%')
-    .padding({ left: 13, right: 13, top: 11, bottom: 11 })
-    .borderRadius(14)
-    .backgroundColor($r('app.color.terminal_background_panel'))
-    .border({ width: 1, color: $r('app.color.terminal_border_subtle') })
-  }
-
-  @Builder
-  Benefits() {
-    Column({ space: 1 }) {
-      Row() {
-        Text(I18n.get('membership.benefits_title'))
-          .fontSize(16)
-          .fontWeight(FontWeight.Bold)
-          .fontColor($r('app.color.terminal_text'))
-        Blank()
-        Text(I18n.get('membership.benefits_caption'))
-          .fontSize(11)
-          .fontColor($r('app.color.terminal_text_muted'))
-      }
-      .width('100%')
-      .margin({ bottom: 9 })
-      this.BenefitRow('◉', I18n.get('membership.benefit_more_workers'), I18n.get('membership.benefit_more_workers_detail'))
-      this.BenefitRow('↶', I18n.get('membership.benefit_scrollback_title'), I18n.get('membership.benefit_scrollback_detail'))
-      this.BenefitRow('⌘', I18n.get('membership.benefit_control_title'), I18n.get('membership.benefit_control_detail'))
-    }
-    .width('100%')
-    .alignItems(HorizontalAlign.Start)
-  }
-
-  @Builder
-  BenefitRow(icon: string, title: string, detail: string) {
-    Row({ space: 12 }) {
-      Text(icon)
-        .fontSize(17)
-        .fontColor($r('app.color.terminal_text'))
-        .width(34)
-        .height(34)
-        .textAlign(TextAlign.Center)
-        .borderRadius(11)
-        .backgroundColor($r('app.color.terminal_primary_container'))
-      Column() {
-        Text(title)
-          .fontSize(13)
-          .fontWeight(FontWeight.Medium)
-          .fontColor($r('app.color.terminal_text'))
-        Text(detail)
-          .fontSize(11)
-          .fontColor($r('app.color.terminal_text_muted'))
-          .margin({ top: 2 })
-      }
-      .alignItems(HorizontalAlign.Start)
-      .layoutWeight(1)
-      Text('✓')
-        .fontSize(13)
-        .fontWeight(FontWeight.Bold)
-        .fontColor($r('app.color.terminal_success'))
-    }
-    .width('100%')
-    .padding({ top: 8, bottom: 8 })
-  }
-
-  @Builder
-  PlanPicker() {
-    Column() {
-      Row() {
-        Text(I18n.get('membership.choose_plan'))
-          .fontSize(16)
-          .fontWeight(FontWeight.Bold)
-          .fontColor($r('app.color.terminal_text'))
-        Blank()
-        Text(I18n.get('membership.price_note'))
-          .fontSize(11)
-          .fontColor($r('app.color.terminal_text_muted'))
-      }
-      .width('100%')
-      .margin({ bottom: 10 })
-
-      ForEach(this.plans, (plan: BillingPlan) => {
-        if (plan.tier === 'pro') {
-          this.PlanRow(plan)
-        }
-      }, (plan: BillingPlan) => plan.code)
-    }
-    .width('100%')
-    .alignItems(HorizontalAlign.Start)
+        this.DetailRow(I18n.get('membership.benefit_more_workers'), I18n.getWithArgs('membership.workers_quota', { 'n': `${this.selectedPlan()?.maxWorkers ?? 0}` }))
+        Divider().color($r('app.color.terminal_border_subtle'))
+        this.DetailRow(I18n.get('membership.benefit_scrollback_title'), I18n.getWithArgs('membership.scrollback_quota', { 'n': `${this.selectedPlan()?.maxScrollbackMegabytes ?? 0}` }))
+      }.padding(16).borderRadius(12).backgroundColor($r('app.color.terminal_background_panel'))
+      Column({ space: 10 }) {
+        ForEach(this.plans, (plan: BillingPlan) => {
+          if (plan.tier === 'pro') { this.PlanRow(plan) }
+        }, (plan: BillingPlan) => plan.code)
+      }.width('100%')
+      Button(this.isPurchasing ? I18n.get('membership.processing') :
+        (this.canPurchase() ? `${I18n.get('membership.purchase_button')} · ${this.price(this.selectedPlan()!)}` : I18n.get('account.price_pending')))
+        .width('100%').height(52).fontSize(16).fontWeight(FontWeight.Medium)
+        .backgroundColor($r('app.color.terminal_inverse_surface')).fontColor($r('app.color.terminal_inverse_on_surface'))
+        .enabled(this.canPurchase()).onClick(() => this.purchaseSelectedPlan())
+      Text(I18n.get(this.selectedPlanCode === 'pro_lifetime' ? 'membership.plan_lifetime_detail' : 'membership.purchase_terms'))
+        .fontSize(13).fontColor($r('app.color.terminal_text_muted')).lineHeight(20).width('100%')
+    }.width('100%')
   }
 
   @Builder
   PlanRow(plan: BillingPlan) {
-    Row({ space: 11 }) {
-      Circle()
-        .width(18)
-        .height(18)
-        .fill(this.selectedPlanCode === plan.code ? $r('app.color.terminal_inverse_surface') : Color.Transparent)
-        .border({ width: 1.5, color: this.selectedPlanCode === plan.code ? $r('app.color.terminal_inverse_surface') : $r('app.color.terminal_border') })
-      Column() {
-        Row({ space: 7 }) {
-          Text(this.planName(plan.code))
-            .fontSize(13)
-            .fontWeight(FontWeight.Medium)
-            .fontColor($r('app.color.terminal_text'))
-          if (plan.code === 'pro_year') {
-            Text(I18n.get('membership.recommended'))
-              .fontSize(9)
-              .fontWeight(FontWeight.Bold)
-              .fontColor($r('app.color.terminal_on_primary_container'))
-              .padding({ left: 6, right: 6, top: 3, bottom: 3 })
-              .borderRadius(7)
-              .backgroundColor($r('app.color.terminal_primary_container'))
-          }
-        }
-        .alignItems(VerticalAlign.Center)
-        Text(plan.code === 'pro_year'
-          ? I18n.get('membership.plan_year_detail')
-          : (plan.code === 'pro_month' ? I18n.get('membership.plan_month_detail') : I18n.get('membership.plan_lifetime_detail')))
-          .fontSize(10)
-          .fontColor($r('app.color.terminal_text_muted'))
-          .margin({ top: 3 })
-      }
-      .alignItems(HorizontalAlign.Start)
-      .layoutWeight(1)
-
-      Column() {
-        Text(this.price(plan))
-          .fontSize(15)
-          .fontWeight(FontWeight.Bold)
-          .fontColor($r('app.color.terminal_text'))
-        Text(this.period(plan))
-          .fontSize(10)
-          .fontColor($r('app.color.terminal_text_muted'))
-          .margin({ top: 2 })
-      }
-      .alignItems(HorizontalAlign.End)
-    }
-    .width('100%')
-    .padding({ left: 13, right: 13, top: 12, bottom: 12 })
-    .borderRadius(15)
-    .backgroundColor(this.selectedPlanCode === plan.code ? $r('app.color.terminal_primary_container') : $r('app.color.terminal_background_panel'))
-    .border({
-      width: this.selectedPlanCode === plan.code ? 1.5 : 1,
-      color: this.selectedPlanCode === plan.code ? $r('app.color.terminal_inverse_surface') : $r('app.color.terminal_border_subtle')
-    })
-    .margin({ bottom: 8 })
-    .onClick(() => {
-      clickHaptic()
-      this.selectedPlanCode = plan.code
-    })
+    Row({ space: 12 }) {
+      Radio({ value: plan.code, group: 'membershipPlans' }).checked(this.selectedPlanCode === plan.code)
+        .radioStyle({ checkedBackgroundColor: $r('app.color.terminal_text'), uncheckedBorderColor: $r('app.color.terminal_border'), indicatorColor: $r('app.color.terminal_background_panel') })
+        .enabled(!this.isPurchasing && !this.isRestoring)
+        .onChange((checked: boolean) => { if (checked) this.selectedPlanCode = plan.code })
+      Column({ space: 4 }) {
+        Text(this.planName(plan.code)).fontSize(16).fontWeight(FontWeight.Medium).fontColor($r('app.color.terminal_text'))
+        Text(this.period(plan)).fontSize(13).fontColor($r('app.color.terminal_text_muted'))
+      }.layoutWeight(1).alignItems(HorizontalAlign.Start)
+      Text(this.price(plan)).fontSize(plan.storePrice.length > 0 ? 16 : 13).maxLines(2).textAlign(TextAlign.End).layoutWeight(1).fontWeight(FontWeight.Medium).fontColor($r('app.color.terminal_text'))
+    }.width('100%').padding(12).borderRadius(12).backgroundColor($r('app.color.terminal_background_panel'))
+      .border({ width: 1, color: this.selectedPlanCode === plan.code ? $r('app.color.terminal_text') : $r('app.color.terminal_border_subtle') })
+      .onClick(() => { if (!this.isPurchasing && !this.isRestoring) this.selectedPlanCode = plan.code })
   }
 
   @Builder
-  TrustNote() {
-    Row({ space: 7 }) {
-      SymbolGlyph($r('sys.symbol.lock_shield'))
-        .fontSize(13)
-        .fontColor([$r('app.color.terminal_text_muted')])
-      Text(this.storeError.length > 0 ? this.storeError : I18n.get('membership.payment_note'))
-        .fontSize(10)
-        .fontColor($r('app.color.terminal_text_muted'))
-        .layoutWeight(1)
-    }
-    .width('100%')
-    .padding({ left: 4, right: 4, top: 4, bottom: 4 })
+  MemberDetails() {
+    Column({ space: 20 }) {
+      Column({ space: 16 }) {
+        Row({ space: 12 }) {
+          SymbolGlyph($r('sys.symbol.checkmark_circle')).fontSize(28).fontColor([$r('app.color.terminal_success')])
+          Column({ space: 4 }) {
+            Text('Corterm Pro').fontSize(24).fontWeight(FontWeight.Bold).fontColor($r('app.color.terminal_text'))
+            Text(this.planName(this.planCode)).fontSize(15).fontColor($r('app.color.terminal_success'))
+          }.alignItems(HorizontalAlign.Start)
+        }.width('100%')
+        this.DetailRow(I18n.get('account.valid_until'), this.expiresAtUtc.length > 0 ? this.expiresAtUtc.substring(0, 10) : I18n.get('membership.plan_pro_lifetime'))
+      }.padding(16).borderRadius(12).backgroundColor($r('app.color.terminal_background_panel'))
+      Column() {
+        this.DetailRow(I18n.get('account.devices_quota'), `${this.maxWorkers}`)
+        Divider().color($r('app.color.terminal_border_subtle'))
+        this.DetailRow(I18n.get('account.scrollback_quota'), `${this.maxScrollbackMegabytes} MB`)
+      }.padding(16).borderRadius(12).backgroundColor($r('app.color.terminal_background_panel'))
+      if (this.planCode !== 'pro_lifetime') {
+        Button(I18n.get('membership.manage_subscription')).width('100%').height(52).fontSize(16)
+          .backgroundColor($r('app.color.terminal_inverse_surface')).fontColor($r('app.color.terminal_inverse_on_surface'))
+          .enabled(!this.isRestoring && !this.isPurchasing).onClick(() => this.manageSubscription())
+        Text(I18n.get('account.huawei_manage_note')).fontSize(13).fontColor($r('app.color.terminal_text_muted')).lineHeight(20)
+      }
+      Button(I18n.get('account.sync_purchases')).width('100%').height(48)
+        .backgroundColor($r('app.color.terminal_background_panel')).fontColor($r('app.color.terminal_text'))
+        .enabled(!this.isRestoring && !this.isPurchasing).onClick(() => this.restorePurchases())
+    }.width('100%')
   }
 
   @Builder
-  PurchaseBar() {
-    Column() {
-      Row() {
-        Column() {
-          Text(I18n.get('membership.total_today'))
-            .fontSize(10)
-            .fontColor($r('app.color.terminal_text_muted'))
-          if (this.selectedPlan() !== null) {
-            Text(this.price(this.selectedPlan()!))
-              .fontSize(21)
-              .fontWeight(FontWeight.Bold)
-              .fontColor($r('app.color.terminal_text'))
-              .margin({ top: 1 })
-          }
-        }
-        .alignItems(HorizontalAlign.Start)
-        .layoutWeight(1)
-        Button(I18n.get('membership.restore_purchase'))
-          .type(ButtonType.Normal)
-          .fontSize(11)
-          .fontColor($r('app.color.terminal_text'))
-          .backgroundColor(Color.Transparent)
-          .padding({ left: 8, right: 0 })
-          .enabled(!this.isRestoring)
-          .onClick(() => { clickHaptic(); this.restorePurchases() })
-      }
-      .width('100%')
-      .alignItems(VerticalAlign.Center)
+  DetailRow(label: string, value: string) {
+    Row({ space: 12 }) {
+      Text(label).fontSize(15).fontColor($r('app.color.terminal_text')).layoutWeight(1)
+      Text(value).fontSize(14).textAlign(TextAlign.End).layoutWeight(1).fontColor($r('app.color.terminal_text_muted'))
+    }.width('100%').padding({ top: 10, bottom: 10 })
+  }
 
-        Button(this.isPurchasing ? I18n.get('membership.processing') : I18n.get('membership.purchase_button'))
-        .type(ButtonType.Capsule)
-        .width('100%')
-        .height(48)
-        .fontSize(15)
-        .fontWeight(FontWeight.Bold)
-        .fontColor($r('app.color.terminal_inverse_on_surface'))
-        .backgroundColor($r('app.color.terminal_inverse_surface'))
-        .enabled(this.storeReady && !this.isPurchasing && this.selectedPlan() !== null)
-        .opacity(this.storeReady && !this.isPurchasing ? 1 : 0.5)
-        .margin({ top: 10 })
-        .onClick(() => {
-          clickHaptic()
-          this.purchaseSelectedPlan()
-        })
-      Text(I18n.get('membership.purchase_terms'))
-        .fontSize(9)
-        .fontColor($r('app.color.terminal_text_muted'))
-        .textAlign(TextAlign.Center)
-        .width('100%')
-        .margin({ top: 7 })
-    }
-    .width('100%')
-    .padding({ left: 20, right: 20, top: 12, bottom: 10 })
-    .backgroundColor($r('app.color.terminal_background'))
-    .border({ width: { top: 1 }, color: $r('app.color.terminal_border_subtle') })
+  @Builder
+  RedeemRow() {
+    Row() {
+      Text(I18n.get('membership.menu_redeem')).fontSize(16).fontColor($r('app.color.terminal_text')).layoutWeight(1)
+      SymbolGlyph($r('sys.symbol.chevron_right')).fontSize(16).fontColor([$r('app.color.terminal_text_muted')])
+    }.width('100%').height(56).padding({ left: 16, right: 16 }).borderRadius(12)
+      .backgroundColor($r('app.color.terminal_background_panel')).onClick(() => this.openRedeem())
   }
 }

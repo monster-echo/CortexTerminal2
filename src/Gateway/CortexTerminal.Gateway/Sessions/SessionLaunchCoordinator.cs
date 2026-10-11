@@ -89,6 +89,13 @@ public sealed class SessionLaunchCoordinator(
             cwd = workspace.RootPath;
         }
 
+        // Fork 语义：客户端持源会话的 OSC 7 实时 cwd，显式指定起始目录
+        //（优先于 workspace 根；目录不存在时 PTY 启动失败，错误原样上抛）。
+        if (!string.IsNullOrEmpty(request.Cwd))
+        {
+            cwd = request.Cwd;
+        }
+
         var result = await sessions.CreateSessionAsync(
             userId,
             request,

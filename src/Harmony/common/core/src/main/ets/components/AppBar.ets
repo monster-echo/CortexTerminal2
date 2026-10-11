@@ -6,6 +6,7 @@
  * Sub-pages: back arrow (pop) + title.
  */
 
+import { I18n } from '../i18n/I18n'
 import { clickHaptic } from '../utils/HapticUtils'
 
 @Component
@@ -16,6 +17,8 @@ export struct AppBar {
   onNavigateBack?: (() => void) | null = null
   onCreateSession?: (() => void) | null = null
   showCreateButton: boolean = false
+  showSettingsButton: boolean = false
+  onOpenSettings: () => void = () => {}
 
   build() {
     Row() {
@@ -59,6 +62,14 @@ export struct AppBar {
         .margin({ left: 8 })
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
+
+      if (this.showSettingsButton) {
+        Button() {
+          SymbolGlyph($r('sys.symbol.gearshape')).fontSize(22).fontColor([$r('app.color.terminal_text')])
+        }.width(44).height(44).padding(0).borderRadius(22)
+          .backgroundColor(Color.Transparent).accessibilityText(I18n.get('settings.title'))
+          .onClick(() => { clickHaptic(); this.onOpenSettings() })
+      }
 
       if (this.showCreateButton) {
         Button() {

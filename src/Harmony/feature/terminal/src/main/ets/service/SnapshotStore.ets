@@ -2,12 +2,10 @@
  * @file SnapshotStore.ets
  * @brief Device-side persistence for serialized xterm scrollback snapshots
  *
- * Snapshots are keyed by WORKER id (not session id): when a session exits and
- * the user creates a new session on the same machine, the new terminal
- * restores this snapshot and appends live output below it — Windows-Terminal
- * style concat, where restarting the shell never clears the visible history.
- * Callers pass `workerId || sessionId` as the key so worker-less sessions
- * degrade to per-session behavior.
+ * Snapshots are keyed by SESSION id: a session restores only its own history
+ * when re-opened on this device (e.g. a dead session the server can no longer
+ * replay). A NEW session has no snapshot and starts blank — no cross-session
+ * concat.
  *
  * Serialized content can reach several MB (64k scrollback lines), so it is
  * streamed in chunks by the caller and written atomically here (tmp file +

@@ -187,15 +187,12 @@ class SessionController extends StateNotifier<SessionState> {
     await _attach(sessionId);
   }
 
-  String _snapshotKey(String sessionId) {
-    final entry = state.entries[sessionId];
-    final worker = entry?.workerId;
-    return (worker == null || worker.isEmpty) ? sessionId : worker;
-  }
+  /// 快照按 SESSION 键：会话只恢复自己的历史；新会话从空白开始（不做跨会话拼接）。
+  String _snapshotKey(String sessionId) => sessionId;
 
   /// 冷启动恢复：优先【本会话输出流缓存】（TerminalCache 对等——打开即绘制
   /// 上次画面，随后运行中会话由全量重放权威覆盖）；无流缓存时回退
-  /// 【Worker 级 200 行快照】（同机新会话延续上次输出，ArkTS concat 行为）。
+  /// 【本会话 200 行快照】（重开本设备上服务端已无法回放的死会话）。
   void _restoreSnapshot(String sessionId, SessionTerminalState entry) {
     final stream = _prefs.terminalStreamCache(sessionId);
     if (stream != null && stream.isNotEmpty) {
@@ -203,9 +200,7 @@ class SessionController extends StateNotifier<SessionState> {
       _streamBuf[sessionId] = StringBuffer(stream);
       return;
     }
-    final worker = entry.workerId;
-    if (worker == null || worker.isEmpty) return; // 无 worker 绑定的新会话没有历史可恢复。
-    final snapshot = _prefs.terminalSnapshot(worker);
+    final snapshot = _prefs.terminalSnapshot(sessionId);
     if (snapshot == null || snapshot.isEmpty) return;
     entry.terminal.write(snapshot);
     _streamBuf[sessionId] = StringBuffer(snapshot);
@@ -223,6 +218,49 @@ class SessionController extends StateNotifier<SessionState> {
     }
     final key = _snapshotKey(sessionId);
     _prefs.setTerminalSnapshot(key, buf.toString());
+  }
+
+  /// 当前 buffer 全部文本（含回滚区，纯文本）——Copy All Output 用。
+  String bufferText(String sessionId) {
+    final entry = state.entries[sessionId];
+    if (entry == null) {
+      throw StateError('session $sessionId is not open');
+    }
+    final buffer = entry.terminal.buffer;
+    final buf = StringBuffer();
+    for (var i = 0; i < buffer.height; i++) {
+      buf.writeln(buffer.lines[i].getText());
+    }
+    return buf.toString();
+  }
+
+  /// Fork Session：以运行中会话为模板，在同一 worker 上以其实时 cwd（OSC 7）
+  /// 新建 shell（CreateSessionRequest.Cwd，PTY 直接以该目录启动）。
+  /// 新会话空屏、无历史；成功后自动 open 并切换。
+  /// cwd / worker 缺失时直接抛出——不允许静默回退，UI 负责把错误展示给用户。
+  Future<String> forkSession(String sessionId, {required String sourceName}) async {
+    final entry = state.entries[sessionId];
+    if (entry == null) {
+      throw StateError('session $sessionId is not open');
+    }
+    final workerId = entry.workerId;
+    if (workerId == null || workerId.isEmpty) {
+      throw StateError('无法 Fork：会话尚未绑定电脑（workerId 缺失）');
+    }
+    final cwd = entry.remoteCwd;
+    if (cwd == null || cwd.isEmpty) {
+      throw StateError('无法 Fork：当前会话未上报工作目录（OSC 7），无法确定起始目录');
+    }
+    final base = sourceName.trim().isEmpty ? sessionId : sourceName.trim();
+    final created = await _repo.create(
+      columns: entry.terminal.viewWidth,
+      rows: entry.terminal.viewHeight,
+      workerId: workerId,
+      cwd: cwd,
+      name: '$base fork',
+    );
+    await open(created.sessionId, workerId: workerId);
+    return created.sessionId;
   }
 
   void _enforceAttachCap() {

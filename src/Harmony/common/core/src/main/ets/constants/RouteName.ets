@@ -1,5 +1,6 @@
 export class RouteName {
   static readonly AUTH_LOGIN: string = 'auth/Login'
+  static readonly UNGROUPED: string = 'session/Ungrouped'
   static readonly SESSION_HOME: string = 'session/Home'
   static readonly TERMINAL_SESSION: string = 'terminal/Session'
   static readonly WORKER_LIST: string = 'worker/List'

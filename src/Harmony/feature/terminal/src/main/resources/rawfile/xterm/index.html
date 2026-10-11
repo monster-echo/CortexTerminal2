@@ -853,6 +853,28 @@
     }
 
     /**
+     * Export the FULL buffer as plain text (no ANSI escapes) to the host in
+     * plainTextStart / plainTextChunk / plainTextEnd port messages — same
+     * chunked transport as the snapshot bridge, but the payload is the
+     * rendered text of every line (screen + scrollback).
+     */
+    function startPlainTextExport() {
+      if (!term) return;
+      var buf = term.buffer.active;
+      var lines = [];
+      for (var i = 0; i < buf.length; i++) {
+        lines.push(buf.translateToString(true, i, i + 1));
+      }
+      var data = lines.join('\n');
+      var total = Math.max(Math.ceil(data.length / SNAPSHOT_CHUNK), 1);
+      sendToHost({ type: 'plainTextStart', total: total });
+      for (var j = 0; j < total; j++) {
+        sendToHost({ type: 'plainTextChunk', seq: j, data: data.substr(j * SNAPSHOT_CHUNK, SNAPSHOT_CHUNK) });
+      }
+      sendToHost({ type: 'plainTextEnd', total: total, bytes: data.length });
+    }
+
+    /**
      * Append one JSON-encoded fragment of a previously captured snapshot to
      * the buffer. Fragments must be invoked in capture order — runJavaScript
      * guarantees FIFO, so the host needs no extra sequencing here.

@@ -1,0 +1,21 @@
+{
+  "device": "Mate 60",
+  "density": 3.25,
+  "viewport_pixels": [
+    1216,
+    2688
+  ],
+  "measured": {
+    "horizontal_margin_px": 52,
+    "search_height_px": 143,
+    "workspace_card_height_px": 364,
+    "workspace_card_gap_px": 39
+  },
+  "expected": {
+    "horizontal_margin_px": 52,
+    "search_height_px": 143,
+    "workspace_card_height_px": 364,
+    "workspace_card_gap_px": 39
+  },
+  "passed": true
+}

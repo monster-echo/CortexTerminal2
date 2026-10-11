@@ -7,6 +7,7 @@ import { ApiService, I18n, PageLayout, showToast, clickHaptic, RouteName, Termin
 
 @Component
 export struct PreferencesPage {
+  embedded: boolean = false
   @StorageLink('themeMode') currentTheme: string = 'system'
   @StorageLink('terminalTheme') terminalTheme: string = 'followApp'
   @StorageLink('terminalCustomThemes') customThemesJson: string = '[]'
@@ -68,7 +69,19 @@ export struct PreferencesPage {
   }
 
   build() {
-    PageLayout({ title: I18n.get('settings.general') }) {
+    if (this.embedded) {
+      Scroll() {
+        this.PreferencesContent()
+      }.width('100%').layoutWeight(1).align(Alignment.Top).scrollBar(BarState.Off)
+    } else {
+      PageLayout({ title: I18n.get('settings.title') }) {
+        this.PreferencesContent()
+      }
+    }
+  }
+
+  @Builder
+  PreferencesContent() {
       Column() {
         this.SectionHeader('settings.appearance')
 
@@ -186,7 +199,6 @@ export struct PreferencesPage {
         Blank().height(24)
       }
       .width('100%')
-    }
   }
 
   @Builder

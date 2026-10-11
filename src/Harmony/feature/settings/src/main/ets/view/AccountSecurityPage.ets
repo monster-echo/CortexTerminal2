@@ -24,6 +24,24 @@ export struct AccountSecurityPage {
     } catch (_e) {}
   }
 
+  private confirmLogout() {
+    this.getUIContext()?.showAlertDialog({
+      title: I18n.get('settings.logout_confirm_title'),
+      message: I18n.get('settings.logout_confirm_message'),
+      primaryButton: {
+        value: I18n.get('common.cancel'),
+        action: () => {}
+      },
+      secondaryButton: {
+        value: I18n.get('settings.logout'),
+        action: () => {
+          AuthService.logout()
+          showI18nToast('settings.logout_success')
+        }
+      }
+    })
+  }
+
   build() {
     PageLayout({ title: I18n.get('security.title') }) {
         Column() {
@@ -69,6 +87,11 @@ export struct AccountSecurityPage {
             this.deleteError = ''
             this.showDeleteSheet = true
           })
+          Button(I18n.get('settings.logout'))
+            .width('100%').height(48).margin({ top: 24 })
+            .fontColor($r('app.color.terminal_text'))
+            .backgroundColor($r('app.color.terminal_background_panel'))
+            .onClick(() => this.confirmLogout())
         }
         .width('100%')
         .padding({ left: 24, right: 24, top: 8 })
@@ -123,12 +146,12 @@ export struct AccountSecurityPage {
             LoadingProgress()
               .width(20)
               .height(20)
-              .color(Color.White)
+              .color($r('app.color.terminal_background'))
           } else {
             Text(I18n.get('security.delete_button'))
               .fontSize(16)
               .fontWeight(FontWeight.Medium)
-              .fontColor(Color.White)
+              .fontColor($r('app.color.terminal_background'))
           }
         }
         .width('100%')
@@ -161,7 +184,6 @@ export struct AccountSecurityPage {
       AnalyticsService.onEvent(AnalyticsEvent.ACCOUNT_DELETE)
       showI18nToast('security.account_deleted')
       AuthService.logout()
-      this.pageStack.replacePath({ name: RouteName.AUTH_LOGIN })
     } catch (e) {
       this.deleteError = (e as Error).message || I18n.get('common.error')
       this.isDeleting = false

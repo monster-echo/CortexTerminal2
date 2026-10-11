@@ -85,6 +85,11 @@ struct RenameDialog {
 
 @Component
 export struct SessionHomePage {
+  ungroupedOnly: boolean = false
+  @StorageLink('language') currentLanguage: string = 'en'
+  @State searchQuery: string = ''
+  @StorageLink('workspaceRefreshTick') @Watch('reloadWorkspaces') workspaceRefreshTick: number = 0
+  reloadWorkspaces() { this.loadData() }
   /** 首页引导块是终端窗口预览，永远用内置 Default Dark 终端档案渲染，不跟随 App 深浅模式。 */
   private guideTheme: TerminalThemeProfile = TerminalThemes.findById('default-dark', [])
   @State allSessions: SessionInfo[] = []
@@ -118,7 +123,7 @@ export struct SessionHomePage {
 
   onCreateTriggered() {
     if (this.createTrigger) {
-      this.showCreateSheet = true
+      this.showNewWorkspaceSheet = true
       this.createTrigger = false
     }
   }
@@ -236,7 +241,7 @@ export struct SessionHomePage {
           .width('100%')
           .alignItems(HorizontalAlign.Center)
           .padding({ left: 20, right: 20 })
-        } else if (this.workers.length > 0 && this.workspaces.length === 0) {
+        } else if (!this.ungroupedOnly && this.workers.length > 0 && this.workspaces.length === 0) {
           // 零工作区空态：引导创建第一个工作区（会话必须归属工作区）。
           Scroll() {
             Column() {
@@ -265,8 +270,8 @@ export struct SessionHomePage {
           }
           .layoutWeight(1)
           .scrollBar(BarState.Off)
-        } else if (this.workers.length === 0
-          || (this.allSessions.length === 0 && this.workspaces.length === 0)) {
+        } else if (!this.ungroupedOnly && (this.workers.length === 0
+          || (this.allSessions.length === 0 && this.workspaces.length === 0))) {
           Scroll() {
             Column() {
               if (this.workers.length === 0) {
@@ -292,45 +297,51 @@ export struct SessionHomePage {
           }
           .layoutWeight(1)
           .scrollBar(BarState.Off)
-        } else {
-          List({ space: 8 }) {
-            // 工作区为主：每个 workspace 一张卡片（名称 / worker 在线状态 / 会话数）。
-            ForEach(this.workspaces, (ws: WorkspaceInfo) => {
-              ListItem() {
-                this.WorkspaceCard(ws)
-              }
-            }, (ws: WorkspaceInfo) => ws.id)
-
-            // 未分组分组：无 workspaceId 的会话以「未分组」组头呈现在下方 groups 中。
-
-            // 会话按 workspace 分组：组头 = 工作区名，只显示有会话的组。
-            ForEach(this.groups, (group: SessionGroup) => {
-              ListItem() {
-                Row() {
-                  Text(group.title)
-                    .fontSize(14)
-                    .fontWeight(FontWeight.Medium)
-                    .fontColor($r('app.color.terminal_text_muted'))
-                  Blank()
-                  Text(I18n.getWithArgs('workspace.home.session_count',
-                    this.countArgs(group.sessions.length)))
-                    .fontSize(12)
-                    .fontColor($r('app.color.terminal_text_tertiary'))
-                }
-                .width('100%')
-                .padding({ left: 4, right: 4, top: 8 })
-              }
-              ForEach(group.sessions, (session: SessionInfo) => {
-                ListItem() {
-                  SessionCard({ session: session, onCardClick: () => { lightHaptic(); this.resumeSession(session) } })
-                }
+        } else if (this.ungroupedOnly) {
+          List({ space: 10 }) {
+            if (this.ungroupedSessions().length === 0) {
+              ListItem() { Text(this.tr('workspace.home.empty_sessions')).fontSize(14).fontColor($r('app.color.terminal_text_muted')).padding(16) }
+            }
+            ForEach(this.ungroupedSessions(), (session: SessionInfo) => {
+              ListItem() { SessionCard({ session: session, onCardClick: () => { this.resumeSession(session) } }) }
                 .swipeAction({ end: this.SwipeActions(session) })
-              }, (session: SessionInfo) => session.id)
-            }, (group: SessionGroup) => group.workspaceId)
-          }
-          .width('100%')
-          .layoutWeight(1)
-          .padding({ left: 20, right: 20, top: 8 })
+            }, (session: SessionInfo) => JSON.stringify([session.id, session.name, session.status,
+              session.updatedAt, session.lastActivityAt, session.lastActiveAt]))
+          }.width('100%').layoutWeight(1).padding(16)
+        } else {
+          List({ space: 12 }) {
+            ListItem() {
+              Column({ space: 14 }) {
+                Text(this.tr('workspace.ui.subtitle')).fontSize(14).fontColor($r('app.color.terminal_text_muted')).width('100%')
+                Search({ placeholder: this.tr('workspace.ui.search'), value: this.searchQuery })
+                  .height(44).margin(0).textFont({ size: 14 }).fontColor($r('app.color.terminal_text'))
+                  .placeholderColor($r('app.color.terminal_text_muted')).backgroundColor($r('app.color.terminal_background_panel'))
+                  .border({ width: 1, color: $r('app.color.terminal_border_subtle') }).borderRadius(10)
+                  .onChange((value: string) => { this.searchQuery = value })
+                Row() {
+                  Text(this.tr('workspace.ui.all')).fontSize(13).fontWeight(FontWeight.Medium).fontColor($r('app.color.terminal_text_muted')).layoutWeight(1)
+                  Text(`${this.filteredWorkspaces().length}`).fontSize(13).fontColor($r('app.color.terminal_text_muted'))
+                }.width('100%').height(24)
+              }.width('100%').alignItems(HorizontalAlign.Start)
+            }
+            ForEach(this.filteredWorkspaces(), (ws: WorkspaceInfo) => {
+              ListItem() { this.WorkspaceCard(ws) }
+            }, (ws: WorkspaceInfo) => ws.id)
+            if (this.filteredWorkspaces().length === 0) {
+              ListItem() { Text(this.tr('workspace.ui.no_results')).fontSize(14).fontColor($r('app.color.terminal_text_muted')).padding(16) }
+            }
+            ListItem() {
+              Row({ space: 12 }) {
+                Image($r('app.media.ws_terminal')).width(22).height(22).fillColor($r('app.color.terminal_text'))
+                Text(this.tr('workspace.home.ungrouped')).fontSize(15).fontWeight(FontWeight.Medium).fontColor($r('app.color.terminal_text')).layoutWeight(1)
+                Text(`${this.ungroupedSessions().length}`).fontSize(13).fontColor($r('app.color.terminal_text_muted'))
+                SymbolGlyph($r('sys.symbol.chevron_right')).fontSize(14).fontColor([$r('app.color.terminal_text_muted')])
+              }.width('100%').height(60).padding(16).borderRadius(12)
+                .backgroundColor($r('app.color.terminal_background_panel'))
+                .border({ width: 1, color: $r('app.color.terminal_border_subtle') }).margin({ top: 12 })
+                .onClick(() => { this.pageStack.pushPath({ name: RouteName.UNGROUPED }) })
+            }
+          }.width('100%').layoutWeight(1).padding({ left: 16, right: 16, top: 12, bottom: 20 })
         }
       }
       .onRefreshing(() => { this.loadData() })
@@ -348,6 +359,7 @@ export struct SessionHomePage {
     })
     .bindSheet($$this.showNewWorkspaceSheet, this.NewWorkspaceSheetContent(), {
       detents: ['80%', SheetSize.LARGE],
+      backgroundColor: $r('app.color.terminal_background'),
       preferType: SheetType.BOTTOM,
       showClose: true,
       onDisappear: () => { this.showNewWorkspaceSheet = false }
@@ -360,7 +372,7 @@ export struct SessionHomePage {
       NewWorkspaceFlow({
         onCreated: (_workspaceId: string, _workspaceName: string) => {
           this.showNewWorkspaceSheet = false
-          this.loadData()
+          AppStorage.setOrCreate('workspaceRefreshTick', Date.now())
         }
       })
     }
@@ -409,61 +421,36 @@ export struct SessionHomePage {
     }
   }
 
+  private tr(key: string): string { return I18n.get(key) + (this.currentLanguage ? '' : '') }
+  private filteredWorkspaces(): WorkspaceInfo[] {
+    const q = this.searchQuery.trim().toLowerCase()
+    return this.workspaces.filter((ws: WorkspaceInfo) => q.length === 0 || `${ws.name} ${ws.rootPath} ${this.workerName(ws.workerId)}`.toLowerCase().includes(q))
+  }
+  private ungroupedSessions(): SessionInfo[] { return this.allSessions.filter((s: SessionInfo) => s.workspaceId.length === 0) }
+
   @Builder
   WorkspaceCard(ws: WorkspaceInfo) {
-    Row() {
-      SymbolGlyph($r('sys.symbol.folder_fill'))
-        .fontSize(22)
-        .fontColor([$r('app.color.terminal_secondary')])
-
-      Column() {
-        Text(ws.name)
-          .fontSize(15)
-          .fontWeight(FontWeight.Medium)
-          .fontColor($r('app.color.terminal_text'))
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-
-        Row({ space: 6 }) {
-          Circle()
-            .width(7)
-            .height(7)
-            .fill(this.onlineOf(ws.workerId)
-              ? $r('app.color.terminal_success')
-              : $r('app.color.terminal_status_idle'))
-          Text(this.workerName(ws.workerId))
-            .fontSize(12)
-            .fontColor($r('app.color.terminal_text_muted'))
-            .maxLines(1)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
-          Text(this.onlineOf(ws.workerId)
-            ? I18n.get('workspace.home.status_online')
-            : I18n.get('workspace.home.status_offline'))
-            .fontSize(11)
-            .fontColor($r('app.color.terminal_text_muted'))
-        }
-        .margin({ top: 3 })
-      }
-      .alignItems(HorizontalAlign.Start)
-      .layoutWeight(1)
-      .margin({ left: 10 })
-
-      Text(I18n.getWithArgs('workspace.home.session_count', this.countArgs(this.sessionCountOf(ws.id))))
-        .fontSize(12)
-        .fontColor($r('app.color.terminal_text_tertiary'))
-
-      SymbolGlyph($r('sys.symbol.chevron_right'))
-        .fontSize(14)
-        .fontColor([$r('app.color.terminal_text_muted')])
-        .margin({ left: 6 })
-    }
-    .width('100%')
-    .padding(14)
-    .borderRadius(12)
-    .backgroundColor($r('app.color.terminal_background_panel'))
-    // worker 离线：置灰但可见、可进入概览页查看（只有新建等写操作被禁）。
-    .opacity(this.onlineOf(ws.workerId) ? 1 : 0.55)
-    .onClick(() => { lightHaptic(); this.openWorkspace(ws) })
+    Column({ space: 8 }) {
+      Row({ space: 12 }) {
+        SymbolGlyph($r('sys.symbol.folder')).fontSize(22).fontColor([$r('app.color.terminal_text')])
+        Text(ws.name).fontSize(16).fontWeight(FontWeight.Medium).fontColor($r('app.color.terminal_text'))
+          .layoutWeight(1).maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
+        SymbolGlyph($r('sys.symbol.chevron_right')).fontSize(14).fontColor([$r('app.color.terminal_text_muted')])
+      }.width('100%')
+      Row({ space: 6 }) {
+        Circle().width(7).height(7).fill(this.onlineOf(ws.workerId) ? $r('app.color.terminal_success') : $r('app.color.terminal_status_idle'))
+        Text(`${this.workerName(ws.workerId)} · ${this.tr(this.onlineOf(ws.workerId) ? 'workspace.home.status_online' : 'workspace.home.status_offline')}`)
+          .fontSize(13).fontColor($r('app.color.terminal_text_muted')).maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis }).layoutWeight(1)
+      }.width('100%').padding({ left: 34 })
+      Row({ space: 8 }) {
+        Text(ws.rootPath).fontSize(11).fontFamily('monospace').fontColor($r('app.color.terminal_text_muted'))
+          .layoutWeight(1).maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
+        Text(I18n.getWithArgs('workspace.home.session_count', this.countArgs(this.sessionCountOf(ws.id))))
+          .fontSize(11).fontColor($r('app.color.terminal_text_muted'))
+      }.width('100%').padding({ left: 34 })
+    }.width('100%').height(112).padding(16).justifyContent(FlexAlign.Center).borderRadius(12)
+      .backgroundColor($r('app.color.terminal_background_panel')).border({ width: 1, color: $r('app.color.terminal_border_subtle') })
+      .onClick(() => { lightHaptic(); this.openWorkspace(ws) })
   }
 
   @Builder

@@ -16,6 +16,8 @@ type OnInputCallback = (data: string) => void
 type OnResizeCallback = (cols: number, rows: number) => void
 type OnSnapshotCapturedCallback = (content: string) => void
 type OnSnapshotFailedCallback = (message: string) => void
+type OnPlainTextExportedCallback = (content: string) => void
+type OnPlainTextExportFailedCallback = (message: string) => void
 type OnTitleCallback = (title: string) => void
 type OnOscCallback = (code: string, data: string) => void
 
@@ -29,6 +31,9 @@ export struct XtermWebview {
   /** Full serialized buffer, delivered on snapshotEnd after chunk reassembly. */
   onSnapshotCaptured: OnSnapshotCapturedCallback = (_content: string) => {}
   onSnapshotFailed: OnSnapshotFailedCallback = (_message: string) => {}
+  /** 全部 buffer 的纯文本（复制全部输出），在 plainTextEnd 分块重组后回传。 */
+  onPlainTextExported: OnPlainTextExportedCallback = (_content: string) => {}
+  onPlainTextExportFailed: OnPlainTextExportFailedCallback = (_message: string) => {}
   /** Remote shell title (OSC 0/2 forwarded from xterm.js). */
   onTitleChange: OnTitleCallback = (_title: string) => {}
   /** OSC 扩展事件：52 远程剪贴板 / 9,777 通知 / 7 当前目录（对齐 Flutter onPrivateOSC）。 */
@@ -86,6 +91,8 @@ export struct XtermWebview {
   private readyNotified: boolean = false
   private snapshotChunks: string[] = []
   private snapshotExpectedTotal: number = -1
+  private exportChunks: string[] = []
+  private exportExpectedTotal: number = -1
 
   build() {
     Column() {
@@ -164,6 +171,26 @@ export struct XtermWebview {
               this.snapshotChunks = []
               this.snapshotExpectedTotal = -1
               this.onSnapshotFailed((msg['message'] as string) ?? 'serialize failed')
+            } else if (type === 'plainTextStart') {
+              this.exportChunks = []
+              this.exportExpectedTotal = msg['total'] as number
+            } else if (type === 'plainTextChunk') {
+              this.exportChunks.push(msg['data'] as string)
+            } else if (type === 'plainTextEnd') {
+              const received = this.exportChunks.length
+              const content = this.exportChunks.join('')
+              const expected = this.exportExpectedTotal
+              this.exportChunks = []
+              this.exportExpectedTotal = -1
+              if (expected >= 0 && received === expected) {
+                this.onPlainTextExported(content)
+              } else {
+                this.onPlainTextExportFailed(`plain text chunk count mismatch: received ${received}, expected ${expected}`)
+              }
+            } else if (type === 'plainTextFailed') {
+              this.exportChunks = []
+              this.exportExpectedTotal = -1
+              this.onPlainTextExportFailed((msg['message'] as string) ?? 'export failed')
             } else if (type === 'title') {
               this.onTitleChange((msg['title'] as string) ?? '')
             } else if (type === 'osc') {

@@ -31,6 +31,6 @@ export struct AuthComponent {
     }
     .hideTitleBar(true)
     .backgroundColor($r('app.color.terminal_background'))
-    .onBackPressed(() => true)
+    .onBackPressed(() => !this.isLoggedIn || this.authToken.length === 0)
   }
 }

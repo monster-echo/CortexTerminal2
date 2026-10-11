@@ -50,6 +50,8 @@ export class SessionCreateRequest {
   rows: number = 24
   clientRequestId: string = ''
   workspaceId: string = ''
+  /** Fork 专用：PTY 起始目录（OSC 7 实时 cwd）。不设置则序列化时省略。 */
+  cwd?: string = undefined
 }
 
 @Observed

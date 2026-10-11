@@ -66,7 +66,7 @@ export struct WorkerListPage {
                     .margin({ right: 12 })
 
                   Column() {
-                    Text(worker.name || worker.hostname || 'Unknown Worker')
+                    Text(worker.name || worker.hostname || 'Unknown computer')
                       .fontSize(15)
                       .fontWeight(FontWeight.Medium)
                       .fontColor($r('app.color.terminal_text'))
@@ -249,8 +249,8 @@ export struct WorkerListPage {
 
   private confirmUpgrade(worker: WorkerInfo) {
     this.getUIContext()?.showAlertDialog({
-      title: 'Update Worker',
-      message: `Update ${worker.name || worker.hostname} from v${worker.version} to v${this.latestWorkerVersion}? The worker will restart.`,
+      title: 'Update computer',
+      message: `Update ${worker.name || worker.hostname} from v${worker.version} to v${this.latestWorkerVersion}? The computer will restart.`,
       primaryButton: {
         value: I18n.get('common.cancel'),
         action: () => {}

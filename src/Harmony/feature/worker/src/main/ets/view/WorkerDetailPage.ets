@@ -6,7 +6,7 @@
  * active sessions, and provides actions like creating new sessions
  * or connecting to existing ones.
  */
-import { ApiService, I18n, RouteName, WorkerInfo, WorkerSessionInfo, SessionCreateRequest, showI18nToast, showToast, AnalyticsService, lightHaptic, clickHaptic } from '@rwecho/core'
+import { ApiService, I18n, RouteName, TerminalNavParam, WorkerInfo, WorkerSessionInfo, SessionCreateRequest, showI18nToast, showToast, AnalyticsService, lightHaptic, clickHaptic } from '@rwecho/core'
 import { NewWorkspaceFlow } from '@rwecho/session'
 
 interface WorkspaceItem {
@@ -19,7 +19,7 @@ interface WorkspaceItem {
 @Component
 export struct WorkerDetailPage {
   @StorageLink('navWorkerId') workerId: string = ''
-  @StorageLink('navWorkerName') workerName: string = 'Worker'
+  @StorageLink('navWorkerName') workerName: string = 'Computer'
   @State worker: WorkerInfo | null = null
   @State sessions: WorkerSessionInfo[] = []
   @State workspaces: WorkspaceItem[] = []
@@ -349,9 +349,7 @@ export struct WorkerDetailPage {
         .fontSize(13)
         .onClick(() => {
           clickHaptic()
-          AppStorage.setOrCreate('navSessionId', session.id)
-          AppStorage.setOrCreate('navSessionName', session.name || 'Terminal')
-          this.pageStack.pushPath({ name: 'TerminalSession' })
+          this.openTerminal(session.id, session.name || 'Terminal')
         })
     }
     .width('100%')
@@ -477,7 +475,7 @@ export struct WorkerDetailPage {
           return wsi
         })
     } catch (e) {
-      this.errorMessage = (e as Error).message || 'Failed to load worker details'
+      this.errorMessage = (e as Error).message || 'Failed to load computer details'
     } finally {
       this.isLoading = false
     }
@@ -489,6 +487,14 @@ export struct WorkerDetailPage {
     }
   }
 
+  private openTerminal(sessionId: string, sessionName: string) {
+    const param = new TerminalNavParam()
+    param.sessionId = sessionId
+    param.sessionName = sessionName
+    param.workerId = this.workerId
+    this.pageStack.pushPath({ name: RouteName.TERMINAL_SESSION, param })
+  }
+
   private async createNewSession() {
     try {
       const request = new SessionCreateRequest()
@@ -498,9 +504,7 @@ export struct WorkerDetailPage {
 
       const response = await ApiService.createSession(request)
 
-      AppStorage.setOrCreate('navSessionId', response.sessionId)
-      AppStorage.setOrCreate('navSessionName', response.name)
-      this.pageStack.pushPath({ name: 'TerminalSession' })
+      this.openTerminal(response.sessionId, response.name)
     } catch (e) {
       showToast((e as Error).message || I18n.get('session.create_failed'))
     }
@@ -516,9 +520,7 @@ export struct WorkerDetailPage {
 
       const response = await ApiService.createSession(request)
 
-      AppStorage.setOrCreate('navSessionId', response.sessionId)
-      AppStorage.setOrCreate('navSessionName', response.name)
-      this.pageStack.pushPath({ name: 'TerminalSession' })
+      this.openTerminal(response.sessionId, response.name)
     } catch (e) {
       showToast((e as Error).message || I18n.get('session.create_failed'))
     }

@@ -4,14 +4,14 @@
     { "name": "mainability_description", "value": "云枢终端入口能力" },
 
     { "name": "menu_terminal", "value": "终端" },
-    { "name": "menu_workers", "value": "工作节点" },
+    { "name": "menu_workers", "value": "电脑" },
     { "name": "menu_settings", "value": "设置" },
 
     { "name": "button_new_terminal", "value": "新建终端" },
     { "name": "button_resume", "value": "恢复" },
-    { "name": "button_activate", "value": "激活节点" },
+    { "name": "button_activate", "value": "激活电脑" },
     { "name": "button_sign_in", "value": "登录" },
-    { "name": "button_choose_worker", "value": "选择节点" },
+    { "name": "button_choose_worker", "value": "选择电脑" },
 
     { "name": "label_recent_session", "value": "最近会话" },
     { "name": "label_no_sessions", "value": "暂无活跃会话" },
@@ -38,7 +38,7 @@
     { "name": "settings_account", "value": "账户" },
     { "name": "settings_sign_out", "value": "退出登录" },
 
-    { "name": "worker_title", "value": "工作节点" },
+    { "name": "worker_title", "value": "电脑" },
     { "name": "worker_online", "value": "在线" },
     { "name": "worker_offline", "value": "离线" },
     { "name": "worker_hostname", "value": "主机名" },
@@ -46,8 +46,8 @@
     { "name": "worker_arch", "value": "架构" },
     { "name": "worker_version", "value": "版本" },
     { "name": "worker_active_sessions", "value": "活跃会话" },
-    { "name": "worker_no_workers", "value": "暂无注册节点" },
-    { "name": "worker_no_workers_hint", "value": "激活一个节点以开始使用终端" },
+    { "name": "worker_no_workers", "value": "还没有绑定电脑" },
+    { "name": "worker_no_workers_hint", "value": "激活一台电脑以开始使用终端" },
 
     { "name": "key_esc", "value": "Esc" },
     { "name": "key_ctrl", "value": "Ctrl" },
@@ -78,12 +78,12 @@
     { "name": "login_password_label", "value": "密码" },
     { "name": "login_password_placeholder", "value": "请输入密码" },
     { "name": "login_password_button", "value": "用户名和密码登录" },
-    { "name": "activate_title", "value": "激活工作节点" },
-    { "name": "activate_subtitle", "value": "输入工作节点上的激活码" },
+    { "name": "activate_title", "value": "激活电脑" },
+    { "name": "activate_subtitle", "value": "输入电脑上显示的激活码" },
     { "name": "activate_code_label", "value": "激活码" },
     { "name": "activate_code_placeholder", "value": "XXXX-XXXX" },
     { "name": "activate_button", "value": "激活" },
     { "name": "activate_skip", "value": "暂时跳过" },
-    { "name": "activate_success", "value": "工作节点激活成功！" }
+    { "name": "activate_success", "value": "电脑激活成功！" }
   ]
 }

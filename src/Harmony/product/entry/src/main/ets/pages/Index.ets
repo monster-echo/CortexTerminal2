@@ -76,7 +76,16 @@ struct Index {
       }
       .hideTitleBar(true)
       .backgroundColor($r('app.color.terminal_background'))
-      .onBackPressed(() => true)
+      .onBackPressed(() => {
+        // At the app root, Back closes the drawer before keeping the home page.
+        if (AppStorage.get<boolean>('shellSidebarVisible')) {
+          AppStorage.setOrCreate('shellSidebarVisible', false)
+        }
+        return true
+      })
+    } else if (name === RouteName.UNGROUPED) {
+      NavDestination() { ShellScaffold({ activeRoute: RouteName.UNGROUPED, subPage: true }) }
+        .hideTitleBar(true).backgroundColor($r('app.color.terminal_background'))
     } else if (name === RouteName.TERMINAL_SESSION) {
       NavDestination() {
         TerminalPage()
@@ -85,15 +94,13 @@ struct Index {
       .backgroundColor($r('app.color.terminal_background'))
     } else if (name === RouteName.WORKER_LIST) {
       NavDestination() {
-        ShellScaffold({ activeRoute: RouteName.WORKER_LIST, subPage: !!param })
+        ShellScaffold({ activeRoute: RouteName.WORKER_LIST, subPage: true })
       }
       .hideTitleBar(true)
       .backgroundColor($r('app.color.terminal_background'))
-      // 顶层进入（无 param）拦截返回；从「我的」带 param 压栈时放行 pop。
-      .onBackPressed(() => !param)
     } else if (name === RouteName.WORKER_DETAIL) {
       NavDestination() {
-        ShellScaffold({ activeRoute: RouteName.WORKER_DETAIL })
+        ShellScaffold({ activeRoute: RouteName.WORKER_DETAIL, subPage: true })
       }
       .hideTitleBar(true)
       .backgroundColor($r('app.color.terminal_background'))
@@ -103,6 +110,7 @@ struct Index {
       }
       .hideTitleBar(true)
       .backgroundColor($r('app.color.terminal_background'))
+      .onShown(() => { AppStorage.setOrCreate('workspaceRefreshTick', Date.now()) })
     } else if (name === RouteName.ACCOUNT_SECURITY) {
       NavDestination() {
         AccountSecurityPage()
@@ -117,11 +125,10 @@ struct Index {
       .backgroundColor($r('app.color.terminal_background'))
     } else if (name === RouteName.SETTINGS) {
       NavDestination() {
-        ShellScaffold({ activeRoute: RouteName.SETTINGS })
+        ShellScaffold({ activeRoute: RouteName.SETTINGS, subPage: true })
       }
       .hideTitleBar(true)
       .backgroundColor($r('app.color.terminal_background'))
-      .onBackPressed(() => true)
     } else if (name === RouteName.SETTINGS_ROOT) {
       NavDestination() {
         ShellScaffold({ activeRoute: RouteName.SETTINGS_ROOT, subPage: true })

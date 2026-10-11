@@ -2,8 +2,10 @@
  * @file AboutPage.ets
  * @brief 关于我们二级页：App 图标 + 名称 + 版本号居中，协议入口卡片，底部版权
  */
+import { systemShare } from '@kit.ShareKit'
+import { MarketLauncher } from '../service/MarketLauncher'
 import { common } from '@kit.AbilityKit'
-import { I18n, PageLayout, RouteName, lightHaptic } from '@rwecho/core'
+import { I18n, PageLayout, RouteName, lightHaptic, showToast } from '@rwecho/core'
 
 @Component
 export struct AboutPage {
@@ -22,6 +24,35 @@ export struct AboutPage {
       .resourceManager.getStringByNameSync(resourceKey)
     const navParam: Record<string, string> = { 'url': url }
     this.pageStack.pushPath({ name: RouteName.WEB_PAGE, param: navParam })
+  }
+
+  private async shareApp() {
+    const context = getContext(this) as common.UIAbilityContext
+    const url = 'https://appgallery.huawei.com/app/detail?id=top.rwecho.cortexterminal'
+    const data: systemShare.SharedData = new systemShare.SharedData({
+      utd: 'general.text',
+      content: I18n.getWithArgs('settings.share_app_text', { 'url': url })
+    })
+    const controller: systemShare.ShareController = new systemShare.ShareController(data)
+    await controller.show(context, {
+      selectionMode: systemShare.SelectionMode.SINGLE,
+      previewMode: systemShare.SharePreviewMode.DETAIL
+    })
+  }
+
+  private rateApp() {
+    const context = getContext(this) as common.UIAbilityContext
+    MarketLauncher.openAppDetail(context).catch((e: Error) => {
+      showToast(I18n.getWithArgs('settings.rate_failed', { 'msg': e.message }))
+    })
+  }
+
+  @Builder
+  ActionRow(key: string, action: () => void) {
+    Row() {
+      Text(this.tr(key)).fontSize(16).fontColor($r('app.color.terminal_text')).layoutWeight(1)
+      SymbolGlyph($r('sys.symbol.chevron_right')).fontSize(16).fontColor([$r('app.color.terminal_text_tertiary')])
+    }.width('100%').height(52).onClick(action)
   }
 
   build() {
@@ -50,6 +81,14 @@ export struct AboutPage {
         .margin({ top: 32, bottom: 16 })
 
         Blank().height(24)
+
+        Column() {
+          this.ActionRow('settings.share_app', () => {
+            this.shareApp().catch((e: Error) => { showToast(e.message) })
+          })
+          Divider().color($r('app.color.terminal_border_subtle'))
+          this.ActionRow('settings.rate_us', () => { this.rateApp() })
+        }.aboutCardStyle().margin({ bottom: 12 })
 
         // 协议入口
         Column() {

@@ -115,6 +115,14 @@
     {
       "name": "terminal_status_idle",
       "value": "#64748B"
+    },
+    {
+      "name": "terminal_scrim",
+      "value": "#000000"
+    },
+    {
+      "name": "terminal_camera_text",
+      "value": "#F8FAFC"
     }
   ]
 }

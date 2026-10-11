@@ -31,6 +31,28 @@ public sealed class SessionLaunchCoordinatorTests
     }
 
     [Fact]
+    public async Task CreateSessionAsync_ForkCwdOverridesWorkspaceRootAndReachesWorker()
+    {
+        var workers = TestSessionFactory.CreateWorkerRegistry();
+        workers.Register("worker-fork-1", "conn-fork-1");
+        var sessions = TestSessionFactory.CreateCoordinator(workers);
+        var dispatcher = new RecordingWorkerCommandDispatcher();
+        var workspaces = TestSessionFactory.CreateWorkspaceRegistry();
+        var ws = await workspaces.CreateAsync("test-user", "worker-fork-1", "proj", "/home/u/proj", isDefault: false);
+        var coordinator = new SessionLaunchCoordinator(sessions, dispatcher, new ScrollbackSettings(), TestSessionFactory.CreatePreferenceService(), workspaces);
+
+        var result = await coordinator.CreateSessionAsync(
+            "test-user",
+            new CreateSessionRequest("shell", 120, 40, WorkerId: "worker-fork-1", WorkspaceId: ws.Id, Cwd: "/home/u/proj/sub"),
+            clientConnectionId: null,
+            CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        dispatcher.StartCommands.Should().ContainSingle()
+            .Which.Cwd.Should().Be("/home/u/proj/sub");
+    }
+
+    [Fact]
     public async Task CreateSessionAsync_UsesDerivedMaxBytesWhenNoOverride()
     {
         var workers = TestSessionFactory.CreateWorkerRegistry();

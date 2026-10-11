@@ -7,6 +7,7 @@
  */
 import { ApiService } from './ApiService'
 import { AuthState } from './AuthState'
+import { RouteName } from '../constants/RouteName'
 
 export class AuthService {
   static async loginWithHuaweiAuthCode(authCode: string, unionID: string, openID: string): Promise<void> {
@@ -66,6 +67,23 @@ export class AuthService {
 
   static navigateHome(pageStack: NavPathStack): void {
     AppStorage.setOrCreate('authCompleted', true)
-    pageStack.replacePath({ name: 'session/Home' })
+    pageStack.clear()
+    pageStack.replacePath({ name: RouteName.SESSION_HOME })
+  }
+
+  static finishWorkerActivation(pageStack: NavPathStack, route: string): void {
+    const names = pageStack.getAllPathName()
+    if (names[names.length - 1] !== route) return
+    // Activation is a child flow; successful login alone resets the app root.
+    let sourceIndex = names.length - 2
+    while (sourceIndex >= 0 && (names[sourceIndex] === RouteName.ACTIVATE_WORKER
+      || names[sourceIndex] === RouteName.ACTIVATE_CODE)) {
+      sourceIndex--
+    }
+    if (sourceIndex >= 0) {
+      pageStack.popToIndex(sourceIndex)
+    } else {
+      AuthService.navigateHome(pageStack)
+    }
   }
 }
