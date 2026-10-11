@@ -83,6 +83,9 @@ jobs:
               product.pop('signingConfig', None)
           profile.write_text(json.dumps(config, indent=2))
           PYCONFIG
+          mkdir -p node_modules/@ohos
+          ln -sfn /Applications/DevEco-Studio.app/Contents/tools/hvigor/hvigor node_modules/@ohos/hvigor
+          ln -sfn /Applications/DevEco-Studio.app/Contents/tools/hvigor/hvigor-ohos-plugin node_modules/@ohos/hvigor-ohos-plugin
           HVIGOR="/Applications/DevEco-Studio.app/Contents/tools/hvigor/hvigor/bin/hvigor.js"
           node "$HVIGOR" clean --no-daemon
           node "$HVIGOR" assembleHap --mode module -p module=entry@default -p product=default --no-daemon
