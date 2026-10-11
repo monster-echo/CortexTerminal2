@@ -46,15 +46,6 @@ export struct ActivateWorkerPage {
   build() {
     PageLayout({ title: I18n.get('auth.activate.title') }) {
       Column({ space: 18 }) {
-        Column({ space: 6 }) {
-          Text(I18n.get('auth.activate.hero_title'))
-            .fontSize(25).fontWeight(FontWeight.Bold)
-            .fontColor($r('app.color.terminal_text'))
-          Text(I18n.get('auth.activate.hero_subtitle'))
-            .fontSize(14).fontColor($r('app.color.terminal_text_muted'))
-        }
-        .width('100%').alignItems(HorizontalAlign.Start).margin({ top: 8 })
-
         if (this.successMessage.length > 0) {
           Column({ space: 12 }) {
             SymbolGlyph($r('sys.symbol.checkmark_circle'))
@@ -64,14 +55,16 @@ export struct ActivateWorkerPage {
           }
           .width('100%').alignItems(HorizontalAlign.Center).padding({ top: 44, bottom: 44 })
         } else {
-          Column({ space: 14 }) {
+          Column({ space: 16 }) {
+            Text(I18n.get('auth.activate.scan_hint')).fontSize(14)
+              .fontColor($r('app.color.terminal_text_muted')).width('100%')
             Stack({ alignContent: Alignment.Center }) {
               XComponent({
                 id: 'worker_activation_camera_surface',
                 type: XComponentType.SURFACE,
                 controller: this.cameraController
               })
-                .width('100%').height(336)
+                .width('100%').height(280)
                 .onLoad(() => {
                   this.surfaceId = this.cameraController.getXComponentSurfaceId()
                   this.previewLoaded = true
@@ -82,23 +75,12 @@ export struct ActivateWorkerPage {
                   this.surfaceId = ''
                 })
 
-              Column({ space: 10 }) {
-                Text(I18n.get('auth.activate.scan_computer'))
-                  .fontSize(14).fontWeight(FontWeight.Medium)
-                  .fontColor($r('app.color.terminal_camera_text'))
-                Column() { }
-                  .width(212).height(212).borderRadius(20)
-                  .border({ width: 2, color: $r('app.color.terminal_primary') })
-                Text(I18n.get('auth.activate.scan_hint'))
-                  .fontSize(12).fontColor($r('app.color.terminal_camera_text'))
-                  .textAlign(TextAlign.Center).maxLines(2)
-              }
-              .alignItems(HorizontalAlign.Center)
-              .justifyContent(FlexAlign.Center)
-              .width('100%').height(336)
-              .backgroundColor(Color.Transparent)
+              Column() { }
+                .width(212).height(212).borderRadius(20)
+                .border({ width: 2, color: $r('app.color.terminal_primary') })
+                .backgroundColor(Color.Transparent)
             }
-            .width('100%').height(336)
+            .width('100%').height(280)
             .borderRadius(20).clip(true)
             .backgroundColor($r('app.color.terminal_background_element'))
             .border({ width: 1, color: $r('app.color.terminal_border_subtle') })
@@ -129,27 +111,17 @@ export struct ActivateWorkerPage {
               }.width('100%')
             }
 
-            Row({ space: 12 }) {
-              Divider().layoutWeight(1).color($r('app.color.terminal_border_subtle'))
-              Text(I18n.get('auth.activate.or')).fontSize(12)
-                .fontColor($r('app.color.terminal_text_muted'))
-              Divider().layoutWeight(1).color($r('app.color.terminal_border_subtle'))
-            }.width('100%').margin({ top: 2, bottom: 2 })
-
             Button() {
               Row({ space: 12 }) {
                 SymbolGlyph($r('sys.symbol.keyboard'))
                   .fontSize(19).fontColor([$r('app.color.terminal_text')])
-                Column({ space: 3 }) {
-                  Text(I18n.get('auth.activate.enter_code')).fontSize(15)
-                    .fontWeight(FontWeight.Medium).fontColor($r('app.color.terminal_text'))
-                  Text(I18n.get('auth.activate.code_help_detail')).fontSize(12)
-                    .fontColor($r('app.color.terminal_text_muted'))
-                }.alignItems(HorizontalAlign.Start).layoutWeight(1)
+                Text(I18n.get('auth.activate.enter_code')).fontSize(15)
+                  .fontWeight(FontWeight.Medium).fontColor($r('app.color.terminal_text')).layoutWeight(1)
+                  .textAlign(TextAlign.Start)
                 SymbolGlyph($r('sys.symbol.chevron_right'))
                   .fontSize(14).fontColor([$r('app.color.terminal_text_muted')])
               }
-              .width('100%').height(64).padding({ left: 16, right: 14 })
+              .width('100%').height(52).padding({ left: 16, right: 14 })
             }
             .width('100%').borderRadius(14)
             .backgroundColor($r('app.color.terminal_background_panel'))
@@ -159,16 +131,10 @@ export struct ActivateWorkerPage {
               this.pageStack.pushPath({ name: RouteName.ACTIVATE_CODE })
             })
 
-            Row({ space: 6 }) {
-              SymbolGlyph($r('sys.symbol.lock'))
-                .fontSize(12).fontColor([$r('app.color.terminal_text_muted')])
-              Text(I18n.get('auth.activate.camera_privacy')).fontSize(11)
-                .fontColor($r('app.color.terminal_text_muted'))
-            }.width('100%').justifyContent(FlexAlign.Center).margin({ top: 2 })
           }.width('100%')
         }
       }
-      .width('100%').padding({ left: 20, right: 20, top: 4, bottom: 24 })
+      .width('100%').padding({ left: 20, right: 20, top: 16, bottom: 24 })
     }
   }
 
