@@ -587,7 +587,7 @@ export const enStrings: Record<string, string> = {
   'workspace.ui.session_actions_hint': 'Swipe left to delete; long press to move out',
   'workspaces.delete': 'Delete',
   'workspaces.delete_confirm_title': 'Delete Workspace',
-  'workspaces.delete_confirm_message': 'Delete workspace "{name}"? Its files will not be removed.',
+  'workspaces.delete_confirm_message': 'Delete workspace "{name}" and all its sessions? This cannot be undone. Files on the computer will be kept.',
   'workspaces.delete_failed': 'Failed to delete workspace',
   'workspaces.delete_success': 'Workspace deleted',
   'session.move': 'Move',

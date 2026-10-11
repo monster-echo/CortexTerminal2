@@ -408,20 +408,18 @@ export struct WorkerDetailPage {
           this.createSessionInWorkspace(ws.id)
         })
 
-      if (!ws.isDefault) {
-        Button(I18n.get('workspaces.delete'))
-          .height(32)
-          .borderRadius(8)
-          .backgroundColor(Color.Transparent)
-          .border({ width: 1, color: $r('app.color.terminal_border_subtle') })
-          .fontColor($r('app.color.terminal_error'))
-          .fontSize(13)
-          .margin({ left: 8 })
-          .onClick(() => {
-            clickHaptic()
-            this.confirmDeleteWorkspace(ws)
-          })
-      }
+      Button(I18n.get('workspaces.delete'))
+        .height(32)
+        .borderRadius(8)
+        .backgroundColor(Color.Transparent)
+        .border({ width: 1, color: $r('app.color.terminal_border_subtle') })
+        .fontColor($r('app.color.terminal_error'))
+        .fontSize(13)
+        .margin({ left: 8 })
+        .onClick(() => {
+          clickHaptic()
+          this.confirmDeleteWorkspace(ws)
+        })
     }
     .width('100%')
     .padding(12)
@@ -565,9 +563,9 @@ export struct WorkerDetailPage {
       lightHaptic()
       await ApiService.deleteWorkspace(ws.id)
       showToast(I18n.get('workspaces.delete_success'))
+      AppStorage.setOrCreate('workspaceRefreshTick', Date.now())
       await this.loadWorkspaces()
     } catch (e) {
-      // 默认工作区/仍有会话绑定时网关返回 400，把具体原因展示给用户，不吞
       showToast((e as Error).message || I18n.get('workspaces.delete_failed'))
     }
   }

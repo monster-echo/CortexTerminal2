@@ -396,10 +396,6 @@ export struct SessionHomePage {
   }
 
   private confirmDeleteWorkspace(workspace: WorkspaceInfo): void {
-    if (workspace.isDefault) { showI18nToast('workspaces.delete_default'); return }
-    if (this.allSessions.some((session: SessionInfo) => session.workspaceId === workspace.id)) {
-      showI18nToast('workspaces.delete_has_sessions'); return
-    }
     this.getUIContext().showAlertDialog({
       title: I18n.get('workspaces.delete_confirm_title'),
       message: I18n.getWithArgs('workspaces.delete_confirm_message', { 'name': workspace.name }),
@@ -414,6 +410,7 @@ export struct SessionHomePage {
     this.deletingWorkspaceId = workspace.id
     try {
       await ApiService.deleteWorkspace(workspace.id)
+      this.allSessions = this.allSessions.filter((session: SessionInfo) => session.workspaceId !== workspace.id)
       this.workspaces = this.workspaces.filter((item: WorkspaceInfo) => item.id !== workspace.id)
       this.rebuildGroups()
       AppStorage.setOrCreate('workspaceRefreshTick', Date.now())

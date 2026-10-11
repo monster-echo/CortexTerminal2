@@ -55,22 +55,19 @@ public sealed class WorkspaceRegistry(IDbContextFactory<AppDbContext> dbFactory,
         return entity;
     }
 
-    /// <summary>软删除。默认工作区与仍有会话绑定的工作区拒绝删除。</summary>
-    public async Task DeleteAsync(string userId, string workspaceId, int boundSessionCount)
+    /// <summary>软删除工作区，并在同一次保存中删除所属会话记录；保留电脑上的文件。</summary>
+    public async Task<IReadOnlyList<string>> DeleteAsync(string userId, string workspaceId)
     {
         await using var db = await dbFactory.CreateDbContextAsync();
         var entity = await db.Workspaces
             .FirstOrDefaultAsync(w => w.Id == workspaceId && w.OwnerUserId == userId && w.DeletedAtUtc == null)
             ?? throw new WorkspaceNotFoundException("Workspace not found");
-        if (entity.IsDefault)
-        {
-            throw new InvalidOperationException("The default workspace cannot be deleted");
-        }
-        if (boundSessionCount > 0)
-        {
-            throw new InvalidOperationException($"Workspace still has {boundSessionCount} bound sessions");
-        }
+        var boundSessions = await db.Sessions
+            .Where(s => s.UserId == userId && s.WorkspaceId == workspaceId)
+            .ToListAsync();
+        db.Sessions.RemoveRange(boundSessions);
         entity.DeletedAtUtc = timeProvider.GetUtcNow();
         await db.SaveChangesAsync();
+        return boundSessions.Select(s => s.SessionId).ToList();
     }
 }

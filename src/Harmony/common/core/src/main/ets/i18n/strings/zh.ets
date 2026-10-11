@@ -587,7 +587,7 @@ export const zhStrings: Record<string, string> = {
   'workspace.ui.session_actions_hint': '左滑删除会话，长按移出工作区',
   'workspaces.delete': '删除',
   'workspaces.delete_confirm_title': '删除工作区',
-  'workspaces.delete_confirm_message': '确定删除工作区「{name}」？其中的文件不会被删除。',
+  'workspaces.delete_confirm_message': '确定删除工作区「{name}」及其中的所有会话？此操作不可撤销。电脑上的文件将保留。',
   'workspaces.delete_failed': '删除工作区失败',
   'workspaces.delete_success': '工作区已删除',
   'session.move': '移动',

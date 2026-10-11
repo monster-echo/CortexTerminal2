@@ -99,7 +99,7 @@ export class ApiService {
     return await ApiService.post('/api/workspaces', body as Object) as Record<string, Object>
   }
 
-  /** 删除工作区。默认工作区/仍有会话绑定时网关返回 400，错误信息抛给调用方展示。 */
+  /** 删除工作区及其所属会话记录，保留电脑上的文件。 */
   static async deleteWorkspace(workspaceId: string): Promise<void> {
     await ApiService.del(`/api/workspaces/${encodeURIComponent(workspaceId)}`)
   }

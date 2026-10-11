@@ -3373,10 +3373,15 @@ app.MapDelete("/api/workspaces/{workspaceId}", async (string workspaceId, Claims
 {
     var userId = GetUserId(user);
     var userSessions = await sessions.GetSessionsForUser(userId);
-    var bound = userSessions.Count(s => s.WorkspaceId == workspaceId);
     try
     {
-        await workspaces.DeleteAsync(userId, workspaceId, bound);
+        var deletedSessionIds = await workspaces.DeleteAsync(userId, workspaceId);
+        // Persistent deletion succeeded; evict the same sessions from the live registry.
+        foreach (var sessionId in deletedSessionIds.Concat(userSessions
+            .Where(s => s.WorkspaceId == workspaceId).Select(s => s.SessionId)).Distinct())
+        {
+            await sessions.RemoveSession(sessionId);
+        }
     }
     catch (WorkspaceNotFoundException)
     {

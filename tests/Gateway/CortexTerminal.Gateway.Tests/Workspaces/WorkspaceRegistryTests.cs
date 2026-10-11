@@ -39,23 +39,37 @@ public sealed class WorkspaceRegistryTests
     }
 
     [Fact]
-    public async Task Delete_DefaultWorkspace_IsRejected()
+    public async Task Delete_DefaultWorkspace_IsRemoved()
     {
         var registry = NewRegistry();
         var created = await registry.CreateAsync("user-1", "worker-1", "Home", "/home/user", isDefault: true);
 
-        var act = () => registry.DeleteAsync("user-1", created.Id, boundSessionCount: 0);
-        await act.Should().ThrowAsync<InvalidOperationException>();
+        await registry.DeleteAsync("user-1", created.Id);
+        (await registry.ListForUserAsync("user-1")).Should().BeEmpty();
     }
 
     [Fact]
-    public async Task Delete_WithBoundSessions_IsRejected()
+    public async Task Delete_WithBoundSessions_RemovesSessions()
     {
-        var registry = NewRegistry();
+        var factory = TestSessionFactory.CreateContextFactoryPublic();
+        var registry = new WorkspaceRegistry(factory, TimeProvider.System);
         var created = await registry.CreateAsync("user-1", "worker-1", "proj", "/home/user/proj");
+        await using var db = await factory.CreateDbContextAsync();
+        db.Sessions.Add(new CortexTerminal.Gateway.Data.SessionRecordEntity
+        {
+            SessionId = "session-bound", UserId = "user-1", WorkerId = "worker-1", WorkspaceId = created.Id
+        });
+        db.Sessions.Add(new CortexTerminal.Gateway.Data.SessionRecordEntity
+        {
+            SessionId = "session-other", UserId = "user-1", WorkerId = "worker-1"
+        });
+        await db.SaveChangesAsync();
 
-        var act = () => registry.DeleteAsync("user-1", created.Id, boundSessionCount: 2);
-        await act.Should().ThrowAsync<InvalidOperationException>();
+        var deleted = await registry.DeleteAsync("user-1", created.Id);
+        deleted.Should().Equal("session-bound");
+        (await registry.ListForUserAsync("user-1")).Should().BeEmpty();
+        await using var refreshed = await factory.CreateDbContextAsync();
+        refreshed.Sessions.Select(s => s.SessionId).Should().Equal("session-other");
     }
 
     [Fact]
