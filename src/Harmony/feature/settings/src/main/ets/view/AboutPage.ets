@@ -18,9 +18,9 @@ export struct AboutPage {
     return I18n.get(key) + (this.currentLanguage ? '' : '')
   }
 
-  private openLegal(resourceKey: string) {
+  private openLegal(kind: string) {
     lightHaptic()
-    const param: Record<string, string> = { 'kind': resourceKey === 'privacy_policy_url' ? 'privacy' : 'terms' }
+    const param: Record<string, string> = { 'kind': kind }
     this.pageStack.pushPath({ name: RouteName.LEGAL_DOCUMENT, param: param })
   }
 
@@ -103,7 +103,7 @@ export struct AboutPage {
           .width('100%')
           .height(52)
           .onClick(() => {
-            this.openLegal('terms_of_service_url')
+            this.openLegal('terms')
           })
 
           Divider()
@@ -122,8 +122,10 @@ export struct AboutPage {
           .width('100%')
           .height(52)
           .onClick(() => {
-            this.openLegal('privacy_policy_url')
+            this.openLegal('privacy')
           })
+          Divider().color($r('app.color.terminal_border_subtle'))
+          this.ActionRow('legal.account_deletion', () => { this.openLegal('account-deletion') })
         }
         .aboutCardStyle()
 
