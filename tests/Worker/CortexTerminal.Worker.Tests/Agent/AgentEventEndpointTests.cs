@@ -103,7 +103,7 @@ public sealed class AgentEventEndpointTests
         }
     }
 
-    private static (AgentIntegration integration, AgentEventEndpoint endpoint, CapturingSink sink) BuildComponents(string installDir)
+    private static (ClaudeHooksInstaller integration, AgentEventEndpoint endpoint, CapturingSink sink) BuildComponents(string installDir)
     {
         var loggerFactory = LoggerFactory.Create(builder =>
         {
@@ -111,7 +111,11 @@ public sealed class AgentEventEndpointTests
             builder.AddConsole();
         });
 
-        var integration = new AgentIntegration(installDir, loggerFactory.CreateLogger<AgentIntegration>());
+        var integration = new ClaudeHooksInstaller(
+            installDir,
+            enabled: true,
+            loggerFactory.CreateLogger<ClaudeHooksInstaller>(),
+            settingsPath: Path.Combine(installDir, "claude", "settings.json"));
         var adapter = new TestAdapter();
         var registry = new TestRegistry(adapter);
         var sink = new CapturingSink();
@@ -122,13 +126,13 @@ public sealed class AgentEventEndpointTests
     private static StringContent JsonContent(Dictionary<string, object?> body)
         => new(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
 
-    private static async Task WaitUntilReadyAsync(AgentIntegration integration, CancellationToken cancellationToken)
+    private static async Task WaitUntilReadyAsync(ClaudeHooksInstaller integration, CancellationToken cancellationToken)
     {
         var deadline = DateTimeOffset.UtcNow.AddSeconds(20);
         while (!integration.Enabled)
         {
             if (DateTimeOffset.UtcNow >= deadline)
-                throw new TimeoutException("AgentIntegration did not become ready within 20 seconds.");
+                throw new TimeoutException("ClaudeHooksInstaller did not become ready within 20 seconds.");
             await Task.Delay(50, cancellationToken);
         }
     }

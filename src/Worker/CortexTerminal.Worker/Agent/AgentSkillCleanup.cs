@@ -9,8 +9,9 @@ namespace CortexTerminal.Worker.Agent;
 /// the local skill cache. Without the cleanup, a worker upgraded past the skill's removal
 /// would keep injecting stale prompt content.
 ///
-/// <c>~/.corterm/sessions</c> is deliberately NOT touched: it now hosts cortap's live
-/// session logs (SessionPaths), not the legacy artifacts tree it once was.
+/// <c>~/.corterm/sessions</c> is deliberately NOT touched: it hosts the agent session
+/// logs (SessionPaths) written by the (still-repo-kept, no-longer-shipped) cortap
+/// wrapper's FileSink, not the legacy artifacts tree it once was.
 /// </summary>
 /// <remarks>
 /// Data-migration semantics apply: each step logs and continues on failure rather than

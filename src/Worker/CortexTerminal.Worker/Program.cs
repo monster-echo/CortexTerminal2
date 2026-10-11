@@ -577,12 +577,14 @@ rootCommand.SetAction(async (ParseResult parseResult, CancellationToken cancella
         return new WorkerGatewayClient(connection);
     });
 
-    // Agent tracking — loopback HTTP endpoint + adapter registry + dispatch sink.
-    // Hook URL is published via AgentIntegration once Kestrel binds.
-    builder.Services.AddSingleton(sp => new AgentIntegration(
+    // Agent tracking — loopback HTTP endpoint + adapter registry + dispatch sink. Claude
+    // Code hooks are merged into ~/.claude/settings.json (non-invasive; no PATH shims) by
+    // ClaudeHooksInstaller once Kestrel binds and publishes the hook URL.
+    builder.Services.AddSingleton(sp => new ClaudeHooksInstaller(
         installDir,
-        sp.GetRequiredService<ILogger<AgentIntegration>>()));
-    builder.Services.AddSingleton<IAgentIntegration>(sp => sp.GetRequiredService<AgentIntegration>());
+        builder.Configuration.GetValue("Agent:Enabled", true),
+        sp.GetRequiredService<ILogger<ClaudeHooksInstaller>>()));
+    builder.Services.AddSingleton<IAgentIntegration>(sp => sp.GetRequiredService<ClaudeHooksInstaller>());
     builder.Services.AddSingleton<IAgentAdapterRegistry>(sp => new AgentAdapterRegistry(
         sp.GetRequiredService<IEnumerable<IAgentAdapter>>(),
         sp.GetRequiredService<ILogger<AgentAdapterRegistry>>()));
@@ -591,7 +593,7 @@ rootCommand.SetAction(async (ParseResult parseResult, CancellationToken cancella
         sp.GetRequiredService<IWorkerGatewayClient>(),
         sp.GetRequiredService<ILogger<GatewayAgentEventSink>>()));
     builder.Services.AddHostedService(sp => new AgentEventEndpoint(
-        sp.GetRequiredService<AgentIntegration>(),
+        sp.GetRequiredService<ClaudeHooksInstaller>(),
         sp.GetRequiredService<IAgentAdapterRegistry>(),
         sp.GetRequiredService<IAgentEventSink>(),
         sp.GetRequiredService<ILogger<AgentEventEndpoint>>()));
@@ -675,104 +677,23 @@ rootCommand.SetAction(async (ParseResult parseResult, CancellationToken cancella
     }
 
     var host = builder.Build();
-    // Self-heal before writing shims: if cortap is missing — the typical state of an install
-    // that reached this version via the pre-full-sync update path (which only copied corterm
-    // and discarded cortap) — restore the release files for the running version now.
-    await EnsureCortapPresentAsync(installDir, version, host.Services.GetRequiredService<ILogger<Program>>(), cancellationToken);
-    host.Services.GetRequiredService<AgentIntegration>().EnsureShimsInstalled();
+    var agentInstaller = host.Services.GetRequiredService<ClaudeHooksInstaller>();
+    // Remove claude/codex/opencode shim scripts left by the retired PATH-hijack mechanism
+    // (only our own file names; anything else in the shims dir is untouched).
+    agentInstaller.CleanupLegacyShims();
+    // Agent:Enabled=false → strip our hook entries from ~/.claude/settings.json so a
+    // disabled worker never leaves orphan hooks behind. (Hooks themselves are installed
+    // later by ClaudeHooksInstaller.MarkReady once the endpoint binds.)
+    if (!builder.Configuration.GetValue("Agent:Enabled", true))
+    {
+        agentInstaller.RemoveInstalledHooks();
+    }
     // Strip the retired corterm-artifacts skill (installed copies, codex section, cache) so
     // upgraded workers stop injecting it into agent prompts. No-op after the first run.
     await CortexTerminal.Worker.Agent.AgentSkillCleanup.RunOnceAsync(
         host.Services.GetRequiredService<ILogger<Program>>(), cancellationToken);
     await host.RunAsync(cancellationToken);
 });
-
-// ── self-heal: restore missing release files without replacing the running corterm binary ──
-
-// Checks whether the agent wrapper (cortap) is present; if not, re-downloads the current
-// version's release archive and syncs the files. Runs on every startup but is a cheap
-// File.Exists no-op once healthy. Failures are logged and swallowed so a missing optional
-// wrapper can't keep the whole worker (and its terminal) from starting.
-static async Task EnsureCortapPresentAsync(string installDir, string version, ILogger logger, CancellationToken cancellationToken)
-{
-    var isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
-    var wrapperName = isWindows ? "cortap.exe" : "cortap";
-    if (File.Exists(Path.Combine(installDir, wrapperName))) return;
-
-    logger.LogWarning("Agent wrapper {Wrapper} missing; restoring release files for v{Version} ...", wrapperName, version);
-    try
-    {
-        if (await RestoreReleaseFilesAsync(installDir, version, cancellationToken))
-            logger.LogInformation("Agent wrapper restored.");
-        else
-            logger.LogError("Agent wrapper restore failed: release archive had no files to sync.");
-    }
-    catch (Exception ex)
-    {
-        logger.LogError(ex, "Agent wrapper self-heal failed; agent tracking disabled until next restart.");
-    }
-}
-
-// Downloads the release archive for `targetVersion`, extracts it, and overwrites every file
-// in `installDir` except the running corterm binary (already the right version; on Windows
-// also image-locked). cortap and any other missing files land in place. Returns false if the
-// archive contained nothing to copy.
-static async Task<bool> RestoreReleaseFilesAsync(string installDir, string targetVersion, CancellationToken cancellationToken)
-{
-    var isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
-    var isOsx = RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
-    var arch = RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "arm64" : "x64";
-    var ridOs = isOsx ? "osx" : isWindows ? "win" : "linux";
-    var ext = isWindows ? "zip" : "tar.gz";
-    var assetName = $"corterm-{ridOs}-{arch}.{ext}";
-    var githubRepo = "monster-echo/CortexTerminal2";
-    var githubProxy = Environment.GetEnvironmentVariable("CORTERM_GITHUB_PROXY") ?? "https://proxy.0x2a.top";
-    var downloadUrl = $"{githubProxy}/https://github.com/{githubRepo}/releases/download/worker-v{targetVersion}/{assetName}";
-
-    var tmpDir = Path.Combine(Path.GetTempPath(), $"corterm-restore-{Guid.NewGuid():N}");
-    Directory.CreateDirectory(tmpDir);
-    var tmpFile = Path.Combine(tmpDir, isWindows ? "corterm.zip" : "corterm.tar.gz");
-
-    try
-    {
-        using var http = new HttpClient(new SocketsHttpHandler { Proxy = HttpClient.DefaultProxy, UseProxy = true });
-        var data = await http.GetByteArrayAsync(downloadUrl, cancellationToken);
-        await File.WriteAllBytesAsync(tmpFile, data, cancellationToken);
-
-        var extractDir = Path.Combine(tmpDir, "extracted");
-        Directory.CreateDirectory(extractDir);
-        if (isWindows)
-        {
-            System.IO.Compression.ZipFile.ExtractToDirectory(tmpFile, extractDir, overwriteFiles: true);
-        }
-        else
-        {
-            var tar = Process.Start(new ProcessStartInfo("tar", $"-xzf \"{tmpFile}\" -C \"{extractDir}\"") { UseShellExecute = false });
-            if (tar is not null) await tar.WaitForExitAsync(cancellationToken);
-        }
-
-        // Full-sync into the install dir, skipping corterm itself (right version + Windows lock).
-        // Preserve unix file modes so cortap keeps its exec bit after File.Copy.
-        var currentBinaryName = isWindows ? "corterm.exe" : "corterm";
-        var restored = false;
-        foreach (var sourceFile in Directory.EnumerateFiles(extractDir, "*", SearchOption.TopDirectoryOnly))
-        {
-            if (Path.GetFileName(sourceFile) == currentBinaryName) continue;
-            var destFile = Path.Combine(installDir, Path.GetFileName(sourceFile));
-            File.Copy(sourceFile, destFile, overwrite: true);
-            if (!isWindows)
-            {
-                try { File.SetUnixFileMode(destFile, File.GetUnixFileMode(sourceFile)); } catch { }
-            }
-            restored = true;
-        }
-        return restored;
-    }
-    finally
-    {
-        try { if (Directory.Exists(tmpDir)) Directory.Delete(tmpDir, recursive: true); } catch { }
-    }
-}
 
 // ── update command ──
 var updateCommand = new Command("update", "Update Corterm Worker to the latest version");
@@ -870,45 +791,6 @@ updateCommand.SetAction(async (ParseResult parseResult, CancellationToken cancel
         return 0;
     }
 
-    // Even when already on the latest version, an install that arrived here via the
-    // pre-full-sync update path is missing cortap. Re-sync instead of short-circuiting so
-    // `corterm update` self-heals — otherwise these installs are stuck (no newer version to
-    // upgrade into, and the version-equality path used to just return).
-    var wrapperName = isWindows ? "cortap.exe" : "cortap";
-    var wrapperMissing = !File.Exists(Path.Combine(installDir, wrapperName));
-    if (version == latestVersion)
-    {
-        if (!wrapperMissing)
-        {
-            if (json) Console.Out.WriteLine(CliJson.UpdateStage("done", version: version, message: "Already up to date.").ToJsonString());
-            else say($"  Already up to date ({version}).");
-            return 0;
-        }
-        say($"  Already on {version}, but {wrapperName} is missing — re-syncing release files ...");
-        if (json) Console.Out.WriteLine(CliJson.UpdateStage("check", version: version, message: $"{wrapperName} missing, re-syncing").ToJsonString());
-        try
-        {
-            await RestoreReleaseFilesAsync(installDir, version, cancellationToken);
-            say($"  {wrapperName} restored. Restarting worker ...");
-            if (json) Console.Out.WriteLine(CliJson.UpdateStage("install", version: version, message: $"{wrapperName} restored").ToJsonString());
-            var svc = RunServiceCommand("restart");
-            if (!svc.Ok)
-            {
-                if (json) Console.Out.WriteLine(CliJson.UpdateStage("error", message: svc.Error).ToJsonString());
-                Console.Error.WriteLine(svc.Error);
-                return 1;
-            }
-            if (json) Console.Out.WriteLine(CliJson.UpdateStage("done", version: version).ToJsonString());
-        }
-        catch (Exception ex)
-        {
-            if (json) Console.Out.WriteLine(CliJson.UpdateStage("error", message: $"Failed to restore {wrapperName}: {ex.Message}").ToJsonString());
-            Console.Error.WriteLine($"  Failed to restore {wrapperName}: {ex.Message}");
-            return 1;
-        }
-        return 0;
-    }
-
     say($"  New version available: {latestVersion}");
     if (json) Console.Out.WriteLine(CliJson.UpdateStage("check", version: latestVersion).ToJsonString());
 
@@ -974,11 +856,9 @@ updateCommand.SetAction(async (ParseResult parseResult, CancellationToken cancel
         try { File.Delete(backupPath); } catch { }
 
         // Sync the rest of the release archive over the install dir so an upgrade matches
-        // a fresh install — cortap, appsettings, service templates, etc. all refresh.
-        // Without this, a worker that predates cortap-in-archive (commit feeb091) never
-        // gains the wrapper and the shims written at startup point at a missing file.
-        // Preserve unix file modes per file so cortap keeps its exec bit (File.Copy resets
-        // mode to umask). The archive is flat (single-file publish), so top-level is enough.
+        // a fresh install — appsettings, service templates, etc. all refresh.
+        // Preserve unix file modes per file (File.Copy resets mode to umask). The archive
+        // is flat (single-file publish), so top-level is enough.
         var currentBinaryName = Path.GetFileName(currentBinary);
         foreach (var sourceFile in Directory.EnumerateFiles(extractDir, "*", SearchOption.TopDirectoryOnly))
         {

@@ -14,9 +14,9 @@ using Microsoft.Extensions.Logging;
 namespace CortexTerminal.Worker.Agent;
 
 /// <summary>
-/// Loopback Kestrel HTTP server that receives POST /agent-event from cortap
-/// (the wrapper binary spawned when a user runs `claude`/`codex`/`opencode` inside
-/// a Corterm PTY). Validates the envelope, looks up the adapter, parses into a
+/// Loopback Kestrel HTTP server that receives POST /agent-event from the
+/// cortap-hook-reporter script (executed by Claude Code hooks merged into the user's
+/// ~/.claude/settings.json). Validates the envelope, looks up the adapter, parses into a
 /// structured frame, and dispatches via <see cref="IAgentEventSink"/>.
 ///
 /// Wire format (set by the wrapper binary, which controls the envelope):
@@ -32,18 +32,18 @@ public sealed class AgentEventEndpoint : BackgroundService
     private const string EnvelopeEventType = "event_type";
     private const string EnvelopePayload = "payload";
 
-    private readonly AgentIntegration _integration;
+    private readonly ClaudeHooksInstaller _integration;
     private readonly IAgentAdapterRegistry _adapters;
     private readonly IAgentEventSink _sink;
     private readonly ILogger<AgentEventEndpoint> _logger;
 
     public AgentEventEndpoint(
-        AgentIntegration integration,
+        ClaudeHooksInstaller installer,
         IAgentAdapterRegistry adapters,
         IAgentEventSink sink,
         ILogger<AgentEventEndpoint> logger)
     {
-        _integration = integration;
+        _integration = installer;
         _adapters = adapters;
         _sink = sink;
         _logger = logger;

@@ -9,7 +9,7 @@ public sealed class UnixPtyHost : IPtyHost
 
     public async Task<IPtyProcess> StartAsync(int columns, int rows, string? cwd, IReadOnlyDictionary<string, string> environmentVariables, CancellationToken cancellationToken)
     {
-        var (app, commandLine) = ResolveShellLaunch(environmentVariables);
+        var (app, commandLine) = ResolveShellLaunch();
         var environment = new Dictionary<string, string>
         {
             ["TERM"] = "xterm-256color",
@@ -50,20 +50,18 @@ public sealed class UnixPtyHost : IPtyHost
         }
     }
 
-    private static (string App, string[] CommandLine) ResolveShellLaunch(IReadOnlyDictionary<string, string>? env = null)
+    private static (string App, string[] CommandLine) ResolveShellLaunch()
     {
         if (OperatingSystem.IsWindows())
         {
-            // Prefer PowerShell (pwsh) over cmd.exe. When CORTERM_POWERSHELL_INIT is
-            // set, launch with `-Command ". <file>"` so the managed prompt script
-            // (OSC 0/7 title reporting) loads per-PTY — the user's profile is untouched.
+            // Prefer PowerShell (pwsh) over cmd.exe.
             var pwsh = FindOnPath("pwsh.exe");
             if (pwsh is not null)
-                return (pwsh, PowerShellLaunchArgs(env));
+                return (pwsh, Array.Empty<string>());
 
             var ps = FindOnPath("powershell.exe");
             if (ps is not null)
-                return (ps, PowerShellLaunchArgs(env));
+                return (ps, Array.Empty<string>());
 
             var comspec = Environment.GetEnvironmentVariable("COMSPEC");
             if (!string.IsNullOrWhiteSpace(comspec))
@@ -75,73 +73,20 @@ public sealed class UnixPtyHost : IPtyHost
         var shellPath = Environment.GetEnvironmentVariable("SHELL");
         if (!string.IsNullOrWhiteSpace(shellPath))
         {
-            return ResolveUnixShell(shellPath, env);
+            return (shellPath, new[] { "-l" });
         }
 
         if (OperatingSystem.IsMacOS())
         {
-            return ResolveUnixShell("/bin/zsh", env);
+            return ("/bin/zsh", new[] { "-l" });
         }
 
         if (OperatingSystem.IsLinux())
         {
-            return ResolveUnixShell("/bin/bash", env);
+            return ("/bin/bash", new[] { "-l" });
         }
 
         return ("/bin/sh", new[] { "-l" });
-    }
-
-    /// <summary>
-    /// Resolves the launch args for a Unix shell. Bash + a Corterm-managed rcfile means the
-    /// user has agent tracking enabled and we need to ensure our shims dir wins the PATH
-    /// lookup — bash is launched as <c>bash --rcfile=&lt;rcfile&gt;</c> so the managed
-    /// rcfile (which sources the user's .profile/.bashrc and prepends the shims dir) is the
-    /// only thing bash loads. The <c>-i</c> flag is deliberately omitted: <c>bash -i
-    /// --rcfile &lt;f&gt;</c> prints a usage error and exits 2 (reproduced on bash 3.2 and
-    /// 5.x), while the PTY supplies a controlling tty so bash enters interactive mode on
-    /// its own. Zsh and other shells use the standard <c>-l</c> flag because zsh honors
-    /// ZDOTDIR (set separately in the env).
-    /// </summary>
-    /// <summary>
-    /// PowerShell launch args: when <c>CORTERM_POWERSHELL_INIT</c> is set, dot-source
-    /// the managed prompt script on startup (VS Code's shell-integration injection).
-    /// <c>-ExecutionPolicy Bypass</c> covers installs where script execution is
-    /// restricted — without it the dot-source would be blocked and titles lost.
-    /// <c>-NoExit</c> keeps the session alive after the script; <c>-NoLogo</c> saves
-    /// the banner. cmd.exe gets no injection (no supported hook without touching the
-    /// AutoRun registry — a user-machine change we deliberately avoid).
-    /// </summary>
-    private static string[] PowerShellLaunchArgs(IReadOnlyDictionary<string, string>? env)
-    {
-        if (env is not null &&
-            env.TryGetValue("CORTERM_POWERSHELL_INIT", out var initScript) &&
-            !string.IsNullOrWhiteSpace(initScript))
-        {
-            return new[]
-            {
-                "-NoLogo",
-                "-ExecutionPolicy", "Bypass",
-                "-NoExit",
-                "-Command",
-                $". '{initScript}'",
-            };
-        }
-
-        return Array.Empty<string>();
-    }
-
-    private static (string App, string[] CommandLine) ResolveUnixShell(string shellPath, IReadOnlyDictionary<string, string>? env)
-    {
-        var isBash = shellPath.EndsWith("/bash", StringComparison.Ordinal) ||
-                     string.Equals(Path.GetFileName(shellPath), "bash", StringComparison.Ordinal);
-        if (isBash && env is not null &&
-            env.TryGetValue("CORTERM_BASH_RCFILE", out var rcfile) &&
-            !string.IsNullOrWhiteSpace(rcfile))
-        {
-            return (shellPath, new[] { "--rcfile", rcfile });
-        }
-
-        return (shellPath, new[] { "-l" });
     }
 
     private static string? FindOnPath(string fileName)
