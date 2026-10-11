@@ -181,6 +181,14 @@ export default class EntryAbility extends UIAbility {
         hilog.warn(DOMAIN, TAG, `keyboard height monitoring not supported: ${(e as Error).message}`)
       }
 
+      // Store system insets for full-screen modal pages.
+      const updateSystemInsets = (): void => {
+        const systemArea = win.getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM)
+        AppStorage.setOrCreate('topSafeArea', px2vp(systemArea.topRect.height))
+      }
+      updateSystemInsets()
+      win.on('avoidAreaChange', () => { updateSystemInsets() })
+
       // Get navigation bar (bottom avoid area) height for safe area padding
       try {
         const avoidArea = win.getWindowAvoidArea(window.AvoidAreaType.TYPE_NAVIGATION_INDICATOR)

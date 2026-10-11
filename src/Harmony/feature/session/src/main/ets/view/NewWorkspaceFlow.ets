@@ -28,6 +28,7 @@ export struct NewWorkspaceFlow {
   @State pickerDirectoryPath: string = ''
   @State pickerDirectoryLoading: boolean = false
   @State pickerDirectoryError: string = ''
+  @StorageLink('topSafeArea') topSafeArea: number = 0
   @StorageLink('bottomSafeArea') bottomSafeArea: number = 0
 
   aboutToAppear(): void {
@@ -117,24 +118,26 @@ export struct NewWorkspaceFlow {
 
   @Builder
   PickerPage() {
+    Column() {
     if (this.pickerMode === 'worker') {
       WorkspaceWorkerPickerPage({
-        workers: this.workers, isLoading: this.isLoading, errorMessage: this.errorMessage,
+        workers: $workers, isLoading: $isLoading, errorMessage: $errorMessage,
         onRetry: () => { this.loadWorkers() },
         onCancel: () => { this.closePicker() },
         onSelect: (worker: WorkerInfo) => { this.applySelectedWorker(worker) }
       })
     } else {
       WorkspaceFolderPickerPage({
-        workerId: this.selectedWorkerId, currentPath: this.pickerDirectoryPath,
-        dirEntries: this.pickerDirectoryEntries, isLoading: this.pickerDirectoryLoading,
-        errorMessage: this.pickerDirectoryError,
+        workerId: this.selectedWorkerId, currentPath: $pickerDirectoryPath,
+        dirEntries: $pickerDirectoryEntries, isLoading: $pickerDirectoryLoading,
+        errorMessage: $pickerDirectoryError,
         onNavigate: (path: string) => { this.loadPickerDirectory(path) },
         onRetry: () => { this.loadPickerDirectory(this.pickerDirectoryPath) },
         onCancel: () => { this.closePicker() },
         onSelect: (path: string) => { this.applySelectedFolder(path) }
       })
     }
+    }.width('100%').height('100%')
   }
 
   private closePicker() { this.showPicker = false }
@@ -260,9 +263,10 @@ export struct NewWorkspaceFlow {
 
 @Component
 export struct WorkspaceWorkerPickerPage {
-  @Prop workers: WorkerInfo[] = []
-  @Prop isLoading: boolean = false
-  @Prop errorMessage: string = ''
+  @Link workers: WorkerInfo[]
+  @Link isLoading: boolean
+  @Link errorMessage: string
+  @StorageLink('topSafeArea') topSafeArea: number = 0
   @StorageLink('bottomSafeArea') bottomSafeArea: number = 0
   onSelect?: (worker: WorkerInfo) => void
   onCancel?: () => void
@@ -320,8 +324,9 @@ export struct WorkspaceWorkerPickerPage {
             }.width('100%').alignItems(HorizontalAlign.Start)
           }.width('100%').layoutWeight(1).scrollBar(BarState.Off).align(Alignment.Top)
         }
-      }.width('100%').layoutWeight(1).padding({ left: 20, right: 20, top: 16, bottom: this.bottomSafeArea + 12 }).justifyContent(FlexAlign.Start)
+      }.width('100%').layoutWeight(1).padding({ left: 20, right: 20, top: this.topSafeArea + 8, bottom: this.bottomSafeArea + 12 }).justifyContent(FlexAlign.Start)
     }.width('100%').height('100%').backgroundColor($r('app.color.terminal_background'))
+      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
   }
 
   private selectWorker(workerId: string) {
@@ -338,10 +343,11 @@ export struct WorkspaceWorkerPickerPage {
 @Component
 export struct WorkspaceFolderPickerPage {
   @Prop workerId: string = ''
-  @Prop dirEntries: WorkspaceDirectoryEntry[] = []
-  @Prop currentPath: string = ''
-  @Prop isLoading: boolean = false
-  @Prop errorMessage: string = ''
+  @Link dirEntries: WorkspaceDirectoryEntry[]
+  @Link currentPath: string
+  @Link isLoading: boolean
+  @Link errorMessage: string
+  @StorageLink('topSafeArea') topSafeArea: number = 0
   @StorageLink('bottomSafeArea') bottomSafeArea: number = 0
   onSelect?: (path: string) => void
   onCancel?: () => void
@@ -412,8 +418,9 @@ export struct WorkspaceFolderPickerPage {
           .fontColor($r('app.color.terminal_inverse_on_surface')).fontSize(15).fontWeight(FontWeight.Medium)
           .margin({ top: 12, bottom: 4 }).enabled(!this.isLoading && this.errorMessage.length === 0)
           .onClick(() => { this.chooseCurrentFolder() })
-      }.width('100%').layoutWeight(1).padding({ left: 20, right: 20, top: 16, bottom: this.bottomSafeArea + 12 }).justifyContent(FlexAlign.Start)
+      }.width('100%').layoutWeight(1).padding({ left: 20, right: 20, top: this.topSafeArea + 8, bottom: this.bottomSafeArea + 12 }).justifyContent(FlexAlign.Start)
     }.width('100%').height('100%').backgroundColor($r('app.color.terminal_background'))
+      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
   }
 
   private currentDisplayPath(): string { return this.currentPath.length === 0 ? I18n.get('files.home') : `~/${this.currentPath}` }

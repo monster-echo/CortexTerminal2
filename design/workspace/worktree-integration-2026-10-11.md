@@ -20,3 +20,18 @@ Retained main's newer inline activation camera, theme tokens, workspace return n
 - Unit and integration suites were not run as part of this merge.
 
 The recovered review images are historical worktree evidence, not verification of the final merged build.
+
+## Follow-up: picker state and safe areas
+
+The full-screen builder now has a reactive container and linked loading, error, path and list state. System top inset is read from the window and refreshed on avoid-area changes. Both pickers use the existing theme colors.
+
+Validated on the Mate 60 emulator after reinstalling the signed HAP:
+
+- Computer picker shows four workers, including online/offline states.
+- Folder picker on echos-Mac-mini loads the home directory and `.agents` children.
+- Confirming `.agents` returns to creation with the folder and suggested name filled.
+- Reopening the computer picker shows the correct page; switching computers clears the previous folder/name.
+- System Back returns from the folder picker to creation.
+- Screenshots confirm the title clears the status bar and the folder action clears the gesture bar.
+- The second online worker, tengxun-2, returns HTTP 404 for its home-directory listing. The page shows Retry and disables confirmation; this remote response remains unresolved.
+- Signed HAP build and `git diff --check` passed. No unit/integration suites were run.
