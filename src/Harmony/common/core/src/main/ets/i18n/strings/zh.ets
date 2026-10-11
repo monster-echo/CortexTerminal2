@@ -392,6 +392,7 @@ export const zhStrings: Record<string, string> = {
   'referral.apply_failed': '绑定失败：{msg}',
   'referral.load_failed': '加载邀请信息失败：{msg}',
   'referral.reward_days_short': '{n} 天',
+  'support.feishu_unavailable': '飞书群暂不可用，请稍后重试',
   'support.title': '联系客服',
   'support.copy': '复制',
   'support.copied': '已复制',

@@ -1,13 +1,4 @@
-/**
- * @file ContactSupportPage.ets
- * @brief Lists support channels (QQ group / Telegram group / email) served by gateway.
- *
- * Pulls /api/support/info on enter. Each enabled group renders as a card with
- * group id / link (copyable via pasteboard) and a QR code image loaded from the
- * gateway. Domestic gateway returns only qqGroup, overseas only telegramGroup;
- * the app does not decide region — it just renders whatever the gateway returns.
- */
-import { pasteboard } from '@kit.BasicServicesKit'
+/** Feishu support entry, configured by the gateway. */
 import { common, Want } from '@kit.AbilityKit'
 import {
   ApiService,
@@ -18,7 +9,6 @@ import {
   SupportInfo,
   showI18nToast,
   showToast,
-  lightHaptic,
   clickHaptic,
   AnalyticsService,
   AnalyticsEvent
@@ -42,6 +32,9 @@ export struct ContactSupportPage {
     this.loadError = ''
     try {
       this.supportInfo = await ApiService.getSupportInfo()
+      if (!this.supportInfo.feishuGroup || this.supportInfo.feishuGroup.url.length === 0) {
+        this.loadError = I18n.get('support.feishu_unavailable')
+      }
     } catch (e) {
       // 异常即信号：把错误暴露给用户，不静默降级
       this.loadError = (e as Error).message || I18n.get('support.load_failed')
@@ -106,216 +99,29 @@ export struct ContactSupportPage {
   @Builder
   Content() {
     Scroll() {
-      Column() {
-        if (this.supportInfo!.qqGroup !== null) {
-          this.GroupCard(this.supportInfo!.qqGroup as SupportGroupInfo, false)
-        }
-        if (this.supportInfo!.telegramGroup !== null) {
-          this.GroupCard(this.supportInfo!.telegramGroup as SupportGroupInfo, true)
-        }
+      Column({ space: 20 }) {
         if (this.supportInfo!.feishuGroup !== null) {
-          this.FeishuCard(this.supportInfo!.feishuGroup as SupportGroupInfo)
+          Text(I18n.get('support.feishuGroupName')).fontSize(18).fontWeight(FontWeight.Medium)
+            .fontColor($r('app.color.terminal_text'))
+          QRCode((this.supportInfo!.feishuGroup as SupportGroupInfo).url)
+            .width(220).height(220)
+            .color($r('app.color.terminal_qr_foreground'))
+            .backgroundColor($r('app.color.terminal_qr_background'))
+            .padding(12)
+            .accessibilityText(I18n.get('support.scan_to_join'))
+          Text(I18n.get('support.scan_to_join')).fontSize(13)
+            .fontColor($r('app.color.terminal_text_muted')).textAlign(TextAlign.Center)
+          Button(I18n.get('support.join_feishu'))
+            .width('100%').height(48).borderRadius(12)
+            .backgroundColor($r('app.color.terminal_inverse_surface'))
+            .fontColor($r('app.color.terminal_inverse_on_surface'))
+            .onClick(() => {
+              clickHaptic()
+              this.openLink((this.supportInfo!.feishuGroup as SupportGroupInfo).url)
+            })
         }
-        if (this.supportInfo!.email.length > 0) {
-          this.EmailCard(this.supportInfo!.email)
-        }
-      }
-      .width('100%')
-      .padding({ bottom: 24 })
-    }
-    .layoutWeight(1)
-    .align(Alignment.Top)
-  }
-
-  @Builder
-  GroupCard(group: SupportGroupInfo, isTelegram: boolean) {
-    Column() {
-      Row() {
-        SymbolGlyph(isTelegram ? $r('sys.symbol.paperplane') : $r('sys.symbol.person_2'))
-          .fontSize(20)
-          .fontColor([$r('app.color.terminal_secondary')])
-        Text(isTelegram ? group.name : I18n.get('support.qqGroupName'))
-          .fontSize(16)
-          .fontWeight(FontWeight.Medium)
-          .fontColor($r('app.color.terminal_text'))
-          .margin({ left: 8 })
-          .layoutWeight(1)
-      }
-      .width('100%')
-
-      Row() {
-        Text(isTelegram ? group.url : group.number)
-          .fontSize(14)
-          .fontColor($r('app.color.terminal_secondary'))
-          .layoutWeight(1)
-        Text(I18n.get('support.copy'))
-          .fontSize(13)
-          .fontWeight(FontWeight.Medium)
-          .fontColor($r('app.color.terminal_secondary_container'))
-          .onClick(() => {
-            clickHaptic()
-            this.copyToClipboard(isTelegram ? group.url : group.number)
-          })
-      }
-      .width('100%')
-      .margin({ top: 12 })
-
-      Column({ space: 8 }) {
-        Image(group.qrCodeUrl)
-          .width(160)
-          .height(160)
-          .borderRadius(12)
-          .backgroundColor($r('app.color.terminal_background_element'))
-          .objectRepeat(ImageRepeat.NoRepeat)
-          .hitTestBehavior(HitTestMode.Transparent)
-        Text(I18n.get('support.scan_to_join'))
-          .fontSize(12)
-          .fontColor($r('app.color.terminal_text_muted'))
-      }
-      .width('100%')
-      .alignItems(HorizontalAlign.Center)
-      .margin({ top: 16 })
-      .onClick(() => {
-        clickHaptic()
-        const param: Record<string, string> = { 'url': group.qrCodeUrl }
-        this.pageStack.pushPath({ name: RouteName.IMAGE_PREVIEW, param: param })
-      })
-
-      if (isTelegram) {
-        Button(I18n.get('support.open_tg'))
-          .type(ButtonType.Capsule)
-          .width('100%')
-          .height(40)
-          .backgroundColor($r('app.color.terminal_secondary_container'))
-          .fontColor($r('app.color.terminal_on_secondary_container'))
-          .margin({ top: 12 })
-          .onClick(() => {
-            clickHaptic()
-            this.openExternal(group.url)
-          })
-      }
-    }
-    .width('100%')
-    .padding(16)
-    .borderRadius(12)
-    .backgroundColor($r('app.color.terminal_background_panel'))
-    .margin({ bottom: 12 })
-  }
-
-  @Builder
-  FeishuCard(group: SupportGroupInfo) {
-    Column() {
-      Row() {
-        SymbolGlyph($r('sys.symbol.person_2'))
-          .fontSize(20)
-          .fontColor([$r('app.color.terminal_secondary')])
-        Text(I18n.get('support.feishuGroupName'))
-          .fontSize(16)
-          .fontWeight(FontWeight.Medium)
-          .fontColor($r('app.color.terminal_text'))
-          .margin({ left: 8 })
-          .layoutWeight(1)
-      }
-      .width('100%')
-
-      Column({ space: 8 }) {
-        Image(group.qrCodeUrl)
-          .width(160)
-          .height(160)
-          .borderRadius(12)
-          .backgroundColor($r('app.color.terminal_background_element'))
-          .objectRepeat(ImageRepeat.NoRepeat)
-          .hitTestBehavior(HitTestMode.Transparent)
-        Text(I18n.get('support.scan_to_join'))
-          .fontSize(12)
-          .fontColor($r('app.color.terminal_text_muted'))
-      }
-      .width('100%')
-      .alignItems(HorizontalAlign.Center)
-      .margin({ top: 16 })
-      .onClick(() => {
-        clickHaptic()
-        const param: Record<string, string> = { 'url': group.qrCodeUrl }
-        this.pageStack.pushPath({ name: RouteName.IMAGE_PREVIEW, param: param })
-      })
-
-      Button(I18n.get('support.join_feishu'))
-        .type(ButtonType.Capsule)
-        .width('100%')
-        .height(40)
-        .backgroundColor($r('app.color.terminal_secondary_container'))
-        .fontColor($r('app.color.terminal_on_secondary_container'))
-        .margin({ top: 12 })
-        .onClick(() => {
-          clickHaptic()
-          this.openLink(group.url)
-        })
-    }
-    .width('100%')
-    .padding(16)
-    .borderRadius(12)
-    .backgroundColor($r('app.color.terminal_background_panel'))
-    .margin({ bottom: 12 })
-  }
-
-  @Builder
-  EmailCard(email: string) {
-    Row() {
-      SymbolGlyph($r('sys.symbol.envelope'))
-        .fontSize(20)
-        .fontColor([$r('app.color.terminal_secondary')])
-      Text(email)
-        .fontSize(14)
-        .fontColor($r('app.color.terminal_text'))
-        .layoutWeight(1)
-        .margin({ left: 8 })
-      SymbolGlyph($r('sys.symbol.chevron_right'))
-        .fontSize(16)
-        .fontColor([$r('app.color.terminal_text_muted')])
-    }
-    .width('100%')
-    .padding(16)
-    .borderRadius(12)
-    .backgroundColor($r('app.color.terminal_background_panel'))
-    .onClick(() => {
-      clickHaptic()
-      this.openMail(email)
-    })
-  }
-
-  private async copyToClipboard(text: string) {
-    if (text.length === 0) {
-      return
-    }
-    try {
-      const systemPasteboard = pasteboard.getSystemPasteboard()
-      const pasteData = pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, text)
-      await systemPasteboard.setData(pasteData)
-      showI18nToast('support.copied')
-    } catch (e) {
-      showToast((e as Error).message || I18n.get('common.error'))
-    }
-  }
-
-  private async openMail(email: string) {
-    if (email.length === 0) {
-      return
-    }
-    try {
-      const ctx = this.getUIContext()?.getHostContext() as common.UIAbilityContext
-      const want: Want = {
-        action: 'ohos.want.action.sendData',
-        uri: `mailto:${email}`
-      }
-      await ctx.startAbility(want)
-    } catch (e) {
-      showToast((e as Error).message || I18n.get('support.mail_failed'))
-    }
-  }
-
-  private openExternal(url: string) {
-    const navParam: Record<string, string> = { 'url': url }
-    this.pageStack.pushPath({ name: RouteName.WEB_PAGE, param: navParam })
+      }.width('100%').alignItems(HorizontalAlign.Center).padding({ top: 16, bottom: 24 })
+    }.width('100%').layoutWeight(1).align(Alignment.Top).scrollBar(BarState.Off)
   }
 
   /** applink 优先拉起飞书 App，未安装时由系统落到浏览器。 */

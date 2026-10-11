@@ -392,6 +392,7 @@ export const enStrings: Record<string, string> = {
   'referral.apply_failed': 'Failed to apply: {msg}',
   'referral.load_failed': 'Failed to load referral info: {msg}',
   'referral.reward_days_short': '{n} days',
+  'support.feishu_unavailable': 'Feishu group is unavailable. Please try again later.',
   'support.title': 'Contact Support',
   'support.copy': 'Copy',
   'support.copied': 'Copied',

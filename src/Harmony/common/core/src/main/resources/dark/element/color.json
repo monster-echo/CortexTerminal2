@@ -123,6 +123,14 @@
     {
       "name": "terminal_camera_text",
       "value": "#F8FAFC"
+    },
+    {
+      "name": "terminal_qr_foreground",
+      "value": "#000000"
+    },
+    {
+      "name": "terminal_qr_background",
+      "value": "#FFFFFF"
     }
   ]
 }
