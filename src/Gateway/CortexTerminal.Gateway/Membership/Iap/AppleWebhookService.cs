@@ -74,42 +74,28 @@ public sealed class AppleWebhookService
                 "Apple notification is missing NotificationUuid; cannot deduplicate.");
         }
 
-        // 2. Idempotency. We check-then-insert: a pre-existing event means Apple redelivered an
-        // already-processed notification, so we return a no-op success. The production unique index
-        // on (Platform, ExternalEventId) is the concurrency backstop for the rare race; the explicit
-        // query also covers the EF InMemory provider (used in tests), which does not enforce indexes.
+        // A failed dispatch remains retryable. Only a processed event is a no-op.
         await using (var insertDb = await _dbFactory.CreateDbContextAsync(ct))
         {
-            var alreadySeen = await insertDb.IapWebhookEvents.AnyAsync(
+            var existing = await insertDb.IapWebhookEvents.FirstOrDefaultAsync(
                 e => e.Platform == Platform && e.ExternalEventId == externalEventId, ct);
-            if (alreadySeen)
+            if (existing?.Processed == true) return false;
+            if (existing is null)
             {
-                _logger.LogInformation(
-                    "Apple webhook event {ExternalEventId} already processed; ignoring duplicate.",
-                    externalEventId);
-                return false;
-            }
-
-            insertDb.IapWebhookEvents.Add(new IapWebhookEvent
-            {
-                Platform = Platform,
-                ExternalEventId = externalEventId,
-                RawPayload = signedPayload,
-                ReceivedAtUtc = DateTimeOffset.UtcNow,
-                Processed = false,
-            });
-            try
-            {
-                await insertDb.SaveChangesAsync(ct);
-            }
-            catch (DbUpdateException ex)
-            {
-                // Unique-constraint hit under the rare check-then-insert race (two concurrent
-                // deliveries of the same NotificationUuid). Treat as a duplicate.
-                _logger.LogInformation(ex,
-                    "Apple webhook event {ExternalEventId} already processed; ignoring duplicate.",
-                    externalEventId);
-                return false;
+                insertDb.IapWebhookEvents.Add(new IapWebhookEvent {
+                    Platform = Platform, ExternalEventId = externalEventId,
+                    RawPayload = signedPayload, ReceivedAtUtc = DateTimeOffset.UtcNow,
+                    Processed = false,
+                });
+                try { await insertDb.SaveChangesAsync(ct); }
+                catch (DbUpdateException)
+                {
+                    insertDb.ChangeTracker.Clear();
+                    var concurrent = await insertDb.IapWebhookEvents.AsNoTracking().FirstOrDefaultAsync(
+                        e => e.Platform == Platform && e.ExternalEventId == externalEventId, ct);
+                    if (concurrent is null) throw;
+                    if (concurrent.Processed) return false;
+                }
             }
         }
 
@@ -215,6 +201,9 @@ public sealed class AppleWebhookService
 
         var verified = await _validator.VerifyAsync(notification.SignedTransactionInfo, ct);
         await using var db = await _dbFactory.CreateDbContextAsync(ct);
+        await using var transaction = db.Database.IsNpgsql() ? await db.Database.BeginTransactionAsync(ct) : null;
+        if (transaction is not null)
+            await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock(hashtextextended({verified.OriginalTransactionId}, 0))", ct);
         var sub = await db.Subscriptions.FirstOrDefaultAsync(
             s => s.Source == SubscriptionSources.IapApple
                  && s.PlatformTransactionId == verified.OriginalTransactionId
@@ -227,20 +216,25 @@ public sealed class AppleWebhookService
             return;
         }
 
+        // A late EXPIRED notification for an older renewal must not cancel a newer period.
+        if (targetStatus == SubscriptionStatuses.Expired && sub.ExpiresAtUtc is DateTimeOffset currentExpiry
+            && verified.ExpiresDateMs is long notifiedExpiry && currentExpiry.ToUnixTimeMilliseconds() > notifiedExpiry)
+            return;
+        if (transaction is not null)
+            await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock(hashtextextended({sub.UserId}, 1))", ct);
         var now = DateTimeOffset.UtcNow;
         sub.Status = targetStatus;
         sub.UpdatedAtUtc = now;
 
-        var user = await db.Users.FindAsync(new object?[] { sub.UserId }, ct);
+        var user = await db.Users.FirstOrDefaultAsync(u => u.Id == sub.UserId || u.Username == sub.UserId, ct);
+        await db.SaveChangesAsync(ct);
         if (user is not null)
         {
-            user.MembershipTier = MembershipTiers.Free;
-            user.MembershipPlanId = null;
-            user.MembershipExpiresAtUtc = null;
-            user.UpdatedAtUtc = now;
+            await MembershipService.RefreshEffectiveEntitlementAsync(db, user, sub.UserId, ct);
         }
 
         await db.SaveChangesAsync(ct);
+        if (transaction is not null) await transaction.CommitAsync(ct);
     }
 
     private async Task<string?> ResolveUserIdByOriginalTransactionIdAsync(

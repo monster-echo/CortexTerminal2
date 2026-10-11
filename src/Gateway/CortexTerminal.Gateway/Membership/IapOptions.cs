@@ -3,6 +3,7 @@ namespace CortexTerminal.Gateway.Membership;
 public sealed class IapOptions
 {
     public const string SectionName = "Iap";
+    public GoogleIapOptions Google { get; set; } = new();
     public AppleIapOptions Apple { get; set; } = new();
     public HuaweiIapOptions Huawei { get; set; } = new();
 }
@@ -39,4 +40,20 @@ public sealed class AppleIapOptions
     /// Required only on the legacy path; the StoreKit 2 JWS validator does not use it.
     /// </summary>
     public string SharedSecret { get; set; } = "";
+}
+
+public sealed class GoogleIapOptions
+{
+    public string PackageName { get; set; } = "";
+    public string ServiceAccountEmail { get; set; } = "";
+    public string PrivateKey { get; set; } = "";
+    public bool AllowTestPurchases { get; set; }
+    public string PushAudience { get; set; } = "";
+    public string PushServiceAccountEmail { get; set; } = "";
+    public string ProMonthProductId { get; set; } = "corterm.pro.month";
+    public string ProYearProductId { get; set; } = "corterm.pro.year";
+    public string ProLifetimeProductId { get; set; } = "corterm.pro.lifetime";
+    public bool IsConfigured => !string.IsNullOrWhiteSpace(PackageName) && !string.IsNullOrWhiteSpace(ServiceAccountEmail) && !string.IsNullOrWhiteSpace(PrivateKey);
+    public string? PlanCode(string productId) => productId == ProMonthProductId ? PlanCodes.ProMonth
+        : productId == ProYearProductId ? PlanCodes.ProYear : productId == ProLifetimeProductId ? PlanCodes.ProLifetime : null;
 }

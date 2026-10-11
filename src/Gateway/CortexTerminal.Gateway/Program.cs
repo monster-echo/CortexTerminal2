@@ -352,6 +352,24 @@ builder.Services
         };
     });
 
+// Pub/Sub authenticated push uses Google's OIDC issuer, never the app's JWT key.
+builder.Services.AddAuthentication().AddJwtBearer("GooglePubSub", options =>
+{
+    options.Authority = "https://accounts.google.com";
+    options.Audience = builder.Configuration["Iap:Google:PushAudience"] ?? "unconfigured-google-push";
+    options.MapInboundClaims = false;
+    options.TokenValidationParameters.ValidIssuers = ["https://accounts.google.com", "accounts.google.com"];
+    options.Events = new JwtBearerEvents {
+        OnTokenValidated = context => {
+            var expected = builder.Configuration["Iap:Google:PushServiceAccountEmail"];
+            if (string.IsNullOrWhiteSpace(expected) || context.Principal?.FindFirstValue("email") != expected
+                || context.Principal?.FindFirstValue("email_verified") != "true")
+                context.Fail("Untrusted Google push identity.");
+            return Task.CompletedTask;
+        }
+    };
+});
+
 builder.Services.AddAuthorization();
 builder.Services.AddControllers();
 // CORS：浏览器客户端（flutter web 预览/web 端）需要的来源白名单，逗号分隔。
@@ -452,6 +470,8 @@ builder.Services.AddSingleton<IAppleReceiptValidator, AppleReceiptValidator>();
 // handler is pooled and the validator itself can stay a singleton.
 builder.Services.AddHttpClient<IAppleLegacyReceiptValidator, AppleLegacyReceiptValidator>();
 builder.Services.AddHttpClient<IHuaweiIapValidator, HuaweiIapValidator>();
+builder.Services.AddHttpClient<GooglePlayValidator>(client => client.Timeout = TimeSpan.FromSeconds(20)).RemoveAllLoggers();
+builder.Services.AddScoped<GoogleWebhookService>();
 builder.Services.AddSingleton<CortexTerminal.Gateway.Membership.Iap.AppleWebhookService>();
 
 var useInMemory = builder.Configuration.GetValue<bool>("Database:UseInMemory");
@@ -2517,7 +2537,36 @@ app.MapPost("/api/referral/apply", async (ApplyReferralRequest body, ClaimsPrinc
 
 // Client submits completed App Store or Huawei purchases here. Provider verification remains
 // server-side; only verified transactions reach the shared membership grant path.
-app.MapPost("/api/iap/purchase/verify", async (VerifyIapPurchaseRequest body, ClaimsPrincipal user, IServiceProvider serviceProvider, IAuditLogStore auditLog) =>
+app.MapPost("/api/iap/google/notifications", async (HttpContext context, JsonElement body, GoogleWebhookService service, IapOptions options) =>
+{
+    if (!options.Google.IsConfigured || string.IsNullOrWhiteSpace(options.Google.PushAudience))
+        return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+    try
+    {
+        await service.HandleAsync(body, context.RequestAborted);
+        return Results.NoContent();
+    }
+    catch (JsonException) { return Results.BadRequest(); }
+    catch (FormatException) { return Results.BadRequest(); }
+}).RequireAuthorization(new Microsoft.AspNetCore.Authorization.AuthorizeAttribute { AuthenticationSchemes = "GooglePubSub" })
+  .WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(65536));
+
+app.MapGet("/api/iap/catalog", (string platform, IapOptions options) =>
+{
+    var google = string.Equals(platform, "google", StringComparison.OrdinalIgnoreCase);
+    var apple = string.Equals(platform, "apple", StringComparison.OrdinalIgnoreCase);
+    if (!google && !apple) return Results.BadRequest(new { error = "Unsupported store" });
+    return Results.Ok(new {
+        available = google ? options.Google.IsConfigured : !string.IsNullOrWhiteSpace(options.Apple.BundleId),
+        products = new[] {
+            new { planCode = PlanCodes.ProMonth, productId = google ? options.Google.ProMonthProductId : AppleProductIds.ProMonth },
+            new { planCode = PlanCodes.ProYear, productId = google ? options.Google.ProYearProductId : AppleProductIds.ProYear },
+            new { planCode = PlanCodes.ProLifetime, productId = google ? options.Google.ProLifetimeProductId : AppleProductIds.ProLifetime }
+        }
+    });
+}).RequireAuthorization();
+
+app.MapPost("/api/iap/purchase/verify", async (VerifyIapPurchaseRequest body, ClaimsPrincipal user, IServiceProvider serviceProvider, IAuditLogStore auditLog, CancellationToken ct) =>
 {
     var userId = GetUserId(user);
     var membership = serviceProvider.GetRequiredService<MembershipService>();
@@ -2533,8 +2582,23 @@ app.MapPost("/api/iap/purchase/verify", async (VerifyIapPurchaseRequest body, Cl
         try
         {
             var validator = serviceProvider.GetRequiredService<IHuaweiIapValidator>();
-            var verified = await validator.VerifyAsync(body.PurchaseToken, body.ProductId, CancellationToken.None);
-            sub = await membership.GrantFromHuaweiIapAsync(userId, verified, planCode, CancellationToken.None);
+            var verified = await validator.VerifyAsync(body.PurchaseToken, body.ProductId, ct);
+            sub = await membership.GrantFromHuaweiIapAsync(userId, verified, planCode, ct);
+        }
+        catch (IapReceiptInvalidException ex) { return Results.BadRequest(new { errorCode = IapReceiptInvalidException.ErrorCode, message = ex.Message }); }
+        catch (ArgumentException ex) { return Results.BadRequest(new { errorCode = "iap_invalid_product", message = ex.Message }); }
+    }
+    else if (string.Equals(body.Platform, "google", StringComparison.OrdinalIgnoreCase))
+    {
+        var config = serviceProvider.GetRequiredService<IapOptions>().Google;
+        var planCode = config.PlanCode(body.ProductId);
+        if (planCode is null) return Results.BadRequest(new { errorCode = "iap_invalid_product", message = "Google product is not configured." });
+        try
+        {
+            var validator = serviceProvider.GetRequiredService<GooglePlayValidator>();
+            var verified = await validator.VerifyAsync(body.PurchaseToken ?? "", body.ProductId, userId, ct);
+            sub = await membership.GrantFromGoogleIapAsync(userId, verified, planCode, ct);
+            await validator.AcknowledgeAsync(body.PurchaseToken!, verified, ct);
         }
         catch (IapReceiptInvalidException ex) { return Results.BadRequest(new { errorCode = IapReceiptInvalidException.ErrorCode, message = ex.Message }); }
         catch (ArgumentException ex) { return Results.BadRequest(new { errorCode = "iap_invalid_product", message = ex.Message }); }
@@ -2552,19 +2616,19 @@ app.MapPost("/api/iap/purchase/verify", async (VerifyIapPurchaseRequest body, Cl
             if (receiptFormat == "legacy")
             {
                 var legacyValidator = serviceProvider.GetRequiredService<IAppleLegacyReceiptValidator>();
-                verified = await legacyValidator.VerifyAsync(body.SignedTransaction, CancellationToken.None);
+                verified = await legacyValidator.VerifyAsync(body.SignedTransaction, ct);
             }
             else
             {
                 var validator = serviceProvider.GetRequiredService<IAppleReceiptValidator>();
-                verified = await validator.VerifyAsync(body.SignedTransaction, CancellationToken.None);
+                verified = await validator.VerifyAsync(body.SignedTransaction, ct);
             }
         }
         catch (IapReceiptInvalidException ex) { return Results.BadRequest(new { errorCode = IapReceiptInvalidException.ErrorCode, message = ex.Message }); }
 
         try
         {
-            sub = await membership.GrantFromIapAsync(userId, verified, OrderChannels.IapApple, CancellationToken.None);
+            sub = await membership.GrantFromIapAsync(userId, verified, OrderChannels.IapApple, ct);
         }
         catch (ArgumentException ex) { return Results.BadRequest(new { errorCode = "iap_invalid_product", message = ex.Message }); }
     }
@@ -2575,7 +2639,7 @@ app.MapPost("/api/iap/purchase/verify", async (VerifyIapPurchaseRequest body, Cl
         Id: Guid.NewGuid().ToString("N"), Timestamp: DateTimeOffset.UtcNow,
         UserId: userId, UserName: userId, Action: "membership.iap_verify",
         TargetEntity: "subscription", TargetId: sub.Id));
-    await serviceProvider.GetRequiredService<ReferralService>().RewardIfEligibleAsync(userId, "iap", CancellationToken.None);
+    await serviceProvider.GetRequiredService<ReferralService>().RewardIfEligibleAsync(userId, "iap", ct);
     return Results.Ok(new { subscriptionId = sub.Id, isActive = sub.Status == SubscriptionStatuses.Active, expiresAtUtc = sub.ExpiresAtUtc });
 }).RequireAuthorization();
 
@@ -2587,11 +2651,20 @@ app.MapPost("/api/iap/purchase/verify", async (VerifyIapPurchaseRequest body, Cl
 // duplicate events so Apple stops retrying.
 app.MapPost("/api/iap/webhook/apple", async (HttpContext ctx, IServiceProvider serviceProvider) =>
 {
-    // Apple sends the signed payload as the raw body (text/plain). Read it as a string so the
-    // JWS verifier gets exactly what Apple signed, without JSON deserialization interfering.
+    // Apple sends JSON { signedPayload }; retain raw JWS compatibility for existing callers.
     ctx.Request.EnableBuffering();
     using var reader = new StreamReader(ctx.Request.Body);
     var signedPayload = await reader.ReadToEndAsync();
+    if (signedPayload.TrimStart().StartsWith('{'))
+    {
+        try
+        {
+            using var envelope = JsonDocument.Parse(signedPayload);
+            signedPayload = envelope.RootElement.TryGetProperty("signedPayload", out var payload)
+                && payload.ValueKind == JsonValueKind.String ? payload.GetString() ?? "" : "";
+        }
+        catch (JsonException) { return Results.BadRequest(new { errorCode = "iap_webhook_invalid", message = "Invalid notification envelope." }); }
+    }
     if (string.IsNullOrWhiteSpace(signedPayload))
         return Results.BadRequest(new { errorCode = "iap_webhook_empty", message = "Request body is empty." });
 
@@ -2605,7 +2678,7 @@ app.MapPost("/api/iap/webhook/apple", async (HttpContext ctx, IServiceProvider s
         return Results.BadRequest(new { errorCode = IapWebhookSignatureInvalidException.ErrorCode, message = ex.Message });
     }
     return Results.Ok(new { ok = true });
-}).AllowAnonymous();
+}).AllowAnonymous().WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(65536));
 
 // ---- Admin Membership Endpoints ----
 app.MapPost("/api/admin/membership/grant", async (GrantRequest body, ClaimsPrincipal user, IServiceProvider serviceProvider, IAuditLogStore auditLog) =>

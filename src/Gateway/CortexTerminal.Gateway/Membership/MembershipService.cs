@@ -113,48 +113,57 @@ public sealed class MembershipService(IDbContextFactory<AppDbContext> dbFactory)
     {
         var planCode = AppleProductIds.ToPlanCode(verified.ProductId)
             ?? throw new ArgumentException($"Unknown Apple product id: {verified.ProductId}");
+        var now = DateTimeOffset.UtcNow;
+        DateTimeOffset? expires = verified.ExpiresDateMs is long ms && ms > 0 ? DateTimeOffset.FromUnixTimeMilliseconds(ms) : null;
+        if (verified.RevocationDateMs is > 0 || (planCode != PlanCodes.ProLifetime && (expires is null || expires <= now)))
+            throw new ArgumentException("Apple purchase is revoked or expired.");
         await using var db = await dbFactory.CreateDbContextAsync(ct);
+        await using var transaction = db.Database.IsNpgsql() ? await db.Database.BeginTransactionAsync(ct) : null;
+        if (transaction is not null)
+        {
+            await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock(hashtextextended({verified.OriginalTransactionId}, 0))", ct);
+            await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock(hashtextextended({userId}, 1))", ct);
+        }
         var plan = await db.Plans.FirstOrDefaultAsync(p => p.Code == planCode && p.IsActive, ct)
             ?? throw new ArgumentException($"Plan not found: {planCode}");
-
-        // Idempotency: a verified replay of the same originalTransactionId must not double-grant.
-        var source = SourceForChannel(channel);
-        var existing = await db.Subscriptions.FirstOrDefaultAsync(
-            s => s.Source == source && s.PlatformTransactionId == verified.OriginalTransactionId
-                 && s.Status == SubscriptionStatuses.Active, ct);
-        if (existing is not null) return existing;
-
-        var now = DateTimeOffset.UtcNow;
-        DateTimeOffset? expires = verified.ExpiresDateMs is long ms && ms > 0
-            ? DateTimeOffset.FromUnixTimeMilliseconds(ms)
-            : null;
-
-        var order = new MembershipOrder
-        {
-            UserId = userId, PlanId = plan.Id, BillingPeriod = plan.BillingPeriod,
-            Amount = plan.PriceAmount, Currency = plan.PriceCurrency,
-            Channel = channel, Status = OrderStatuses.Completed, CompletedAtUtc = now,
-            ProviderOrderId = verified.OriginalTransactionId,
-        };
-        db.MembershipOrders.Add(order);
-
-        var sub = new Subscription
-        {
-            UserId = userId, PlanId = plan.Id, Status = SubscriptionStatuses.Active,
-            Period = plan.BillingPeriod, StartAtUtc = now, ExpiresAtUtc = expires,
-            Source = source, SourceOrderId = order.Id, PlatformTransactionId = verified.OriginalTransactionId,
-        };
-        db.Subscriptions.Add(sub);
-
-        var user = await db.Users.FindAsync(new object?[] { userId }, ct)
-            ?? await db.Users.FirstOrDefaultAsync(u => u.Username == userId, ct)
+        var user = await db.Users.FirstOrDefaultAsync(u => u.Id == userId || u.Username == userId, ct)
             ?? throw new ArgumentException($"User not found: {userId}");
-        user.MembershipTier = plan.Tier;
-        user.MembershipPlanId = plan.Id;
-        user.MembershipExpiresAtUtc = expires;
-        user.UpdatedAtUtc = now;
-
+        var source = SourceForChannel(channel);
+        var sub = await db.Subscriptions.FirstOrDefaultAsync(s => s.Source == source
+            && s.PlatformTransactionId == verified.OriginalTransactionId, ct);
+        if (sub is not null && sub.UserId != userId) throw new ArgumentException("This purchase is already linked to another account.");
+        if (sub?.Status == SubscriptionStatuses.Revoked) throw new ArgumentException("This Apple purchase has been revoked.");
+        var orderId = verified.TransactionId ?? verified.OriginalTransactionId;
+        var order = await db.MembershipOrders.FirstOrDefaultAsync(o => o.Channel == channel && o.ProviderOrderId == orderId, ct);
+        if (order is not null && order.UserId != userId) throw new ArgumentException("This order is already linked to another account.");
+        if (order is null)
+        {
+            order = new MembershipOrder {
+                UserId = userId, PlanId = plan.Id, BillingPeriod = plan.BillingPeriod,
+                Amount = plan.PriceAmount, Currency = plan.PriceCurrency, Channel = channel,
+                Status = OrderStatuses.Completed, CompletedAtUtc = now, ProviderOrderId = orderId,
+            };
+            db.MembershipOrders.Add(order);
+        }
+        if (sub is null)
+        {
+            sub = new Subscription {
+                UserId = userId, PlanId = plan.Id, Period = plan.BillingPeriod,
+                Status = SubscriptionStatuses.Active, StartAtUtc = now, ExpiresAtUtc = expires,
+                Source = source, SourceOrderId = order.Id, PlatformTransactionId = verified.OriginalTransactionId,
+            };
+            db.Subscriptions.Add(sub);
+        }
+        else if (expires is null || sub.ExpiresAtUtc is null || expires >= sub.ExpiresAtUtc)
+        {
+            sub.PlanId = plan.Id; sub.Period = plan.BillingPeriod;
+            sub.Status = SubscriptionStatuses.Active; sub.ExpiresAtUtc = expires;
+            sub.SourceOrderId = order.Id; sub.UpdatedAtUtc = now;
+        }
         await db.SaveChangesAsync(ct);
+        await RefreshEffectiveEntitlementAsync(db, user, userId, ct);
+        await db.SaveChangesAsync(ct);
+        if (transaction is not null) await transaction.CommitAsync(ct);
         return sub;
     }
 
@@ -232,6 +241,122 @@ public sealed class MembershipService(IDbContextFactory<AppDbContext> dbFactory)
         return existing;
     }
 
+    public async Task<Subscription> GrantFromGoogleIapAsync(
+        string userId, GoogleVerifiedPurchase verified, string planCode, CancellationToken ct)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        // PostgreSQL transaction-scoped locks serialize replayed tokens and concurrent
+        // purchases for this account across Gateway instances; no raw token is stored.
+        await using var transaction = db.Database.IsNpgsql() ? await db.Database.BeginTransactionAsync(ct) : null;
+        if (transaction is not null)
+        {
+            await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock(hashtextextended({verified.Token}, 0))", ct);
+            await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock(hashtextextended({userId}, 1))", ct);
+        }
+        if (!verified.Active) throw new ArgumentException("Cannot grant an inactive Google purchase.");
+        var plan = await db.Plans.FirstOrDefaultAsync(p => p.Code == planCode && p.IsActive, ct)
+            ?? throw new ArgumentException($"Plan not found: {planCode}");
+        var user = await db.Users.FindAsync(new object?[] { userId }, ct)
+            ?? await db.Users.FirstOrDefaultAsync(u => u.Username == userId, ct)
+            ?? throw new ArgumentException($"User not found: {userId}");
+
+        var source = SubscriptionSources.IapGoogle;
+        var existing = await db.Subscriptions.FirstOrDefaultAsync(
+            s => s.Source == source && s.PlatformTransactionId == verified.Token, ct);
+        if (existing is not null && existing.UserId != userId)
+            throw new ArgumentException("This Google purchase is already linked to another Corterm account.");
+
+        DateTimeOffset? expires = verified.ExpiresMs is long ms && ms > 0
+            ? DateTimeOffset.FromUnixTimeMilliseconds(ms)
+            : null;
+        var now = DateTimeOffset.UtcNow;
+
+        // A subscription purchase token remains stable across renewals. Keep one subscription
+        // row, but preserve each distinct Google order in MembershipOrders.
+        var order = await db.MembershipOrders.FirstOrDefaultAsync(
+            o => o.Channel == OrderChannels.IapGoogle && o.ProviderOrderId == verified.OrderId, ct);
+        if (order is not null && order.UserId != userId)
+            throw new ArgumentException("This Google order is already linked to another Corterm account.");
+        if (order is null)
+        {
+            order = new MembershipOrder
+            {
+                UserId = userId, PlanId = plan.Id, BillingPeriod = plan.BillingPeriod,
+                Amount = plan.PriceAmount, Currency = plan.PriceCurrency,
+                Channel = OrderChannels.IapGoogle, Status = OrderStatuses.Completed,
+                CompletedAtUtc = now, ProviderOrderId = verified.OrderId,
+            };
+            db.MembershipOrders.Add(order);
+        }
+
+        if (existing is null)
+        {
+            existing = new Subscription
+            {
+                UserId = userId, PlanId = plan.Id, Status = SubscriptionStatuses.Active,
+                Period = plan.BillingPeriod, StartAtUtc = now, ExpiresAtUtc = expires,
+                Source = source, SourceOrderId = order.Id,
+                PlatformTransactionId = verified.Token,
+            };
+            db.Subscriptions.Add(existing);
+        }
+        else
+        {
+            existing.PlanId = plan.Id;
+            existing.Period = plan.BillingPeriod;
+            existing.Status = SubscriptionStatuses.Active;
+            existing.ExpiresAtUtc = expires;
+            existing.SourceOrderId = order.Id;
+            existing.UpdatedAtUtc = now;
+        }
+
+        await db.SaveChangesAsync(ct);
+        await RefreshEffectiveEntitlementAsync(db, user, userId, ct);
+        await db.SaveChangesAsync(ct);
+        if (transaction is not null) await transaction.CommitAsync(ct);
+        return existing;
+    }
+
+    public async Task RevokeGoogleIapAsync(string userId, string tokenKey, CancellationToken ct)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        await using var transaction = db.Database.IsNpgsql() ? await db.Database.BeginTransactionAsync(ct) : null;
+        if (transaction is not null)
+        {
+            await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock(hashtextextended({tokenKey}, 0))", ct);
+            await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock(hashtextextended({userId}, 1))", ct);
+        }
+        var subscription = await db.Subscriptions.FirstOrDefaultAsync(s =>
+            s.Source == SubscriptionSources.IapGoogle && s.PlatformTransactionId == tokenKey && s.UserId == userId, ct);
+        if (subscription is null) return;
+        subscription.Status = SubscriptionStatuses.Revoked;
+        subscription.UpdatedAtUtc = DateTimeOffset.UtcNow;
+        var user = await db.Users.FirstOrDefaultAsync(u => u.Id == userId || u.Username == userId, ct);
+        await db.SaveChangesAsync(ct);
+        if (user is not null)
+        {
+            await RefreshEffectiveEntitlementAsync(db, user, userId, ct);
+            await db.SaveChangesAsync(ct);
+        }
+        if (transaction is not null) await transaction.CommitAsync(ct);
+    }
+
+    internal static async Task RefreshEffectiveEntitlementAsync(AppDbContext db, User user, string userId, CancellationToken ct)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var candidates = await (from sub in db.Subscriptions
+            join plan in db.Plans on sub.PlanId equals plan.Id
+            where (sub.UserId == userId || sub.UserId == user.Id) && sub.Status == SubscriptionStatuses.Active
+                && (sub.ExpiresAtUtc == null || sub.ExpiresAtUtc > now) && plan.Tier == MembershipTiers.Pro
+            select new { sub.PlanId, sub.ExpiresAtUtc }).ToListAsync(ct);
+        var best = candidates.OrderByDescending(s => s.ExpiresAtUtc == null)
+            .ThenByDescending(s => s.ExpiresAtUtc).FirstOrDefault();
+        user.MembershipTier = best is null ? MembershipTiers.Free : MembershipTiers.Pro;
+        user.MembershipPlanId = best?.PlanId;
+        user.MembershipExpiresAtUtc = best?.ExpiresAtUtc;
+        user.UpdatedAtUtc = now;
+    }
+
     /// <summary>
     /// Extends the expiry of the existing active IAP subscription for
     /// <paramref name="verified.OriginalTransactionId"/> to the renewed transaction's expiry, and
@@ -241,35 +366,9 @@ public sealed class MembershipService(IDbContextFactory<AppDbContext> dbFactory)
     /// short-circuits idempotently on an existing active subscription and would leave a stale expiry).
     /// Throws <see cref="ArgumentException"/> if no matching active subscription exists.
     /// </summary>
-    public async Task<Subscription> ExtendFromIapRenewalAsync(
+    public Task<Subscription> ExtendFromIapRenewalAsync(
         string userId, AppleVerifiedTransaction verified, CancellationToken ct)
-    {
-        var source = SourceForChannel(OrderChannels.IapApple);
-        await using var db = await dbFactory.CreateDbContextAsync(ct);
-        var sub = await db.Subscriptions.FirstOrDefaultAsync(
-            s => s.Source == source && s.PlatformTransactionId == verified.OriginalTransactionId
-                 && s.Status == SubscriptionStatuses.Active, ct)
-            ?? throw new ArgumentException(
-                $"No active Apple subscription to renew for originalTransactionId: {verified.OriginalTransactionId}");
-
-        DateTimeOffset? expires = verified.ExpiresDateMs is long ms && ms > 0
-            ? DateTimeOffset.FromUnixTimeMilliseconds(ms)
-            : null;
-
-        var now = DateTimeOffset.UtcNow;
-        sub.ExpiresAtUtc = expires;
-        sub.UpdatedAtUtc = now;
-
-        var user = await db.Users.FindAsync(new object?[] { userId }, ct)
-            ?? await db.Users.FirstOrDefaultAsync(u => u.Username == userId, ct)
-            ?? throw new ArgumentException($"User not found: {userId}");
-        user.MembershipTier = MembershipTiers.Pro;
-        user.MembershipExpiresAtUtc = expires;
-        user.UpdatedAtUtc = now;
-
-        await db.SaveChangesAsync(ct);
-        return sub;
-    }
+        => GrantFromIapAsync(userId, verified, OrderChannels.IapApple, ct);
 
     internal static DateTimeOffset? ComputeExpiry(string billingPeriod, DateTimeOffset now) => billingPeriod switch
     {

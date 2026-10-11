@@ -64,7 +64,9 @@ public class AppleReceiptValidator : IAppleReceiptValidator
             payload.OriginalTransactionId,
             payload.ProductId,
             expiresMs,
-            payload.Type
+            payload.Type,
+            payload.RevocationDate > 0 ? payload.RevocationDate : null,
+            payload.TransactionId
         );
     }
 

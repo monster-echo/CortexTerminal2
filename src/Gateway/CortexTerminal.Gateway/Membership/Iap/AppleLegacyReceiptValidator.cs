@@ -132,7 +132,9 @@ public sealed class AppleLegacyReceiptValidator : IAppleLegacyReceiptValidator
             // We infer the type from the presence of an expiry: a non-null expiry means an
             // auto-renewable subscription; otherwise it is a non-consumable lifetime purchase
             // (the only two product families CortexTerminal ships).
-            Type: expiresMs is null ? "Non-Consumable" : "Auto-Renewable Subscription"
+            Type: expiresMs is null ? "Non-Consumable" : "Auto-Renewable Subscription",
+            RevocationDateMs: entry.CancellationDateMs > 0 ? entry.CancellationDateMs : null,
+            TransactionId: entry.TransactionId
         );
     }
 
@@ -159,6 +161,9 @@ public sealed class AppleLegacyReceiptValidator : IAppleLegacyReceiptValidator
         // lets us read it whether the token is a number or a quoted number.
         [property: JsonPropertyName("expires_date_ms")]
         [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString | JsonNumberHandling.WriteAsString)]
-        long ExpiresDateMs
+        long ExpiresDateMs,
+        [property: JsonPropertyName("cancellation_date_ms")]
+        [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)] long CancellationDateMs = 0,
+        [property: JsonPropertyName("transaction_id")] string? TransactionId = null
     );
 }

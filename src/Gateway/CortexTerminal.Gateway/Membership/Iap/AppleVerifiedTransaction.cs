@@ -21,5 +21,7 @@ public sealed record AppleVerifiedTransaction(
     string OriginalTransactionId,
     string ProductId,
     long? ExpiresDateMs,
-    string Type
+    string Type,
+    long? RevocationDateMs = null,
+    string? TransactionId = null
 );
