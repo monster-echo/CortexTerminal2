@@ -1,4 +1,5 @@
-import { ApiService, I18n, WorkerInfo, showI18nToast, showToast, lightHaptic, clickHaptic } from '@rwecho/core'
+import { common } from '@kit.AbilityKit'
+import { PreferencesUtil, AuthState, ApiService, I18n, WorkerInfo, showI18nToast, showToast, lightHaptic, clickHaptic } from '@rwecho/core'
 
 export class WorkspaceDirectoryEntry {
   name: string = ''
@@ -144,13 +145,15 @@ export struct NewWorkspaceFlow {
 
   private applySelectedWorker(worker: WorkerInfo) {
     clickHaptic()
-    if (this.selectedWorkerId === worker.id) { this.closePicker(); return }
+    if (this.selectedWorkerId === worker.id) { this.rememberWorker(); this.closePicker(); return }
     this.selectedWorkerId = worker.id
     this.selectedWorkerName = worker.name || worker.hostname || worker.id
     this.currentPath = ''
     this.folderChosen = false
     this.workspaceName = ''
     this.nameAutoFilled = false
+    this.rememberWorker()
+    this.restoreFolder()
     this.closePicker()
   }
 
@@ -162,6 +165,8 @@ export struct NewWorkspaceFlow {
       this.workspaceName = this.basename(path)
       this.nameAutoFilled = true
     }
+    this.rememberWorker()
+    PreferencesUtil.setString(this.getUIContext().getHostContext() as common.UIAbilityContext, this.memoryKey(this.selectedWorkerId), path)
     this.closePicker()
   }
 
@@ -172,7 +177,9 @@ export struct NewWorkspaceFlow {
     this.pickerDirectoryLoading = true
     this.pickerDirectoryError = ''
     try {
-      const listing = await ApiService.listFiles(this.selectedWorkerId, '~', path) as Record<string, Object>
+      // Resolve the selected home-relative directory as the browsing root. Older Workers
+      // neither expand '~' consistently nor allow a relative path through an external symlink.
+      const listing = await ApiService.listFiles(this.selectedWorkerId, path.length === 0 ? '.' : `./${path}`, '') as Record<string, Object>
       if (request !== this.directoryRequest) return
       const rawEntries = listing['entries'] as Record<string, Object>[]
       const dirs: WorkspaceDirectoryEntry[] = []
@@ -231,11 +238,35 @@ export struct NewWorkspaceFlow {
     this.errorMessage = ''
     try {
       this.workers = await ApiService.listWorkers()
+      if (this.selectedWorkerId.length === 0) {
+        const savedWorker = PreferencesUtil.getString(this.getUIContext().getHostContext() as common.UIAbilityContext, this.memoryKey('worker'))
+        const available = this.workers.find((worker: WorkerInfo) => worker.id === savedWorker && worker.isOnline)
+        if (available) this.selectedWorkerId = available.id
+      }
+      if (this.selectedWorkerId.length > 0 && !this.folderChosen) this.restoreFolder()
     } catch (e) {
       this.errorMessage = (e as Error).message
     } finally {
       this.isLoading = false
     }
+  }
+
+  private memoryKey(workerId: string): string {
+    const gateway = AppStorage.get<string>('gatewayUrl') || ''
+    return `workspace_creation_${encodeURIComponent(gateway)}_${encodeURIComponent(AuthState.getDisplayName())}_${workerId}`
+  }
+
+  private rememberWorker(): void {
+    PreferencesUtil.setString(this.getUIContext().getHostContext() as common.UIAbilityContext, this.memoryKey('worker'), this.selectedWorkerId)
+  }
+
+  private restoreFolder(): void {
+    const saved = PreferencesUtil.getString(this.getUIContext().getHostContext() as common.UIAbilityContext, this.memoryKey(this.selectedWorkerId), '__unset__')
+    if (saved === '__unset__') return
+    this.currentPath = saved
+    this.folderChosen = true
+    this.workspaceName = this.basename(saved)
+    this.nameAutoFilled = true
   }
 
   private basename(path: string): string {
@@ -248,7 +279,7 @@ export struct NewWorkspaceFlow {
     this.isCreating = true
     try {
       lightHaptic()
-      const rootPath = this.currentPath.length === 0 ? '~' : `~/${this.currentPath}`
+      const rootPath = this.currentPath.length === 0 ? '.' : `./${this.currentPath}`
       const created = await ApiService.createWorkspace(this.selectedWorkerId, this.workspaceName.trim(), rootPath) as Record<string, Object>
       const workspaceId = (created['id'] as string) ?? ''
       showI18nToast('workspaces.create_success')

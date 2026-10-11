@@ -35,3 +35,13 @@ Validated on the Mate 60 emulator after reinstalling the signed HAP:
 - Screenshots confirm the title clears the status bar and the folder action clears the gesture bar.
 - The second online worker, tengxun-2, returns HTTP 404 for its home-directory listing. The page shows Retry and disables confirmation; this remote response remains unresolved.
 - Signed HAP build and `git diff --check` passed. No unit/integration suites were run.
+
+## Follow-up: home paths, symlink directories and selection memory
+
+- Replaced the home root `~` with `.` for compatibility with Workers that do not expand tilde. On the same tengxun-2 connection, the previous home listing returned 404; the new home listing succeeds.
+- Directory navigation now sends the selected home-relative directory as the root and an empty relative path. This follows the directory-root contract without triggering the old relative-path symlink boundary check. Mac mini's running binary reports `0.5.20+33db0f65`; `~/workspace` links to `/Volumes/MacMiniDisk/workspace`. Browsing this directory now succeeds and lists its projects.
+- Creation uses the same home-relative root representation. No workspace was created during this verification.
+- Last selected computer and each computer's last confirmed directory are persisted locally, scoped by gateway and account display name. Unconfirmed browsing is not saved. Saved computers are restored only if present and online; locked computer entry points keep their locked identity.
+- Verified closing/reopening creation, switching computers and force-stopping/restarting the app. Mac mini restores `~/workspace`; its suggested name is restored from the directory name.
+- GET errors now retain structured backend error details rather than showing only a status code.
+- Signed build succeeded in 8 s 461 ms; diff whitespace check passed. No automated test suites were run.

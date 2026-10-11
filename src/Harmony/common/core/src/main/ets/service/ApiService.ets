@@ -555,7 +555,9 @@ export class ApiService {
             reject(retryErr)
           }
         } else {
-          reject(new Error(`Request failed (${data.responseCode})`))
+          const resultRecord = data.result as Record<string, string>
+          const detail = typeof data.result === 'string' ? '' : (resultRecord?.error || resultRecord?.message || '')
+          reject(new Error(detail.length > 0 ? `${detail} (${data.responseCode})` : `Request failed (${data.responseCode})`))
         }
         httpRequest.destroy()
       })
