@@ -418,22 +418,24 @@ export struct FileBrowserPage {
         .fontColor($r('app.color.terminal_text'))
         .width('100%')
 
-      Row() {
-        Text(I18n.get('files.p2p_last'))
-          .fontSize(14)
-          .fontColor($r('app.color.terminal_text_muted'))
-          .layoutWeight(1)
-        Text(TransferRouteLog.lastSuccessRoute().length > 0
-          ? this.routeLabel(TransferRouteLog.lastSuccessRoute())
-          : I18n.get('files.p2p_empty'))
-          .fontSize(14)
-          .fontWeight(FontWeight.Medium)
-          .fontColor(TransferRouteLog.lastSuccessRoute() === 'p2p'
-            ? $r('app.color.terminal_success')
-            : $r('app.color.terminal_text'))
-      }
-      .width('100%')
-      .margin({ top: 16 })
+      Text(I18n.get('files.p2p_last'))
+        .fontSize(12)
+        .fontColor($r('app.color.terminal_text_muted'))
+        .width('100%')
+        .margin({ top: 20 })
+      Text(I18n.get(`files.route_success_${TransferRouteLog.lastSuccessRoute() || 'empty'}`))
+        .fontSize(22)
+        .fontWeight(FontWeight.Bold)
+        .fontColor(TransferRouteLog.lastSuccessRoute() === 'p2p' || TransferRouteLog.lastSuccessRoute() === 'lan'
+          ? $r('app.color.terminal_success')
+          : $r('app.color.terminal_text'))
+        .width('100%')
+        .margin({ top: 8 })
+      Text(I18n.get(`files.route_detail_${TransferRouteLog.lastSuccessRoute() || 'empty'}`))
+        .fontSize(14)
+        .fontColor($r('app.color.terminal_text_muted'))
+        .width('100%')
+        .margin({ top: 8, bottom: 20 })
 
       if (TransferRouteLog.history().length === 0) {
         Text(I18n.get('files.p2p_empty'))
@@ -443,8 +445,12 @@ export struct FileBrowserPage {
           .textAlign(TextAlign.Center)
           .margin({ top: 32 })
       } else {
+        Text(I18n.get('files.route_history'))
+          .fontSize(12)
+          .fontColor($r('app.color.terminal_text_muted'))
+          .width('100%')
         List() {
-          ForEach(TransferRouteLog.history(), (entry: RouteEntry) => {
+          ForEach(TransferRouteLog.history().slice().reverse(), (entry: RouteEntry) => {
             ListItem() {
               Row() {
                 Text(entry.ok ? '✓' : '✗')
@@ -458,6 +464,10 @@ export struct FileBrowserPage {
                   .fontSize(14)
                   .fontColor($r('app.color.terminal_text'))
                   .layoutWeight(1)
+                Text(I18n.get(entry.ok ? 'files.route_completed' : 'files.route_failed'))
+                  .fontSize(12)
+                  .fontColor($r('app.color.terminal_text_muted'))
+                  .margin({ right: 8 })
                 Text(FileBrowserPage.formatTime(entry.timeMs))
                   .fontSize(12)
                   .fontColor($r('app.color.terminal_text_tertiary'))
@@ -468,12 +478,15 @@ export struct FileBrowserPage {
           }, (entry: RouteEntry, idx: number) => `${idx}_${entry.route}_${entry.ok}`)
         }
         .width('100%')
+        .layoutWeight(1)
         .scrollBar(BarState.Off)
         .margin({ top: 8 })
       }
     }
     .width('100%')
+    .height('100%')
     .padding(24)
+    .alignItems(HorizontalAlign.Start)
   }
 
   @Builder
