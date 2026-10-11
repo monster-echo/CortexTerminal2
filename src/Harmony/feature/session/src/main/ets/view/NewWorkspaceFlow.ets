@@ -373,6 +373,7 @@ export struct WorkspaceWorkerPickerPage {
 
 @Component
 export struct WorkspaceFolderPickerPage {
+  @State filterQuery: string = ''
   @Prop workerId: string = ''
   @Link dirEntries: WorkspaceDirectoryEntry[]
   @Link currentPath: string
@@ -397,21 +398,37 @@ export struct WorkspaceFolderPickerPage {
             .fontColor($r('app.color.terminal_text')).layoutWeight(1)
         }.width('100%').height(52).margin({ bottom: 6 })
 
-        Row({ space: 8 }) {
-          SymbolGlyph($r('sys.symbol.folder_fill')).fontSize(16).fontColor([$r('app.color.terminal_secondary')])
-          Text(this.currentDisplayPath()).fontSize(13).fontColor($r('app.color.terminal_text_muted'))
-            .layoutWeight(1).maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
-        }.width('100%').height(44).padding({ left: 12, right: 12 }).borderRadius(10)
-          .backgroundColor($r('app.color.terminal_background_element')).margin({ bottom: 10 })
+        Search({ value: this.filterQuery, placeholder: I18n.get('workspaces.folder_filter') })
+          .height(44).fontColor($r('app.color.terminal_text'))
+          .placeholderColor($r('app.color.terminal_text_muted'))
+          .backgroundColor($r('app.color.terminal_background_element'))
+          .onChange((value: string) => { this.filterQuery = value })
+          .margin({ bottom: 8 })
 
-            if (this.currentPath.length > 0) {
-                Row({ space: 10 }) {
-                  SymbolGlyph($r('sys.symbol.arrow_up')).fontSize(16).fontColor([$r('app.color.terminal_text_muted')])
-                  Text('..').fontSize(14).fontColor($r('app.color.terminal_text')).layoutWeight(1)
-                  Text(I18n.get('common.back')).fontSize(12).fontColor($r('app.color.terminal_text_muted'))
-                }.width('100%').height(54).padding({ left: 14, right: 14 }).borderRadius(12)
-                  .backgroundColor($r('app.color.terminal_background_element')).onClick(() => { this.goParent() })
-            }
+        Scroll() {
+          Row({ space: 4 }) {
+            Button(I18n.get('files.home'))
+              .fontSize(13).fontColor($r('app.color.terminal_secondary'))
+              .backgroundColor(Color.Transparent).height(40).padding({ left: 8, right: 8 })
+              .onClick(() => { this.navigateTo('') })
+            ForEach(this.pathSegments(), (segment: string, index: number) => {
+              SymbolGlyph($r('sys.symbol.chevron_right')).fontSize(10).fontColor([$r('app.color.terminal_text_muted')])
+              Button(segment).fontSize(13)
+                .fontColor(index === this.pathSegments().length - 1 ? $r('app.color.terminal_text') : $r('app.color.terminal_secondary'))
+                .backgroundColor(Color.Transparent).height(40).padding({ left: 8, right: 8 })
+                .onClick(() => { this.navigateTo(this.pathSegments().slice(0, index + 1).join('/')) })
+            }, (segment: string, index: number) => `${index}:${segment}`)
+          }.alignItems(VerticalAlign.Center)
+        }.width('100%').scrollable(ScrollDirection.Horizontal).scrollBar(BarState.Off)
+          .align(Alignment.Start).margin({ bottom: 8 })
+
+        if (this.currentPath.length > 0) {
+          Row({ space: 8 }) {
+            SymbolGlyph($r('sys.symbol.arrow_up')).fontSize(16).fontColor([$r('app.color.terminal_secondary')])
+            Text(I18n.get('workspaces.folder_parent')).fontSize(14).fontColor($r('app.color.terminal_secondary'))
+          }.width('100%').height(44).padding({ left: 12 })
+            .margin({ bottom: 8 }).onClick(() => { this.goParent() })
+        }
         if (this.isLoading) {
           Column() { LoadingProgress().width(30).height(30).color($r('app.color.terminal_secondary')) }
             .width('100%').layoutWeight(1).justifyContent(FlexAlign.Center)
@@ -420,15 +437,15 @@ export struct WorkspaceFolderPickerPage {
             Text(this.errorMessage).fontSize(13).fontColor($r('app.color.terminal_error')).textAlign(TextAlign.Center)
             Button(I18n.get('common.retry')).onClick(() => { if (this.onRetry) this.onRetry() })
           }.width('100%').layoutWeight(1).justifyContent(FlexAlign.Center)
-        } else if (this.dirEntries.length === 0) {
+        } else if (this.filteredEntries().length === 0) {
           Column() {
             SymbolGlyph($r('sys.symbol.folder')).fontSize(30).fontColor([$r('app.color.terminal_text_muted')])
-            Text(I18n.get('workspaces.folder_empty')).fontSize(14).fontColor($r('app.color.terminal_text_muted')).margin({ top: 10 })
+            Text(I18n.get(this.filterQuery.trim().length > 0 ? 'workspaces.folder_no_matches' : 'workspaces.folder_empty')).fontSize(14).fontColor($r('app.color.terminal_text_muted')).margin({ top: 10 })
           }.width('100%').layoutWeight(1).justifyContent(FlexAlign.Center)
         } else {
           Scroll() {
             Column({ space: 6 }) {
-            ForEach(this.dirEntries, (entry: WorkspaceDirectoryEntry) => {
+            ForEach(this.filteredEntries(), (entry: WorkspaceDirectoryEntry) => {
               Column() {
                 Row({ space: 11 }) {
                   SymbolGlyph($r('sys.symbol.folder_fill')).fontSize(18).fontColor([$r('app.color.terminal_secondary')])
@@ -436,7 +453,7 @@ export struct WorkspaceFolderPickerPage {
                     .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
                   SymbolGlyph($r('sys.symbol.chevron_right')).fontSize(13).fontColor([$r('app.color.terminal_text_muted')])
                 }.width('100%').height(58).padding({ left: 14, right: 14 }).borderRadius(12)
-                  .backgroundColor($r('app.color.terminal_background_element')).onClick(() => { if (this.onNavigate) this.onNavigate(entry.path) })
+                  .backgroundColor($r('app.color.terminal_background_element')).onClick(() => { this.navigateTo(entry.path) })
               }
             }, (entry: WorkspaceDirectoryEntry) => entry.path)
             }.width('100%').alignItems(HorizontalAlign.Start)
@@ -454,12 +471,25 @@ export struct WorkspaceFolderPickerPage {
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
   }
 
-  private currentDisplayPath(): string { return this.currentPath.length === 0 ? I18n.get('files.home') : `~/${this.currentPath}` }
+  private pathSegments(): string[] {
+    return this.currentPath.split('/').filter((part: string) => part.length > 0)
+  }
+
+  private filteredEntries(): WorkspaceDirectoryEntry[] {
+    const query = this.filterQuery.trim().toLocaleLowerCase()
+    return query.length === 0 ? this.dirEntries : this.dirEntries.filter((entry: WorkspaceDirectoryEntry) => entry.name.toLocaleLowerCase().includes(query))
+  }
+
+  private navigateTo(path: string): void {
+    this.filterQuery = ''
+    this.getUIContext().getFocusController().clearFocus()
+    if (this.onNavigate) this.onNavigate(path)
+  }
 
   private goParent() {
     const parts = this.currentPath.split('/').filter((part: string) => part.length > 0)
     parts.pop()
-    if (this.onNavigate) this.onNavigate(parts.join('/'))
+    this.navigateTo(parts.join('/'))
   }
 
   private chooseCurrentFolder() {

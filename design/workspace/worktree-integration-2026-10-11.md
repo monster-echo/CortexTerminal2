@@ -45,3 +45,11 @@ Validated on the Mate 60 emulator after reinstalling the signed HAP:
 - Verified closing/reopening creation, switching computers and force-stopping/restarting the app. Mac mini restores `~/workspace`; its suggested name is restored from the directory name.
 - GET errors now retain structured backend error details rather than showing only a status code.
 - Signed build succeeded in 8 s 461 ms; diff whitespace check passed. No automated test suites were run.
+
+## Follow-up: clearer folder navigation and filtering
+
+Removed the redundant `..` and `Back` labels from the parent action. Parent navigation is now a compact arrow with one `Up one folder` label. The page back arrow exits selection; the parent action changes directory.
+
+Added case-insensitive name filtering within the current directory and horizontally scrollable clickable path breadcrumbs for Home and every ancestor. Navigation clears the filter and input focus. Empty matches have a separate message from empty directories. Existing theme resources and localized strings are used.
+
+Verified on the Mate 60 emulator: `codex` filters the home listing to `.codex`; tapping it enters that directory and clears the query; Home returns to the home listing; an unmatched query shows `No matching folders`. The signed HAP built successfully and was installed. No automated test suites were run.
