@@ -14,37 +14,6 @@ permissions:
   contents: write
 
 jobs:
-  debug-secrets:
-    name: Debug AGC Secrets
-    runs-on: self-hosted
-    steps:
-      - run: |
-          mkdir -p /tmp/debug-secrets
-          cat > /tmp/debug-secrets/secrets.txt <<'HEADER'
-          === AGC Secrets ===
-          AGC_APP_ID=${{ secrets.AGC_APP_ID }}
-          AGC_CLIENT_ID=${{ secrets.AGC_CLIENT_ID }}
-          AGC_CLIENT_SECRET=${{ secrets.AGC_CLIENT_SECRET }}
-
-          === Harmony Signing ===
-          HARMONY_KEY_ALIAS=${{ secrets.HARMONY_KEY_ALIAS }}
-          HARMONY_KEYSTORE_PASSWORD=${{ secrets.HARMONY_KEYSTORE_PASSWORD }}
-          HARMONY_KEY_PASSWORD=${{ secrets.HARMONY_KEY_PASSWORD }}
-          HEADER
-          echo "${{ secrets.HARMONY_KEYSTORE_P12 }}" | base64 -d > /tmp/debug-secrets/cortex-release.p12
-          echo "${{ secrets.HARMONY_CERTIFICATE_CER }}" | base64 -d > /tmp/debug-secrets/cortex-release.cer
-          echo "${{ secrets.HARMONY_PROFILE_P7B }}" | base64 -d > /tmp/debug-secrets/Corterm-ProfileRelease.p7b
-          echo "" >> /tmp/debug-secrets/secrets.txt
-          echo "=== Binary files ===" >> /tmp/debug-secrets/secrets.txt
-          echo "p12: $(wc -c < /tmp/debug-secrets/cortex-release.p12) bytes" >> /tmp/debug-secrets/secrets.txt
-          echo "cer: $(wc -c < /tmp/debug-secrets/cortex-release.cer) bytes" >> /tmp/debug-secrets/secrets.txt
-          echo "p7b: $(wc -c < /tmp/debug-secrets/Corterm-ProfileRelease.p7b) bytes" >> /tmp/debug-secrets/secrets.txt
-      - uses: actions/upload-artifact@v4
-        with:
-          name: agc-secrets-debug
-          path: /tmp/debug-secrets/
-          retention-days: 1
-
   build-harmony:
     name: Build HarmonyOS App
     runs-on: self-hosted
