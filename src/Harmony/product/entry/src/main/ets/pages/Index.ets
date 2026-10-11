@@ -6,7 +6,7 @@ import { DynamicsRouter, Interceptor } from 'routermodule'
 import { AuthInterceptorExecute } from '../interceptor/AuthInterceptor'
 import { AuthService, RouteName } from '@rwecho/core'
 import { LoginPage, ActivateWorkerPage, EnterActivationCodePage } from '@rwecho/auth'
-import { TerminalPage } from '@rwecho/terminal'
+import { TerminalComponent } from '@rwecho/terminal'
 import { FilesPageRoute, FilePreviewPage } from '@rwecho/files'
 import { ShellScaffold } from '../shell/ShellScaffold'
 import { WorkspaceHomePage } from '@rwecho/session'
@@ -87,11 +87,7 @@ struct Index {
       NavDestination() { ShellScaffold({ activeRoute: RouteName.UNGROUPED, subPage: true }) }
         .hideTitleBar(true).backgroundColor($r('app.color.terminal_background'))
     } else if (name === RouteName.TERMINAL_SESSION) {
-      NavDestination() {
-        TerminalPage()
-      }
-      .hideTitleBar(true)
-      .backgroundColor($r('app.color.terminal_background'))
+      TerminalComponent()
     } else if (name === RouteName.WORKER_LIST) {
       NavDestination() {
         ShellScaffold({ activeRoute: RouteName.WORKER_LIST, subPage: true })

@@ -8,10 +8,9 @@
  */
 import { buffer, util } from '@kit.ArkTS'
 import { common } from '@kit.AbilityKit'
-import { window } from '@kit.ArkUI'
 import { webview } from '@kit.ArkWeb'
 import { pasteboard } from '@kit.BasicServicesKit'
-import { ApiService, SessionInfo, SessionCreateRequest, TerminalNavParam, RouteName, I18n, AnalyticsService, lightHaptic, clickHaptic, showToast, PageMenuItem, OverflowMenuButton, TerminalChrome } from '@rwecho/core'
+import { ApiService, SessionInfo, SessionCreateRequest, TerminalNavParam, RouteName, I18n, AnalyticsService, lightHaptic, clickHaptic, showToast, PageMenuItem, OverflowMenuButton, TerminalChrome, SystemBarTheme } from '@rwecho/core'
 import { TerminalCache, TerminalCacheEntry } from '../service/TerminalCache'
 import { SnapshotStore } from '../service/SnapshotStore'
 import { TerminalStateManager } from '../service/TerminalStateManager'
@@ -151,7 +150,7 @@ export struct TerminalPage {
   /** 解析后的终端配色（'dark'/'light'）；变化时同步系统状态栏颜色。 */
   @StorageLink('terminalColorMode') @Watch('onTerminalColorModeChange') terminalColorMode: string = 'dark'
   /** 终端主题派生的 Session 页 chrome 配色（header/菜单/Sheet/键盘栏同源，避免换主题跳色）。 */
-  @StorageLink('terminalChromeJson') chromeJson: string = ''
+  @StorageLink('terminalChromeJson') @Watch('onTerminalColorModeChange') chromeJson: string = ''
   /** 当前终端主题派生的 chrome 配色。 */
   private chrome(): TerminalChrome {
     return TerminalChrome.fromJson(this.chromeJson)
@@ -211,13 +210,8 @@ export struct TerminalPage {
   private hasRestoredSnapshot: boolean = false
   private snapshotIdleTimer: number = -1
 
-  private applyStatusBar(forceWhite: boolean): void {
-    const context = getContext(this) as common.UIAbilityContext
-    window.getLastWindow(context).then((win: window.Window) => {
-      win.setWindowSystemBarProperties({
-        statusBarContentColor: forceWhite ? '#ffffff' : '#000000'
-      })
-    }).catch(() => {})
+  private applyStatusBar(_forceWhite: boolean): void {
+    SystemBarTheme.apply(getContext(this) as common.UIAbilityContext)
   }
 
   onKeyboardHeightChange() {
@@ -299,7 +293,7 @@ export struct TerminalPage {
   }
 
   onTerminalColorModeChange() {
-    this.applyStatusBar(this.terminalColorMode !== 'light')
+    if (this.pageVisible) this.applyStatusBar(this.terminalColorMode !== 'light')
   }
 
   build() {
@@ -372,7 +366,7 @@ export struct TerminalPage {
         })
 
         Button() {
-          OverflowMenuButton({ items: this.buildOverflowMenu() })
+          OverflowMenuButton({ items: this.buildOverflowMenu(), chromeJson: this.chromeJson })
         }
         .width(40)
         .height(40)

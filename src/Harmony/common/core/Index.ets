@@ -79,3 +79,5 @@ export {
   TerminalThemes,
   profilesToColorJson
 } from './src/main/ets/model/TerminalThemeProfile'
+
+export { SystemBarTheme } from './src/main/ets/service/SystemBarTheme'

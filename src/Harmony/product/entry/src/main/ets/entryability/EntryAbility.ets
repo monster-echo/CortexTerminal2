@@ -11,7 +11,7 @@ import { window, KeyboardAvoidMode } from '@kit.ArkUI'
 import { webview } from '@kit.ArkWeb'
 import { hilog } from '@kit.PerformanceAnalysisKit'
 import { bundleManager } from '@kit.AbilityKit'
-import { AnalyticsService, AnalyticsEvent, CrashService, TerminalThemes } from '@rwecho/core'
+import { AnalyticsService, AnalyticsEvent, CrashService, TerminalThemes, SystemBarTheme } from '@rwecho/core'
 import { DynamicsRouter } from 'routermodule'
 
 const TAG = 'EntryAbility'
@@ -48,6 +48,7 @@ export default class EntryAbility extends UIAbility {
     AppStorage.setOrCreate('terminalThemeJson', resolution.themeJson)
     AppStorage.setOrCreate('terminalThemeName', resolution.themeName)
     AppStorage.setOrCreate('terminalChromeJson', resolution.chromeJson)
+    if (this.mainWindow) SystemBarTheme.apply(this.context)
   }
 
   private syncColorMode(): void {
@@ -79,13 +80,8 @@ export default class EntryAbility extends UIAbility {
     }
   }
 
-  private applyStatusBar(isDark: boolean): void {
-    if (this.mainWindow) {
-      const forceDark = AppStorage.get<boolean>('terminalPageActive')
-      this.mainWindow.setWindowSystemBarProperties({
-        statusBarContentColor: (isDark || forceDark === true) ? '#ffffff' : '#000000'
-      })
-    }
+  private applyStatusBar(_isDark: boolean): void {
+    if (this.mainWindow) SystemBarTheme.apply(this.context)
   }
 
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {

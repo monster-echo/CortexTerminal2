@@ -13,3 +13,5 @@ export { TerminalTransport } from './src/main/ets/service/TerminalTransport'
 export { TerminalStateManager } from './src/main/ets/service/TerminalStateManager'
 export { NetworkMonitor } from './src/main/ets/service/NetworkMonitor'
 export type { TerminalStateEnum } from './src/main/ets/model/TerminalState'
+
+export { TerminalComponent } from './src/main/ets/TerminalComponent'

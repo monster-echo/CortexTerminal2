@@ -8,16 +8,24 @@
  * The default system menu renders light-on-white regardless of the app theme, so
  * the popup content is a custom builder: same system popup mechanics, matching style.
  */
+import { TerminalChrome } from '../model/TerminalThemeProfile'
 import { PageMenuItem } from './PageLayout'
 
 @Component
 export struct OverflowMenuButton {
   items: PageMenuItem[] = []
-  // 弹窗容器的背景/圆角走 MenuOptions——容器默认 outline 在深色下会露出一圈浅色边框
-  private menuOptions: MenuOptions = {
-    backgroundColor: $r('app.color.terminal_background_menu'),
-    borderRadius: 12,
-    outlineColor: Color.Transparent,
+  @Prop chromeJson: string = ''
+
+  private tone(role: string): ResourceColor {
+    if (this.chromeJson.length > 0) {
+      const chrome = TerminalChrome.fromJson(this.chromeJson)
+      if (role === 'background') return chrome.surfaceHigh
+      if (role === 'border') return chrome.outlineVariant
+      return chrome.onSurface
+    }
+    if (role === 'background') return $r('app.color.terminal_background_menu')
+    if (role === 'border') return $r('app.color.terminal_border_subtle')
+    return $r('app.color.terminal_text')
   }
 
   @Builder
@@ -26,7 +34,7 @@ export struct OverflowMenuButton {
       ForEach(this.items, (item: PageMenuItem, idx: number) => {
         Text(item.value)
           .fontSize(15)
-          .fontColor($r('app.color.terminal_text'))
+          .fontColor(this.tone('foreground'))
           .constraintSize({ maxWidth: 220 })
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
@@ -38,7 +46,7 @@ export struct OverflowMenuButton {
           })
         if (idx < this.items.length - 1) {
           Divider()
-            .color($r('app.color.terminal_border_subtle'))
+            .color(this.tone('border'))
             .margin({ left: 12, right: 12 })
         }
       }, (item: PageMenuItem) => item.value)
@@ -51,9 +59,9 @@ export struct OverflowMenuButton {
   build() {
     Button() {
       Row({ space: 3 }) {
-        Circle().width(4).height(4).fill($r('app.color.terminal_inverse_surface'))
-        Circle().width(4).height(4).fill($r('app.color.terminal_inverse_surface'))
-        Circle().width(4).height(4).fill($r('app.color.terminal_inverse_surface'))
+        Circle().width(4).height(4).fill(this.tone('foreground'))
+        Circle().width(4).height(4).fill(this.tone('foreground'))
+        Circle().width(4).height(4).fill(this.tone('foreground'))
       }
     }
     .width(40)
@@ -61,6 +69,10 @@ export struct OverflowMenuButton {
     .padding(0)
     .borderRadius(20)
     .backgroundColor(Color.Transparent)
-    .bindMenu(this.MenuContent, this.menuOptions)
+    .bindMenu(this.MenuContent, {
+      backgroundColor: this.tone('background'),
+      borderRadius: 12,
+      outlineColor: Color.Transparent
+    })
   }
 }

@@ -3,17 +3,13 @@
  * @brief Terminal feature route entry.
  */
 import { registerRoute } from 'routermodule'
-import { TerminalPage } from './view/TerminalPage'
+import { TerminalComponent } from './TerminalComponent'
 
 registerRoute({ name: 'terminal/Session' })
 
 @Component
 export struct TerminalSessionRoute {
   build() {
-    NavDestination() {
-      TerminalPage()
-    }
-    .hideTitleBar(true)
-    .backgroundColor($r('app.color.terminal_background'))
+    TerminalComponent()
   }
 }
