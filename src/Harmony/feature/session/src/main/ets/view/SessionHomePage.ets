@@ -376,8 +376,7 @@ export struct SessionHomePage {
         }
       })
     }
-    .padding({ left: 20, right: 20, top: 16, bottom: 20 })
-    .width('100%')
+    .width('100%').height('100%').align(Alignment.TopStart)
   }
 
   @Builder

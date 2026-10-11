@@ -233,8 +233,7 @@ export struct WorkerDetailPage {
         }
       })
     }
-    .padding(24)
-    .width('100%')
+    .width('100%').height('100%').align(Alignment.TopStart)
   }
 
   @Builder

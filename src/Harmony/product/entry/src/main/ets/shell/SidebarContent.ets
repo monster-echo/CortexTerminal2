@@ -164,6 +164,6 @@ export struct SidebarContent {
         AppStorage.setOrCreate('workspaceRefreshTick', Date.now())
         this.loadData()
       } })
-    }.width('100%').padding(20)
+    }.width('100%').height('100%').align(Alignment.TopStart)
   }
 }
