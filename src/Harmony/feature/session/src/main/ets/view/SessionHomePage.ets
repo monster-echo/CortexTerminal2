@@ -88,6 +88,8 @@ export struct SessionHomePage {
   ungroupedOnly: boolean = false
   @StorageLink('language') currentLanguage: string = 'en'
   @State searchQuery: string = ''
+  private dataRequest: number = 0
+  @State deletingWorkspaceId: string = ''
   @StorageLink('workspaceRefreshTick') @Watch('reloadWorkspaces') workspaceRefreshTick: number = 0
   reloadWorkspaces() { this.loadData() }
   /** 首页引导块是终端窗口预览，永远用内置 Default Dark 终端档案渲染，不跟随 App 深浅模式。 */
@@ -326,6 +328,7 @@ export struct SessionHomePage {
             }
             ForEach(this.filteredWorkspaces(), (ws: WorkspaceInfo) => {
               ListItem() { this.WorkspaceCard(ws) }
+                .swipeAction({ end: this.WorkspaceDeleteAction(ws) })
             }, (ws: WorkspaceInfo) => ws.id)
             if (this.filteredWorkspaces().length === 0) {
               ListItem() { Text(this.tr('workspace.ui.no_results')).fontSize(14).fontColor($r('app.color.terminal_text_muted')).padding(16) }
@@ -377,6 +380,46 @@ export struct SessionHomePage {
       })
     }
     .width('100%').height('100%').align(Alignment.TopStart)
+  }
+
+  @Builder
+  WorkspaceDeleteAction(workspace: WorkspaceInfo) {
+    Button() {
+      Column({ space: 4 }) {
+        SymbolGlyph($r('sys.symbol.trash')).fontSize(20).fontColor([$r('app.color.terminal_error')])
+        Text(I18n.get('common.delete')).fontSize(12).fontColor($r('app.color.terminal_error'))
+      }
+    }.width(76).height('100%').borderRadius(12)
+      .backgroundColor($r('app.color.terminal_background_element'))
+      .enabled(this.deletingWorkspaceId.length === 0)
+      .onClick(() => { clickHaptic(); this.confirmDeleteWorkspace(workspace) })
+  }
+
+  private confirmDeleteWorkspace(workspace: WorkspaceInfo): void {
+    if (workspace.isDefault) { showI18nToast('workspaces.delete_default'); return }
+    if (this.allSessions.some((session: SessionInfo) => session.workspaceId === workspace.id)) {
+      showI18nToast('workspaces.delete_has_sessions'); return
+    }
+    this.getUIContext().showAlertDialog({
+      title: I18n.get('workspaces.delete_confirm_title'),
+      message: I18n.getWithArgs('workspaces.delete_confirm_message', { 'name': workspace.name }),
+      primaryButton: { value: I18n.get('common.cancel'), action: () => {} },
+      secondaryButton: { value: I18n.get('common.delete'), fontColor: $r('app.color.terminal_error'),
+        action: () => { this.deleteWorkspace(workspace) } }
+    })
+  }
+
+  private async deleteWorkspace(workspace: WorkspaceInfo): Promise<void> {
+    if (this.deletingWorkspaceId.length > 0) return
+    this.deletingWorkspaceId = workspace.id
+    try {
+      await ApiService.deleteWorkspace(workspace.id)
+      this.workspaces = this.workspaces.filter((item: WorkspaceInfo) => item.id !== workspace.id)
+      this.rebuildGroups()
+      AppStorage.setOrCreate('workspaceRefreshTick', Date.now())
+      showI18nToast('workspaces.delete_success')
+    } catch (e) { showToast((e as Error).message || I18n.get('workspaces.delete_failed')) }
+    finally { this.deletingWorkspaceId = '' }
   }
 
   @Builder
@@ -541,6 +584,7 @@ export struct SessionHomePage {
       await SessionService.deleteSession(session.id)
       this.allSessions = this.allSessions.filter(s => s.id !== session.id)
       this.rebuildGroups()
+      AppStorage.setOrCreate('workspaceRefreshTick', Date.now())
       AnalyticsService.onEvent(AnalyticsEvent.SESSION_DELETE)
       showI18nToast('session.deleted')
     } catch (e) {
@@ -601,6 +645,7 @@ export struct SessionHomePage {
   }
 
   private async loadData() {
+    const request = ++this.dataRequest
     this.isLoading = true
     this.errorMessage = ''
     try {
@@ -611,15 +656,19 @@ export struct SessionHomePage {
         const timeB = new Date(b.updatedAt || b.createdAt).getTime()
         return timeB - timeA
       })
+      const workspaces = await ApiService.listWorkspaceInfos()
+      if (request !== this.dataRequest) return
       this.allSessions = all
       this.workers = data.workers
-      this.workspaces = await ApiService.listWorkspaceInfos()
+      this.workspaces = workspaces
       this.rebuildGroups()
     } catch (e) {
-      this.errorMessage = (e as Error).message
+      if (request === this.dataRequest) this.errorMessage = (e as Error).message
     } finally {
-      this.isLoading = false
-      this.isRefreshing = false
+      if (request === this.dataRequest) {
+        this.isLoading = false
+        this.isRefreshing = false
+      }
     }
   }
 

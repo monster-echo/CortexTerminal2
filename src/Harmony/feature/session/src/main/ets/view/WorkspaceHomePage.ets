@@ -15,6 +15,7 @@ export struct WorkspaceHomePage {
   @StorageLink('language') currentLanguage: string = 'en'
   @StorageLink('workspaceRefreshTick') @Watch('refreshSessions') refreshTick: number = 0
   @StorageLink('triggerWorkspaceSession') @Watch('onCreateTriggered') createTrigger: boolean = false
+  @State deletingSessionId: string = ''
   @State isCreating: boolean = false
   @State workspace: WorkspaceInfo | null = null
   @State sessions: SessionInfo[] = []
@@ -116,19 +117,21 @@ export struct WorkspaceHomePage {
   @Builder
   WorkspaceContent() {
     Column() {
-      Scroll() {
-        Column({ space: 16 }) {
-          this.InfoCard()
-          Row({ space: 12 }) {
-            SymbolGlyph($r('sys.symbol.folder')).fontSize(22).fontColor([$r('app.color.terminal_text')])
-            Text(this.tr('workspace.home.open_files')).fontSize(16).fontWeight(FontWeight.Medium).fontColor($r('app.color.terminal_text')).layoutWeight(1)
-            SymbolGlyph($r('sys.symbol.chevron_right')).fontSize(14).fontColor([$r('app.color.terminal_text_muted')])
-          }.width('100%').height(60).padding(16).borderRadius(12)
-            .backgroundColor($r('app.color.terminal_background_panel')).border({ width: 1, color: $r('app.color.terminal_border_subtle') })
-            .onClick(() => { this.openFiles() })
-          this.SessionSection()
-        }.width('100%').padding({ left: 16, right: 16, top: 16, bottom: 24 })
-      }.width('100%').layoutWeight(1).align(Alignment.Top).scrollBar(BarState.Off)
+      List({ space: 12 }) {
+        ListItem() {
+          Column({ space: 16 }) {
+            this.InfoCard()
+            Row({ space: 12 }) {
+              SymbolGlyph($r('sys.symbol.folder')).fontSize(22).fontColor([$r('app.color.terminal_text')])
+              Text(this.tr('workspace.home.open_files')).fontSize(16).fontWeight(FontWeight.Medium).fontColor($r('app.color.terminal_text')).layoutWeight(1)
+              SymbolGlyph($r('sys.symbol.chevron_right')).fontSize(14).fontColor([$r('app.color.terminal_text_muted')])
+            }.width('100%').height(60).padding(16).borderRadius(12)
+              .backgroundColor($r('app.color.terminal_background_panel')).border({ width: 1, color: $r('app.color.terminal_border_subtle') })
+              .onClick(() => { this.openFiles() })
+          }.width('100%')
+        }
+        this.SessionSection()
+      }.width('100%').layoutWeight(1).padding({ left: 16, right: 16, top: 16, bottom: 24 }).scrollBar(BarState.Off)
       Button(this.isCreating ? this.tr('membership.processing') : `＋ ${this.tr('workspace.home.new_session')}`)
         .width('calc(100% - 32vp)').height(48).borderRadius(12).fontSize(16).fontWeight(FontWeight.Medium)
         .backgroundColor($r('app.color.terminal_inverse_surface')).fontColor($r('app.color.terminal_inverse_on_surface'))
@@ -153,23 +156,65 @@ export struct WorkspaceHomePage {
 
   @Builder
   SessionSection() {
-    Column({ space: 12 }) {
+    ListItem() {
       Row() {
         Text(this.tr('workspace.home.sessions')).fontSize(16).fontWeight(FontWeight.Medium).fontColor($r('app.color.terminal_text')).layoutWeight(1)
         Text(I18n.getWithArgs('workspace.home.session_count', { 'count': `${this.sessions.length}` })).fontSize(12).fontColor($r('app.color.terminal_text_muted'))
       }.width('100%').height(36)
-      if (this.sessions.length === 0) {
+    }
+    if (this.sessions.length === 0) {
+      ListItem() {
         Text(this.tr('workspace.home.empty_sessions')).fontSize(14).fontColor($r('app.color.terminal_text_muted')).width('100%').padding({ top: 12, bottom: 12 })
-      } else {
-        ForEach(this.sessions, (session: SessionInfo) => {
-          Column() {
-            SessionCard({ session: session, workspaceStyle: true, onCardClick: () => { lightHaptic(); this.resumeSession(session) } })
-          }.width('100%').gesture(LongPressGesture({ repeat: false }).onAction(() => { this.confirmMoveOut(session) }))
-        }, (session: SessionInfo) => JSON.stringify([session.id, session.name, session.status,
-          session.updatedAt, session.lastActivityAt, session.lastActiveAt]))
-        Text(this.tr('workspace.ui.move_hint')).fontSize(12).fontColor($r('app.color.terminal_text_muted')).width('100%').margin({ top: 4 })
       }
-    }.width('100%')
+    } else {
+      ForEach(this.sessions, (session: SessionInfo) => {
+        ListItem() {
+          SessionCard({ session: session, workspaceStyle: true, onCardClick: () => { lightHaptic(); this.resumeSession(session) } })
+        }.gesture(LongPressGesture({ repeat: false }).onAction(() => { this.confirmMoveOut(session) }))
+          .swipeAction({ end: this.SessionDeleteAction(session) })
+      }, (session: SessionInfo) => JSON.stringify([session.id, session.name, session.status,
+        session.updatedAt, session.lastActivityAt, session.lastActiveAt]))
+      ListItem() {
+        Text(this.tr('workspace.ui.session_actions_hint')).fontSize(12).fontColor($r('app.color.terminal_text_muted')).width('100%').margin({ top: 4 })
+      }
+    }
+  }
+
+  @Builder
+  SessionDeleteAction(session: SessionInfo) {
+    Button() {
+      Column({ space: 4 }) {
+        SymbolGlyph($r('sys.symbol.trash')).fontSize(20).fontColor([$r('app.color.terminal_error')])
+        Text(I18n.get('common.delete')).fontSize(12).fontColor($r('app.color.terminal_error'))
+      }
+    }.width(76).height('100%').borderRadius(12)
+      .backgroundColor($r('app.color.terminal_background_element'))
+      .enabled(this.deletingSessionId.length === 0)
+      .onClick(() => { clickHaptic(); this.confirmDeleteSession(session) })
+  }
+
+  private confirmDeleteSession(session: SessionInfo): void {
+    this.getUIContext().showAlertDialog({
+      title: I18n.get('session.card.delete_confirm_title'),
+      message: I18n.get('session.card.delete_confirm_message'),
+      primaryButton: { value: I18n.get('common.cancel'), action: () => {} },
+      secondaryButton: { value: I18n.get('common.delete'), fontColor: $r('app.color.terminal_error'),
+        action: () => { this.deleteSession(session) } }
+    })
+  }
+
+  private async deleteSession(session: SessionInfo): Promise<void> {
+    if (this.deletingSessionId.length > 0) return
+    this.deletingSessionId = session.id
+    try {
+      await ApiService.deleteSession(session.id)
+      this.sessionsRequest++
+      this.sessions = this.sessions.filter((item: SessionInfo) => item.id !== session.id)
+      AppStorage.setOrCreate('workspaceRefreshTick', Date.now())
+      AnalyticsService.onEvent(AnalyticsEvent.SESSION_DELETE)
+      showI18nToast('session.deleted')
+    } catch (e) { showToast((e as Error).message || I18n.get('common.error')) }
+    finally { this.deletingSessionId = '' }
   }
 
   private workerDisplayName(): string {
