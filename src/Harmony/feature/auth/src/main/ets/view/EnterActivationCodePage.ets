@@ -20,13 +20,11 @@ export struct EnterActivationCodePage {
 
   build() {
     PageLayout({ title: I18n.get('auth.activate.code_title') }) {
-      Column({ space: 24 }) {
-        Column({ space: 8 }) {
-          Text(I18n.get('auth.activate.code_title')).fontSize(25)
-            .fontWeight(FontWeight.Bold).fontColor($r('app.color.terminal_text'))
+      Column({ space: 20 }) {
+        if (this.successMessage.length === 0) {
           Text(I18n.get('auth.activate.code_help_detail')).fontSize(14)
-            .fontColor($r('app.color.terminal_text_muted'))
-        }.width('100%').alignItems(HorizontalAlign.Start).margin({ top: 16 })
+            .fontColor($r('app.color.terminal_text_muted')).width('100%')
+        }
 
         if (this.successMessage.length > 0) {
           Column({ space: 12 }) {
@@ -37,13 +35,12 @@ export struct EnterActivationCodePage {
           }.width('100%').alignItems(HorizontalAlign.Center).padding({ top: 48, bottom: 48 })
         } else {
           Column({ space: 16 }) {
-            Text(I18n.get('auth.activate.code_title')).fontSize(13)
-              .fontWeight(FontWeight.Medium).fontColor($r('app.color.terminal_text_muted')).width('100%')
             TextInput({ placeholder: I18n.get('auth.activate.code_example'), text: this.activationCode })
               .width('100%').height(58).fontSize(22).fontWeight(FontWeight.Medium)
               .fontFamily('monospace').textAlign(TextAlign.Center).borderRadius(12)
               .backgroundColor($r('app.color.terminal_background_element'))
               .fontColor($r('app.color.terminal_text')).placeholderColor($r('app.color.terminal_text_muted'))
+              .accessibilityText(I18n.get('auth.activate.code_title')).enabled(!this.isLoading)
               .onChange((value: string) => {
                 this.activationCode = this.formatCode(value)
                 this.errorMessage = ''
@@ -58,20 +55,19 @@ export struct EnterActivationCodePage {
             }
             Button() {
               if (this.isLoading) {
-                LoadingProgress().width(20).height(20).color($r('app.color.terminal_on_primary_container'))
+                LoadingProgress().width(20).height(20).color($r('app.color.terminal_inverse_on_surface'))
               } else {
                 Text(I18n.get('auth.activate.button')).fontSize(16).fontWeight(FontWeight.Medium)
-                  .fontColor($r('app.color.terminal_on_primary_container'))
+                  .fontColor($r('app.color.terminal_inverse_on_surface'))
               }
             }
             .width('100%').height(52).borderRadius(12)
-            .backgroundColor($r('app.color.terminal_primary_container'))
+            .backgroundColor($r('app.color.terminal_inverse_surface'))
             .enabled(this.activationCode.length === 9 && !this.isLoading)
             .onClick(() => this.activate())
-          }.width('100%').padding(20).borderRadius(16)
-            .backgroundColor($r('app.color.terminal_background_panel'))
+          }.width('100%')
         }
-      }.width('100%').padding({ left: 20, right: 20, bottom: 24 })
+      }.width('100%').padding({ left: 20, right: 20, top: 16, bottom: 24 }).alignItems(HorizontalAlign.Start)
     }
   }
 
