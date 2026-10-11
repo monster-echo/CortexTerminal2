@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../app/theme/corterm_theme.dart';
+import '../../../core/storage/app_preferences.dart';
 import '../../../core/models/worker.dart';
 import '../../../shared/widgets/corterm_ui.dart';
 import '../../sessions/data/sessions_providers.dart';
@@ -38,6 +39,17 @@ class _NewWorkspaceScreenState extends ConsumerState<NewWorkspaceScreen> {
       final params = GoRouterState.of(context).uri.queryParameters;
       final preselect = params['workerId'];
       if (preselect != null && preselect.isNotEmpty) _workerId = preselect;
+      final prefs = ref.read(sharedPreferencesProvider);
+      _workerId ??= prefs.getString('workspace.last_worker');
+      if (_workerId != null) {
+        _folder = prefs.getString('workspace.last_folder.$_workerId');
+      }
+      if (_folder != null) {
+        _nameController.text = _folder == '.'
+            ? '主目录'
+            : _folder!.split('/').where((s) => s.isNotEmpty).lastOrNull ?? '';
+        _nameAutoFilled = true;
+      }
       // returnResult=1：由调用方（新建会话流程）push 进入，创建成功后带回结果。
       _returnResult = params['returnResult'] == '1';
     }
@@ -51,35 +63,63 @@ class _NewWorkspaceScreenState extends ConsumerState<NewWorkspaceScreen> {
 
   Future<void> _pickWorker() async {
     final selected = await context.push<WorkerSummary>('/workers/select');
-    if (selected == null) return;
+    if (selected == null || !mounted) return;
     setState(() {
       _workerId = selected.workerId;
-      _folder = null; // 换电脑后原文件夹无效
+      _folder = ref
+          .read(sharedPreferencesProvider)
+          .getString('workspace.last_folder.$_workerId');
+      if (_nameAutoFilled) {
+        _nameController.text = _folder == '.'
+            ? '主目录'
+            : _folder?.split('/').lastOrNull ?? '';
+      }
+      ref
+          .read(sharedPreferencesProvider)
+          .setString('workspace.last_worker', _workerId!);
     });
   }
 
   Future<void> _pickFolder() async {
-    final folder =
-        await context.push<String>('/folder-picker?workerId=$_workerId');
-    if (folder == null) return;
+    final folder = await context.push<String>(
+      '/folder-picker?workerId=$_workerId',
+    );
+    if (folder == null || !mounted) return;
+    await ref
+        .read(sharedPreferencesProvider)
+        .setString('workspace.last_folder.$_workerId', folder);
+    if (!mounted) return;
     setState(() {
       _folder = folder;
       // 名称默认取文件夹 basename，用户可改（只在第一次带入时自动填）。
       if (_nameController.text.isEmpty || _nameAutoFilled) {
-        _nameController.text =
-            folder.split('/').where((s) => s.isNotEmpty).last;
+        _nameController.text = folder
+            .split('/')
+            .where((s) => s.isNotEmpty)
+            .last;
         _nameAutoFilled = true;
       }
     });
   }
 
   Future<void> _create() async {
+    if (_creating ||
+        _workerId == null ||
+        _folder == null ||
+        _nameController.text.trim().isEmpty) {
+      return;
+    }
     setState(() {
       _creating = true;
       _error = null;
     });
     try {
-      final ws = await ref.read(workspaceRepositoryProvider).create(
+      await ref
+          .read(sharedPreferencesProvider)
+          .setString('workspace.last_worker', _workerId!);
+      final ws = await ref
+          .read(workspaceRepositoryProvider)
+          .create(
             workerId: _workerId!,
             name: _nameController.text,
             rootPath: _folder!,
@@ -94,6 +134,7 @@ class _NewWorkspaceScreenState extends ConsumerState<NewWorkspaceScreen> {
         }
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = '$e';
         _creating = false;
@@ -112,21 +153,36 @@ class _NewWorkspaceScreenState extends ConsumerState<NewWorkspaceScreen> {
         backgroundColor: colors.background,
         surfaceTintColor: Colors.transparent,
         title: const Text('新建工作区'),
+        actions: [
+          IconButton(
+            tooltip: '刷新电脑',
+            icon: const Icon(Icons.refresh),
+            onPressed: () => ref.invalidate(workersProvider),
+          ),
+        ],
       ),
-      body: switch (workersAsync) {
-        AsyncLoading() => const Center(child: CircularProgressIndicator()),
-        AsyncError(:final error) => Center(
-            child: Text('$error', style: TextStyle(color: colors.danger))),
-        AsyncValue(:final value) => _form(context, value ?? const []),
-      },
+      body: SafeArea(
+        top: false,
+        child: switch (workersAsync) {
+          AsyncLoading() => const Center(child: CircularProgressIndicator()),
+          AsyncError(:final error) => Center(
+            child: Text('$error', style: TextStyle(color: colors.danger)),
+          ),
+          AsyncValue(:final value) => _form(context, value ?? const []),
+        },
+      ),
     );
   }
 
   Widget _form(BuildContext context, List<WorkerSummary> workers) {
     final colors = colorsOf(context);
-    final worker =
-        workers.where((w) => w.workerId == _workerId).firstOrNull;
-    final canCreate = worker != null && _folder != null && !_creating;
+    final worker = workers.where((w) => w.workerId == _workerId).firstOrNull;
+    final canCreate =
+        worker != null &&
+        worker.isOnline &&
+        _folder != null &&
+        _nameController.text.trim().isNotEmpty &&
+        !_creating;
 
     return ListView(
       padding: const EdgeInsets.only(bottom: 24),
@@ -141,26 +197,27 @@ class _NewWorkspaceScreenState extends ConsumerState<NewWorkspaceScreen> {
         ),
         SectionHeader('文件夹'),
         ListRow(
-          title: _folder ?? '请选择文件夹',
+          title: _folder == '.' ? '主目录' : _folder ?? '请选择文件夹',
           leading: const Icon(Icons.folder),
           onTap: worker == null ? null : _pickFolder,
-          trailing: worker == null
-              ? null
-              : const Icon(Icons.chevron_right),
+          trailing: worker == null ? null : const Icon(Icons.chevron_right),
         ),
         SectionHeader('名称'),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: TextField(
             controller: _nameController,
+            onChanged: (_) => setState(() => _nameAutoFilled = false),
             decoration: const InputDecoration(hintText: '工作区名称'),
           ),
         ),
         if (_error != null)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-            child: Text(_error!,
-                style: TextStyle(fontSize: 14, color: colors.danger)),
+            child: Text(
+              _error!,
+              style: TextStyle(fontSize: 14, color: colors.danger),
+            ),
           ),
         Padding(
           padding: const EdgeInsets.all(16),

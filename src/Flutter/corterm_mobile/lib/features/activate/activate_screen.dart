@@ -5,6 +5,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../../core/auth/auth_repository.dart';
+import '../sessions/data/sessions_providers.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../app/theme/corterm_theme.dart';
 import '../../../shared/widgets/app_bar.dart';
@@ -43,7 +44,7 @@ class _ActivateScreenState extends ConsumerState<ActivateScreen> {
       RegExp(r'[^A-Z0-9]'),
       '',
     );
-    return cleaned.length >= 4 ? cleaned.substring(0, 8) : '';
+    return cleaned.length == 8 ? cleaned : '';
   }
 
   Future<void> _onScanned(String raw) async {
@@ -57,6 +58,7 @@ class _ActivateScreenState extends ConsumerState<ActivateScreen> {
   }
 
   Future<void> _verify(String code) async {
+    if (_verifying || _confirmed) return;
     final l10n = AppLocalizations.of(context)!;
     setState(() {
       _error = null;
@@ -69,6 +71,7 @@ class _ActivateScreenState extends ConsumerState<ActivateScreen> {
       if (!mounted) return;
       setState(() {
         _confirmed = true;
+        ref.invalidate(workersProvider);
       });
     } catch (e) {
       if (!mounted) return;
@@ -122,11 +125,7 @@ class _ActivateScreenState extends ConsumerState<ActivateScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
-                    LucideIcons.circleCheck,
-                    size: 56,
-                    color: c.accent,
-                  ),
+                  Icon(LucideIcons.circleCheck, size: 56, color: c.accent),
                   const SizedBox(height: 16),
                   Text(
                     l10n.activateDone,
@@ -195,9 +194,7 @@ class _ActivateScreenState extends ConsumerState<ActivateScreen> {
                       child: Text(
                         _error!,
                         textAlign: TextAlign.center,
-                        style: theme.textTheme.small.copyWith(
-                          color: c.danger,
-                        ),
+                        style: theme.textTheme.small.copyWith(color: c.danger),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -214,7 +211,8 @@ class _ActivateScreenState extends ConsumerState<ActivateScreen> {
                         width: double.infinity,
                         height: 48,
                         foregroundColor: colorsOf(context).onScrim,
-                        backgroundColor: colorsOf(context).onScrim.withValues(alpha: 0.12),
+                        backgroundColor: colorsOf(context).onScrim
+                            .withValues(alpha: 0.12),
                         onPressed: _openCodeEntry,
                         child: Text(l10n.activateManualEntry),
                       ),
@@ -253,7 +251,7 @@ class _CodeEntryScreenState extends ConsumerState<_CodeEntryScreen> {
   void _onCodeChanged(String raw) {
     final chars = raw.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
     final sb = StringBuffer();
-    for (var i = 0; i < chars.length && i < 9; i++) {
+    for (var i = 0; i < chars.length && i < 8; i++) {
       if (i == 4) sb.write('-');
       sb.writeCharCode(chars.codeUnitAt(i));
     }
@@ -264,13 +262,14 @@ class _CodeEntryScreenState extends ConsumerState<_CodeEntryScreen> {
         selection: TextSelection.collapsed(offset: formatted.length),
       );
     }
-    if (_error != null) setState(() => _error = null);
+    setState(() => _error = null);
   }
 
   bool get _valid =>
-      RegExp(r'^[A-Z0-9]{4}-[A-Z0-9]{4,5}$').hasMatch(_code.text.trim());
+      RegExp(r'^[A-Z0-9]{4}-[A-Z0-9]{4}$').hasMatch(_code.text.trim());
 
   Future<void> _verify() async {
+    if (_verifying || !_valid) return;
     final l10n = AppLocalizations.of(context)!;
     setState(() {
       _error = null;
@@ -281,6 +280,7 @@ class _CodeEntryScreenState extends ConsumerState<_CodeEntryScreen> {
           .read(authRepositoryProvider)
           .verifyActivationCode(userCode: _code.text.trim());
       if (!mounted) return;
+      ref.invalidate(workersProvider);
       Navigator.of(context).pop(true);
     } catch (e) {
       if (!mounted) return;
@@ -320,7 +320,6 @@ class _CodeEntryScreenState extends ConsumerState<_CodeEntryScreen> {
               const SizedBox(height: 24),
               ShadInputFormField(
                 controller: _code,
-                label: Text(l10n.activateCodeLabel),
                 placeholder: const Text('XXXX-XXXX'),
                 onChanged: _onCodeChanged,
                 style: theme.textTheme.large.copyWith(
@@ -332,9 +331,7 @@ class _CodeEntryScreenState extends ConsumerState<_CodeEntryScreen> {
                 const SizedBox(height: 12),
                 Text(
                   _error!,
-                  style: theme.textTheme.small.copyWith(
-                    color: c.danger,
-                  ),
+                  style: theme.textTheme.small.copyWith(color: c.danger),
                 ),
               ],
               const SizedBox(height: 24),

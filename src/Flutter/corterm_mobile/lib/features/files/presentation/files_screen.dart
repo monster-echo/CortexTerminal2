@@ -40,7 +40,8 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
   void initState() {
     super.initState();
     _path =
-        ref.read(appPreferencesProvider).filesLastPath(widget.workspaceId) ?? '';
+        ref.read(appPreferencesProvider).filesLastPath(widget.workspaceId) ??
+        '';
   }
 
   Future<FileListing> _load(String path) async {
@@ -82,7 +83,9 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
     if (picked == null || picked.bytes == null) return;
     setState(() => _busy = true);
     try {
-      await ref.read(fileRepositoryProvider).upload(
+      await ref
+          .read(fileRepositoryProvider)
+          .upload(
             workspaceId: widget.workspaceId,
             dirPath: _path,
             filename: picked.name,
@@ -101,7 +104,9 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
   Future<void> _download(FileEntry entry) async {
     setState(() => _busy = true);
     try {
-      final bytes = await ref.read(fileRepositoryProvider).downloadBytes(
+      final bytes = await ref
+          .read(fileRepositoryProvider)
+          .downloadBytes(
             workspaceId: widget.workspaceId,
             path: _join(_path, entry.name),
           );
@@ -134,7 +139,9 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
     if (newName == null || newName.isEmpty || newName == entry.name) return;
     setState(() => _busy = true);
     try {
-      await ref.read(fileRepositoryProvider).rename(
+      await ref
+          .read(fileRepositoryProvider)
+          .rename(
             workspaceId: widget.workspaceId,
             path: _join(_path, entry.name),
             newName: newName,
@@ -156,8 +163,10 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
         final c = colorsOf(dialogContext);
         return AlertDialog(
           backgroundColor: c.surfaceElevated,
-          title: Text('删除${entry.isDirectory ? '文件夹' : '文件'}',
-              style: TextStyle(fontSize: 18, color: c.textPrimary)),
+          title: Text(
+            '删除${entry.isDirectory ? '文件夹' : '文件'}',
+            style: TextStyle(fontSize: 18, color: c.textPrimary),
+          ),
           content: Text(
             entry.isDirectory
                 ? '「${entry.name}」及其全部内容将被删除，此操作不可恢复。'
@@ -180,7 +189,9 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
     if (confirmed != true) return;
     setState(() => _busy = true);
     try {
-      await ref.read(fileRepositoryProvider).delete(
+      await ref
+          .read(fileRepositoryProvider)
+          .delete(
             workspaceId: widget.workspaceId,
             path: _join(_path, entry.name),
           );
@@ -195,14 +206,17 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
   }
 
   Future<void> _mkdir() async {
-    final name = await _promptText(title: '新建文件夹', label: '文件夹名称', confirmLabel: '创建');
+    final name = await _promptText(
+      title: '新建文件夹',
+      label: '文件夹名称',
+      confirmLabel: '创建',
+    );
     if (name == null || name.isEmpty) return;
     setState(() => _busy = true);
     try {
-      await ref.read(fileRepositoryProvider).mkdir(
-            workspaceId: widget.workspaceId,
-            path: _join(_path, name),
-          );
+      await ref
+          .read(fileRepositoryProvider)
+          .mkdir(workspaceId: widget.workspaceId, path: _join(_path, name));
       if (!mounted) return;
       showAppToast(context, '文件夹已创建');
       await _refresh();
@@ -219,7 +233,9 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
     final (name, content) = result;
     setState(() => _busy = true);
     try {
-      await ref.read(fileRepositoryProvider).writeText(
+      await ref
+          .read(fileRepositoryProvider)
+          .writeText(
             workspaceId: widget.workspaceId,
             path: _join(_path, name),
             content: content,
@@ -250,84 +266,97 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
         // Modal 路由在 Navigator 根上，需显式 Dark Theme。
         return Theme(
           data: cortermDarkToolTheme(),
-          child: Builder(builder: (sheetContext) {
-        final c = colorsOf(sheetContext);
-        return Padding(
-          padding: EdgeInsets.only(
-            left: 16,
-            right: 16,
-            top: 20,
-            bottom: 20 + MediaQuery.of(sheetContext).viewInsets.bottom,
-          ),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: c.surfaceElevated,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title,
-                    style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: c.textPrimary)),
-                const SizedBox(height: 16),
-                Text(label,
-                    style: TextStyle(fontSize: 14, color: c.textSecondary)),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: controller,
-                  autofocus: true,
-                  style: TextStyle(fontSize: 16, color: c.textPrimary),
-                  decoration: InputDecoration(
-                    filled: true,
-                    fillColor: c.surface,
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 14),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(color: c.divider),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(color: c.divider),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(color: c.accent),
-                    ),
-                  ),
-                  onSubmitted: (value) =>
-                      Navigator.of(sheetContext).pop(value),
+          child: Builder(
+            builder: (sheetContext) {
+              final c = colorsOf(sheetContext);
+              return Padding(
+                padding: EdgeInsets.only(
+                  left: 16,
+                  right: 16,
+                  top: 20,
+                  bottom: 20 + MediaQuery.of(sheetContext).viewInsets.bottom,
                 ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: FilledButton(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: c.accent,
-                      foregroundColor: colorsOf(context).onEmphasis,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(24),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: c.surfaceElevated,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: c.textPrimary,
+                        ),
                       ),
-                    ),
-                    onPressed: () =>
-                        Navigator.of(sheetContext).pop(controller.text),
-                    child: Text(confirmLabel,
-                        style: const TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.w500)),
+                      const SizedBox(height: 16),
+                      Text(
+                        label,
+                        style: TextStyle(fontSize: 14, color: c.textSecondary),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: controller,
+                        autofocus: true,
+                        style: TextStyle(fontSize: 16, color: c.textPrimary),
+                        decoration: InputDecoration(
+                          filled: true,
+                          fillColor: c.surface,
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 14,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(color: c.divider),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(color: c.divider),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(color: c.accent),
+                          ),
+                        ),
+                        onSubmitted: (value) =>
+                            Navigator.of(sheetContext).pop(value),
+                      ),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: FilledButton(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: c.accent,
+                            foregroundColor: colorsOf(context).onEmphasis,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(24),
+                            ),
+                          ),
+                          onPressed: () =>
+                              Navigator.of(sheetContext).pop(controller.text),
+                          child: Text(
+                            confirmLabel,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
-            ),
+              );
+            },
           ),
-        );
-          }),
         );
       },
     );
@@ -345,100 +374,115 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
         // Modal 路由在 Navigator 根上，需显式 Dark Theme。
         return Theme(
           data: cortermDarkToolTheme(),
-          child: Builder(builder: (sheetContext) {
-        final c = colorsOf(sheetContext);
-        InputDecoration inputDecoration(String hint) => InputDecoration(
-              hintText: hint,
-              hintStyle: TextStyle(fontSize: 14, color: c.textSecondary),
-              filled: true,
-              fillColor: c.surface,
-              isDense: true,
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: c.divider),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: c.divider),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: c.accent),
-              ),
-            );
-        return Padding(
-          padding: EdgeInsets.only(
-            left: 16,
-            right: 16,
-            top: 20,
-            bottom: 20 + MediaQuery.of(sheetContext).viewInsets.bottom,
-          ),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: c.surfaceElevated,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('新建文本文件',
-                    style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: c.textPrimary)),
-                const SizedBox(height: 16),
-                Text('文件名',
-                    style: TextStyle(fontSize: 14, color: c.textSecondary)),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: nameController,
-                  autofocus: true,
-                  style: TextStyle(fontSize: 16, color: c.textPrimary),
-                  decoration: inputDecoration('例如 notes.txt'),
+          child: Builder(
+            builder: (sheetContext) {
+              final c = colorsOf(sheetContext);
+              InputDecoration inputDecoration(String hint) => InputDecoration(
+                hintText: hint,
+                hintStyle: TextStyle(fontSize: 14, color: c.textSecondary),
+                filled: true,
+                fillColor: c.surface,
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 14,
                 ),
-                const SizedBox(height: 16),
-                Text('内容',
-                    style: TextStyle(fontSize: 14, color: c.textSecondary)),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: contentController,
-                  style: TextStyle(fontSize: 16, color: c.textPrimary),
-                  maxLines: 5,
-                  minLines: 3,
-                  decoration: inputDecoration('文件内容（可为空）'),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: c.divider),
                 ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: FilledButton(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: c.accent,
-                      foregroundColor: colorsOf(context).onEmphasis,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(24),
-                      ),
-                    ),
-                    onPressed: () {
-                      final name = nameController.text;
-                      if (name.isEmpty) return;
-                      Navigator.of(sheetContext)
-                          .pop((name, contentController.text));
-                    },
-                    child: const Text('创建',
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: c.divider),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: c.accent),
+                ),
+              );
+              return Padding(
+                padding: EdgeInsets.only(
+                  left: 16,
+                  right: 16,
+                  top: 20,
+                  bottom: 20 + MediaQuery.of(sheetContext).viewInsets.bottom,
+                ),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: c.surfaceElevated,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '新建文本文件',
                         style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.w500)),
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: c.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        '文件名',
+                        style: TextStyle(fontSize: 14, color: c.textSecondary),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: nameController,
+                        autofocus: true,
+                        style: TextStyle(fontSize: 16, color: c.textPrimary),
+                        decoration: inputDecoration('例如 notes.txt'),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        '内容',
+                        style: TextStyle(fontSize: 14, color: c.textSecondary),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: contentController,
+                        style: TextStyle(fontSize: 16, color: c.textPrimary),
+                        maxLines: 5,
+                        minLines: 3,
+                        decoration: inputDecoration('文件内容（可为空）'),
+                      ),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: FilledButton(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: c.accent,
+                            foregroundColor: colorsOf(context).onEmphasis,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(24),
+                            ),
+                          ),
+                          onPressed: () {
+                            final name = nameController.text;
+                            if (name.isEmpty) return;
+                            Navigator.of(sheetContext)
+                                .pop((name, contentController.text));
+                          },
+                          child: const Text(
+                            '创建',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
-            ),
+              );
+            },
           ),
-        );
-          }),
         );
       },
     );
@@ -455,13 +499,116 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
 
   bool _isTextFile(String name) {
     const exts = [
-      '.txt', '.log', '.json', '.js', '.ts', '.jsx', '.tsx', '.py', '.sh',
-      '.md', '.conf', '.yaml', '.yml', '.toml', '.xml', '.html', '.css',
-      '.ini', '.env', '.sql', '.c', '.h', '.cpp', '.hpp', '.java', '.go',
-      '.rs', '.rb', '.php', '.dart',
+      '.txt',
+      '.log',
+      '.json',
+      '.js',
+      '.ts',
+      '.jsx',
+      '.tsx',
+      '.py',
+      '.sh',
+      '.md',
+      '.conf',
+      '.yaml',
+      '.yml',
+      '.toml',
+      '.xml',
+      '.html',
+      '.css',
+      '.ini',
+      '.env',
+      '.sql',
+      '.c',
+      '.h',
+      '.cpp',
+      '.hpp',
+      '.java',
+      '.go',
+      '.rs',
+      '.rb',
+      '.php',
+      '.dart',
     ];
     final lower = name.toLowerCase();
     return exts.any(lower.endsWith);
+  }
+
+  void _showTransferConnection(BuildContext context) {
+    final zh = Localizations.localeOf(context).languageCode == 'zh';
+    String tr(String cn, String en) => zh ? cn : en;
+    String label(String route) => switch (route) {
+      'lan' => tr('局域网直连', 'LAN direct'),
+      'p2p' => tr('P2P 打洞直连', 'P2P hole-punched connection'),
+      'public' => tr('公网直连', 'Public direct'),
+      _ => tr('安全中继', 'Secure relay'),
+    };
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => SafeArea(
+        child: SizedBox(
+          height: MediaQuery.sizeOf(context).height * .55,
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: ValueListenableBuilder<List<(DateTime, String)>>(
+              valueListenable: ref.read(transferRoutesProvider),
+              builder: (context, history, _) => Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    tr('文件传输连接', 'File transfer connection'),
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    tr(
+                      '此设备最近的传输记录，包含不同电脑。',
+                      'Recent transfers on this device, across computers.',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    history.isEmpty
+                        ? tr(
+                            '完成一次上传或下载后显示实际连接方式。',
+                            'The connection is shown after a completed upload or download.',
+                          )
+                        : history.first.$2 == 'p2p'
+                        ? tr(
+                            '打洞成功！文件通过设备间的加密直连传输。',
+                            'Hole punching succeeded. Files transfer over an encrypted peer connection.',
+                          )
+                        : tr(
+                            '自动选择可用通道，直连不可用时使用中继。',
+                            'The app chooses an available connection and falls back to relay when needed.',
+                          ),
+                  ),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: ListView(
+                      children: [
+                        for (final event in history)
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(
+                              event.$2 == 'p2p' ? Icons.bolt : Icons.link,
+                            ),
+                            title: Text(label(event.$2)),
+                            subtitle: Text(
+                              '${event.$1.toLocal()}'.split('.').first,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -474,84 +621,97 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
         _open(filesParentPath(_path));
       },
       child: Theme(
-      data: cortermDarkToolTheme(),
-      child: Builder(
-        builder: (context) {
-          final c = colorsOf(context);
-          return Scaffold(
-            backgroundColor: c.background,
-            appBar: AppBar(
-              title: Text(widget.workspaceName.isEmpty ? '电脑' : widget.workspaceName),
-              actions: [
-                PopupMenuButton<String>(
-                  icon: _busy
-                      ? Icon(Icons.add, color: c.textSecondary)
-                      : const Icon(Icons.add),
-                  tooltip: '新建',
-                  color: c.surfaceElevated,
-                  onSelected: (action) {
-                    switch (action) {
-                      case 'upload':
-                        _upload();
-                      case 'mkdir':
-                        _mkdir();
-                      case 'newText':
-                        _createTextFile();
-                    }
-                  },
-                  itemBuilder: (_) => const [
-                    PopupMenuItem(value: 'upload', child: Text('上传文件')),
-                    PopupMenuItem(value: 'mkdir', child: Text('新建文件夹')),
-                    PopupMenuItem(value: 'newText', child: Text('新建文本文件')),
-                  ],
+        data: cortermDarkToolTheme(),
+        child: Builder(
+          builder: (context) {
+            final c = colorsOf(context);
+            return Scaffold(
+              backgroundColor: c.background,
+              appBar: AppBar(
+                title: Text(
+                  widget.workspaceName.isEmpty ? '电脑' : widget.workspaceName,
                 ),
-              ],
-            ),
-            body: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _Breadcrumb(path: _path, rootLabel: widget.rootPath, onNavigate: _open),
-                Divider(color: c.divider, height: 1),
-                Expanded(
-                  child: FutureBuilder<FileListing>(
-                    future: _future,
-                    builder: (context, snap) {
-                      if (snap.hasError) {
-                        return ErrorState(
-                          message: '${snap.error}',
-                          onRetry: () => _open(_path),
-                        );
-                      }
-                      if (!snap.hasData) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
-                      final entries = snap.data!.entries.toList()
-                        ..sort((a, b) {
-                          if (a.isDirectory != b.isDirectory) {
-                            return a.isDirectory ? -1 : 1;
-                          }
-                          return a.name.compareTo(b.name);
-                        });
-                      if (entries.isEmpty) {
-                        return const EmptyState(
-                          icon: Icons.folder_open,
-                          message: '此文件夹为空',
-                        );
-                      }
-                      return ListView.builder(
-                        itemCount: entries.length,
-                        itemBuilder: (context, i) =>
-                            _EntryTile(entry: entries[i], screen: this),
-                      );
-                    },
+                actions: [
+                  IconButton(
+                    icon: const Icon(Icons.link),
+                    tooltip: '连接方式',
+                    onPressed: () => _showTransferConnection(context),
                   ),
-                ),
-                if (_busy) const LinearProgressIndicator(minHeight: 2),
-              ],
-            ),
-          );
-        },
-      ),
+                  PopupMenuButton<String>(
+                    icon: _busy
+                        ? Icon(Icons.add, color: c.textSecondary)
+                        : const Icon(Icons.add),
+                    tooltip: '新建',
+                    color: c.surfaceElevated,
+                    onSelected: (action) {
+                      switch (action) {
+                        case 'upload':
+                          _upload();
+                        case 'mkdir':
+                          _mkdir();
+                        case 'newText':
+                          _createTextFile();
+                      }
+                    },
+                    itemBuilder: (_) => const [
+                      PopupMenuItem(value: 'upload', child: Text('上传文件')),
+                      PopupMenuItem(value: 'mkdir', child: Text('新建文件夹')),
+                      PopupMenuItem(value: 'newText', child: Text('新建文本文件')),
+                    ],
+                  ),
+                ],
+              ),
+              body: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _Breadcrumb(
+                    path: _path,
+                    rootLabel: widget.rootPath,
+                    onNavigate: _open,
+                  ),
+                  Divider(color: c.divider, height: 1),
+                  Expanded(
+                    child: FutureBuilder<FileListing>(
+                      future: _future,
+                      builder: (context, snap) {
+                        if (snap.hasError) {
+                          return ErrorState(
+                            message: '${snap.error}',
+                            onRetry: () => _open(_path),
+                          );
+                        }
+                        if (!snap.hasData) {
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
+                        }
+                        final entries = snap.data!.entries.toList()
+                          ..sort((a, b) {
+                            if (a.isDirectory != b.isDirectory) {
+                              return a.isDirectory ? -1 : 1;
+                            }
+                            return a.name.compareTo(b.name);
+                          });
+                        if (entries.isEmpty) {
+                          return const EmptyState(
+                            icon: Icons.folder_open,
+                            message: '此文件夹为空',
+                          );
+                        }
+                        return ListView.builder(
+                          itemCount: entries.length,
+                          itemBuilder: (context, i) =>
+                              _EntryTile(entry: entries[i], screen: this),
+                        );
+                      },
+                    ),
+                  ),
+                  if (_busy) const LinearProgressIndicator(minHeight: 2),
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -567,8 +727,7 @@ String filesParentPath(String path) {
 /// 恢复的记忆路径已失效（Gateway 错误码 path_not_found / path_invalid）。
 bool isStalePathError(Object error) =>
     error is ApiException &&
-    (error.errorCode == 'path_not_found' ||
-        error.errorCode == 'path_invalid');
+    (error.errorCode == 'path_not_found' || error.errorCode == 'path_invalid');
 
 class _EntryTile extends StatelessWidget {
   const _EntryTile({required this.entry, required this.screen});
@@ -587,14 +746,18 @@ class _EntryTile extends StatelessWidget {
         entry.isDirectory ? Icons.folder : Icons.insert_drive_file_outlined,
         color: entry.isDirectory ? c.accent : c.textSecondary,
       ),
-      title: Text(entry.name,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(fontSize: 16, color: c.textPrimary)),
+      title: Text(
+        entry.name,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(fontSize: 16, color: c.textPrimary),
+      ),
       subtitle: subtitle == null
           ? null
-          : Text(subtitle,
-              style: TextStyle(fontSize: 13, color: c.textSecondary)),
+          : Text(
+              subtitle,
+              style: TextStyle(fontSize: 13, color: c.textSecondary),
+            ),
       trailing: PopupMenuButton<String>(
         icon: Icon(Icons.more_horiz, color: c.textSecondary),
         color: c.surfaceElevated,
@@ -621,8 +784,8 @@ class _EntryTile extends StatelessWidget {
       onTap: entry.isDirectory
           ? () => screen._open(screen._join(screen._path, entry.name))
           : (screen._isTextFile(entry.name)
-              ? () => screen._preview(entry)
-              : null),
+                ? () => screen._preview(entry)
+                : null),
     );
   }
 }
@@ -652,14 +815,19 @@ class _Breadcrumb extends StatelessWidget {
             if (i > 0)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 6),
-                child: Icon(Icons.chevron_right,
-                    size: 16, color: c.textSecondary),
+                child: Icon(
+                  Icons.chevron_right,
+                  size: 16,
+                  color: c.textSecondary,
+                ),
               ),
             InkWell(
-              onTap: i == 0 ? () => onNavigate('') : () {
-                final target = segments.take(i - 1).join('/');
-                onNavigate(target);
-              },
+              onTap: i == 0
+                  ? () => onNavigate('')
+                  : () {
+                      final target = segments.take(i - 1).join('/');
+                      onNavigate(target);
+                    },
               borderRadius: BorderRadius.circular(4),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),

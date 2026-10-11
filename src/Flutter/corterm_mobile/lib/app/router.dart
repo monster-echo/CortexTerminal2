@@ -14,8 +14,10 @@ import '../features/computers/presentation/pair_computer_screen.dart';
 import '../features/files/presentation/file_preview_screen.dart';
 import '../features/files/presentation/files_screen.dart';
 import '../features/legal/legal_screens.dart';
+import '../core/legal/legal_documents.dart';
 import '../features/home/home_shell.dart';
 import '../features/membership/presentation/me_screen.dart';
+import '../features/membership/presentation/membership_screen.dart';
 import '../features/membership/presentation/redeem_screen.dart';
 import '../features/membership/presentation/referral_screen.dart';
 import '../features/profile/presentation/profile_screen.dart';
@@ -73,31 +75,38 @@ final routerProvider = Provider<GoRouter>((ref) {
       }
       if (atLegal) return null;
       if (status == AuthStatus.loading) return atLogin ? '/login' : '/home';
-      if (status == AuthStatus.unauthenticated) return atLogin ? null : '/login';
+      if (status == AuthStatus.unauthenticated) {
+        return atLogin ? null : '/login';
+      }
       if (atLogin) return '/home';
       return null;
     },
     routes: [
       GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
       GoRoute(path: '/activate', builder: (_, _) => const ActivateScreen()),
-      GoRoute(path: '/workers/select', builder: (_, _) => const WorkerSelectScreen()),
+      GoRoute(
+        path: '/workers/select',
+        builder: (_, _) => const WorkerSelectScreen(),
+      ),
       GoRoute(path: '/home', builder: (_, _) => const HomeShell()),
       GoRoute(path: '/search', builder: (_, _) => const SearchScreen()),
 
       // 电脑（Worker）
       GoRoute(
-          path: '/computers/new', builder: (_, _) => const PairComputerScreen()),
+        path: '/computers/new',
+        builder: (_, _) => const PairComputerScreen(),
+      ),
       GoRoute(
         path: '/computers/:workerId',
-        builder: (context, state) => ComputerDetailScreen(
-          workerId: state.pathParameters['workerId']!,
-        ),
+        builder: (context, state) =>
+            ComputerDetailScreen(workerId: state.pathParameters['workerId']!),
       ),
 
       // 工作区
       GoRoute(
-          path: '/workspaces/new',
-          builder: (_, _) => const NewWorkspaceScreen()),
+        path: '/workspaces/new',
+        builder: (_, _) => const NewWorkspaceScreen(),
+      ),
       GoRoute(
         path: '/folder-picker',
         builder: (context, state) => FolderPickerScreen(
@@ -119,8 +128,9 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(
-          path: '/sessions/ungrouped',
-          builder: (_, _) => const UngroupedSessionsScreen()),
+        path: '/sessions/ungrouped',
+        builder: (_, _) => const UngroupedSessionsScreen(),
+      ),
       GoRoute(
         path: '/sessions/:sessionId',
         builder: (context, state) => SessionTerminalScreen(
@@ -156,29 +166,49 @@ final routerProvider = Provider<GoRouter>((ref) {
       // 账户 / 设置
       GoRoute(path: '/me', builder: (_, _) => const MeScreen()),
       GoRoute(path: '/settings', builder: (_, _) => const SettingsScreen()),
-      GoRoute(path: '/settings/profile', builder: (_, _) => const ProfileScreen()),
-      GoRoute(path: '/settings/support', builder: (_, _) => const SupportScreen()),
-      GoRoute(path: '/settings/feedback', builder: (_, _) => const FeedbackScreen()),
+      GoRoute(
+        path: '/settings/membership',
+        builder: (_, _) => const MembershipScreen(),
+      ),
+      GoRoute(
+        path: '/settings/profile',
+        builder: (_, _) => const ProfileScreen(),
+      ),
+      GoRoute(
+        path: '/settings/support',
+        builder: (_, _) => const SupportScreen(),
+      ),
+      GoRoute(
+        path: '/settings/feedback',
+        builder: (_, _) => const FeedbackScreen(),
+      ),
       GoRoute(path: '/settings/about', builder: (_, _) => const AboutScreen()),
       GoRoute(
-          path: '/settings/preferences',
-          builder: (_, _) => const PreferencesScreen()),
+        path: '/settings/preferences',
+        builder: (_, _) => const PreferencesScreen(),
+      ),
       GoRoute(
         path: '/settings/terminal-themes',
         builder: (_, _) => const TerminalThemesScreen(),
       ),
       GoRoute(
         path: '/settings/terminal-themes/edit',
-        builder: (context, state) =>
-            TerminalThemeEditorScreen(initial: state.extra as TerminalColorScheme?),
+        builder: (context, state) => TerminalThemeEditorScreen(
+          initial: state.extra as TerminalColorScheme?,
+        ),
       ),
       GoRoute(
-          path: '/settings/security',
-          builder: (_, _) => const SecurityScreen()),
-      GoRoute(path: '/settings/redeem', builder: (_, _) => const RedeemScreen()),
+        path: '/settings/security',
+        builder: (_, _) => const SecurityScreen(),
+      ),
       GoRoute(
-          path: '/settings/referral',
-          builder: (_, _) => const ReferralScreen()),
+        path: '/settings/redeem',
+        builder: (_, _) => const RedeemScreen(),
+      ),
+      GoRoute(
+        path: '/settings/referral',
+        builder: (_, _) => const ReferralScreen(),
+      ),
 
       // 法律文档（登录合规勾选 + Settings 双入口）。法律页无认证门槛。
       GoRoute(
@@ -188,8 +218,17 @@ final routerProvider = Provider<GoRouter>((ref) {
           final localeTag = ref.read(localeProvider);
           return LegalDocumentScreen(
             document: switch (doc) {
-              LegalRoute.privacy => privacyPolicyOf(localeTag),
-              LegalRoute.terms => termsOfServiceOf(localeTag),
+              LegalRoute.privacy => privacyPolicyOf(
+                localeTag ?? Localizations.localeOf(context).languageCode,
+              ),
+              LegalRoute.terms => termsOfServiceOf(
+                localeTag ?? Localizations.localeOf(context).languageCode,
+              ),
+              LegalRoute.deletion =>
+                (localeTag ?? Localizations.localeOf(context).languageCode)
+                        .startsWith('zh')
+                    ? zhAccountDeletion
+                    : enAccountDeletion,
             },
           );
         },

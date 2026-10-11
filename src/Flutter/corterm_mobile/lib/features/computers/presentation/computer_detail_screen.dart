@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../../../app/theme/corterm_theme.dart';
 import '../../../core/models/workspace.dart';
 import '../../../shared/widgets/app_bar.dart';
+import '../../../shared/widgets/swipe_delete.dart';
+import '../../workers/data/workspace_repository.dart';
 import '../../../shared/widgets/corterm_ui.dart';
 import '../../sessions/data/sessions_providers.dart';
 import '../../workspaces/data/workspace_providers.dart';
@@ -37,12 +39,17 @@ class ComputerDetailScreen extends ConsumerWidget {
         error: (error, _) => Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
-            child: Text('$error', style: TextStyle(color: colorsOf(context).danger)),
+            child: Text(
+              '$error',
+              style: TextStyle(color: colorsOf(context).danger),
+            ),
           ),
         ),
         data: (list) {
-          final worker =
-              list.where((w) => w.workerId == workerId).first;
+          final worker = list.where((w) => w.workerId == workerId).firstOrNull;
+          if (worker == null) {
+            return const EmptyState(icon: Icons.computer, message: '电脑暂不可用');
+          }
           return ListView(
             children: [
               ListRow(
@@ -58,8 +65,10 @@ class ComputerDetailScreen extends ConsumerWidget {
                 ),
                 error: (error, _) => Padding(
                   padding: const EdgeInsets.all(24),
-                  child: Text('$error',
-                      style: TextStyle(color: colorsOf(context).danger)),
+                  child: Text(
+                    '$error',
+                    style: TextStyle(color: colorsOf(context).danger),
+                  ),
                 ),
                 data: (all) {
                   final items = all
@@ -76,8 +85,7 @@ class ComputerDetailScreen extends ConsumerWidget {
                   }
                   return Column(
                     children: [
-                      for (final w in items)
-                        _WorkspaceRow(workspace: w),
+                      for (final w in items) _WorkspaceRow(workspace: w),
                     ],
                   );
                 },
@@ -117,19 +125,36 @@ class _StatusDot extends StatelessWidget {
   }
 }
 
-class _WorkspaceRow extends StatelessWidget {
+class _WorkspaceRow extends ConsumerWidget {
   const _WorkspaceRow({required this.workspace});
 
   final Workspace workspace;
 
   @override
-  Widget build(BuildContext context) {
-    return ListRow(
-      title: workspace.displayName,
-      subtitle: workspace.rootPath,
-      onTap: () => context.push('/workspaces/${workspace.workspaceId}'),
-      trailing: Icon(Icons.chevron_right,
-          color: colorsOf(context).textSecondary),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final zh = Localizations.localeOf(context).languageCode == 'zh';
+    return SwipeDelete(
+      key: ValueKey(workspace.workspaceId),
+      title: zh ? '删除工作区' : 'Delete workspace',
+      message: zh
+          ? '删除「${workspace.displayName}」及其会话记录？电脑上的文件会保留。'
+          : 'Delete "${workspace.displayName}" and its session records? Computer files will be kept.',
+      onDelete: () async {
+        await ref
+            .read(workspaceRepositoryProvider)
+            .delete(workspace.workspaceId);
+        ref.invalidate(workspacesProvider);
+        ref.invalidate(sessionsProvider);
+      },
+      child: ListRow(
+        title: workspace.displayName,
+        subtitle: workspace.rootPath,
+        onTap: () => context.push('/workspaces/${workspace.workspaceId}'),
+        trailing: Icon(
+          Icons.chevron_right,
+          color: colorsOf(context).textSecondary,
+        ),
+      ),
     );
   }
 }

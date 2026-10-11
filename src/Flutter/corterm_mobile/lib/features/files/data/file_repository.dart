@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
@@ -8,13 +10,17 @@ import '../../../core/api/api_client.dart';
 import '../../../core/api/api_exception.dart';
 import '../p2p/p2p_channel.dart';
 // Web 无 UDP socket，走 stub（抛 P2pException → 规格 §5 端点回落）。
-import '../p2p/p2p_stub.dart' if (dart.library.io) '../p2p/p2p_transfer.dart' as p2p_backend;
+import '../p2p/p2p_stub.dart'
+    if (dart.library.io) '../p2p/p2p_transfer.dart'
+    as p2p_backend;
 
 /// 远程文件 v2（对齐 ArkTS FilesService / Gateway /api/workspaces*）：
 /// 文件管理以【工作区】为边界；上传/下载经 Relay（或直连端点）流式直传，
 /// PUT/GET 响应即终态，无轮询。端点按优先序逐个尝试（LAN 直连 → 公网直连 → Relay）。
 class FileRepository {
-  FileRepository(this._client, this._bareDio);
+  FileRepository(this._client, this._bareDio, this.transferRoutes);
+
+  final TransferRoutes transferRoutes;
 
   final ApiClient _client;
 
@@ -22,7 +28,6 @@ class FileRepository {
   final Dio _bareDio;
 
   // ---- 工作区 ----
-
 
   // ---- 浏览 ----
 
@@ -70,10 +75,10 @@ class FileRepository {
     required String path,
   }) async {
     try {
-      await _client.postMap(
-        '/api/workers/$workerId/files/mkdir',
-        {'root': root, 'path': path},
-      );
+      await _client.postMap('/api/workers/$workerId/files/mkdir', {
+        'root': root,
+        'path': path,
+      });
     } on DioException catch (e) {
       ApiClient.throwFor(e);
     }
@@ -88,16 +93,13 @@ class FileRepository {
   }) async {
     Map<String, dynamic> grant;
     try {
-      grant = await _client.postMap(
-        '/api/workers/$workerId/files/uploads',
-        {
-          'root': root,
-          'dirPath': dirPath,
-          'filename': filename,
-          'sizeBytes': bytes.length,
-          'sha256': _sha256of(bytes),
-        },
-      );
+      grant = await _client.postMap('/api/workers/$workerId/files/uploads', {
+        'root': root,
+        'dirPath': dirPath,
+        'filename': filename,
+        'sizeBytes': bytes.length,
+        'sha256': _sha256of(bytes),
+      });
     } on DioException catch (e) {
       ApiClient.throwFor(e);
     }
@@ -115,10 +117,10 @@ class FileRepository {
   }) async {
     Map<String, dynamic> init;
     try {
-      init = await _client.postMap(
-        '/api/workers/$workerId/files/downloads',
-        {'root': root, 'path': path},
-      );
+      init = await _client.postMap('/api/workers/$workerId/files/downloads', {
+        'root': root,
+        'path': path,
+      });
     } on DioException catch (e) {
       ApiClient.throwFor(e);
     }
@@ -137,10 +139,9 @@ class FileRepository {
     required String path,
   }) async {
     try {
-      await _client.postMap(
-        '/api/workspaces/$workspaceId/files/mkdir',
-        {'path': path},
-      );
+      await _client.postMap('/api/workspaces/$workspaceId/files/mkdir', {
+        'path': path,
+      });
     } on DioException catch (e) {
       ApiClient.throwFor(e);
     }
@@ -153,10 +154,10 @@ class FileRepository {
     required String content,
   }) async {
     try {
-      await _client.postMap(
-        '/api/workspaces/$workspaceId/files/write-text',
-        {'path': path, 'content': content},
-      );
+      await _client.postMap('/api/workspaces/$workspaceId/files/write-text', {
+        'path': path,
+        'content': content,
+      });
     } on DioException catch (e) {
       ApiClient.throwFor(e);
     }
@@ -169,10 +170,10 @@ class FileRepository {
     required String newName,
   }) async {
     try {
-      await _client.postMap(
-        '/api/workspaces/$workspaceId/files/rename',
-        {'path': path, 'newName': newName},
-      );
+      await _client.postMap('/api/workspaces/$workspaceId/files/rename', {
+        'path': path,
+        'newName': newName,
+      });
     } on DioException catch (e) {
       ApiClient.throwFor(e);
     }
@@ -184,10 +185,9 @@ class FileRepository {
     required String path,
   }) async {
     try {
-      await _client.postMap(
-        '/api/workspaces/$workspaceId/files/delete',
-        {'path': path},
-      );
+      await _client.postMap('/api/workspaces/$workspaceId/files/delete', {
+        'path': path,
+      });
     } on DioException catch (e) {
       ApiClient.throwFor(e);
     }
@@ -258,12 +258,17 @@ class FileRepository {
 
   // ---- 内部 ----
 
-  List<String> _readEndpoints(Map<String, dynamic> response) {
+  List<TransferEndpoint> _readEndpoints(Map<String, dynamic> response) {
     final raw = response['endpoints'] as List<dynamic>? ?? const <dynamic>[];
     return raw
         .whereType<Map<String, dynamic>>()
-        .map((e) => e['url'] as String? ?? '')
-        .where((u) => u.isNotEmpty)
+        .map(
+          (e) => TransferEndpoint(
+            e['url'] as String? ?? '',
+            e['kind'] as String? ?? 'relay',
+          ),
+        )
+        .where((e) => e.url.isNotEmpty)
         .toList();
   }
 
@@ -271,7 +276,10 @@ class FileRepository {
   /// 全部失败抛最后一次错误。
   /// Web 端不能用流式请求体（浏览器 XHR 不支持），必须整包 bytes 直传，
   /// 且 Content-Length 是浏览器禁用头，不能手动设置。
-  Future<void> _putViaEndpoints(List<String> endpoints, Uint8List bytes) async {
+  Future<void> _putViaEndpoints(
+    List<TransferEndpoint> endpoints,
+    Uint8List bytes,
+  ) async {
     // 规格 §1/§5：端点协商开始时【并行】启动 p2p 打洞准备。
     final p2pReady = _startP2p(endpoints);
     Object? lastError;
@@ -286,14 +294,19 @@ class FileRepository {
         ),
       );
       if (res.statusCode == null || res.statusCode! >= 300) {
-        throw ApiException(res.statusCode ?? 0, serverMessage: 'transfer failed (${res.statusCode})');
+        throw ApiException(
+          res.statusCode ?? 0,
+          serverMessage: 'transfer failed (${res.statusCode})',
+        );
       }
     }
 
-    // 1) LAN（端点列表首位）。
-    if (endpoints.isNotEmpty) {
+    // 1) 仅尝试明确标为 LAN 的端点。
+    for (final endpoint in endpoints.where((e) => e.kind == 'lan')) {
       try {
-        await putHttp(endpoints.first);
+        await putHttp(endpoint.url);
+        transferRoutes.record('lan');
+        unawaited(p2pReady.then((channel) => channel?.close()));
         return;
       } on DioException catch (e) {
         lastError = e.message ?? e.error ?? e;
@@ -304,7 +317,12 @@ class FileRepository {
     if (channel != null) {
       try {
         final target = _p2pTarget(endpoints)!;
-        await channel.upload(transferId: target.$1, token: target.$2, bytes: bytes);
+        await channel.upload(
+          transferId: target.$1,
+          token: target.$2,
+          bytes: bytes,
+        );
+        transferRoutes.record('p2p');
         return;
       } on Object {
         // p2p 传输失败（含流被 RST）→ 落下一端点（规格 §5 唯一允许的静默回落）。
@@ -312,10 +330,11 @@ class FileRepository {
         channel.close();
       }
     }
-    // 3/4) 公网 → Relay（跳过已试过的 LAN）。
-    for (final url in endpoints.skip(1)) {
+    // 3/4) 公网 → Relay。
+    for (final endpoint in endpoints.where((e) => e.kind != 'lan')) {
       try {
-        await putHttp(url);
+        await putHttp(endpoint.url);
+        transferRoutes.record(endpoint.kind);
         return;
       } on DioException catch (e) {
         lastError = e.message ?? e.error ?? e;
@@ -325,7 +344,7 @@ class FileRepository {
   }
 
   /// 端点协商下载：LAN → p2p → 公网 → Relay 逐个尝试 GET，任一成功即返回。
-  Future<Uint8List> _getViaEndpoints(List<String> endpoints) async {
+  Future<Uint8List> _getViaEndpoints(List<TransferEndpoint> endpoints) async {
     // 规格 §1/§5：端点协商开始时【并行】启动 p2p 打洞准备。
     final p2pReady = _startP2p(endpoints);
     Object? lastError;
@@ -338,13 +357,19 @@ class FileRepository {
       if (res.statusCode != null && res.statusCode! < 300) {
         return Uint8List.fromList(res.data ?? const <int>[]);
       }
-      throw ApiException(res.statusCode ?? 0, serverMessage: 'transfer failed (${res.statusCode})');
+      throw ApiException(
+        res.statusCode ?? 0,
+        serverMessage: 'transfer failed (${res.statusCode})',
+      );
     }
 
     // 1) LAN。
-    if (endpoints.isNotEmpty) {
+    for (final endpoint in endpoints.where((e) => e.kind == 'lan')) {
       try {
-        return await getHttp(endpoints.first);
+        final bytes = await getHttp(endpoint.url);
+        transferRoutes.record('lan');
+        unawaited(p2pReady.then((channel) => channel?.close()));
+        return bytes;
       } on DioException catch (e) {
         lastError = e.message ?? e.error ?? e;
       }
@@ -354,7 +379,12 @@ class FileRepository {
     if (channel != null) {
       try {
         final target = _p2pTarget(endpoints)!;
-        return await channel.download(transferId: target.$1, token: target.$2);
+        final bytes = await channel.download(
+          transferId: target.$1,
+          token: target.$2,
+        );
+        transferRoutes.record('p2p');
+        return bytes;
       } on Object {
         // p2p 传输失败（含流被 RST）→ 落下一端点（规格 §5 唯一允许的静默回落）。
       } finally {
@@ -362,9 +392,11 @@ class FileRepository {
       }
     }
     // 3/4) 公网 → Relay。
-    for (final url in endpoints.skip(1)) {
+    for (final endpoint in endpoints.where((e) => e.kind != 'lan')) {
       try {
-        return await getHttp(url);
+        final bytes = await getHttp(endpoint.url);
+        transferRoutes.record(endpoint.kind);
+        return bytes;
       } on DioException catch (e) {
         lastError = e.message ?? e.error ?? e;
       }
@@ -374,7 +406,7 @@ class FileRepository {
 
   /// 并行 p2p 准备（规格 §1/§5，deadline 6s）：打通返回通道，未打通/失败返回 null。
   /// p2p 的任何失败都属于规格允许的「静默落下一端点」，不向上抛。
-  Future<P2pChannel?> _startP2p(List<String> endpoints) async {
+  Future<P2pChannel?> _startP2p(List<TransferEndpoint> endpoints) async {
     final target = _p2pTarget(endpoints);
     if (target == null) return null;
     try {
@@ -390,9 +422,11 @@ class FileRepository {
   }
 
   /// 从端点 URL（…/transfer/{id}?token=…）取 p2p 所需 transferId + token。
-  (String transferId, String token)? _p2pTarget(List<String> endpoints) {
+  (String transferId, String token)? _p2pTarget(
+    List<TransferEndpoint> endpoints,
+  ) {
     if (endpoints.isEmpty) return null;
-    final uri = Uri.parse(endpoints.first);
+    final uri = Uri.parse(endpoints.first.url);
     final segs = uri.pathSegments;
     if (segs.length < 2 || segs[segs.length - 2] != 'transfer') return null;
     final token = uri.queryParameters['token'];
@@ -417,33 +451,56 @@ class FileEntry {
   final DateTime? modifiedUtc;
 
   factory FileEntry.fromJson(Map<String, dynamic> json) => FileEntry(
-        name: json['name'] as String? ?? '',
-        isDirectory: json['isDirectory'] as bool? ?? false,
-        sizeBytes: (json['sizeBytes'] as num?)?.toInt() ?? 0,
-        modifiedUtc: (json['modifiedUtc'] as String?) != null
-            ? DateTime.tryParse(json['modifiedUtc'] as String)
-            : null,
-      );
+    name: json['name'] as String? ?? '',
+    isDirectory: json['isDirectory'] as bool? ?? false,
+    sizeBytes: (json['sizeBytes'] as num?)?.toInt() ?? 0,
+    modifiedUtc: (json['modifiedUtc'] as String?) != null
+        ? DateTime.tryParse(json['modifiedUtc'] as String)
+        : null,
+  );
 }
 
 class FileListing {
-  const FileListing({
-    required this.entries,
-    required this.truncated,
-  });
+  const FileListing({required this.entries, required this.truncated});
 
   final List<FileEntry> entries;
   final bool truncated;
 
   factory FileListing.fromJson(Map<String, dynamic> json) => FileListing(
-        entries: ((json['entries'] as List<dynamic>?) ?? const <dynamic>[])
-            .cast<Map<String, dynamic>>()
-            .map(FileEntry.fromJson)
-            .toList(),
-        truncated: json['truncated'] as bool? ?? false,
-      );
+    entries: ((json['entries'] as List<dynamic>?) ?? const <dynamic>[])
+        .cast<Map<String, dynamic>>()
+        .map(FileEntry.fromJson)
+        .toList(),
+    truncated: json['truncated'] as bool? ?? false,
+  );
 }
 
 final fileRepositoryProvider = Provider<FileRepository>((ref) {
-  return FileRepository(ref.watch(apiClientProvider), Dio());
+  final dio = Dio();
+  ref.onDispose(dio.close);
+  return FileRepository(
+    ref.watch(apiClientProvider),
+    dio,
+    ref.watch(transferRoutesProvider),
+  );
+});
+
+class TransferEndpoint {
+  const TransferEndpoint(this.url, this.kind);
+  final String url;
+  final String kind;
+}
+
+/// Records completed transfers only; LAN direct is distinct from UDP hole punching.
+class TransferRoutes extends ValueNotifier<List<(DateTime, String)>> {
+  TransferRoutes() : super(const []);
+  void record(String kind) {
+    value = [(DateTime.now(), kind), ...value].take(20).toList();
+  }
+}
+
+final transferRoutesProvider = Provider<TransferRoutes>((ref) {
+  final routes = TransferRoutes();
+  ref.onDispose(routes.dispose);
+  return routes;
 });

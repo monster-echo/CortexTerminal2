@@ -35,7 +35,18 @@ class _FeedbackScreenState extends ConsumerState<FeedbackScreen> {
   static const _maxImages = 3;
 
   @override
+  void initState() {
+    super.initState();
+    _content.addListener(_contentChanged);
+  }
+
+  void _contentChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
   void dispose() {
+    _content.removeListener(_contentChanged);
     _content.dispose();
     _contact.dispose();
     super.dispose();
@@ -48,7 +59,7 @@ class _FeedbackScreenState extends ConsumerState<FeedbackScreen> {
       allowMultiple: true,
       withData: true,
     );
-    if (picked == null) return;
+    if (picked == null || !mounted) return;
     for (final f in picked.files) {
       if (_images.length >= _maxImages) break;
       final bytes = f.bytes;
@@ -60,7 +71,7 @@ class _FeedbackScreenState extends ConsumerState<FeedbackScreen> {
   }
 
   Future<void> _submit() async {
-    if (_content.text.trim().isEmpty) return;
+    if (_submitting || _content.text.trim().length < 10) return;
     setState(() {
       _error = null;
       _submitting = true;
@@ -69,14 +80,15 @@ class _FeedbackScreenState extends ConsumerState<FeedbackScreen> {
       final repo = ref.read(feedbackRepositoryProvider);
       final attachments = <String>[];
       for (final image in _images) {
-        final grant =
-            await repo.requestUpload(filename: image.name);
+        final grant = await repo.requestUpload(filename: image.name);
         await repo.putToStorage(uploadUrl: grant.uploadUrl, bytes: image.bytes);
         attachments.add(grant.imageUrl);
       }
       final info = await PackageInfo.fromPlatform();
       final username = ref.read(authProvider).username ?? '';
-      final lang = mounted ? Localizations.localeOf(context).languageCode : 'en';
+      final lang = mounted
+          ? Localizations.localeOf(context).languageCode
+          : 'en';
       final ticket = await repo.submit(
         type: _isBug ? 'bug' : 'suggestion',
         subtype: 'mobile',
@@ -139,6 +151,15 @@ class _FeedbackScreenState extends ConsumerState<FeedbackScreen> {
                   maxLines: 8,
                   enabled: !_submitting,
                 ),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    '${_content.text.trim().length} / 10+',
+                    style: theme.textTheme.small.copyWith(
+                      color: c.textSecondary,
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 16),
                 ShadInputFormField(
                   controller: _contact,
@@ -151,7 +172,9 @@ class _FeedbackScreenState extends ConsumerState<FeedbackScreen> {
                   children: [
                     Text(
                       l10n.feedbackAttachments(_images.length, _maxImages),
-                      style: theme.textTheme.small.copyWith(color: c.textSecondary),
+                      style: theme.textTheme.small.copyWith(
+                        color: c.textSecondary,
+                      ),
                     ),
                     const Spacer(),
                     ShadButton.outline(
@@ -178,7 +201,23 @@ class _FeedbackScreenState extends ConsumerState<FeedbackScreen> {
                                 borderRadius: BorderRadius.circular(8),
                                 border: Border.all(color: c.divider),
                               ),
-                              child: const Icon(LucideIcons.image),
+                              child: GestureDetector(
+                                onTap: () => showDialog<void>(
+                                  context: context,
+                                  builder: (ctx) => Dialog(
+                                    child: InteractiveViewer(
+                                      child: Image.memory(_images[i].bytes),
+                                    ),
+                                  ),
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Image.memory(
+                                    _images[i].bytes,
+                                    fit: BoxFit.cover,
+                                  ),
+                                ),
+                              ),
                             ),
                             Positioned(
                               right: -6,
@@ -188,7 +227,8 @@ class _FeedbackScreenState extends ConsumerState<FeedbackScreen> {
                                 icon: const Icon(LucideIcons.x, size: 20),
                                 // shadcn 只认 enabled:，onPressed: null 不会置灰
                                 enabled: !_submitting,
-                                onPressed: () => setState(() => _images.removeAt(i)),
+                                onPressed: () =>
+                                    setState(() => _images.removeAt(i)),
                               ),
                             ),
                           ],
@@ -198,14 +238,18 @@ class _FeedbackScreenState extends ConsumerState<FeedbackScreen> {
                 ],
                 if (_error != null) ...[
                   const SizedBox(height: 12),
-                  Text(_error!,
-                      style: theme.textTheme.small.copyWith(color: c.danger)),
+                  Text(
+                    _error!,
+                    style: theme.textTheme.small.copyWith(color: c.danger),
+                  ),
                 ],
                 const SizedBox(height: 24),
                 ShadButton(
-                  enabled: !_submitting && _content.text.trim().isNotEmpty,
+                  enabled: !_submitting && _content.text.trim().length >= 10,
                   onPressed: _submit,
-                  child: Text(_submitting ? l10n.feedbackSubmitting : l10n.feedbackSubmit),
+                  child: Text(
+                    _submitting ? l10n.feedbackSubmitting : l10n.feedbackSubmit,
+                  ),
                 ),
               ],
             ),
@@ -238,13 +282,21 @@ class _DoneView extends StatelessWidget {
           children: [
             Icon(LucideIcons.circleCheck, size: 56, color: c.accent),
             const SizedBox(height: 16),
-            Text(l10n.feedbackDone,
-                style: theme.textTheme.small.copyWith(
-                    fontWeight: FontWeight.w600, color: c.textPrimary)),
+            Text(
+              l10n.feedbackDone,
+              style: theme.textTheme.small.copyWith(
+                fontWeight: FontWeight.w600,
+                color: c.textPrimary,
+              ),
+            ),
             const SizedBox(height: 8),
-            Text('Ticket: $ticketId',
-                style: theme.textTheme.muted.copyWith(
-                    fontFamily: 'monospace', color: c.textSecondary)),
+            Text(
+              'Ticket: $ticketId',
+              style: theme.textTheme.muted.copyWith(
+                fontFamily: 'monospace',
+                color: c.textSecondary,
+              ),
+            ),
           ],
         ),
       ),

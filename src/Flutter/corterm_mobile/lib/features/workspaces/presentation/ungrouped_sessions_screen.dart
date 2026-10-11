@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../app/theme/corterm_theme.dart';
 import '../../../shared/utils/relative_time.dart';
 import '../../../shared/widgets/corterm_ui.dart';
+import '../../../shared/widgets/swipe_delete.dart';
 import '../../../core/models/session.dart';
 import '../../sessions/data/session_repository.dart';
 import '../../sessions/data/sessions_providers.dart';
@@ -36,28 +37,35 @@ class UngroupedSessionsScreen extends ConsumerWidget {
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: Text('移动到工作区',
-                    style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: colors.textPrimary)),
+                child: Text(
+                  '移动到工作区',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: colors.textPrimary,
+                  ),
+                ),
               ),
               if (workspaces.isEmpty)
                 Padding(
                   padding: const EdgeInsets.all(16),
-                  child: Text('还没有工作区，先创建一个吧',
-                      style:
-                          TextStyle(fontSize: 14, color: colors.textSecondary)),
+                  child: Text(
+                    '还没有工作区，先创建一个吧',
+                    style: TextStyle(fontSize: 14, color: colors.textSecondary),
+                  ),
                 ),
               for (final w in workspaces)
                 InkWell(
                   onTap: () => Navigator.pop(sheetContext, w.workspaceId),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 14),
-                    child: Text(w.displayName,
-                        style: TextStyle(
-                            fontSize: 16, color: colors.textPrimary)),
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
+                    child: Text(
+                      w.displayName,
+                      style: TextStyle(fontSize: 16, color: colors.textPrimary),
+                    ),
                   ),
                 ),
               const SizedBox(height: 8),
@@ -84,34 +92,55 @@ class UngroupedSessionsScreen extends ConsumerWidget {
       appBar: AppBar(
         backgroundColor: colors.background,
         surfaceTintColor: Colors.transparent,
-        title: Text('未分组会话 (${sessions.length})',
-            style: TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary)),
+        title: Text(
+          '未分组会话 (${sessions.length})',
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w600,
+            color: colors.textPrimary,
+          ),
+        ),
       ),
       body: sessions.isEmpty
-          ? const EmptyState(
-              icon: Icons.inbox_outlined, message: '没有未分组的会话')
+          ? const EmptyState(icon: Icons.inbox_outlined, message: '没有未分组的会话')
           : RefreshIndicator(
               onRefresh: () async => ref.invalidate(sessionsProvider),
               child: ListView(
                 children: [
                   for (final s in sessions)
-                    ListRow(
-                      title: s.displayName,
-                      subtitle:
-                          '${s.workerName ?? s.workerId} · ${s.status.isAlive ? '运行中' : '已结束'} · ${relativeTime(s.lastActivityAt)}',
-                      leading: Icon(Icons.terminal_outlined,
-                          color: colors.textSecondary),
-                      trailing: IconButton(
-                        tooltip: '移动到工作区',
-                        icon: Icon(Icons.drive_file_move_outline,
-                            size: 20, color: colors.textSecondary),
-                        onPressed: () =>
-                            _moveToWorkspace(context, ref, s.sessionId),
+                    SwipeDelete(
+                      key: ValueKey(s.sessionId),
+                      title: '删除会话',
+                      message: '删除「${s.displayName}」？此操作不可撤销。',
+                      onDelete: () async {
+                        await ref
+                            .read(sessionRepositoryProvider)
+                            .delete(sessionId: s.sessionId);
+                        ref.invalidate(sessionsProvider);
+                      },
+                      child: ListRow(
+                        title: s.displayName,
+                        subtitle:
+                            '${s.workerName ?? s.workerId} · ${s.status.isAlive ? '运行中' : '已结束'} · ${relativeTime(s.lastActivityAt)}',
+                        leading: Icon(
+                          Icons.terminal_outlined,
+                          color: colors.textSecondary,
+                        ),
+                        trailing: IconButton(
+                          tooltip: '移动到工作区',
+                          icon: Icon(
+                            Icons.drive_file_move_outline,
+                            size: 20,
+                            color: colors.textSecondary,
+                          ),
+                          onPressed: () =>
+                              _moveToWorkspace(context, ref, s.sessionId),
+                        ),
+                        onTap: () async {
+                          await context.push('/sessions/${s.sessionId}');
+                          if (context.mounted) ref.invalidate(sessionsProvider);
+                        },
                       ),
-                      onTap: () => context.push('/sessions/${s.sessionId}'),
                     ),
                 ],
               ),

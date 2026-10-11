@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:xterm/xterm.dart';
 
+import 'corterm_theme.dart';
+
 import '../../core/models/terminal_color_scheme.dart';
 
 /// 内置深/浅预设对应的 xterm TerminalTheme（测试与 followApp 快速路径使用）。
-final cortermTerminalDarkTheme =
-    _toXtermTheme(builtinTerminalColorSchemes[0]);
-final cortermTerminalLightTheme =
-    _toXtermTheme(builtinTerminalColorSchemes[1]);
+final cortermTerminalDarkTheme = _toXtermTheme(builtinTerminalColorSchemes[0]);
+final cortermTerminalLightTheme = _toXtermTheme(builtinTerminalColorSchemes[1]);
 
 /// 按 selection 解析终端配色：
 /// - 'followApp' → 按 App 当前 brightness 落到默认深/浅预设；
@@ -56,5 +56,31 @@ TerminalTheme _toXtermTheme(TerminalColorScheme s) {
     searchHitBackground: hex(s.yellow).withValues(alpha: 0.25),
     searchHitBackgroundCurrent: hex(s.yellow),
     searchHitForeground: hex(s.background),
+  );
+}
+
+ThemeData terminalPageTheme(TerminalTheme terminal) {
+  final dark =
+      ThemeData.estimateBrightnessForColor(terminal.background) ==
+      Brightness.dark;
+  final base = dark ? cortermDarkToolTheme() : cortermLightTheme();
+  final colors = base.extension<CortermColors>()!.copyWith(
+    background: terminal.background,
+    surface: Color.lerp(terminal.background, terminal.foreground, 0.08),
+    surfaceSelected: Color.lerp(terminal.background, terminal.foreground, 0.12),
+    surfaceElevated: Color.lerp(terminal.background, terminal.foreground, 0.16),
+    textPrimary: terminal.foreground,
+    textSecondary: Color.lerp(terminal.foreground, terminal.background, 0.35),
+    divider: Color.lerp(terminal.background, terminal.foreground, 0.25),
+    accent: terminal.cursor,
+  );
+  return base.copyWith(
+    scaffoldBackgroundColor: colors.background,
+    extensions: [colors],
+    colorScheme: base.colorScheme.copyWith(
+      surface: colors.background,
+      onSurface: colors.textPrimary,
+      primary: colors.accent,
+    ),
   );
 }

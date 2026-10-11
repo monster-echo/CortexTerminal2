@@ -65,40 +65,56 @@ class AboutScreen extends ConsumerWidget {
             ),
           ),
           AppGroupHeader(l10n.legal),
-          AppGroupCard(children: [
-            AppRow(
-              icon: LucideIcons.lock,
-              label: l10n.privacyPolicy,
-              chevron: true,
-              onTap: () => context.push('/legal/privacy'),
-            ),
-            AppRow(
-              icon: LucideIcons.bookOpen,
-              label: l10n.termsOfService,
-              chevron: true,
-              onTap: () => context.push('/legal/terms'),
-            ),
-          ]),
+          AppGroupCard(
+            children: [
+              AppRow(
+                icon: LucideIcons.lock,
+                label: l10n.privacyPolicy,
+                chevron: true,
+                onTap: () => context.push('/legal/privacy'),
+              ),
+              AppRow(
+                icon: LucideIcons.bookOpen,
+                label: l10n.termsOfService,
+                chevron: true,
+                onTap: () => context.push('/legal/terms'),
+              ),
+            ],
+          ),
+          AppGroupCard(
+            children: [
+              AppRow(
+                icon: LucideIcons.fileText,
+                label: Localizations.localeOf(context).languageCode == 'zh'
+                    ? '账号注销协议'
+                    : 'Account deletion policy',
+                chevron: true,
+                onTap: () => context.push('/legal/deletion'),
+              ),
+            ],
+          ),
           AppGroupHeader(l10n.diagnostics),
-          AppGroupCard(children: [
-            AppRow(
-              icon: LucideIcons.star,
-              label: l10n.rateUs,
-              chevron: true,
-              onTap: () => _rateApp(context),
-            ),
-            AppRow(
-              icon: LucideIcons.cloud,
-              label: l10n.gatewayVersion,
-              value: gatewayInfo.valueOrNull?.version ?? '—',
-            ),
-            AppRow(
-              icon: LucideIcons.bug,
-              label: l10n.diagnostics,
-              chevron: true,
-              onTap: () => context.push('/diagnostics'),
-            ),
-          ]),
+          AppGroupCard(
+            children: [
+              AppRow(
+                icon: LucideIcons.star,
+                label: l10n.rateUs,
+                chevron: true,
+                onTap: () => _rateApp(context),
+              ),
+              AppRow(
+                icon: LucideIcons.cloud,
+                label: l10n.gatewayVersion,
+                value: gatewayInfo.valueOrNull?.version ?? '—',
+              ),
+              AppRow(
+                icon: LucideIcons.bug,
+                label: l10n.diagnostics,
+                chevron: true,
+                onTap: () => context.push('/diagnostics'),
+              ),
+            ],
+          ),
           const SizedBox(height: 32),
           Center(
             child: Text(
@@ -122,15 +138,15 @@ class AboutScreen extends ConsumerWidget {
       uri = Uri.parse('https://apps.apple.com/search?term=cortexterminal');
     } else {
       uri = Uri.parse(
-          'https://play.google.com/store/apps/details?id=${info.packageName}');
+        'https://play.google.com/store/apps/details?id=${info.packageName}',
+      );
     }
     try {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.rateFailed('$e'))),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(l10n.rateFailed('$e'))));
       }
     }
   }

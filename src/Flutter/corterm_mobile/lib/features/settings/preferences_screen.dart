@@ -25,81 +25,102 @@ class PreferencesScreen extends ConsumerWidget {
     final fontSize = ref.watch(fontSizeProvider);
 
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.appearance)),
+      appBar: AppBar(title: Text(l10n.settings)),
       body: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         children: [
-          AppGroupCard(children: [
-            AppRow(
-              icon: LucideIcons.contrast,
-              label: l10n.appearance,
-              trailing: ShadSelect<ThemeMode>(
-                initialValue: themeMode,
-                options: [
-                  ShadOption(value: ThemeMode.system, child: Text(l10n.appearanceSystem)),
-                  ShadOption(value: ThemeMode.light, child: Text(l10n.appearanceLight)),
-                  ShadOption(value: ThemeMode.dark, child: Text(l10n.appearanceDark)),
-                ],
-                selectedOptionBuilder: (context, value) => Text(switch (value) {
-                  ThemeMode.light => l10n.appearanceLight,
-                  ThemeMode.dark => l10n.appearanceDark,
-                  ThemeMode.system => l10n.appearanceSystem,
-                }),
-                onChanged: (v) =>
-                    v == null ? null : ref.read(themeModeProvider.notifier).set(v),
-              ),
-            ),
-            AppRow(
-              icon: LucideIcons.terminal,
-              label: l10n.terminalTheme,
-              value: terminalThemeSelectionLabel(
-                terminalThemeSelection, customThemes, l10n),
-              chevron: true,
-              onTap: () => context.push('/settings/terminal-themes'),
-            ),
-            AppRow(
-              icon: LucideIcons.globe,
-              label: l10n.language,
-              trailing: ShadSelect<String>(
-                initialValue: localeTag ?? '',
-                options: [
-                  const ShadOption(value: '', child: Text('System')),
-                  const ShadOption(value: 'en', child: Text('English')),
-                  const ShadOption(value: 'zh', child: Text('简体中文')),
-                ],
-                selectedOptionBuilder: (context, value) => Text(switch (value) {
-                  'en' => l10n.languageEnglish,
-                  'zh' => l10n.languageChinese,
-                  _ => l10n.languageSystem,
-                }),
-                onChanged: (v) => ref.read(localeProvider.notifier).set(v),
-              ),
-            ),
-            AppRow(
-              icon: LucideIcons.monitorSmartphone,
-              label: l10n.keepScreenAwake,
-              trailing: ShadSwitch(
-                value: ref.watch(keepAwakeProvider),
-                onChanged: (v) => ref.read(keepAwakeProvider.notifier).set(v),
-              ),
-            ),
-            AppRow(
-              icon: LucideIcons.type,
-              label: l10n.terminalFontSize,
-              value: l10n.fontSizeFmt(fontSize),
-              trailing: SizedBox(
-                width: 140,
-                child: ShadSlider(
-                  initialValue: fontSize,
-                  min: AppPreferences.minFontSize,
-                  max: AppPreferences.maxFontSize,
-                  divisions: (AppPreferences.maxFontSize - AppPreferences.minFontSize).round(),
-                  onChanged: (v) => ref.read(fontSizeProvider.notifier).set(v),
+          AppGroupCard(
+            children: [
+              AppRow(
+                icon: LucideIcons.contrast,
+                label: l10n.appearance,
+                trailing: ShadSelect<ThemeMode>(
+                  initialValue: themeMode,
+                  options: [
+                    ShadOption(
+                      value: ThemeMode.system,
+                      child: Text(l10n.appearanceSystem),
+                    ),
+                    ShadOption(
+                      value: ThemeMode.light,
+                      child: Text(l10n.appearanceLight),
+                    ),
+                    ShadOption(
+                      value: ThemeMode.dark,
+                      child: Text(l10n.appearanceDark),
+                    ),
+                  ],
+                  selectedOptionBuilder: (context, value) =>
+                      Text(switch (value) {
+                        ThemeMode.light => l10n.appearanceLight,
+                        ThemeMode.dark => l10n.appearanceDark,
+                        ThemeMode.system => l10n.appearanceSystem,
+                      }),
+                  onChanged: (v) => v == null
+                      ? null
+                      : ref.read(themeModeProvider.notifier).set(v),
                 ),
               ),
-            ),
-            _ScrollbackRow(),
-          ]),
+              AppRow(
+                icon: LucideIcons.terminal,
+                label: l10n.terminalTheme,
+                value: terminalThemeSelectionLabel(
+                  terminalThemeSelection,
+                  customThemes,
+                  l10n,
+                ),
+                chevron: true,
+                onTap: () => context.push('/settings/terminal-themes'),
+              ),
+              AppRow(
+                icon: LucideIcons.globe,
+                label: l10n.language,
+                trailing: ShadSelect<String>(
+                  initialValue: localeTag ?? '',
+                  options: [
+                    const ShadOption(value: '', child: Text('System')),
+                    const ShadOption(value: 'en', child: Text('English')),
+                    const ShadOption(value: 'zh', child: Text('简体中文')),
+                  ],
+                  selectedOptionBuilder: (context, value) =>
+                      Text(switch (value) {
+                        'en' => l10n.languageEnglish,
+                        'zh' => l10n.languageChinese,
+                        _ => l10n.languageSystem,
+                      }),
+                  onChanged: (v) => ref.read(localeProvider.notifier).set(v),
+                ),
+              ),
+              AppRow(
+                icon: LucideIcons.monitorSmartphone,
+                label: l10n.keepScreenAwake,
+                trailing: ShadSwitch(
+                  value: ref.watch(keepAwakeProvider),
+                  onChanged: (v) => ref.read(keepAwakeProvider.notifier).set(v),
+                ),
+              ),
+              AppRow(
+                icon: LucideIcons.type,
+                label: l10n.terminalFontSize,
+                value: l10n.fontSizeFmt(fontSize),
+                trailing: SizedBox(
+                  width: 140,
+                  child: ShadSlider(
+                    initialValue: fontSize,
+                    min: AppPreferences.minFontSize,
+                    max: AppPreferences.maxFontSize,
+                    divisions:
+                        (AppPreferences.maxFontSize -
+                                AppPreferences.minFontSize)
+                            .round(),
+                    onChanged: (v) =>
+                        ref.read(fontSizeProvider.notifier).set(v),
+                  ),
+                ),
+              ),
+              _ScrollbackRow(),
+            ],
+          ),
           const SizedBox(height: 24),
         ],
       ),
@@ -131,13 +152,15 @@ class _ScrollbackRow extends ConsumerWidget {
           height: 14,
           child: ShadProgress(value: null),
         ),
-        error: (e, _) => Text('—', style: TextStyle(color: colorsOf(context).textSecondary)),
+        error: (e, _) =>
+            Text('—', style: TextStyle(color: colorsOf(context).textSecondary)),
         data: (p) {
           // 服务端可能存有非预设值（web 端设置过）：如实展示，不冒充预设档位。
           final options = Map<int, String>.of(_options);
           if (!options.containsKey(p.maxBytes)) {
-            options[p.maxBytes] =
-                p.maxBytes % 1048576 == 0 ? '${p.maxBytes ~/ 1048576}M' : '${p.maxBytes ~/ 1024}K';
+            options[p.maxBytes] = p.maxBytes % 1048576 == 0
+                ? '${p.maxBytes ~/ 1048576}M'
+                : '${p.maxBytes ~/ 1024}K';
           }
           return ShadSelect<int>(
             initialValue: p.maxBytes,
@@ -145,11 +168,14 @@ class _ScrollbackRow extends ConsumerWidget {
               for (final entry in options.entries)
                 ShadOption(value: entry.key, child: Text(entry.value)),
             ],
-            selectedOptionBuilder: (context, value) => Text(options[value] ?? '$value'),
+            selectedOptionBuilder: (context, value) =>
+                Text(options[value] ?? '$value'),
             onChanged: (v) async {
               if (v == null || v == p.maxBytes) return;
               try {
-                await ref.read(preferencesRepositoryProvider).updateScrollback(maxBytes: v);
+                await ref
+                    .read(preferencesRepositoryProvider)
+                    .updateScrollback(maxBytes: v);
                 ref.invalidate(scrollbackPreferenceProvider);
                 if (context.mounted) showAppToast(context, l10n.saved);
               } catch (e) {
@@ -164,5 +190,3 @@ class _ScrollbackRow extends ConsumerWidget {
     );
   }
 }
-
-

@@ -39,14 +39,20 @@ class TerminalThemesScreen extends ConsumerWidget {
                 ),
               ),
               ShadIconButton.ghost(
-                icon: Icon(LucideIcons.trash,
-                    size: 16, color: colorsOf(context).danger),
+                icon: Icon(
+                  LucideIcons.trash,
+                  size: 16,
+                  color: colorsOf(context).danger,
+                ),
                 onPressed: () => _confirmDelete(context, ref, scheme),
               ),
             ],
             if (selected)
-              Icon(LucideIcons.check,
-                  size: 18, color: colorsOf(context).accent),
+              Icon(
+                LucideIcons.check,
+                size: 18,
+                color: colorsOf(context).accent,
+              ),
           ],
         ),
       );
@@ -57,6 +63,18 @@ class TerminalThemesScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         children: [
+          AppGroupCard(
+            children: [
+              AppRow(
+                icon: LucideIcons.monitor,
+                label: l10n.terminalThemeSystem,
+                value: selection == followAppTerminalTheme ? '✓' : null,
+                onTap: () => ref
+                    .read(terminalThemeSelectionProvider.notifier)
+                    .set(followAppTerminalTheme),
+              ),
+            ],
+          ),
           AppGroupHeader(l10n.terminalThemeBuiltinSection),
           AppGroupCard(
             children: [
@@ -73,9 +91,7 @@ class TerminalThemesScreen extends ConsumerWidget {
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
                   child: Text(
                     l10n.terminalThemeCustomEmpty,
-                    style: ShadTheme.of(context)
-                        .textTheme
-                        .small
+                    style: ShadTheme.of(context).textTheme.small
                         .copyWith(color: colorsOf(context).textSecondary),
                   ),
                 )
@@ -84,8 +100,7 @@ class TerminalThemesScreen extends ConsumerWidget {
               AppRow(
                 icon: LucideIcons.plus,
                 label: l10n.terminalThemeCustomNew,
-                onTap: () =>
-                    context.push('/settings/terminal-themes/edit'),
+                onTap: () => context.push('/settings/terminal-themes/edit'),
               ),
             ],
           ),
@@ -108,13 +123,13 @@ class TerminalThemesScreen extends ConsumerWidget {
       destructive: true,
     );
     if (!confirmed) return;
-    await ref.read(customTerminalThemesProvider.notifier).delete(scheme.id);
-    // 删除的是当前选中项 → 回到跟随 App。
+    // 先切换选中项，再删除，避免终端构建时读取已不存在的主题。
     if (ref.read(terminalThemeSelectionProvider) == scheme.id) {
       await ref
           .read(terminalThemeSelectionProvider.notifier)
           .set(followAppTerminalTheme);
     }
+    await ref.read(customTerminalThemesProvider.notifier).delete(scheme.id);
   }
 }
 
@@ -122,15 +137,14 @@ class TerminalThemesScreen extends ConsumerWidget {
 String terminalThemeDisplayName(
   TerminalColorScheme scheme,
   AppLocalizations l10n,
-) =>
-    switch (scheme.id) {
-      'default-dark' => l10n.terminalThemeDefaultDark,
-      'default-light' => l10n.terminalThemeDefaultLight,
-      'solarized-dark' => l10n.terminalThemeSolarizedDark,
-      'solarized-light' => l10n.terminalThemeSolarizedLight,
-      'nord' => l10n.terminalThemeNord,
-      _ => scheme.name,
-    };
+) => switch (scheme.id) {
+  'default-dark' => l10n.terminalThemeDefaultDark,
+  'default-light' => l10n.terminalThemeDefaultLight,
+  'solarized-dark' => l10n.terminalThemeSolarizedDark,
+  'solarized-light' => l10n.terminalThemeSolarizedLight,
+  'nord' => l10n.terminalThemeNord,
+  _ => scheme.name,
+};
 
 /// Preferences 行副标题：当前选中主题的显示名。
 String terminalThemeSelectionLabel(
@@ -154,13 +168,13 @@ class _SchemePreview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     Widget chip(String hex) => Container(
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(
-            color: TerminalColorScheme.parseHex(hex),
-            shape: BoxShape.circle,
-          ),
-        );
+      width: 10,
+      height: 10,
+      decoration: BoxDecoration(
+        color: TerminalColorScheme.parseHex(hex),
+        shape: BoxShape.circle,
+      ),
+    );
 
     return Container(
       // 68 = 内容（Aa + 3×色点 + 间距 ≈ 54）+ 2×6 padding + 余量，避免 Row 溢出。
@@ -170,9 +184,7 @@ class _SchemePreview extends StatelessWidget {
       decoration: BoxDecoration(
         color: scheme.backgroundColor,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: colorsOf(context).divider,
-        ),
+        border: Border.all(color: colorsOf(context).divider),
       ),
       child: FittedBox(
         fit: BoxFit.scaleDown,
@@ -181,9 +193,9 @@ class _SchemePreview extends StatelessWidget {
             Text(
               'Aa',
               style: ShadTheme.of(context).textTheme.small.copyWith(
-                    color: scheme.foregroundColor,
-                    fontWeight: FontWeight.w600,
-                  ),
+                color: scheme.foregroundColor,
+                fontWeight: FontWeight.w600,
+              ),
             ),
             const SizedBox(width: 3),
             chip(scheme.red),

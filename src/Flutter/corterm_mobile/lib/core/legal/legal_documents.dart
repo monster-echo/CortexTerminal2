@@ -1,13 +1,6 @@
-/// 内置法律文档（隐私政策 / 用户协议），参考 loficompanion 的结构化方案：
-/// TS 对象 → Dart 常量，原生渲染（无 WebView / Markdown），中文为准、英文为对照译本。
-///
-/// ⚠️ 文案为初稿（基于当前架构事实：JWT 登录、网关中转终端数据、scrollback 快照 ≤512KB、
-/// Worker 上报系统信息）。上架前需由运营/法务复核替换正式文本并更新 effectiveDate。
-library;
-
+// Bundled website legal copy, shared with Harmony.
 class LegalSection {
   const LegalSection(this.title, this.paragraphs, {this.bullets = const []});
-
   final String title;
   final List<String> paragraphs;
   final List<String> bullets;
@@ -19,151 +12,187 @@ class LegalDocument {
     required this.effectiveDate,
     required this.sections,
   });
-
   final String title;
   final String effectiveDate;
   final List<LegalSection> sections;
 }
 
-const zhPrivacyPolicy = LegalDocument(
-  title: '隐私政策',
-  effectiveDate: '2026-09-10',
-  sections: [
-    LegalSection('引言', [
-      'Corterm（下称"本应用"）是一款远程终端与 AI Agent 工作区客户端。我们深知个人信息对你的重要性，并会按照法律法规要求，采取相应安全保护措施，尽力保护你的个人信息安全可控。在使用本应用前，请仔细阅读并充分理解本政策。',
-    ]),
-    LegalSection('我们收集的信息', [
-      '为提供远程会话服务，我们会收集以下信息：',
-    ], bullets: [
-      '账号信息：注册用户名、密码（服务端以哈希形式存储）、手机号（如使用手机号登录）；',
-      '账号头像（如你主动上传）；',
-      '设备与连接信息：设备型号、操作系统版本、应用版本、网络状态、连接延迟统计；',
-      '会话数据：你创建的终端会话元数据（名称、创建时间、所在 Worker）；',
-      '终端内容：你在会话中的输入与输出会经由网关加密传输。为支持断线恢复，网关会在服务器上暂存最近不超过 512 KB 的终端滚动缓冲快照；',
-      'Worker 信息：你自行接入的 Worker 设备的主机名、操作系统、架构与在线状态。',
-    ]),
-    LegalSection('我们如何使用信息', [
-      '上述信息仅用于：身份验证与会话恢复、建立并维持你与自有 Worker 之间的远程连接、排查连接故障、以及向你展示会话列表与连接状态。我们不会将你的终端内容用于任何分析、训练或商业目的。',
-    ]),
-    LegalSection('信息的存储', [
-      '终端滚动缓冲快照保存在网关服务器内存/数据库中，仅用于断线重连时恢复会话视图，你可以通过终止会话随时使其删除。登录凭据（JWT）仅保存在本设备的系统安全存储（iOS Keychain / Android Keystore）中；主题、语言、最近会话等偏好仅保存在本设备本地。',
-    ]),
-    LegalSection('信息的共享', [
-      '我们不会向任何第三方出售你的个人信息。除为提供基础网络传输所必需（如你的设备与你自有 Worker 之间的通信）或依据法律法规、司法机关的强制性要求外，我们不会向第三方共享你的个人信息。',
-    ]),
-    LegalSection('你的权利', [
-      '你可以：在设置中修改密码；随时终止并删除会话；上传或更换头像；注销账号。注销账号后，我们将删除与该账号关联的账号信息、会话记录与偏好数据，无法恢复。',
-    ]),
-    LegalSection('未成年人保护', [
-      '本应用面向开发者的专业工具场景，不面向未成年人提供服务。',
-    ]),
-    LegalSection('政策更新', [
-      '我们可能适时修订本政策。重大变更时，我们会在应用内显著位置进行提示。请定期查阅本政策以了解最新内容。',
-    ]),
-    LegalSection('联系我们', [
-      '如对本政策有任何疑问、意见或建议，可通过应用内"帮助与反馈"或官方支持渠道与我们联系，我们将在 15 个工作日内回复。',
-    ]),
-  ],
-);
-
 const zhTermsOfService = LegalDocument(
-  title: '用户协议',
-  effectiveDate: '2026-09-10',
+  title: "服务条款",
+  effectiveDate: "最后更新：2026-05-28",
   sections: [
-    LegalSection('协议范围', [
-      '本协议是你与本应用开发者之间关于使用 Corterm 应用及配套远程会话服务的约定。你安装、登录或使用本应用，即表示已阅读并同意本协议。',
+    LegalSection("1. 服务描述", [
+      "Corterm（云枢终端）是一款安全的远程终端客户端，允许用户通过加密通道连接到自己的远程服务器和工作站。",
     ]),
-    LegalSection('账号与安全', [
-      '你应妥善保管账号与密码，并对账号下的全部操作负责。请勿将账号用于违法违规用途，或将本应用用于攻击、入侵、扫描任何未经授权的系统。',
+    LegalSection("2. 用户账户", [
+      "使用本服务需要创建账户。您有责任保护您的账户凭证安全。您同意不对您的账户进行未经授权的分享或转让。",
     ]),
-    LegalSection('服务说明', [
-      '本应用提供远程终端的接入与管理能力。远程会话运行在你自行接入的 Worker 设备上；终端内容经网关中转传输。Worker 与网络条件由你自行提供和维护，我们不承诺特定的会话可用性。',
+    LegalSection("3. 可接受使用", [
+      "您同意不会将本服务用于任何非法目的或违反任何适用法律法规的活动。您对通过本服务执行的命令和操作负全部责任。",
     ]),
-    LegalSection('使用规范', [
-      '使用本应用时，你承诺不：利用本应用从事危害网络安全的行为；干扰或破坏服务的正常运行；绕过或试图绕过任何安全机制；将服务用于任何法律禁止的目的。',
+    LegalSection("4. 服务可用性", [
+      "我们尽力保持服务的持续可用性，但不保证服务将不间断或无错误。我们保留在提前通知的情况下进行维护和更新的权利。",
     ]),
-    LegalSection('知识产权', [
-      '本应用软件的著作权、商标权等知识产权归开发者所有。你在会话中产生的数据与内容的权利归你所有。',
+    LegalSection("5. 账户删除", ["您可以随时通过应用设置删除您的账户。详细信息请参阅我们的 账户删除政策 和 隐私政策。"]),
+    LegalSection("6. 免责声明", [
+      "本服务按\"现状\"提供，不作任何明示或暗示的保证。对于因使用或无法使用本服务而导致的任何直接、间接、附带或后果性损害，我们不承担责任。",
     ]),
-    LegalSection('责任限制', [
-      '因不可抗力、网络故障、你自有设备或第三方服务故障导致的服务中断或数据损失，开发者在法律允许的最大范围内不承担责任。',
+    LegalSection("7. 条款变更", [
+      "我们保留随时更新这些条款的权利。重大变更将通过应用内通知或电子邮件通知您。继续使用本服务即表示您接受更新后的条款。",
     ]),
-    LegalSection('协议终止', [
-      '你可以随时停止使用本应用并注销账号。若你严重违反本协议，我们有权暂停或终止向你提供服务。',
-    ]),
-    LegalSection('其他', [
-      '本协议适用中华人民共和国法律。本协议任何条款被认定无效的，不影响其余条款的效力。',
-    ]),
+    LegalSection("8. 联系方式", ["如有疑问，请联系 rwecho@live.com"]),
   ],
 );
-
-const enPrivacyPolicy = LegalDocument(
-  title: 'Privacy Policy',
-  effectiveDate: '2026-09-10',
+const zhPrivacyPolicy = LegalDocument(
+  title: "隐私政策",
+  effectiveDate: "最后更新：2026-05-28",
   sections: [
-    LegalSection('Introduction', [
-      'Corterm (the "App") is a client for remote terminals and AI agent workspaces. We take the protection of your personal information seriously and apply appropriate security measures to keep it safe. Please read this policy carefully before using the App.',
+    LegalSection("1. 信息收集", [
+      "Corterm 是一款远程终端客户端应用。我们收集以下必要信息以提供服务：",
+      "账户信息：当您通过第三方登录（Apple、GitHub、Google）或手机号/密码注册时，我们收集用户名、邮箱地址和第三方提供的唯一标识符。",
+      "设备信息：用于激活 Worker 的设备标识。",
+      "会话数据：您创建的终端会话的元数据（不包含终端内容）。",
     ]),
-    LegalSection('Information We Collect', [
-      'To provide remote session services, we collect:',
-    ], bullets: [
-      'Account information: username, password (stored server-side as a hash), phone number (if you sign in with a phone number), and avatar you choose to upload;',
-      'Device and connection information: device model, OS version, app version, network status, and latency statistics;',
-      'Session metadata: terminal sessions you create (name, creation time, hosting worker);',
-      'Terminal content: your session input and output are relayed through the gateway. To support reconnects, the gateway keeps a rolling scrollback snapshot of at most 512 KB per session;',
-      'Worker information: hostname, operating system, architecture and online status of workers you connect yourself.',
+    LegalSection("2. 数据使用", [
+      "您的信息仅用于：",
+      "• 提供和改进服务",
+      "• 身份验证和账户安全",
+      "• 服务运营和技术支持",
     ]),
-    LegalSection('How We Use Information', [
-      'The information above is used only for authentication and session recovery, establishing and maintaining connections between your devices and your own workers, troubleshooting connectivity, and presenting your session list and connection status. We never use your terminal content for analytics, model training, or commercial purposes.',
+    LegalSection("3. 数据存储", [
+      "您的数据存储在我们的安全服务器上。终端会话的实时数据通过加密通道传输，我们不会存储您的终端输入和输出内容。",
     ]),
-    LegalSection('Storage', [
-      'Scrollback snapshots are kept in gateway memory/database solely to restore your session view on reconnect, and are removed when you terminate the session. Your credentials (JWT) are stored only in the system secure storage on your device (iOS Keychain / Android Keystore). Preferences such as theme, language and recent sessions stay on your device.',
+    LegalSection("4. 第三方服务", [
+      "我们使用以下第三方服务进行身份验证，它们有各自的隐私政策：",
+      "• Apple Sign-In",
+      "• GitHub OAuth",
+      "• Google Sign-In",
     ]),
-    LegalSection('Sharing', [
-      'We do not sell your personal information. Except for transmission that is strictly necessary to provide the service (communication between your devices and your own workers), or where required by applicable law or a competent authority, we do not share your personal information with third parties.',
+    LegalSection("5. 数据删除", [
+      "您可以随时在应用设置中删除您的账户。账户删除后，您的个人信息将在 30 天内从我们的活跃数据库中移除。详情请参阅 账户删除说明。",
     ]),
-    LegalSection('Your Rights', [
-      'You may change your password in Settings; terminate and delete sessions at any time; upload or change your avatar; and delete your account. When you delete your account, associated account information, session records and preference data are deleted and cannot be recovered.',
-    ]),
-    LegalSection('Minors', [
-      'The App is a professional developer tool and is not directed at minors.',
-    ]),
-    LegalSection('Changes to This Policy', [
-      'We may revise this policy from time to time. Material changes will be announced prominently within the App. Please review this policy periodically.',
-    ]),
-    LegalSection('Contact Us', [
-      'If you have questions about this policy, contact us via in-app feedback or our official support channels. We aim to respond within 15 business days.',
-    ]),
+    LegalSection("6. 联系我们", ["如有隐私相关问题，请发送邮件至 rwecho@live.com"]),
   ],
 );
-
+const zhAccountDeletion = LegalDocument(
+  title: "账户删除说明",
+  effectiveDate: "最后更新：2026-05-28",
+  sections: [
+    LegalSection("如何删除账户", [
+      "打开 Corterm 应用",
+      "进入设置页面",
+      "滚动到底部，点击「注销账户」按钮",
+      "阅读确认提示，点击「注销」",
+      "在第二次确认中再次点击「注销」",
+      "账户删除完成后，您将自动返回登录页面",
+    ]),
+    LegalSection("删除后的影响", [
+      "注意：此操作不可逆。账户删除后您将无法恢复。",
+      "账户删除后，以下数据将被处理：",
+      "立即删除: 所有终端会话记录",
+      "立即解除: 与 Worker 的绑定关系",
+      "立即撤销: Apple ID 登录关联（如适用）",
+      "标记为已删除: 您的账户信息将被标记为 \"deleted\" 状态",
+    ]),
+    LegalSection("删除后保留的数据", ["出于安全和审计目的，以下信息可能在有限时间内保留：", "审计日志（不含个人身份信息）"]),
+    LegalSection("删除后的账户状态", [
+      "账户删除后，您将无法使用该账户登录。关联的第三方登录（Apple、GitHub、Google）授权将被解除。如需重新使用服务，您需要创建新账户。",
+    ]),
+    LegalSection("需要帮助？", ["如果您在删除账户过程中遇到问题，请联系 rwecho@live.com"]),
+  ],
+);
 const enTermsOfService = LegalDocument(
-  title: 'Terms of Service',
-  effectiveDate: '2026-09-10',
+  title: "Terms of Service",
+  effectiveDate: "Last updated: 2026-05-28",
   sections: [
-    LegalSection('Scope', [
-      'These terms govern your use of the Corterm App and its remote session services. Installing, signing in to, or using the App means you have read and accepted these terms.',
+    LegalSection("1. Service Description", [
+      "Corterm is a secure remote terminal client that allows users to connect to their own remote servers and workstations through encrypted channels.",
     ]),
-    LegalSection('Account and Security', [
-      'Keep your credentials safe; you are responsible for all actions under your account. Do not use the App for any unlawful purpose, or to attack, intrude into, or scan any system you are not authorized to access.',
+    LegalSection("2. User Accounts", [
+      "Using this service requires creating an account. You are responsible for keeping your account credentials secure. You agree not to share or transfer your account without authorization.",
     ]),
-    LegalSection('The Service', [
-      'The App provides access to and management of remote terminals. Sessions run on worker devices that you connect yourself; terminal content is relayed through the gateway. You provide and maintain your own workers and network conditions; no specific session availability is promised.',
+    LegalSection("3. Acceptable Use", [
+      "You agree not to use this service for any illegal purposes or activities that violate applicable laws and regulations. You are solely responsible for the commands and operations executed through this service.",
     ]),
-    LegalSection('Acceptable Use', [
-      'You agree not to: use the App in ways that harm network security; interfere with or disrupt the service; bypass or attempt to bypass any security mechanism; or use the service for any purpose prohibited by law.',
+    LegalSection("4. Service Availability", [
+      "We strive to maintain continuous service availability but do not guarantee uninterrupted or error-free service. We reserve the right to perform maintenance and updates with prior notice.",
     ]),
-    LegalSection('Intellectual Property', [
-      "The App's software is owned by its developers and protected by copyright and trademark law. Content and data you produce in your sessions remain yours.",
+    LegalSection("5. Account Deletion", [
+      "You can delete your account at any time through the app settings. For details, please refer to our Account Deletion Policy and Privacy Policy.",
     ]),
-    LegalSection('Limitation of Liability', [
-      'To the maximum extent permitted by law, the developers are not liable for service interruptions or data loss caused by force majeure, network failures, or faults in your own devices or third-party services.',
+    LegalSection("6. Disclaimer", [
+      "This service is provided \"as is\" without any express or implied warranties. We are not liable for any direct, indirect, incidental, or consequential damages arising from the use or inability to use this service.",
     ]),
-    LegalSection('Termination', [
-      'You may stop using the App and delete your account at any time. If you seriously breach these terms, we may suspend or terminate the service to you.',
+    LegalSection("7. Changes to Terms", [
+      "We reserve the right to update these terms at any time. Significant changes will be notified through in-app notifications or email. Continued use of the service constitutes acceptance of the updated terms.",
     ]),
-    LegalSection('Miscellaneous', [
-      'If any provision of these terms is held invalid, the remaining provisions stay in effect.',
+    LegalSection("8. Contact", [
+      "For questions, please contact rwecho@live.com",
+    ]),
+  ],
+);
+const enPrivacyPolicy = LegalDocument(
+  title: "Privacy Policy",
+  effectiveDate: "Last updated: 2026-05-28",
+  sections: [
+    LegalSection("1. Information Collection", [
+      "Corterm is a remote terminal client application. We collect the following necessary information to provide our services:",
+      "Account Information: When you register via third-party login (Apple, GitHub, Google) or phone number/password, we collect your username, email address, and the unique identifier provided by the third party.",
+      "Device Information: Device identifiers used for activating Workers.",
+      "Session Data: Metadata of the terminal sessions you create (terminal content is not included).",
+    ]),
+    LegalSection("2. Data Usage", [
+      "Your information is only used for:",
+      "• Providing and improving services",
+      "• Authentication and account security",
+      "• Service operations and technical support",
+    ]),
+    LegalSection("3. Data Storage", [
+      "Your data is stored on our secure servers. Real-time terminal session data is transmitted through encrypted channels. We do not store your terminal input and output content.",
+    ]),
+    LegalSection("4. Third-Party Services", [
+      "We use the following third-party services for authentication, each with their own privacy policies:",
+      "• Apple Sign-In",
+      "• GitHub OAuth",
+      "• Google Sign-In",
+    ]),
+    LegalSection("5. Data Deletion", [
+      "You can delete your account at any time in the app settings. After account deletion, your personal information will be removed from our active database within 30 days. See our Account Deletion Policy for details.",
+    ]),
+    LegalSection("6. Contact Us", [
+      "For privacy-related questions, please email rwecho@live.com",
+    ]),
+  ],
+);
+const enAccountDeletion = LegalDocument(
+  title: "Account Deletion",
+  effectiveDate: "Last updated: 2026-05-28",
+  sections: [
+    LegalSection("How to Delete Your Account", [
+      "Open the Corterm app",
+      "Go to the Settings page",
+      "Scroll to the bottom and tap \"Delete Account\"",
+      "Read the confirmation prompt and tap \"Delete\"",
+      "Tap \"Delete\" again in the second confirmation",
+      "After deletion, you will be automatically returned to the login page",
+    ]),
+    LegalSection("Effects of Deletion", [
+      "Note: This action is irreversible. You will not be able to recover your account after deletion.",
+      "After account deletion, the following data will be processed:",
+      "Immediately deleted: All terminal session records",
+      "Immediately unbound: Worker bindings",
+      "Immediately revoked: Apple ID login association (if applicable)",
+      "Marked as deleted: Your account information will be marked as \"deleted\" status",
+    ]),
+    LegalSection("Data Retained After Deletion", [
+      "The following information may be retained for a limited time for security and auditing purposes:",
+      "Audit logs (excluding personally identifiable information)",
+    ]),
+    LegalSection("Account Status After Deletion", [
+      "After deletion, you will not be able to log in with this account. Associated third-party login authorizations (Apple, GitHub, Google) will be revoked. To use the service again, you will need to create a new account.",
+    ]),
+    LegalSection("Need Help?", [
+      "If you encounter issues during account deletion, please contact rwecho@live.com",
     ]),
   ],
 );

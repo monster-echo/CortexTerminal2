@@ -1,23 +1,19 @@
-
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:share_plus/share_plus.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../app/theme/corterm_theme.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/app_bar.dart';
-import '../../../shared/widgets/list_group.dart';
 import '../../../shared/widgets/sheets_and_dialogs.dart';
 import '../../../shared/widgets/states.dart';
 import '../data/support_repository.dart';
 
-/// 联系客服（对齐 MAUI ContactSupportPage）：QQ 群 / Telegram 群卡片 + 邮箱。
-/// 二维码预览大图，保存走系统分享（对齐 MAUI，不申请相册权限）。
+/// 唯一客服渠道：飞书。有效邀请链接可直接生成二维码，避免远程图片失效。
 class SupportScreen extends ConsumerWidget {
   const SupportScreen({super.key});
 
@@ -43,39 +39,6 @@ class SupportScreen extends ConsumerWidget {
         data: (data) => ListView(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           children: [
-            if (data.qqGroup != null)
-              _GroupCard(
-                icon: LucideIcons.messagesSquare,
-                title: data.qqGroup!.name,
-                subtitle: data.qqGroup!.number ?? '',
-                qrCodeUrl: data.qqGroup!.qrCodeUrl,
-                onCopy: data.qqGroup!.number == null || data.qqGroup!.number!.isEmpty
-                    ? null
-                    : () {
-                        Clipboard.setData(ClipboardData(text: data.qqGroup!.number!));
-                        showAppToast(context, l10n.copied);
-                      },
-                onOpen: null,
-              ),
-            if (data.telegramGroup != null)
-              _GroupCard(
-                icon: LucideIcons.send,
-                title: data.telegramGroup!.name,
-                subtitle: data.telegramGroup!.url ?? '',
-                qrCodeUrl: data.telegramGroup!.qrCodeUrl,
-                onCopy: data.telegramGroup!.url == null || data.telegramGroup!.url!.isEmpty
-                    ? null
-                    : () {
-                        Clipboard.setData(ClipboardData(text: data.telegramGroup!.url!));
-                        showAppToast(context, l10n.copied);
-                      },
-                onOpen: data.telegramGroup!.url == null ||
-                        data.telegramGroup!.url!.isEmpty
-                    ? null
-                    : () => launchUrl(
-                        Uri.parse(data.telegramGroup!.url!),
-                        mode: LaunchMode.externalApplication),
-              ),
             if (data.feishuGroup != null)
               _GroupCard(
                 icon: LucideIcons.messageCircle,
@@ -84,40 +47,31 @@ class SupportScreen extends ConsumerWidget {
                     : l10n.feishuGroup,
                 subtitle: data.feishuGroup!.url ?? '',
                 qrCodeUrl: data.feishuGroup!.qrCodeUrl,
-                onCopy: data.feishuGroup!.url == null ||
+                onCopy:
+                    data.feishuGroup!.url == null ||
                         data.feishuGroup!.url!.isEmpty
                     ? null
                     : () {
-                        Clipboard.setData(ClipboardData(text: data.feishuGroup!.url!));
+                        Clipboard.setData(
+                          ClipboardData(text: data.feishuGroup!.url!),
+                        );
                         showAppToast(context, l10n.copied);
                       },
-                onOpen: data.feishuGroup!.url == null ||
+                onOpen:
+                    data.feishuGroup!.url == null ||
                         data.feishuGroup!.url!.isEmpty
                     ? null
                     : () => launchUrl(
                         Uri.parse(data.feishuGroup!.url!),
-                        mode: LaunchMode.externalApplication),
+                        mode: LaunchMode.externalApplication,
+                      ),
               ),
-            if (data.email.isNotEmpty)
-              _GroupCard(
-                icon: LucideIcons.mail,
-                title: l10n.supportEmail,
-                subtitle: data.email,
-                qrCodeUrl: '',
-                onCopy: () {
-                  Clipboard.setData(ClipboardData(text: data.email));
-                  showAppToast(context, l10n.copied);
-                },
-                onOpen: () =>
-                    launchUrl(Uri.parse('mailto:${data.email}'), mode: LaunchMode.externalApplication),
+            if (data.feishuGroup == null)
+              Text(
+                Localizations.localeOf(context).languageCode == 'zh'
+                    ? '飞书支持群暂不可用，请稍后重试。'
+                    : 'The Feishu support group is temporarily unavailable.',
               ),
-            const SizedBox(height: 24),
-            AppRow(
-              icon: LucideIcons.messageSquare,
-              label: l10n.feedbackTitle,
-              chevron: true,
-              onTap: () => context.push('/settings/feedback'),
-            ),
           ],
         ),
       ),
@@ -168,17 +122,14 @@ class _GroupCard extends StatelessWidget {
                   child: Text(
                     title,
                     style: theme.textTheme.small.copyWith(
-                        fontWeight: FontWeight.w600, color: c.textPrimary),
+                      fontWeight: FontWeight.w600,
+                      color: c.textPrimary,
+                    ),
                   ),
                 ),
-                if (subtitle.isNotEmpty)
-                  Text(
-                    subtitle,
-                    style: theme.textTheme.muted.copyWith(color: c.textSecondary),
-                  ),
               ],
             ),
-            if (qrCodeUrl.isNotEmpty) ...[
+            if (subtitle.isNotEmpty || qrCodeUrl.isNotEmpty) ...[
               const SizedBox(height: 12),
               Center(
                 child: GestureDetector(
@@ -189,17 +140,7 @@ class _GroupCard extends StatelessWidget {
                       color: colorsOf(context).onEmphasis,
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Image.network(
-                      qrCodeUrl,
-                      width: 132,
-                      height: 132,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => SizedBox(
-                        width: 132,
-                        height: 132,
-                        child: Icon(LucideIcons.qrCode, size: 32, color: c.textSecondary),
-                      ),
-                    ),
+                    child: _qr(context, 192),
                   ),
                 ),
               ),
@@ -219,15 +160,11 @@ class _GroupCard extends StatelessWidget {
                   ShadButton.secondary(
                     size: ShadButtonSize.sm,
                     onPressed: onOpen,
-                    child: Text(l10n.tunnelOpen),
-                  ),
-                ],
-                if (qrCodeUrl.isNotEmpty) ...[
-                  const SizedBox(width: 8),
-                  ShadButton.secondary(
-                    size: ShadButtonSize.sm,
-                    onPressed: () => _shareQr(context),
-                    child: Text(l10n.supportSaveQr),
+                    child: Text(
+                      Localizations.localeOf(context).languageCode == 'zh'
+                          ? '加入飞书群'
+                          : 'Join Feishu group',
+                    ),
                   ),
                 ],
               ],
@@ -256,19 +193,20 @@ class _GroupCard extends StatelessWidget {
                   color: colorsOf(context).onEmphasis,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Image.network(
-                  qrCodeUrl,
-                  width: 280,
-                  height: 280,
-                  fit: BoxFit.cover,
-                ),
+                child: _qr(context, 280),
               ),
               const SizedBox(height: 12),
-              Text(title,
-                  style: theme.textTheme.small
-                      .copyWith(fontWeight: FontWeight.w600, color: c.textPrimary)),
-              Text(subtitle,
-                  style: theme.textTheme.muted.copyWith(color: c.textSecondary)),
+              Text(
+                title,
+                style: theme.textTheme.small.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: c.textPrimary,
+                ),
+              ),
+              Text(
+                subtitle,
+                style: theme.textTheme.muted.copyWith(color: c.textSecondary),
+              ),
               const SizedBox(height: 12),
               ShadButton.outline(
                 onPressed: () => Navigator.of(context).pop(),
@@ -281,28 +219,31 @@ class _GroupCard extends StatelessWidget {
     );
   }
 
-  Future<void> _shareQr(BuildContext context) async {
-    // 下载二维码到内存 → 系统分享面板（XFile.fromData，web 同样可用；MAUI 同款）。
-    final dio = Dio();
-    try {
-      final res = await dio.get<List<int>>(
-        qrCodeUrl,
-        options: Options(responseType: ResponseType.bytes),
+  Widget _qr(BuildContext context, double size) {
+    if (subtitle.isNotEmpty) {
+      return QrImageView(
+        data: subtitle,
+        size: size,
+        backgroundColor: CortermColors.light.surface,
+        eyeStyle: QrEyeStyle(
+          eyeShape: QrEyeShape.square,
+          color: CortermColors.light.textPrimary,
+        ),
+        dataModuleStyle: QrDataModuleStyle(
+          dataModuleShape: QrDataModuleShape.square,
+          color: CortermColors.light.textPrimary,
+        ),
       );
-      if (res.statusCode != 200 || res.data == null) {
-        throw StateError('QR download failed: HTTP ${res.statusCode}');
-      }
-      await SharePlus.instance.share(
-        ShareParams(files: [
-          XFile.fromData(
-            Uint8List.fromList(res.data!),
-            name: title,
-            mimeType: 'image/png',
-          ),
-        ]),
-      );
-    } finally {
-      dio.close();
     }
+    return Image.network(
+      qrCodeUrl,
+      width: size,
+      height: size,
+      errorBuilder: (_, _, _) => SizedBox(
+        width: size,
+        height: size,
+        child: Icon(LucideIcons.qrCode, color: colorsOf(context).textSecondary),
+      ),
+    );
   }
 }

@@ -45,9 +45,9 @@ class _SessionTerminalScreenState extends ConsumerState<SessionTerminalScreen> {
     // 打开 / 附着该 session（已附着时为幂等 no-op）。
     // open 会同步改 provider state，post-frame 执行避免 build 期间修改。
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      unawaited(ref
-          .read(sessionControllerProvider.notifier)
-          .open(widget.sessionId));
+      unawaited(
+        ref.read(sessionControllerProvider.notifier).open(widget.sessionId),
+      );
     });
     // 屏幕常亮（§51）：live 且用户开启 keep-awake 时保持亮屏。
     ref.listenManual(sessionControllerProvider, (_, _) => _applyWakelock());
@@ -71,7 +71,8 @@ class _SessionTerminalScreenState extends ConsumerState<SessionTerminalScreen> {
     final ws = ref.read(sessionControllerProvider);
     final entry = ws.entryOf(widget.sessionId);
     WakelockPlus.toggle(
-      enable: ref.read(keepAwakeProvider) &&
+      enable:
+          ref.read(keepAwakeProvider) &&
           entry?.connState == TerminalConnState.live,
     );
   }
@@ -81,6 +82,14 @@ class _SessionTerminalScreenState extends ConsumerState<SessionTerminalScreen> {
     WakelockPlus.disable();
     super.dispose();
   }
+
+  ThemeData _pageTheme() => terminalPageTheme(
+    resolveTerminalTheme(
+      selection: ref.read(terminalThemeSelectionProvider),
+      brightness: Theme.of(context).brightness,
+      customThemes: ref.read(customTerminalThemesProvider),
+    ),
+  );
 
   void _showMoreMenu(SessionSummary? session) {
     final workspaceId = session?.workspaceId ?? '';
@@ -92,7 +101,7 @@ class _SessionTerminalScreenState extends ConsumerState<SessionTerminalScreen> {
 
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: cortermDarkToolTheme().scaffoldBackgroundColor,
+      backgroundColor: _pageTheme().scaffoldBackgroundColor,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
       ),
@@ -100,78 +109,86 @@ class _SessionTerminalScreenState extends ConsumerState<SessionTerminalScreen> {
         // Modal 路由挂在 Navigator 根上，拿不到页面的 Dark Theme——
         // 显式包一层，否则 colorsOf 解析为 Light token，深色底配深色字对比度极差。
         return Theme(
-          data: cortermDarkToolTheme(),
-          child: Builder(builder: (sheetContext) {
-        final colors = colorsOf(sheetContext);
-        return SafeArea(
-          top: false,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // 弱信息上下文（design/04 §4）：工作区名 + 电脑名；未绑定工作区只显示电脑名。
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          data: _pageTheme(),
+          child: Builder(
+            builder: (sheetContext) {
+              final colors = colorsOf(sheetContext);
+              return SafeArea(
+                top: false,
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    if (workspace != null)
-                      Text(
-                        workspace.displayName,
-                        style: TextStyle(
-                            fontSize: 13, color: colors.textSecondary),
+                    // 弱信息上下文（design/04 §4）：工作区名 + 电脑名；未绑定工作区只显示电脑名。
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (workspace != null)
+                            Text(
+                              workspace.displayName,
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: colors.textSecondary,
+                              ),
+                            ),
+                          Text(
+                            computer,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: colors.textSecondary,
+                            ),
+                          ),
+                        ],
                       ),
-                    Text(
-                      computer,
-                      style: TextStyle(
-                          fontSize: 13, color: colors.textSecondary),
                     ),
+                    if (workspace != null) ...[
+                      Divider(height: 1, color: colors.divider),
+                      _MenuItem(
+                        label: '文件',
+                        onTap: () {
+                          Navigator.pop(sheetContext);
+                          final root = workspace.rootPath ?? '/';
+                          final name = Uri.encodeComponent(
+                            workspace.displayName,
+                          );
+                          context.push(
+                            '/workspaces/$workspaceId/files?name=$name&root=${Uri.encodeComponent(root)}',
+                          );
+                        },
+                      ),
+                    ],
+                    Divider(height: 1, color: colors.divider),
+                    _MenuItem(
+                      label: 'Fork 会话',
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        _forkSession(session);
+                      },
+                    ),
+                    Divider(height: 1, color: colors.divider),
+                    _MenuItem(
+                      label: '复制全部输出',
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        _copyAllOutput();
+                      },
+                    ),
+                    Divider(height: 1, color: colors.divider),
+                    _MenuItem(
+                      label: '端口转发',
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        context.push('/workspaces/$workspaceId/tunnels');
+                      },
+                    ),
+                    const SizedBox(height: 8),
                   ],
                 ),
-              ),
-              if (workspace != null) ...[
-                Divider(height: 1, color: colors.divider),
-                _MenuItem(
-                  label: '文件',
-                  onTap: () {
-                    Navigator.pop(sheetContext);
-                    final root = workspace.rootPath ?? '/';
-                    final name = Uri.encodeComponent(workspace.displayName);
-                    context.push(
-                      '/workspaces/$workspaceId/files?name=$name&root=${Uri.encodeComponent(root)}',
-                    );
-                  },
-                ),
-              ],
-              Divider(height: 1, color: colors.divider),
-              _MenuItem(
-                label: 'Fork 会话',
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  _forkSession(session);
-                },
-              ),
-              Divider(height: 1, color: colors.divider),
-              _MenuItem(
-                label: '复制全部输出',
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  _copyAllOutput();
-                },
-              ),
-              Divider(height: 1, color: colors.divider),
-              _MenuItem(
-                label: '端口转发',
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  context.push('/workspaces/$workspaceId/tunnels');
-                },
-              ),
-              const SizedBox(height: 8),
-            ],
+              );
+            },
           ),
-        );
-          }),
         );
       },
     );
@@ -181,10 +198,9 @@ class _SessionTerminalScreenState extends ConsumerState<SessionTerminalScreen> {
   /// 失败（cwd 未上报 / 创建失败）原样 toast 展示，不静默回退。
   Future<void> _forkSession(SessionSummary? session) async {
     try {
-      await ref.read(sessionControllerProvider.notifier).forkSession(
-            widget.sessionId,
-            sourceName: session?.name ?? '',
-          );
+      await ref
+          .read(sessionControllerProvider.notifier)
+          .forkSession(widget.sessionId, sourceName: session?.name ?? '');
     } catch (e) {
       if (!mounted) return;
       showAppToast(context, '$e', destructive: true);
@@ -216,110 +232,131 @@ class _SessionTerminalScreenState extends ConsumerState<SessionTerminalScreen> {
         .firstOrNull;
     final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
     final fontSize = ref.watch(fontSizeProvider);
-    // Dark Tool Context 固定深色环境下解析终端配色（followApp → 深色预设）。
+    // 跟随应用时使用应用亮度；自定义主题覆盖终端整页及系统栏。
     final terminalTheme = resolveTerminalTheme(
       selection: ref.watch(terminalThemeSelectionProvider),
-      brightness: Brightness.dark,
+      brightness: Theme.of(context).brightness,
       customThemes: ref.watch(customTerminalThemesProvider),
     );
 
-    return Theme(
-      data: cortermDarkToolTheme(),
-      // Builder：Theme 之内取 colorsOf，保证拿到 Dark Tool tokens。
-      child: Builder(builder: (context) {
-        final colors = colorsOf(context);
-        return Scaffold(
-        backgroundColor: colors.background,
-        body: entry == null
-            ? Center(
-                child: Text('正在连接…',
-                    style: TextStyle(color: colors.textSecondary)))
-            : Stack(
-                children: [
-                  Positioned.fill(
-                    child: TerminalView(
-                      // epoch 变化（reattach 重放）→ 重建 view，buffer 全新。
-                      key: ValueKey('term-${widget.sessionId}-${entry.epoch}'),
-                      entry.terminal,
-                      controller: _terminalController,
-                      theme: terminalTheme,
-                      textStyle: TerminalStyle(
-                        fontSize: fontSize,
-                        fontFamily: 'packages/shadcn_ui/GeistMono',
+    final pageTheme = terminalPageTheme(terminalTheme);
+    final dark = pageTheme.brightness == Brightness.dark;
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle(
+        statusBarColor: terminalTheme.background,
+        statusBarIconBrightness: dark ? Brightness.light : Brightness.dark,
+        statusBarBrightness: dark ? Brightness.dark : Brightness.light,
+        systemNavigationBarColor: terminalTheme.background,
+        systemNavigationBarIconBrightness: dark
+            ? Brightness.light
+            : Brightness.dark,
+      ),
+      child: Theme(
+        data: pageTheme,
+        // Theme 内解析由终端颜色派生的页面 tokens。
+        child: Builder(
+          builder: (context) {
+            final colors = colorsOf(context);
+            return Scaffold(
+              backgroundColor: colors.background,
+              body: entry == null
+                  ? Center(
+                      child: Text(
+                        '正在连接…',
+                        style: TextStyle(color: colors.textSecondary),
                       ),
-                      readOnly: !entry.canInput,
-                      autofocus: true,
+                    )
+                  : Stack(
+                      children: [
+                        Positioned.fill(
+                          child: TerminalView(
+                            // epoch 变化（reattach 重放）→ 重建 view，buffer 全新。
+                            key: ValueKey(
+                              'term-${widget.sessionId}-${entry.epoch}',
+                            ),
+                            entry.terminal,
+                            controller: _terminalController,
+                            theme: terminalTheme,
+                            textStyle: TerminalStyle(
+                              fontSize: fontSize,
+                              fontFamily: 'packages/shadcn_ui/GeistMono',
+                            ),
+                            readOnly: !entry.canInput,
+                            autofocus: true,
+                          ),
+                        ),
+                        // 左上悬浮返回：退出页面 ≠ 结束会话（design/04 §6）。
+                        Positioned(
+                          top: MediaQuery.paddingOf(context).top + 4,
+                          left: 8,
+                          child: _FloatingButton(
+                            icon: Icons.arrow_back,
+                            tooltip: '返回',
+                            onTap: () => context.pop(),
+                          ),
+                        ),
+                        // 右上悬浮三点菜单。
+                        Positioned(
+                          top: MediaQuery.paddingOf(context).top + 4,
+                          right: 8,
+                          child: _FloatingButton(
+                            icon: Icons.more_vert,
+                            tooltip: '更多',
+                            onTap: () => _showMoreMenu(session),
+                          ),
+                        ),
+                        if (entry.connState == TerminalConnState.reconnecting)
+                          Positioned(
+                            top: MediaQuery.paddingOf(context).top + 56,
+                            left: 0,
+                            right: 0,
+                            child: Center(child: _OverlayPill(text: '正在重新连接…')),
+                          ),
+                        if (entry.connState == TerminalConnState.workerOffline)
+                          Positioned(
+                            top: MediaQuery.paddingOf(context).top + 56,
+                            left: 0,
+                            right: 0,
+                            child: Center(
+                              child: _OverlayPill(text: '电脑已离线，等待其上线…'),
+                            ),
+                          ),
+                        if (_isDead(entry.connState))
+                          Positioned(
+                            bottom: 24,
+                            left: 16,
+                            right: 16,
+                            child: _DisconnectedCard(
+                              entry: entry,
+                              onReconnect: () => ref
+                                  .read(sessionControllerProvider.notifier)
+                                  .open(widget.sessionId),
+                            ),
+                          ),
+                        // 键盘弹出时才有底部工具栏（design/04 §2/§3）。
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          child: keyboardOpen
+                              ? TerminalKeyboardToolbar(
+                                  enabled: entry.canInput,
+                                  ctrlArmed: ws.ctrlArmed,
+                                  onKey: (seq) => ref
+                                      .read(sessionControllerProvider.notifier)
+                                      .sendKey(seq),
+                                  onCtrlToggle: (armed) => ref
+                                      .read(sessionControllerProvider.notifier)
+                                      .setCtrlArmed(armed),
+                                )
+                              : const SizedBox.shrink(),
+                        ),
+                      ],
                     ),
-                  ),
-                  // 左上悬浮返回：退出页面 ≠ 结束会话（design/04 §6）。
-                  Positioned(
-                    top: MediaQuery.paddingOf(context).top + 4,
-                    left: 8,
-                    child: _FloatingButton(
-                      icon: Icons.arrow_back,
-                      tooltip: '返回',
-                      onTap: () => context.pop(),
-                    ),
-                  ),
-                  // 右上悬浮三点菜单。
-                  Positioned(
-                    top: MediaQuery.paddingOf(context).top + 4,
-                    right: 8,
-                    child: _FloatingButton(
-                      icon: Icons.more_vert,
-                      tooltip: '更多',
-                      onTap: () => _showMoreMenu(session),
-                    ),
-                  ),
-                  if (entry.connState == TerminalConnState.reconnecting)
-                    Positioned(
-                      top: MediaQuery.paddingOf(context).top + 56,
-                      left: 0,
-                      right: 0,
-                      child: Center(child: _OverlayPill(text: '正在重新连接…')),
-                    ),
-                  if (entry.connState == TerminalConnState.workerOffline)
-                    Positioned(
-                      top: MediaQuery.paddingOf(context).top + 56,
-                      left: 0,
-                      right: 0,
-                      child: Center(
-                          child: _OverlayPill(text: '电脑已离线，等待其上线…')),
-                    ),
-                  if (_isDead(entry.connState))
-                    Positioned(
-                      bottom: 24,
-                      left: 16,
-                      right: 16,
-                      child: _DisconnectedCard(
-                        entry: entry,
-                        onReconnect: () => ref
-                            .read(sessionControllerProvider.notifier)
-                            .open(widget.sessionId),
-                      ),
-                    ),
-                  // 键盘弹出时才有底部工具栏（design/04 §2/§3）。
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    child: keyboardOpen
-                        ? TerminalKeyboardToolbar(
-                            enabled: entry.canInput,
-                            ctrlArmed: ws.ctrlArmed,
-                            onKey: (seq) => ref
-                                .read(sessionControllerProvider.notifier)
-                                .sendKey(seq),
-                            onCtrlToggle: (armed) => ref
-                                .read(sessionControllerProvider.notifier)
-                                .setCtrlArmed(armed),
-                          )
-                        : const SizedBox.shrink(),
-                  ),
-                ],
-              ),
-        );
-      }),
+            );
+          },
+        ),
+      ),
     );
   }
 
@@ -377,7 +414,10 @@ class _OverlayPill extends StatelessWidget {
               child: CircularProgressIndicator(strokeWidth: 2),
             ),
             const SizedBox(width: 8),
-            Text(text, style: TextStyle(fontSize: 13, color: colors.textPrimary)),
+            Text(
+              text,
+              style: TextStyle(fontSize: 13, color: colors.textPrimary),
+            ),
           ],
         ),
       ),
@@ -407,9 +447,10 @@ class _DisconnectedCard extends StatelessWidget {
             Text(
               dead ? '连接已结束' : '连接已断开',
               style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary),
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: colors.textPrimary,
+              ),
             ),
             if (entry.errorMessage != null) ...[
               const SizedBox(height: 4),
@@ -450,9 +491,7 @@ class _MenuItem extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         child: Text(
           label,
-          style: TextStyle(
-              fontSize: 16,
-              color: colors.textPrimary),
+          style: TextStyle(fontSize: 16, color: colors.textPrimary),
         ),
       ),
     );

@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../app/theme/corterm_theme.dart';
+import '../../../shared/widgets/swipe_delete.dart';
+import '../../sessions/data/session_repository.dart';
 import '../../../core/models/session.dart';
 import '../../../core/models/workspace.dart';
 import '../../../shared/utils/relative_time.dart';
@@ -27,7 +29,6 @@ class _WorkspaceDetailScreenState extends ConsumerState<WorkspaceDetailScreen> {
   String get workspaceId => widget.workspaceId;
 
   @override
-  @override
   Widget build(BuildContext context) {
     final colors = colorsOf(context);
     final wsAsync = ref.watch(workspacesProvider);
@@ -41,14 +42,15 @@ class _WorkspaceDetailScreenState extends ConsumerState<WorkspaceDetailScreen> {
         ref.invalidate(workspacesProvider);
       });
     }
+    final sessionsState = ref.watch(sessionsProvider);
     final sessions = ref.watch(workspaceSessionsProvider(workspaceId));
     final workers = ref.watch(workersProvider).value ?? const [];
     final workerName = workspace == null
         ? null
         : workers
-            .where((w) => w.workerId == workspace.workerId)
-            .map((w) => w.displayName)
-            .firstOrNull;
+              .where((w) => w.workerId == workspace.workerId)
+              .map((w) => w.displayName)
+              .firstOrNull;
 
     return Scaffold(
       backgroundColor: colors.background,
@@ -64,70 +66,117 @@ class _WorkspaceDetailScreenState extends ConsumerState<WorkspaceDetailScreen> {
       ),
       body: workspace == null
           ? wsAsync.isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : Center(
-                  child: Text('工作区不存在',
-                      style: TextStyle(color: colors.textSecondary)))
+                ? const Center(child: CircularProgressIndicator())
+                : Center(
+                    child: Text(
+                      '工作区不存在',
+                      style: TextStyle(color: colors.textSecondary),
+                    ),
+                  )
           : ListView(
               padding: const EdgeInsets.only(bottom: 24),
               children: [
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                  child: Text(workspace.displayName,
-                      style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: colors.textPrimary)),
+                  child: Text(
+                    workspace.displayName,
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: colors.textPrimary,
+                    ),
+                  ),
                 ),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('电脑：${workerName ?? workspace.workerId}',
-                          style: TextStyle(
-                              fontSize: 13, color: colors.textSecondary)),
+                      Text(
+                        '电脑：${workerName ?? workspace.workerId}',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: colors.textSecondary,
+                        ),
+                      ),
                       if (workspace.rootPath != null)
-                        Text('路径：${workspace.rootPath}',
-                            style: TextStyle(
-                                fontSize: 13, color: colors.textSecondary)),
+                        Text(
+                          '路径：${workspace.rootPath}',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: colors.textSecondary,
+                          ),
+                        ),
                     ],
                   ),
                 ),
                 SectionHeader('会话'),
+                if (sessionsState.isLoading) const LinearProgressIndicator(),
+                if (sessionsState.hasError)
+                  TextButton(
+                    onPressed: () => ref.invalidate(sessionsProvider),
+                    child: const Text('会话加载失败，点击重试'),
+                  ),
                 for (final s in sessions)
-                  ListRow(
-                    title: s.displayName,
-                    subtitle: s.status.isRunning
-                        ? '运行中 · 最后活跃 ${relativeTime(s.lastActivityAt)}'
-                        : '已结束 · ${relativeTime(s.lastActivityAt)}',
-                    leading: Icon(Icons.circle,
+                  SwipeDelete(
+                    key: ValueKey('session-${s.sessionId}'),
+                    title: Localizations.localeOf(context).languageCode == 'zh'
+                        ? '删除会话'
+                        : 'Delete session',
+                    message:
+                        Localizations.localeOf(context).languageCode == 'zh'
+                        ? '删除「${s.displayName}」？此操作不可撤销。'
+                        : 'Delete "${s.displayName}"? This cannot be undone.',
+                    onDelete: () async {
+                      await ref
+                          .read(sessionRepositoryProvider)
+                          .delete(sessionId: s.sessionId);
+                      ref.invalidate(sessionsProvider);
+                    },
+                    child: ListRow(
+                      title: s.displayName,
+                      subtitle: s.status.isRunning
+                          ? '运行中 · 最后活跃 ${relativeTime(s.lastActivityAt)}'
+                          : '已结束 · ${relativeTime(s.lastActivityAt)}',
+                      leading: Icon(
+                        Icons.circle,
                         size: 10,
                         color: s.status.isRunning
                             ? colors.success
-                            : colors.textSecondary),
-                    onTap: () => context.push('/sessions/${s.sessionId}'),
-                    trailing: const Icon(Icons.chevron_right, size: 18),
+                            : colors.textSecondary,
+                      ),
+                      onTap: () async {
+                        await context.push('/sessions/${s.sessionId}');
+                        if (mounted) ref.invalidate(sessionsProvider);
+                      },
+                      trailing: const Icon(Icons.chevron_right, size: 18),
+                    ),
                   ),
-                if (sessions.isEmpty)
+                if (sessions.isEmpty &&
+                    !sessionsState.isLoading &&
+                    !sessionsState.hasError)
                   const Padding(
                     padding: EdgeInsets.symmetric(vertical: 32),
-                    child: EmptyState(
-                        icon: Icons.terminal, message: '还没有会话'),
+                    child: EmptyState(icon: Icons.terminal, message: '还没有会话'),
                   ),
                 SectionHeader('操作'),
                 ListRow(
                   title: '新建会话',
                   leading: const Icon(Icons.add),
-                  onTap: () =>
-                      context.push('/sessions/new?workspaceId=$workspaceId'),
+                  onTap: () async {
+                    await context.push(
+                      '/sessions/new?workspaceId=$workspaceId',
+                    );
+                    if (mounted) ref.invalidate(sessionsProvider);
+                  },
                   trailing: const Icon(Icons.chevron_right, size: 18),
                 ),
                 ListRow(
                   title: '文件',
                   leading: const Icon(Icons.folder),
                   onTap: () => context.push(
-                      '/workspaces/$workspaceId/files?name=${Uri.encodeComponent(workspace.displayName)}&root=${Uri.encodeComponent(workspace.rootPath ?? '')}'),
+                    '/workspaces/$workspaceId/files?name=${Uri.encodeComponent(workspace.displayName)}&root=${Uri.encodeComponent(workspace.rootPath ?? '')}',
+                  ),
                   trailing: const Icon(Icons.chevron_right, size: 18),
                 ),
                 ListRow(

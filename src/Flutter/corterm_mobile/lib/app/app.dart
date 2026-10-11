@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../l10n/app_localizations.dart';
+import '../features/membership/data/store_purchase_controller.dart';
 import '../core/lifecycle/app_lifecycle.dart';
 import '../core/net/connectivity_watcher.dart';
 import '../core/storage/app_preferences.dart';
@@ -23,27 +25,34 @@ class CortermApp extends ConsumerStatefulWidget {
   ConsumerState<CortermApp> createState() => _CortermAppState();
 }
 
-class _CortermAppState extends ConsumerState<CortermApp> with WidgetsBindingObserver {
+class _CortermAppState extends ConsumerState<CortermApp>
+    with WidgetsBindingObserver {
+  late final AppLifecycleObserver _lifecycleObserver;
+
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(AppLifecycleObserver(
-      onPaused: () => ref.read(sessionControllerProvider.notifier).enterBackground(),
+    _lifecycleObserver = AppLifecycleObserver(
+      onPaused: () =>
+          ref.read(sessionControllerProvider.notifier).enterBackground(),
       onResumed: () {
         ref.read(sessionControllerProvider.notifier).reattachAll();
         ref.invalidate(sessionsProvider);
+        ref.invalidate(membershipStatusProvider);
       },
-    ));
+    );
+    WidgetsBinding.instance.addObserver(_lifecycleObserver);
   }
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
+    WidgetsBinding.instance.removeObserver(_lifecycleObserver);
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(storePurchaseProvider);
     final themeMode = ref.watch(themeModeProvider);
     final localeTag = ref.watch(localeProvider);
     final router = ref.watch(routerProvider);
@@ -61,8 +70,7 @@ class _CortermAppState extends ConsumerState<CortermApp> with WidgetsBindingObse
 
     return ShadApp.router(
       routerConfig: router,
-      // design/07：Light App Context 全局固定浅色；Dark Tool Context
-      // 由 Session/文件/端口转发页自行用 cortermDarkToolTheme 覆盖。
+      // 应用按偏好切换深浅主题；终端单独从所选配色派生页面 tokens。
       theme: shadLightTheme(),
       darkTheme: shadDarkTheme(),
       themeMode: themeMode,
@@ -76,7 +84,9 @@ class _CortermAppState extends ConsumerState<CortermApp> with WidgetsBindingObse
               : CortermColors.light,
         ],
       ),
-      locale: (localeTag == null || localeTag.isEmpty) ? null : Locale(localeTag),
+      locale: (localeTag == null || localeTag.isEmpty)
+          ? null
+          : Locale(localeTag),
       localizationsDelegates: const [
         AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
@@ -85,7 +95,22 @@ class _CortermAppState extends ConsumerState<CortermApp> with WidgetsBindingObse
       ],
       supportedLocales: const [Locale('en'), Locale('zh')],
       debugShowCheckedModeBanner: false,
-      builder: (context, child) => ShadToaster(child: child ?? const SizedBox.shrink()),
+      builder: (context, child) {
+        final dark = Theme.of(context).brightness == Brightness.dark;
+        final palette = dark ? CortermColors.dark : CortermColors.light;
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+          value: SystemUiOverlayStyle(
+            statusBarColor: palette.background,
+            statusBarIconBrightness: dark ? Brightness.light : Brightness.dark,
+            statusBarBrightness: dark ? Brightness.dark : Brightness.light,
+            systemNavigationBarColor: palette.background,
+            systemNavigationBarIconBrightness: dark
+                ? Brightness.light
+                : Brightness.dark,
+          ),
+          child: ShadToaster(child: child ?? const SizedBox.shrink()),
+        );
+      },
     );
   }
 }

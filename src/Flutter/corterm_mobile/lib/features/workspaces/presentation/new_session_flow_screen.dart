@@ -41,6 +41,7 @@ class _NewSessionFlowScreenState extends ConsumerState<NewSessionFlowScreen> {
   }
 
   Future<void> _create(Workspace workspace) async {
+    if (_creating) return;
     setState(() {
       _creating = true;
       _error = null;
@@ -52,14 +53,15 @@ class _NewSessionFlowScreenState extends ConsumerState<NewSessionFlowScreen> {
         rows: 24,
         workerId: workspace.workerId,
         workspaceId: workspace.workspaceId,
+        name: _nameController.text.trim().isEmpty
+            ? null
+            : _nameController.text.trim(),
       );
-      // 名称可选：非空时创建后重命名（Session 无类型，仅 shell）。
-      final name = _nameController.text.trim();
-      if (name.isNotEmpty) {
-        await repo.rename(sessionId: s.sessionId, name: name);
-      }
+      if (!mounted) return;
+      ref.invalidate(sessionsProvider);
       if (mounted) context.pushReplacement('/sessions/${s.sessionId}');
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = '$e';
         _creating = false;
@@ -70,8 +72,9 @@ class _NewSessionFlowScreenState extends ConsumerState<NewSessionFlowScreen> {
   /// 电脑无工作区（或列表底部）时的捷径：内联新建工作区，
   /// 成功后带回新工作区并直接继续创建会话。
   Future<void> _newWorkspace() async {
-    final ws = await context
-        .push<Workspace>('/workspaces/new?workerId=$_workerId&returnResult=1');
+    final ws = await context.push<Workspace>(
+      '/workspaces/new?workerId=$_workerId&returnResult=1',
+    );
     if (ws == null || !mounted) return;
     setState(() => _workspaceId = ws.workspaceId);
     await _create(ws);
@@ -80,9 +83,11 @@ class _NewSessionFlowScreenState extends ConsumerState<NewSessionFlowScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = colorsOf(context);
-    final workspaces = ref.watch(workspacesProvider).value ?? const <Workspace>[];
-    final lockedWorkspace =
-        workspaces.where((w) => w.workspaceId == _workspaceId).firstOrNull;
+    final workspaces =
+        ref.watch(workspacesProvider).value ?? const <Workspace>[];
+    final lockedWorkspace = workspaces
+        .where((w) => w.workspaceId == _workspaceId)
+        .firstOrNull;
     final workers = ref.watch(workersProvider).value ?? const [];
 
     return Scaffold(
@@ -98,7 +103,8 @@ class _NewSessionFlowScreenState extends ConsumerState<NewSessionFlowScreen> {
           SectionHeader('电脑'),
           if (lockedWorkspace != null)
             ListRow(
-              title: workers
+              title:
+                  workers
                       .where((w) => w.workerId == lockedWorkspace.workerId)
                       .map((w) => w.displayName)
                       .firstOrNull ??
@@ -106,22 +112,27 @@ class _NewSessionFlowScreenState extends ConsumerState<NewSessionFlowScreen> {
               leading: const Icon(Icons.computer),
             )
           else
-            for (final w in workers.toList()
-              ..sort((a, b) {
-                if (a.isOnline != b.isOnline) return a.isOnline ? -1 : 1;
-                return a.displayName.compareTo(b.displayName);
-              }))
+            for (final w
+                in workers.toList()..sort((a, b) {
+                  if (a.isOnline != b.isOnline) return a.isOnline ? -1 : 1;
+                  return a.displayName.compareTo(b.displayName);
+                }))
               ListRow(
                 title: w.displayName,
-                subtitle: '${w.isOnline ? w.hostname : '离线（不可选） · ${w.hostname}'}',
-                leading: Icon(Icons.computer,
-                    color: w.isOnline ? null : colors.textSecondary.withValues(alpha: 0.4)),
+                subtitle:
+                    '${w.isOnline ? w.hostname : '离线（不可选） · ${w.hostname}'}',
+                leading: Icon(
+                  Icons.computer,
+                  color: w.isOnline
+                      ? null
+                      : colors.textSecondary.withValues(alpha: 0.4),
+                ),
                 selected: w.workerId == _workerId,
                 onTap: w.isOnline
                     ? () => setState(() {
-                          _workerId = w.workerId;
-                          _workspaceId = null; // 换电脑后清空已选工作区
-                        })
+                        _workerId = w.workerId;
+                        _workspaceId = null; // 换电脑后清空已选工作区
+                      })
                     : null, // 离线电脑无法启动会话
                 trailing: const Icon(Icons.chevron_right, size: 18),
               ),
@@ -148,12 +159,10 @@ class _NewSessionFlowScreenState extends ConsumerState<NewSessionFlowScreen> {
               onTap: _newWorkspace,
               trailing: const Icon(Icons.chevron_right, size: 18),
             ),
-          ]
-          else
+          ] else
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 16),
-              child: Text('先选择电脑',
-                  style: TextStyle(fontSize: 13)),
+              child: Text('先选择电脑', style: TextStyle(fontSize: 13)),
             ),
           SectionHeader('名称（可选）'),
           Padding(
@@ -166,20 +175,24 @@ class _NewSessionFlowScreenState extends ConsumerState<NewSessionFlowScreen> {
           if (_error != null)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-              child: Text(_error!,
-                  style: TextStyle(fontSize: 14, color: colors.danger)),
+              child: Text(
+                _error!,
+                style: TextStyle(fontSize: 14, color: colors.danger),
+              ),
             ),
           Padding(
             padding: const EdgeInsets.all(16),
             child: PrimaryButton(
               label: '创建会话',
-              onPressed: (lockedWorkspace == null && _workspaceId == null) ||
-                      _creating
+              onPressed:
+                  (lockedWorkspace == null && _workspaceId == null) || _creating
                   ? null
-                  : () => _create(lockedWorkspace ??
+                  : () => _create(
+                      lockedWorkspace ??
                           workspaces
                               .where((w) => w.workspaceId == _workspaceId)
-                              .first),
+                              .first,
+                    ),
             ),
           ),
         ],

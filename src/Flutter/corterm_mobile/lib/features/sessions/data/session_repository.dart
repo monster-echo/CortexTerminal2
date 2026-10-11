@@ -6,7 +6,6 @@ import '../../../core/models/session.dart';
 import '../../../core/models/worker.dart';
 import '../../../core/storage/app_preferences.dart';
 
-
 class WorkerDetail {
   const WorkerDetail({required this.worker, required this.sessions});
 
@@ -14,12 +13,12 @@ class WorkerDetail {
   final List<SessionSummary> sessions;
 
   factory WorkerDetail.fromJson(Map<String, dynamic> json) => WorkerDetail(
-        worker: WorkerSummary.fromJson(json),
-        sessions: ((json['sessions'] as List<dynamic>?) ?? const [])
-            .cast<Map<String, dynamic>>()
-            .map(SessionSummary.fromJson)
-            .toList(),
-      );
+    worker: WorkerSummary.fromJson(json),
+    sessions: ((json['sessions'] as List<dynamic>?) ?? const [])
+        .cast<Map<String, dynamic>>()
+        .map(SessionSummary.fromJson)
+        .toList(),
+  );
 }
 
 class UpgradeWorkerResult {
@@ -64,18 +63,27 @@ class SessionRepository {
 
   Future<List<SessionSummary>> list() async {
     final raw = await _client.getList('/api/me/sessions');
-    return raw.cast<Map<String, dynamic>>().map(SessionSummary.fromJson).toList();
+    return raw
+        .cast<Map<String, dynamic>>()
+        .map(SessionSummary.fromJson)
+        .toList();
   }
 
   /// 网关公告（对齐 ArkTS GET /api/announcements，首页弹窗用）。
   Future<List<GatewayAnnouncement>> announcements() async {
     final raw = await _client.getList('/api/announcements');
-    return raw.cast<Map<String, dynamic>>().map(GatewayAnnouncement.fromJson).toList();
+    return raw
+        .cast<Map<String, dynamic>>()
+        .map(GatewayAnnouncement.fromJson)
+        .toList();
   }
 
   Future<List<WorkerSummary>> workers() async {
     final raw = await _client.getList('/api/me/workers');
-    return raw.cast<Map<String, dynamic>>().map(WorkerSummary.fromJson).toList();
+    return raw
+        .cast<Map<String, dynamic>>()
+        .map(WorkerSummary.fromJson)
+        .toList();
   }
 
   Future<GatewayInfo> gatewayInfo() async {
@@ -127,12 +135,16 @@ class SessionRepository {
     }
     final sessionId = json['sessionId'] as String?;
     if (sessionId == null || sessionId.isEmpty) {
-      throw ApiException(0, serverMessage: 'create session returned no sessionId');
+      throw ApiException(
+        0,
+        serverMessage: 'create session returned no sessionId',
+      );
     }
     final worker = json['workerId'] as String? ?? workerId ?? '';
     return SessionSummary(
       sessionId: sessionId,
-      name: '',
+      name: json['name'] as String? ?? name ?? '',
+      workspaceId: json['workspaceId'] as String? ?? workspaceId ?? '',
       workerId: worker,
       status: SessionStatus.detachedGracePeriod,
       createdAt: DateTime.now().toUtc(),
@@ -172,13 +184,13 @@ class SessionRepository {
     required String sessionId,
     required String workspaceId,
   }) async {
-    await _client.putMap(
-      '/api/me/sessions/$sessionId/workspace',
-      {'workspaceId': workspaceId},
-    );
+    await _client.putMap('/api/me/sessions/$sessionId/workspace', {
+      'workspaceId': workspaceId,
+    });
   }
 
-  Future<void> rememberCurrent(String? sessionId) => _prefs.setLastSessionId(sessionId);
+  Future<void> rememberCurrent(String? sessionId) =>
+      _prefs.setLastSessionId(sessionId);
 
   static int _requestCounter = 0;
 

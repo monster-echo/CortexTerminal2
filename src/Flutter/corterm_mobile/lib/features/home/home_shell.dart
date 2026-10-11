@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/theme/corterm_theme.dart';
+import '../../shared/widgets/swipe_delete.dart';
+import '../workers/data/workspace_repository.dart';
 import '../../core/models/session.dart';
 import '../../core/models/worker.dart';
 import '../../core/models/workspace.dart';
@@ -51,9 +53,9 @@ class _HomeShellState extends ConsumerState<HomeShell> {
                   ),
                   IconButton(
                     icon: Icon(Icons.add, color: c.textPrimary),
-                    onPressed: () => context.push(_tab == 0
-                        ? '/workspaces/new'
-                        : '/computers/new'),
+                    onPressed: () => context.push(
+                      _tab == 0 ? '/workspaces/new' : '/computers/new',
+                    ),
                   ),
                 ],
               ),
@@ -95,8 +97,10 @@ class _SegmentedTabs extends StatelessWidget {
             GestureDetector(
               onTap: () => onChanged(i),
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 7),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 7,
+                ),
                 decoration: BoxDecoration(
                   color: i == index ? c.surfaceSelected : Colors.transparent,
                   borderRadius: const BorderRadius.all(Radius.circular(9)),
@@ -105,8 +109,7 @@ class _SegmentedTabs extends StatelessWidget {
                   labels[i],
                   style: TextStyle(
                     fontSize: 15,
-                    fontWeight:
-                        i == index ? FontWeight.w600 : FontWeight.w400,
+                    fontWeight: i == index ? FontWeight.w600 : FontWeight.w400,
                     color: i == index ? c.textPrimary : c.textSecondary,
                   ),
                 ),
@@ -133,35 +136,42 @@ class _WorkspaceTab extends ConsumerWidget {
       error: (e, _) => Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
-          child: Text('$e',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: c.danger, fontSize: 14)),
+          child: Text(
+            '$e',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: c.danger, fontSize: 14),
+          ),
         ),
       ),
       data: (list) {
-        if (list.isEmpty) {
-          return const EmptyState(
-              icon: Icons.folder_outlined, message: '还没有工作区，点右上角 + 新建');
-        }
         final workerMap = <String, WorkerSummary>{
-          for (final w in workers.value ?? const <WorkerSummary>[]) w.workerId: w,
+          for (final w in workers.value ?? const <WorkerSummary>[])
+            w.workerId: w,
         };
         final ungrouped = ref.watch(ungroupedSessionsProvider);
         return RefreshIndicator(
-          onRefresh: () async => ref.refresh(workspacesProvider.future),
+          onRefresh: () async {
+            ref.invalidate(sessionsProvider);
+            ref.invalidate(workersProvider);
+            final refreshed = await ref.refresh(workspacesProvider.future);
+            if (refreshed.isEmpty) return;
+          },
           child: ListView(
             physics: const AlwaysScrollableScrollPhysics(),
             children: [
+              if (list.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Text('还没有工作区，点右上角 + 新建'),
+                ),
               for (final w in list)
                 _WorkspaceRow(workspace: w, worker: workerMap[w.workerId]),
               if (ungrouped.isNotEmpty)
                 ListRow(
                   title: '未分组会话',
                   subtitle: '${ungrouped.length} 个会话未关联工作区',
-                  leading: const Icon(Icons.inbox_outlined,
-                      color: Color(0xFF6F6F6F)),
-                  trailing: const Icon(Icons.chevron_right,
-                      color: Color(0xFF6F6F6F)),
+                  leading: Icon(Icons.inbox_outlined, color: c.textSecondary),
+                  trailing: Icon(Icons.chevron_right, color: c.textSecondary),
                   onTap: () => context.push('/sessions/ungrouped'),
                 ),
             ],
@@ -181,18 +191,35 @@ class _WorkspaceRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final c = colorsOf(context);
-    final sessions = ref.watch(workspaceSessionsProvider(workspace.workspaceId));
+    final sessions = ref.watch(
+      workspaceSessionsProvider(workspace.workspaceId),
+    );
     final running = sessions.where((s) => s.status.isRunning).length;
     final subtitle = sessions.isEmpty
         ? (worker?.displayName ?? '')
         : '${worker?.displayName ?? ''} · $running 个会话运行中';
 
-    return ListRow(
-      title: workspace.displayName,
-      subtitle: subtitle,
-      leading: Icon(Icons.folder_outlined, color: c.textSecondary),
-      trailing: Icon(Icons.chevron_right, color: c.textSecondary),
-      onTap: () => context.push('/workspaces/${workspace.workspaceId}'),
+    final zh = Localizations.localeOf(context).languageCode == 'zh';
+    return SwipeDelete(
+      key: ValueKey('workspace-${workspace.workspaceId}'),
+      title: zh ? '删除工作区' : 'Delete workspace',
+      message: zh
+          ? '删除「${workspace.displayName}」及所有会话记录？此操作不可撤销，电脑上的文件保留。'
+          : 'Delete "${workspace.displayName}" and all its sessions? This cannot be undone. Files on the computer are kept.',
+      onDelete: () async {
+        await ref
+            .read(workspaceRepositoryProvider)
+            .delete(workspace.workspaceId);
+        ref.invalidate(workspacesProvider);
+        ref.invalidate(sessionsProvider);
+      },
+      child: ListRow(
+        title: workspace.displayName,
+        subtitle: subtitle,
+        leading: Icon(Icons.folder_outlined, color: c.textSecondary),
+        trailing: Icon(Icons.chevron_right, color: c.textSecondary),
+        onTap: () => context.push('/workspaces/${workspace.workspaceId}'),
+      ),
     );
   }
 }
@@ -212,14 +239,19 @@ class _ComputerTab extends ConsumerWidget {
       error: (e, _) => Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
-          child: Text('$e',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: c.danger, fontSize: 14)),
+          child: Text(
+            '$e',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: c.danger, fontSize: 14),
+          ),
         ),
       ),
       data: (list) {
         if (list.isEmpty) {
-          return const EmptyState(icon: Icons.computer_outlined, message: '还没有配对电脑，点右上角 + 添加');
+          return const EmptyState(
+            icon: Icons.computer_outlined,
+            message: '还没有配对电脑，点右上角 + 添加',
+          );
         }
         final ws = workspaces.value ?? const <Workspace>[];
         return RefreshIndicator(
@@ -232,8 +264,7 @@ class _ComputerTab extends ConsumerWidget {
               final count = ws.where((x) => x.workerId == w.workerId).length;
               return ListRow(
                 title: w.displayName,
-                subtitle:
-                    '${w.isOnline ? '在线' : '离线'} · $count 个工作区',
+                subtitle: '${w.isOnline ? '在线' : '离线'} · $count 个工作区',
                 leading: Icon(Icons.computer_outlined, color: c.textSecondary),
                 trailing: Icon(Icons.chevron_right, color: c.textSecondary),
                 onTap: () => context.push('/computers/${w.workerId}'),
@@ -276,11 +307,14 @@ class _CortermSidebarState extends ConsumerState<CortermSidebar> {
               child: Row(
                 children: [
                   Expanded(
-                    child: Text('Corterm',
-                        style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: c.textPrimary)),
+                    child: Text(
+                      'Corterm',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: c.textPrimary,
+                      ),
+                    ),
                   ),
                   IconButton(
                     icon: Icon(Icons.search, color: c.textSecondary),
@@ -294,13 +328,19 @@ class _CortermSidebarState extends ConsumerState<CortermSidebar> {
               child: workspaces.when(
                 loading: () => const Center(child: CircularProgressIndicator()),
                 error: (e, _) => Center(
-                    child: Text('$e',
-                        style: TextStyle(color: c.danger, fontSize: 14))),
+                  child: Text(
+                    '$e',
+                    style: TextStyle(color: c.danger, fontSize: 14),
+                  ),
+                ),
                 data: (list) {
                   // 首个默认展开（§5），无工作区时无需展开态。
                   final expanded =
-                      _expandedId ?? (list.isNotEmpty ? list.first.workspaceId : null);
-                  final visible = _showAll ? list : list.take(_maxVisible).toList();
+                      _expandedId ??
+                      (list.isNotEmpty ? list.first.workspaceId : null);
+                  final visible = _showAll
+                      ? list
+                      : list.take(_maxVisible).toList();
                   return ListView(
                     padding: const EdgeInsets.symmetric(horizontal: 8),
                     children: [
@@ -308,19 +348,24 @@ class _CortermSidebarState extends ConsumerState<CortermSidebar> {
                         _SidebarWorkspace(
                           workspace: ws,
                           expanded: ws.workspaceId == expanded,
-                          onToggle: () => setState(() =>
-                              _expandedId = ws.workspaceId == expanded
-                                  ? null
-                                  : ws.workspaceId),
+                          onToggle: () => setState(
+                            () => _expandedId = ws.workspaceId == expanded
+                                ? null
+                                : ws.workspaceId,
+                          ),
                         ),
                       if (!_showAll && list.length > _maxVisible)
                         TextButton(
                           onPressed: () => setState(() => _showAll = true),
                           child: Align(
                             alignment: Alignment.centerLeft,
-                            child: Text('更多工作区',
-                                style: TextStyle(
-                                    fontSize: 14, color: c.textSecondary)),
+                            child: Text(
+                              '更多工作区',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: c.textSecondary,
+                              ),
+                            ),
                           ),
                         ),
                     ],
@@ -337,15 +382,20 @@ class _CortermSidebarState extends ConsumerState<CortermSidebar> {
                     child: TextButton.icon(
                       onPressed: () => context.push('/sessions/new'),
                       icon: Icon(Icons.add, color: c.textPrimary),
-                      label: Text('新建',
-                          style:
-                              TextStyle(fontSize: 15, color: c.textPrimary)),
-                      style: TextButton.styleFrom(alignment: Alignment.centerLeft),
+                      label: Text(
+                        '新建',
+                        style: TextStyle(fontSize: 15, color: c.textPrimary),
+                      ),
+                      style: TextButton.styleFrom(
+                        alignment: Alignment.centerLeft,
+                      ),
                     ),
                   ),
                   IconButton(
-                    icon: Icon(Icons.account_circle_outlined,
-                        color: c.textSecondary),
+                    icon: Icon(
+                      Icons.account_circle_outlined,
+                      color: c.textSecondary,
+                    ),
                     onPressed: () => context.push('/me'),
                   ),
                 ],
@@ -372,7 +422,9 @@ class _SidebarWorkspace extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final c = colorsOf(context);
-    final sessions = ref.watch(workspaceSessionsProvider(workspace.workspaceId));
+    final sessions = ref.watch(
+      workspaceSessionsProvider(workspace.workspaceId),
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -382,15 +434,15 @@ class _SidebarWorkspace extends ConsumerWidget {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
             child: Row(
               children: [
-                Icon(Icons.folder_outlined,
-                    size: 18, color: c.textSecondary),
+                Icon(Icons.folder_outlined, size: 18, color: c.textSecondary),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text(workspace.displayName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style:
-                          TextStyle(fontSize: 15, color: c.textPrimary)),
+                  child: Text(
+                    workspace.displayName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 15, color: c.textPrimary),
+                  ),
                 ),
                 Icon(
                   expanded
@@ -408,22 +460,26 @@ class _SidebarWorkspace extends ConsumerWidget {
             padding: const EdgeInsets.only(left: 20),
             child: sessions.isEmpty
                 ? Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                    child: Text('无会话',
-                        style:
-                            TextStyle(fontSize: 13, color: c.textSecondary)),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 6,
+                    ),
+                    child: Text(
+                      '无会话',
+                      style: TextStyle(fontSize: 13, color: c.textSecondary),
+                    ),
                   )
                 : Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       for (final s in sessions)
                         InkWell(
-                          onTap: () =>
-                              context.push('/sessions/${s.sessionId}'),
+                          onTap: () => context.push('/sessions/${s.sessionId}'),
                           child: Padding(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 7),
+                              horizontal: 8,
+                              vertical: 7,
+                            ),
                             child: Row(
                               children: [
                                 Icon(
@@ -437,34 +493,47 @@ class _SidebarWorkspace extends ConsumerWidget {
                                 ),
                                 const SizedBox(width: 8),
                                 Expanded(
-                                  child: Text(_sessionTitle(s),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                          fontSize: 14,
-                                          color: c.textSecondary)),
-                                ),
-                                Text(relativeTime(s.lastActivityAt),
+                                  child: Text(
+                                    _sessionTitle(s),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                     style: TextStyle(
-                                        fontSize: 11,
-                                        color: c.textSecondary)),
+                                      fontSize: 14,
+                                      color: c.textSecondary,
+                                    ),
+                                  ),
+                                ),
+                                Text(
+                                  relativeTime(s.lastActivityAt),
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: c.textSecondary,
+                                  ),
+                                ),
                               ],
                             ),
                           ),
                         ),
                       InkWell(
                         onTap: () => context.push(
-                            '/sessions/new?workspaceId=${workspace.workspaceId}'),
+                          '/sessions/new?workspaceId=${workspace.workspaceId}',
+                        ),
                         child: Padding(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 7),
+                            horizontal: 8,
+                            vertical: 7,
+                          ),
                           child: Row(
                             children: [
                               Icon(Icons.add, size: 16, color: c.textSecondary),
                               const SizedBox(width: 8),
-                              Text('新建会话',
-                                  style: TextStyle(
-                                      fontSize: 14, color: c.textSecondary)),
+                              Text(
+                                '新建会话',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: c.textSecondary,
+                                ),
+                              ),
                             ],
                           ),
                         ),
