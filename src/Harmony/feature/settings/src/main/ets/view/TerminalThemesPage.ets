@@ -363,6 +363,33 @@ export struct TerminalThemesPage {
   ThemeListView() {
     Scroll() {
       Column() {
+        Row() {
+          Column({ space: 4 }) {
+            Text(this.tr('terminalTheme.follow'))
+              .fontSize(16)
+              .fontColor($r('app.color.terminal_text'))
+            Text(this.tr('terminalTheme.follow_description'))
+              .fontSize(13)
+              .fontColor($r('app.color.terminal_text_muted'))
+          }
+          .alignItems(HorizontalAlign.Start)
+          .layoutWeight(1)
+          if (this.terminalTheme === 'followApp') {
+            SymbolGlyph($r('sys.symbol.checkmark'))
+              .fontSize(18)
+              .fontColor([$r('app.color.terminal_primary')])
+          }
+        }
+        .width('calc(100% - 32vp)')
+        .padding(16)
+        .margin({ top: 16 })
+        .borderRadius(12)
+        .backgroundColor($r('app.color.terminal_background_element'))
+        .onClick(() => {
+          clickHaptic()
+          this.applySelection('followApp')
+        })
+
         this.SectionHeader('terminalTheme.custom.builtinSection')
         Column({ space: 8 }) {
           ForEach(TerminalThemes.BUILT_IN, (profile: TerminalThemeProfile) => {

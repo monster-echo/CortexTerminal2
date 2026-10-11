@@ -149,6 +149,7 @@ export const enStrings: Record<string, string> = {
   'terminal.detail.confirm': 'OK',
   'terminalTheme.title': 'Terminal Theme',
   'terminalTheme.follow': 'Follow App',
+  'terminalTheme.follow_description': 'Use default colors and match the app’s light or dark appearance',
   'terminalTheme.dark': 'Dark',
   'terminalTheme.light': 'Light',
   'terminalTheme.builtin.defaultDark': 'Default Dark',

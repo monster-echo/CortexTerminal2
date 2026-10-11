@@ -149,6 +149,7 @@ export const zhStrings: Record<string, string> = {
   'terminal.detail.confirm': '确定',
   'terminalTheme.title': '终端主题',
   'terminalTheme.follow': '跟随应用',
+  'terminalTheme.follow_description': '使用默认配色，随应用自动切换浅色与深色',
   'terminalTheme.dark': '深色',
   'terminalTheme.light': '浅色',
   'terminalTheme.builtin.defaultDark': '默认深色',
