@@ -8,6 +8,9 @@ using Microsoft.Extensions.Logging;
 
 namespace CortexTerminal.Worker.P2P;
 
+/// <summary>锚点续约请求体（worker 角色 + STUN 映射端点）。</summary>
+internal sealed record PunchRegisterBody(string Role, string Endpoint);
+
 /// <summary>
 /// P2P 打洞传输编排（规格 §1）：prepare 应答后后台启动 ——
 /// 新建 UDP socket → 同一 socket 上 STUN Binding → 每 2s 向 Gateway
@@ -154,8 +157,9 @@ public sealed class PunchTransferService : IDisposable
         using var request = new HttpRequestMessage(
             HttpMethod.Post, $"{_gatewayBaseUrl}/api/p2p/workers/{Uri.EscapeDataString(workerId)}/punch")
         {
-            Content = new ByteArrayContent(JsonSerializer.SerializeToUtf8Bytes(
-                new PunchRegisterBody(PunchRoleWorker, endpoint))),
+            Content = new ByteArrayContent(System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(
+                new PunchRegisterBody(PunchRoleWorker, endpoint),
+                CortexTerminal.Worker.Auth.WorkerJsonContext.Default.PunchRegisterBody)),
         };
         request.Headers.TryAddWithoutValidation("X-Corterm-Worker-Relay-Token", token);
         using var response = await http.SendAsync(request, ct);
@@ -266,7 +270,8 @@ public sealed class PunchTransferService : IDisposable
         using var http = new HttpClient();
         using var window = CancellationTokenSource.CreateLinkedTokenSource(ct);
         window.CancelAfter(RegisterWindow);
-        var body = JsonSerializer.SerializeToUtf8Bytes(new PunchRegisterBody("worker", endpoint));
+        var body = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new PunchRegisterBody("worker", endpoint),
+            CortexTerminal.Worker.Auth.WorkerJsonContext.Default.PunchRegisterBody);
         while (true)
         {
             using var request = new HttpRequestMessage(
@@ -304,8 +309,6 @@ public sealed class PunchTransferService : IDisposable
         }
         return new IPEndPoint(IPAddress.Parse(text[..sep]), port);
     }
-
-    private sealed record PunchRegisterBody(string Role, string Endpoint);
 
     public void Dispose()
     {
