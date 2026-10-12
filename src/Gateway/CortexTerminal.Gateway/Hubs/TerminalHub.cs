@@ -179,7 +179,17 @@ public sealed class TerminalHub(
     /// clients reuse their existing full-replay handling. Legacy clients never
     /// call this method and never see the delta events.
     /// </summary>
-    public async Task<ReattachSessionResult> ReattachSessionIncremental(
+    /// <remarks>
+    /// Hub-method parameters bind one-to-one against the client's invocation
+    /// arguments — a CancellationToken parameter is NOT injected by the
+    /// framework, so declaring one makes the binder demand a second argument
+    /// and every invocation dies with "Failed to invoke ... due to an error on
+    /// the server" before the method body runs. Use Context.ConnectionAborted.
+    /// </remarks>
+    public Task<ReattachSessionResult> ReattachSessionIncremental(ReattachSessionSinceRequest request)
+        => ReattachSessionIncrementalCoreAsync(request, Context.ConnectionAborted);
+
+    private async Task<ReattachSessionResult> ReattachSessionIncrementalCoreAsync(
         ReattachSessionSinceRequest request, CancellationToken cancellationToken)
     {
         sessions.TryGetSession(request.SessionId, out var oldSession);
