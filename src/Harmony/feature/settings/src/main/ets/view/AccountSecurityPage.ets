@@ -24,24 +24,6 @@ export struct AccountSecurityPage {
     } catch (_e) {}
   }
 
-  private confirmLogout() {
-    this.getUIContext()?.showAlertDialog({
-      title: I18n.get('settings.logout_confirm_title'),
-      message: I18n.get('settings.logout_confirm_message'),
-      primaryButton: {
-        value: I18n.get('common.cancel'),
-        action: () => {}
-      },
-      secondaryButton: {
-        value: I18n.get('settings.logout'),
-        action: () => {
-          AuthService.logout()
-          showI18nToast('settings.logout_success')
-        }
-      }
-    })
-  }
-
   build() {
     PageLayout({ title: I18n.get('security.title') }) {
         Column() {
@@ -87,11 +69,6 @@ export struct AccountSecurityPage {
             this.deleteError = ''
             this.showDeleteSheet = true
           })
-          Button(I18n.get('settings.logout'))
-            .width('100%').height(48).margin({ top: 24 })
-            .fontColor($r('app.color.terminal_text'))
-            .backgroundColor($r('app.color.terminal_background_panel'))
-            .onClick(() => this.confirmLogout())
         }
         .width('100%')
         .padding({ left: 24, right: 24, top: 8 })

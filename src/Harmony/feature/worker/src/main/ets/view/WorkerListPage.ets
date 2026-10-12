@@ -257,7 +257,9 @@ export struct WorkerListPage {
       },
       secondaryButton: {
         value: 'Update',
-        fontColor: $r('app.color.terminal_secondary_container'),
+        // 按钮≥3:1 即可，但这是白底弹层上的文字按钮，用 on_secondary_container（浅色 #0C4A6E）清晰可读。
+        // 不能用 secondary_container——那是容器背景色，当文字色会几乎隐形。
+        fontColor: $r('app.color.terminal_on_secondary_container'),
         action: () => { this.upgradeWorker(worker) }
       }
     })
