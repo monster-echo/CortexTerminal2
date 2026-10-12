@@ -128,7 +128,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WindowListener {
     );
   }
 
-  // 黑白反色主按钮（设计规范：主操作不用品牌色），40dp 高、内容自适应。
+  // 黑白反色主按钮（设计规范：主操作不用品牌色），32dp 高、内容自适应。
   Widget _inverseButton(
     BuildContext context, {
     required String label,
@@ -137,7 +137,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WindowListener {
   }) {
     final scheme = ShadTheme.of(context).colorScheme;
     return ShadButton(
-      height: 40,
+      height: 32,
       backgroundColor: scheme.foreground,
       foregroundColor: scheme.background,
       onPressed: onPressed,
@@ -147,13 +147,13 @@ class _DashboardScreenState extends State<DashboardScreen> with WindowListener {
         children: [
           if (busy) ...[
             SizedBox(
-              width: 14,
-              height: 14,
+              width: 12,
+              height: 12,
               child: CircularProgressIndicator(strokeWidth: 2, color: scheme.background),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 6),
           ],
-          Text(label),
+          Text(label, style: const TextStyle(fontSize: 13)),
         ],
       ),
     );
@@ -194,7 +194,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WindowListener {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 状态行：圆点与标题同行，不留一个孤零零的圆点在上方。
+          // 状态行：圆点 + 标题 + 行尾操作（重启/登录），一行说完状态与动作。
           Row(
             children: [
               Container(
@@ -207,6 +207,20 @@ class _DashboardScreenState extends State<DashboardScreen> with WindowListener {
                 t(context, title),
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: scheme.foreground),
               ),
+              const Spacer(),
+              if (serviceOffline)
+                _inverseButton(
+                  context,
+                  label: t(context, 'panel.restartService'),
+                  busy: _restarting,
+                  onPressed: _restarting ? null : _restartService,
+                ),
+              if (!s.authenticated)
+                _inverseButton(
+                  context,
+                  label: t(context, 'panel.loginConnect'),
+                  onPressed: () => _go(context, '/auth'),
+                ),
             ],
           ),
           const SizedBox(height: 6),
@@ -251,24 +265,6 @@ class _DashboardScreenState extends State<DashboardScreen> with WindowListener {
                   Icon(LucideIcons.chevronRight, size: 14, color: scheme.mutedForeground),
                 ],
               ),
-            ),
-          ],
-          if (serviceOffline) ...[
-            const SizedBox(height: 16),
-            // 主操作：黑白反色（设计规范），内容自适应宽度，不横铺整卡。
-            _inverseButton(
-              context,
-              label: t(context, 'panel.restartService'),
-              busy: _restarting,
-              onPressed: _restarting ? null : _restartService,
-            ),
-          ],
-          if (!s.authenticated) ...[
-            const SizedBox(height: 16),
-            _inverseButton(
-              context,
-              label: t(context, 'panel.loginConnect'),
-              onPressed: () => _go(context, '/auth'),
             ),
           ],
         ],
