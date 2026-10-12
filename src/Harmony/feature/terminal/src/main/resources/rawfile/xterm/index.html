@@ -24,6 +24,17 @@
       -webkit-user-select: text;
     }
 
+    /* ArkWeb scrolls the focused helper textarea into view when the soft
+       keyboard resizes the page; on this scroll container that displaces the
+       whole self-managed grid for a frame (the top-flash). overflow:hidden
+       can still be scrolled programmatically — clip cannot, so the browser
+       skips this element entirely during scroll-into-view. Scrolling is
+       handled by the touch gesture layer via term.scrollLines. */
+    .xterm-viewport {
+      overflow: hidden;
+      overflow: clip;
+    }
+
   </style>
   <link rel="stylesheet" href="xterm.css" />
   <script>
@@ -200,15 +211,10 @@
       terminalContainer = container;
       term.open(container);
 
-      // ArkWeb scrolls the focused helper textarea into view when the soft
-      // keyboard resizes the page, displacing xterm's self-managed viewport
-      // (see resyncTerminalScroll). Re-sync after every focus.
-      var helperTextarea = container.querySelector('.xterm-helper-textarea');
-      if (helperTextarea) {
-        helperTextarea.addEventListener('focus', function() {
-          setTimeout(resyncTerminalScroll, 200);
-        });
-      }
+      // ArkWeb may silently scroll .xterm-viewport when it pulls the focused
+      // helper textarea into view (keyboard resize). xterm keeps that native
+      // scrollTop at 0; revert any foreign offset the moment it appears.
+      guardViewportScroll();
 
       // Register resize handler BEFORE fit() so the initial resize event is captured.
       // Debounced 150ms (MAUI parity: RESIZE_DEBOUNCE_MS): keyboard animation produces
@@ -231,9 +237,6 @@
       // Fit immediately to ensure correct size before any output arrives
       try {
         fitAddon.fit();
-        if (term) {
-          term.scrollToBottom();
-        }
       } catch(e) {
         console.warn('fitAddon.fit() failed:', e);
       }
@@ -604,9 +607,7 @@
       if (fitAddon) {
         try {
           fitAddon.fit();
-          resyncTerminalScroll();
-          setTimeout(resyncTerminalScroll, 120);
-          setTimeout(resyncTerminalScroll, 400);
+          resetForeignViewportScroll();
         } catch(e) {
           console.warn('fitAddon.fit() failed:', e);
         }
@@ -920,42 +921,54 @@
     //   by the native area change can still measure a stale (small) container
     //   height and lock the terminal into a top sliver. The observer fires when
     //   the browser actually lays out the new size and self-heals that case.
-    var containerFitTimer = null;
     var containerEl = document.getElementById('terminal-container');
     /**
-     * Re-sync after container relayout. Two hazards:
-     * 1. xterm's DOM renderer self-manages which buffer lines are visible, so
-     *    the native scrollTop of .xterm-viewport must stay 0. When the soft
-     *    keyboard resizes the page, ArkWeb scrolls the focused helper textarea
-     *    into view and leaves that native scrollTop at a large offset — xterm
-     *    never learns about it, and the whole grid gets displaced (content
-     *    pinned to the top edge, blank below). Reset it before re-anchoring.
-     * 2. The renderer's refresh is async, so scrollToBottom is re-run on
-     *    0/120/400ms ticks and the last write wins once xterm settles.
+     * The ONLY compensation needed. ArkWeb scrolls the focused helper
+     * textarea into view when the soft keyboard resizes the page, silently
+     * leaving .xterm-viewport's native scrollTop at a large offset. xterm's
+     * renderer keeps that scrollTop at 0 and manages the visible rows itself,
+     * so any foreign offset displaces the whole grid (content pinned to the
+     * top edge, blank below). Revert the offset the moment it appears — no
+     * scroll API calls, so the user's scroll position is never touched.
      */
-    function resyncTerminalScroll() {
+    function resetForeignViewportScroll() {
       var vp = terminalContainer ? terminalContainer.querySelector('.xterm-viewport') : null;
       if (vp && vp.scrollTop !== 0) {
         vp.scrollTop = 0;
       }
-      if (term) {
-        term.scrollToBottom();
+    }
+    function guardViewportScroll() {
+      var vp = terminalContainer ? terminalContainer.querySelector('.xterm-viewport') : null;
+      if (vp) {
+        vp.addEventListener('scroll', resetForeignViewportScroll);
       }
+    }
+    /**
+     * Fit to the container. xterm's own resize anchors the view correctly:
+     * it keeps the cursor line visible when the user is following the prompt,
+     * and holds the scrollback position when they are reading history. Any
+     * extra scrollToLine/scrollToBottom here fights that anchoring — pinning
+     * the old top line pushes the cursor out of the viewport (the visible
+     * "jump up, then snap back" flash). The only compensation needed is
+     * reverting the foreign native scroll ArkWeb leaves behind.
+     */
+    function fitPreservingScroll() {
+      fitAddon.fit();
+      resetForeignViewportScroll();
     }
     function scheduleContainerFit() {
       if (!fitAddon) return;
-      if (containerFitTimer) clearTimeout(containerFitTimer);
-      containerFitTimer = setTimeout(function() {
-        containerFitTimer = null;
-        try {
-          fitAddon.fit();
-          resyncTerminalScroll();
-          setTimeout(resyncTerminalScroll, 120);
-          setTimeout(resyncTerminalScroll, 400);
-        } catch(e) {
-          console.warn('fitAddon.fit() failed:', e);
-        }
-      }, 150);
+      // Immediate: the observer delivers the FINAL container size in the same
+      // layout tick it changes, so fitting here costs one bridge-free render
+      // and the stale-size frame (old grid clipped into the new container,
+      // visible for ~260ms with the native debounced path) never exists. The
+      // native onAreaChange path stays as a fallback; its late duplicate fit
+      // is a no-op when the size did not change.
+      try {
+        fitPreservingScroll();
+      } catch(e) {
+        console.warn('fitAddon.fit() failed:', e);
+      }
     }
     if (window.ResizeObserver && containerEl) {
       var containerObserver = new ResizeObserver(scheduleContainerFit);
