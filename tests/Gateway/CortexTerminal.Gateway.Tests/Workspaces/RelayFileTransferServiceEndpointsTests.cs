@@ -73,7 +73,10 @@ public sealed class RelayFileTransferServiceEndpointsTests
 
         var init = await service.CreateUploadAsync("test-user", ws.Id, "", "a.txt", 3, "aa", CancellationToken.None);
 
-        var token = init.Endpoints[0].Url[(init.Endpoints[0].Url.IndexOf("token=") + "token=".Length)..];
+        var url = init.Endpoints[0].Url;
+        var tokenStart = url.IndexOf("token=") + "token=".Length;
+        var tokenEnd = url.IndexOf('&', tokenStart);
+        var token = tokenEnd < 0 ? url[tokenStart..] : url[tokenStart..tokenEnd];
         var transferId = init.TransferId;
         CortexTerminal.Contracts.Streaming.RelayToken
             .TryValidate(SharedSecret, token, RelayToken.AudienceTransfer, transferId, out _)
