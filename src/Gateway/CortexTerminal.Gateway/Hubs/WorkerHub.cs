@@ -134,14 +134,24 @@ public sealed class WorkerHub(
 
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
-        // Find and unregister the worker that belonged to this connection
+        // Find and unregister the worker that belonged to this connection.
+        // 条件注销：worker 可能在旧连接的断连事件到达前已经用新连接重新注册
+        // （WS 抖动重连），此时不得删掉新连接的注册。
         var worker = workers.FindByConnectionId(Context.ConnectionId);
         if (worker is not null)
         {
             var workerId = worker.WorkerId;
             var connectionId = Context.ConnectionId;
 
-            workers.Unregister(workerId);
+            if (!workers.Unregister(workerId, connectionId))
+            {
+                logger.LogInformation(
+                    "Worker {WorkerId} disconnected on stale connection {ConnectionId}; current registration kept.",
+                    workerId, connectionId);
+                await base.OnDisconnectedAsync(exception);
+                return;
+            }
+
             logger.LogInformation("Worker {WorkerId} disconnected (connection {ConnectionId}).", workerId, connectionId);
 
             // Mark the worker's sessions Recovering (worker link is down). There is NO timer

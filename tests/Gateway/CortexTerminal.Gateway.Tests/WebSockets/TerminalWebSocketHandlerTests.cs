@@ -117,7 +117,7 @@ public sealed class TerminalWebSocketHandlerTests
         created.IsSuccess.Should().BeTrue();
 
         // 会话创建后 worker 掉线（网关注销 = 离线，与 WorkerHub.OnDisconnectedAsync 同语义）。
-        workers.Unregister("worker-ws-off");
+        workers.Unregister("worker-ws-off", "worker-connection-off");
 
         var handler = new TerminalWebSocketHandler(
             sessions,

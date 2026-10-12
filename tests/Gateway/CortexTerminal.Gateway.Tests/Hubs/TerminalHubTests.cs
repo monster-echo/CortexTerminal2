@@ -36,8 +36,11 @@ public sealed class TerminalHubTests
     {
         var registry = TestSessionFactory.CreateWorkerRegistry();
         registry.Register("w-1", "conn-abc");
-        registry.Unregister("w-1");
+        // 旧连接的迟到断连事件不得删掉新连接的注册。
+        registry.Unregister("w-1", "conn-stale").Should().BeFalse();
+        registry.TryGetLeastBusy(out _).Should().BeTrue();
 
+        registry.Unregister("w-1", "conn-abc").Should().BeTrue();
         registry.TryGetLeastBusy(out _).Should().BeFalse();
     }
 

@@ -5,7 +5,12 @@ namespace CortexTerminal.Gateway.Workers;
 public interface IWorkerRegistry
 {
     void Register(string workerId, string connectionId, string? ownerUserId = null);
-    void Unregister(string workerId);
+    /// <summary>
+    /// 注销 worker，但仅当当前注册的连接仍是 <paramref name="connectionId"/> 时才生效。
+    /// 返回是否真的移除了。旧连接迟到的断连事件不得删掉新连接的注册
+    /// （WS 抖动时 OnConnected/OnDisconnected 到达顺序不保证）。
+    /// </summary>
+    bool Unregister(string workerId, string connectionId);
     bool TryGetLeastBusy(out RegisteredWorker worker);
     bool TryGetLeastBusyForUser(string userId, out RegisteredWorker worker);
     bool TryGetWorker(string workerId, out RegisteredWorker worker);

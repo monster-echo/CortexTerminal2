@@ -45,8 +45,16 @@ public sealed class PostgresWorkerRegistry : IWorkerRegistry
         }, $"Register:{workerId}");
     }
 
-    public void Unregister(string workerId)
+    public bool Unregister(string workerId, string connectionId)
     {
+        // 条件注销：仅当注册表里的当前连接就是断掉的这条时才移除。
+        // 场景：WS 抖动时旧连接 A 的 OnDisconnected 迟到，此刻注册表里已是
+        // 重连后的 B —— 无脑按 workerId 删会把 B 也删掉，worker 永久离线。
+        if (!_workers.TryGetValue(workerId, out var current) || current.ConnectionId != connectionId)
+        {
+            return false;
+        }
+
         _workers.TryRemove(workerId, out _);
         _metrics.TryRemove(workerId, out _);
 
@@ -59,6 +67,7 @@ public sealed class PostgresWorkerRegistry : IWorkerRegistry
                 existing.LastSeenAtUtc = DateTimeOffset.UtcNow;
             }
         }, $"Unregister:{workerId}");
+        return true;
     }
 
     public void UpdateMetrics(string workerId, WorkerMetrics? metrics)

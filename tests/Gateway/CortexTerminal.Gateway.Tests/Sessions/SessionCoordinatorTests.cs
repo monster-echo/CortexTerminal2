@@ -101,7 +101,7 @@ public sealed class SessionCoordinatorTests
         public void Register(string workerId, string connectionId, string? ownerUserId = null)
             => throw new NotSupportedException();
 
-        public void Unregister(string workerId)
+        public bool Unregister(string workerId, string connectionId)
             => throw new NotSupportedException();
 
         public bool TryGetLeastBusy(out RegisteredWorker worker)
@@ -158,8 +158,8 @@ public sealed class SessionCoordinatorTests
         public void Register(string workerId, string connectionId, string? ownerUserId = null)
             => _inner.Register(workerId, connectionId, ownerUserId);
 
-        public void Unregister(string workerId)
-            => _inner.Unregister(workerId);
+        public bool Unregister(string workerId, string connectionId)
+            => _inner.Unregister(workerId, connectionId);
 
         public bool TryGetLeastBusy(out RegisteredWorker worker)
             => _inner.TryGetLeastBusy(out worker);
