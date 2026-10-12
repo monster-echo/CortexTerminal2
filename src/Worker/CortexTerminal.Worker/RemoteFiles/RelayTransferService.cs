@@ -556,17 +556,14 @@ public sealed class RelayTransferService(long maxTransferBytes, ILogger<RelayTra
         var tmpPath = targetPath + ".downloading";
         try
         {
-            using var socket = new System.Net.WebSockets.ClientWebSocket();
-            var uri = RelayUri.BuildWebSocketUri(
+            // Relay 会替我们握住客户端请求最长 ClientWaitSeconds(90s)。拨号走带重试
+            // 的预算助手：跨网首连可能经历一次 ~30s 的丢包黑洞（SYN 重传），一次
+            // 失败不代表端点不可达——预算内重试，配对完成后字节立即流出。
+            using var socket = await RelayProtocolIo.ConnectWithRetryAsync(
                 command.RelayUrl,
                 $"transfer/{command.TransferId}/worker",
-                new KeyValuePair<string, string>("token", command.Token));
-            using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            // Relay 会替我们握住客户端请求最长 ClientWaitSeconds(90s)，拨号预算必须
-            // 覆盖跨网首连的真实耗时（实测部署后首次拨号 30-40s）——30s 会掐死本可
-            // 成功的配对，客户端只能收到永久的零字节等待。
-            connectCts.CancelAfter(TimeSpan.FromSeconds(75));
-            await socket.ConnectAsync(uri, connectCts.Token);
+                new KeyValuePair<string, string>("token", command.Token),
+                TimeSpan.FromSeconds(75), ct);
 
             await RelayProtocolIo.WaitStartAsync(socket, ct);
 
@@ -630,14 +627,11 @@ public sealed class RelayTransferService(long maxTransferBytes, ILogger<RelayTra
         await _slots.WaitAsync();
         try
         {
-            using var socket = new System.Net.WebSockets.ClientWebSocket();
-            var uri = RelayUri.BuildWebSocketUri(
+            using var socket = await RelayProtocolIo.ConnectWithRetryAsync(
                 command.RelayUrl,
                 $"transfer/{command.TransferId}/worker",
-                new KeyValuePair<string, string>("token", command.Token));
-            using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            connectCts.CancelAfter(TimeSpan.FromSeconds(75));
-            await socket.ConnectAsync(uri, connectCts.Token);
+                new KeyValuePair<string, string>("token", command.Token),
+                TimeSpan.FromSeconds(75), ct);
 
             await RelayProtocolIo.WaitStartAsync(socket, ct);
             await RelayProtocolIo.SendControlAsync(socket,
@@ -725,6 +719,47 @@ public static class RelayProtocolIo
 
     private static async Task<RelayFrame?> ReadFrameAsync(System.Net.WebSockets.WebSocket socket, CancellationToken ct)
         => await ReadFrameAsync(socket, new byte[RelayProtocol.DataChunkSize], ct);
+
+    /// <summary>
+    /// 带重试的 relay WS 拨号：单次尝试 30s 上限（覆盖跨网首连的 SYN 黑洞典型时长），
+    /// 失败退避 1s→2s→4s…（上限 5s）再拨，总预算 75s。其间 relay 一直替客户端握着
+    /// 请求，拨号成功后字节立即流出——重试不浪费，只会把一次瞬态网络抖动吸收掉。
+    /// </summary>
+    public static async Task<System.Net.WebSockets.WebSocket> ConnectWithRetryAsync(
+        string relayUrl,
+        string relativePath,
+        KeyValuePair<string, string> token,
+        TimeSpan budget,
+        CancellationToken ct)
+    {
+        var uri = RelayUri.BuildWebSocketUri(relayUrl, relativePath, token);
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        deadline.CancelAfter(budget);
+        var backoff = TimeSpan.FromSeconds(1);
+        while (true)
+        {
+            var socket = new System.Net.WebSockets.ClientWebSocket();
+            try
+            {
+                using var attemptCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                attemptCts.CancelAfter(TimeSpan.FromSeconds(30));
+                attemptCts.Token.Register(() => deadline.CancelAfter(TimeSpan.Zero));
+                await socket.ConnectAsync(uri, attemptCts.Token);
+                return socket;
+            }
+            catch (Exception ex) when (!ct.IsCancellationRequested && !deadline.IsCancellationRequested)
+            {
+                socket.Dispose();
+                var wasAttemptTimeout = ex is OperationCanceledException;
+                if (!wasAttemptTimeout)
+                {
+                    // 连接被拒/清错等硬错误：短暂退避后仍重试一次（DNS 抖动也表现为它）
+                }
+                await Task.Delay(backoff, deadline.Token);
+                backoff = TimeSpan.FromMilliseconds(Math.Min(backoff.TotalMilliseconds * 2, 5000));
+            }
+        }
+    }
 
     private static async Task<RelayFrame?> ReadFrameAsync(System.Net.WebSockets.WebSocket socket, byte[] buffer, CancellationToken ct)
     {
