@@ -35,8 +35,10 @@ public sealed class RelayFileTransferServiceEndpointsTests
     }
 
     [Fact]
-    public async Task CreateUpload_OrdersEndpoints_LanThenPublicThenRelay()
+    public async Task CreateUpload_LanEndpointsNoLongerAdvertised_PublicThenRelay()
     {
+        // 产品决策：LAN 直连端点不再下发——手机与 worker 不同网段时必然超时，
+        // 串行等待只会拖慢协商；P2P 打洞改走 workerId rendezvous。
         var (service, _, workspaces) = NewService(
             "http://192.168.1.10:47631, http://192.168.1.11:47631",
             publicBaseUrl: "https://worker.corterm.test");
@@ -45,8 +47,8 @@ public sealed class RelayFileTransferServiceEndpointsTests
         var init = await service.CreateUploadAsync("test-user", ws.Id, "", "a.txt", 3, "aa", CancellationToken.None);
 
         init.Endpoints.Select(e => e.Kind).Should().Equal(
-            [TransferEndpoint.KindLan, TransferEndpoint.KindLan, TransferEndpoint.KindPublic, TransferEndpoint.KindRelay]);
-        init.Endpoints[0].Url.Should().StartWith("http://192.168.1.10:47631/transfer/");
+            [TransferEndpoint.KindPublic, TransferEndpoint.KindRelay]);
+        init.Endpoints[0].Url.Should().StartWith("https://worker.corterm.test/transfer/");
         init.Endpoints.Should().OnlyContain(e => e.Url.Contains("token="));
     }
 

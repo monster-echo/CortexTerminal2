@@ -60,4 +60,70 @@ public sealed class PunchRendezvousTests
 
         fresh.Ready.Should().BeFalse(); // 旧条目已过期，重新等待 worker 上报
     }
+
+    // ── Worker 锚点（key=workerId，常驻续约） ──────────────────────
+
+    [Fact]
+    public void Anchor_ClientBeforeWorker_NotReadyAndNoEntryCreated()
+    {
+        var rendezvous = new PunchRendezvous(new FixedTime(Start));
+
+        var result = rendezvous.RegisterAnchorClient("worker-1", "198.51.100.9:6000", "tid-1", "tok-1");
+
+        // worker 锚点不存在：客户端立即回落 Relay，且不留下空条目
+        result.HasClient.Should().BeFalse();
+        result.Client.Should().BeNull();
+    }
+
+    [Fact]
+    public void Anchor_WorkerThenClient_ClientReceivesWorkerEndpoint()
+    {
+        var clock = new FixedTime(Start);
+        var rendezvous = new PunchRendezvous(clock);
+
+        var anchor = rendezvous.RegisterAnchor("worker-1", "203.0.113.1:5000");
+        anchor.HasClient.Should().BeFalse();
+
+        var client = rendezvous.RegisterAnchorClient("worker-1", "198.51.100.9:6000", "tid-1", "tok-1");
+        client.HasClient.Should().BeTrue();
+        client.Client!.Endpoint.Should().Be("203.0.113.1:5000");
+
+        // worker 下一次续约取走客户端信封（端点 + transferId + relayToken）
+        var refresh = rendezvous.RegisterAnchor("worker-1", "203.0.113.1:5000");
+        refresh.HasClient.Should().BeTrue();
+        refresh.Client!.Endpoint.Should().Be("198.51.100.9:6000");
+        refresh.TransferId.Should().Be("tid-1");
+        refresh.RelayToken.Should().Be("tok-1");
+    }
+
+    [Fact]
+    public void Anchor_ClientEnvelope_StaleAfterFreshnessWindow()
+    {
+        var clock = new FixedTime(Start);
+        var rendezvous = new PunchRendezvous(clock);
+        rendezvous.RegisterAnchor("worker-1", "203.0.113.1:5000");
+        rendezvous.RegisterAnchorClient("worker-1", "198.51.100.9:6000", "tid-1", "tok-1");
+
+        // 客户端注册超 freshness 窗口仍未被 worker 取走 → 信封作废，
+        // 但 worker 锚点本身随续约继续有效
+        clock.Now = Start.AddSeconds(PunchRendezvous.AnchorClientFreshSeconds + 1);
+        var refresh = rendezvous.RegisterAnchor("worker-1", "203.0.113.1:5000");
+
+        refresh.HasClient.Should().BeFalse();
+        refresh.TransferId.Should().BeNull();
+    }
+
+    [Fact]
+    public void Anchor_WithoutWorkerRefresh_EntryExpiresAndClientStartsClean()
+    {
+        var clock = new FixedTime(Start);
+        var rendezvous = new PunchRendezvous(clock);
+        rendezvous.RegisterAnchor("worker-1", "203.0.113.1:5000");
+        rendezvous.RegisterAnchorClient("worker-1", "198.51.100.9:6000", "tid-1", "tok-1");
+
+        clock.Now = Start.AddSeconds(PunchRendezvous.AnchorTtlSeconds + 1);
+        var client = rendezvous.RegisterAnchorClient("worker-1", "198.51.100.9:6000", "tid-2", "tok-2");
+
+        client.HasClient.Should().BeFalse(); // 锚点断连过期：客户端立即回落 Relay
+    }
 }

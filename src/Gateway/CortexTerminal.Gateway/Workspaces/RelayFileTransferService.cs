@@ -336,19 +336,13 @@ public sealed class RelayFileTransferService(
     }
 
     /// <summary>
-    /// 端点协商（P2P 优先，按可达概率排序）：同网段 LAN 直连 → 公网直连 → Relay 兜底。
-    /// 客户端按顺序尝试，全部失败视为传输失败。
+    /// 端点协商：直连通道已按产品决策移除——LAN 依赖同网段，手机场景基本不可达，
+    /// 串行超时反而拖死协商（每跳 8s+ 后才落到可用端点）。只下发 公网直连（worker
+    /// 配置了公网可达地址时）与 Relay 兜底；P2P 打洞走独立的 workerId rendezvous。
     /// </summary>
     private List<TransferEndpoint> EndpointsFor(RegisteredWorker worker, string transferId, string token)
     {
         var endpoints = new List<TransferEndpoint>();
-        var lan = worker.LanEndpoints ?? Array.Empty<string>();
-        foreach (var baseUrl in lan)
-        {
-            if (string.IsNullOrWhiteSpace(baseUrl)) continue;
-            endpoints.Add(new TransferEndpoint(
-                $"{baseUrl.TrimEnd('/')}/transfer/{transferId}?token={Uri.EscapeDataString(token)}", TransferEndpoint.KindLan));
-        }
         if (!string.IsNullOrWhiteSpace(worker.PublicTransferBaseUrl))
         {
             endpoints.Add(new TransferEndpoint(

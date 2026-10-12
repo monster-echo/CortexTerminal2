@@ -3727,6 +3727,94 @@ app.MapPost("/api/transfers/{transferId}/punch", (
     return Results.Ok(new { ready = result.Ready, peerEndpoint = result.Peer?.Endpoint, expiresAtUtc = result.ExpiresAtUtc });
 }).RequireAuthorization();
 
+// ---- P2P 打洞中介 · worker 常驻锚点（worker online 即续约注册，传输前零等待）----
+// worker 角色：X-Corterm-Worker-Relay-Token（AudienceWorkerRelay, sub=workerId）证明
+// 身份，每 2s 续约自己的 STUN 映射端点；客户端角色：JWT + worker 在线且归属校验，
+// 登记 STUN 端点并留下 transferId+relayToken 信封——worker 下一次续约取走信封后
+// 直接对客户端端点打洞，加密密钥仍由两端各自用 (relayToken, transferId) 派生，
+// 信封经 HTTPS+JWT 送达，UDP 面不出现明文密钥。
+app.MapPost("/api/p2p/workers/{workerId}/punch", (
+    string workerId,
+    PunchRegisterRequest body,
+    HttpContext ctx,
+    RelayOptions relayOptions,
+    PunchRendezvous rendezvous,
+    IWorkerRegistry workers,
+    ILogger<Program> logger) =>
+{
+    var workerRelayToken = ctx.Request.Headers["X-Corterm-Worker-Relay-Token"].FirstOrDefault() ?? string.Empty;
+    if (body.Role == PunchRole.Worker)
+    {
+        if (!CortexTerminal.Contracts.Streaming.RelayToken.TryValidate(
+                relayOptions.SharedSecret, workerRelayToken, RelayToken.AudienceWorkerRelay, workerId, out _))
+        {
+            return Results.Unauthorized();
+        }
+        WorkerAnchorResult result;
+        try
+        {
+            result = rendezvous.RegisterAnchor(workerId, body.Endpoint);
+        }
+        catch (ArgumentException ex)
+        {
+            return Results.BadRequest(new { error = ex.Message });
+        }
+        return Results.Ok(new
+        {
+            ready = result.HasClient,
+            peerEndpoint = result.Client?.Endpoint,
+            transferId = result.TransferId,
+            relayToken = result.RelayToken,
+            expiresAtUtc = result.ExpiresAtUtc
+        });
+    }
+
+    if (body.Role != PunchRole.Client)
+    {
+        return Results.BadRequest(new { error = "role must be worker or client" });
+    }
+    // 客户端角色：JWT 已由认证中间件解析；worker 必须在线且属于该用户。
+    if (ctx.User.Identity?.IsAuthenticated != true)
+    {
+        return Results.Unauthorized();
+    }
+    var userId = GetUserId(ctx.User);
+    if (!workers.TryGetWorker(workerId, out var worker)
+        || (worker.OwnerUserId is not null && worker.OwnerUserId != userId)
+        || string.IsNullOrEmpty(worker.ConnectionId))
+    {
+        return Results.NotFound(new { error = "Worker not found" });
+    }
+    if (string.IsNullOrWhiteSpace(body.TransferId) || string.IsNullOrWhiteSpace(body.RelayToken))
+    {
+        return Results.BadRequest(new { error = "transferId and relayToken are required" });
+    }
+    if (!CortexTerminal.Contracts.Streaming.RelayToken.TryValidate(
+            relayOptions.SharedSecret, body.RelayToken, RelayToken.AudienceTransfer, body.TransferId, out _))
+    {
+        return Results.Unauthorized();
+    }
+    WorkerAnchorResult clientResult;
+    try
+    {
+        clientResult = rendezvous.RegisterAnchorClient(workerId, body.Endpoint, body.TransferId, body.RelayToken);
+    }
+    catch (ArgumentException ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+    logger.LogInformation(
+        "P2P anchor: client attached to worker {WorkerId} (workerEndpointReady={Ready}).",
+        workerId, clientResult.HasClient);
+    return Results.Ok(new
+    {
+        ready = clientResult.HasClient,
+        peerEndpoint = clientResult.Client?.Endpoint,
+        anchorOnline = rendezvous.HasLiveAnchor(workerId),
+        expiresAtUtc = clientResult.ExpiresAtUtc
+    });
+});
+
 // ---- Agent activity ----
 app.MapGet("/api/sessions/{sessionId}/agent-events", async (
     string sessionId,
@@ -4056,7 +4144,7 @@ internal sealed class LatestVersionCache
 
 public sealed record FeedbackUploadRequest(string Filename);
 
-public sealed record PunchRegisterRequest(string Role, string Endpoint);
+public sealed record PunchRegisterRequest(string Role, string Endpoint, string? TransferId = null, string? RelayToken = null);
 
 public sealed record CreateFileUploadRequest(string DirPath, string Filename, long SizeBytes, string Sha256);
 
