@@ -55,6 +55,23 @@ export class TerminalCache {
   init(filesDir: string): void {
     if (this.filesDir === '') {
       this.filesDir = filesDir
+      this.ensureDir()
+    }
+  }
+
+  /**
+   * openSync(CREATE) does not create missing parent directories — without
+   * this every write fails ENOENT (silently caught by callers) and the cache
+   * never persists, forcing a snapshot+full-replay paint on every page open.
+   */
+  private ensureDir(): void {
+    const dir = `${this.filesDir}/${CACHE_SUBDIR}`
+    try {
+      if (!fs.accessSync(dir)) {
+        fs.mkdirSync(dir, true)
+      }
+    } catch (e) {
+      console.warn('TerminalCache ensureDir failed: ' + (e as Error).message)
     }
   }
 
@@ -99,6 +116,7 @@ export class TerminalCache {
    * via setCursor only when the server announced a sequence for this stream.
    */
   replaceAll(sessionId: string, packed: string): void {
+    this.ensureDir()
     const file = this.binPath(sessionId)
     const handle = fs.openSync(file, fs.OpenMode.WRITE_ONLY | fs.OpenMode.TRUNC | fs.OpenMode.CREATE)
     try {
@@ -115,6 +133,7 @@ export class TerminalCache {
    * stay exactly in step with what is on screen.
    */
   commitDelta(sessionId: string, deltaPacked: string, lastSeq: number): void {
+    this.ensureDir()
     const file = this.binPath(sessionId)
     let content = ''
     if (fs.accessSync(file)) {

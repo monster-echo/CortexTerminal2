@@ -17,6 +17,7 @@ import { TerminalStateManager } from '../service/TerminalStateManager'
 import { TerminalTransport } from '../service/TerminalTransport'
 import { TransportFrame } from '../model/TerminalTransportModels'
 import { TerminalState } from '../model/TerminalState'
+import { ReplayBuffer } from '../model/ReplayBuffer'
 import { XtermWebview } from './XtermWebview'
 import { VirtualKeyBar } from './VirtualKeyBar'
 import { TunnelPanel } from './TunnelPanel'
@@ -176,10 +177,10 @@ export struct TerminalPage {
   private webviewReady: boolean = false
   private terminalLive: boolean = false
   private initialFitDone: boolean = false
-  private isReplaying: boolean = false
-  private pendingSwap: boolean = false
-  private deltaMode: boolean = false
-  private deltaPacked: string[] = []
+  // Output pipeline state machine (batching / full replay swap / delta).
+  // Callbacks are wired in aboutToAppear; the decision logic itself lives in
+  // ReplayBuffer so it stays unit-testable — see ReplayBuffer.test.ets.
+  private replay: ReplayBuffer = new ReplayBuffer()
   private replaySinceSeq: number = 0
   @State private terminalMenuVisible: boolean = false
   @State private menuX: number = 0
@@ -195,19 +196,16 @@ export struct TerminalPage {
   @State private overlayH: number = 0
   private menuAnchorX: number = 0
   private menuAnchorY: number = 0
-  private pendingBatch: string[] = []
-  private flushScheduled: boolean = false
   private connectTimer: number = -1
   private exitTimer: number = -1
   private resizeDebounceTimer: number = -1
   private pageVisible: boolean = true
   // Scrollback snapshot (serialize → device file, keyed by SESSION): a session
-  // restores only its own history; a NEW session starts blank. hasRestoredSnapshot
-  // marks a page whose painted content came from the snapshot: the server's
-  // authoritative full replay must not swap it away (for a re-opened dead session
-  // the snapshot already contains it).
+  // restores only its own history; a NEW session starts blank. The page tells
+  // ReplayBuffer when the painted content came from a snapshot, so the swap
+  // decision can tell an empty restart-shell replay (keep the snapshot) from
+  // an authoritative one (replace, never append below it).
   private snapshotKey: string = ''
-  private hasRestoredSnapshot: boolean = false
   private snapshotIdleTimer: number = -1
 
   private applyStatusBar(_forceWhite: boolean): void {
@@ -250,6 +248,8 @@ export struct TerminalPage {
     }
     TerminalCache.getInstance().init(getContext(this).filesDir)
     this.replaySinceSeq = TerminalCache.getInstance().loadLastSeq(this.sessionId)
+    this.wireReplayPipeline()
+    this.replay.setDeltaBase(this.replaySinceSeq)
     this.stateManager.onStateChanged = (state: TerminalState) => {
       this.currentState = state
     }
@@ -290,6 +290,42 @@ export struct TerminalPage {
 
   onAppBackground() {
     this.captureSnapshot()
+  }
+
+  /**
+   * Route ReplayBuffer's decisions to the webview, the cache and the snapshot
+   * scheduler. Cache failures are logged, never thrown — the cache is a paint
+   * optimization, never a source of truth.
+   */
+  private wireReplayPipeline() {
+    this.replay.isReady = (): boolean => this.webviewReady
+    this.replay.resetScreen = (): void => this.runResetTerminal()
+    this.replay.writePacked = (packed: string): void => this.writePackedToWebview(packed)
+    this.replay.onPainted = (): void => this.scheduleSnapshotSave()
+    this.replay.commitDelta = (packed: string, lastSeq: number): void => {
+      try {
+        TerminalCache.getInstance().commitDelta(this.sessionId, packed, lastSeq)
+      } catch (e) {
+        console.error('Failed to commit terminal cache delta: ' + (e as Error).message)
+      }
+    }
+    this.replay.replaceCache = (packed: string): void => {
+      try {
+        TerminalCache.getInstance().replaceAll(this.sessionId, packed)
+      } catch (e) {
+        console.error('Failed to rewrite terminal cache: ' + (e as Error).message)
+      }
+    }
+    this.replay.clearCache = (): void => {
+      try {
+        TerminalCache.getInstance().clear(this.sessionId)
+      } catch (e) {
+        console.error('Failed to clear terminal cache: ' + (e as Error).message)
+      }
+    }
+    this.replay.scheduleFlush = (fn: () => void): void => {
+      setTimeout(fn, 16)
+    }
   }
 
   onTerminalColorModeChange() {
@@ -619,13 +655,13 @@ export struct TerminalPage {
 
     switch (frame.type) {
       case 'output':
-        this.writeOutput(frame.payload)
+        this.replay.onOutput(frame.payload)
         break
 
       case 'replay':
         // Buffer replay chunks without rendering; flushed in one write on
         // replayCompleted so the screen doesn't visibly redraw top-to-bottom.
-        this.pendingBatch.push(frame.payload)
+        this.replay.onReplayChunk(frame.payload)
         break
 
       case 'replaying':
@@ -634,10 +670,7 @@ export struct TerminalPage {
         // the terminal for the seconds the replay takes to stream. Keep the
         // locally cached screen painted, buffer the fresh chunks, and swap
         // atomically on replayCompleted (reset + single write + cache rewrite).
-        this.isReplaying = true
-        this.pendingBatch = []
-        this.flushScheduled = false
-        this.pendingSwap = true
+        this.replay.onReplaying()
         this.stateManager.setState(TerminalState.Replaying)
         break
 
@@ -645,36 +678,23 @@ export struct TerminalPage {
         // The authoritative replay is fully buffered: swap it onto the screen
         // atomically (reset + single write) and rewrite the local cache from
         // the same bytes, so disk and screen can never disagree.
-        this.isReplaying = false
-        this.pendingSwap = true
-        this.flushPendingOutput()
+        this.replay.onReplayCompleted()
         break
 
       case 'replayDeltaStart':
         // Incremental reattach: the cached screen continues seamlessly — no
         // reset, no swap. Delta chunks paint as they arrive and the cursor
         // advances when the server confirms completion.
-        this.isReplaying = true
-        this.deltaMode = true
-        this.deltaPacked = []
+        this.replay.onDeltaStart()
         this.stateManager.setState(TerminalState.Replaying)
         break
 
       case 'replayDelta':
-        this.deltaPacked.push(frame.payload)
-        this.writeOutput(frame.payload)
+        this.replay.onDeltaChunk(frame.payload)
         break
 
       case 'replayDeltaCompleted':
-        this.isReplaying = false
-        this.deltaMode = false
-        try {
-          TerminalCache.getInstance().commitDelta(this.sessionId, this.deltaPacked.join('|'), frame.lastSeq)
-        } catch (e) {
-          console.error('Failed to commit terminal cache delta: ' + (e as Error).message)
-        }
-        this.deltaPacked = []
-        this.flushPendingOutput()
+        this.replay.onDeltaCompleted(frame.lastSeq)
         break
 
       case 'live':
@@ -718,28 +738,6 @@ export struct TerminalPage {
     }
   }
 
-  private writeOutput(payload: string) {
-    // Live output is painted only — it is never written to the cache. The
-    // cache holds exclusively server-confirmed streams (full replays + applied
-    // deltas), so its cursor can never claim bytes the server will resend.
-    this.pendingBatch.push(payload)
-    if (this.webviewReady && !this.flushScheduled) {
-      this.flushScheduled = true
-      setTimeout(() => { this.flushBatch() }, 16)
-    }
-  }
-
-  private flushBatch() {
-    this.flushScheduled = false
-    if (this.pendingBatch.length === 0) {
-      return
-    }
-    const packed = this.pendingBatch.join('|')
-    this.pendingBatch = []
-    this.writePackedToWebview(packed)
-    this.scheduleSnapshotSave()
-  }
-
   private writePackedToWebview(packed: string) {
     try {
       this.webviewController.runJavaScript(`writeBatchedOutput("${packed}")`)
@@ -769,8 +767,9 @@ export struct TerminalPage {
    *      delta replay continues seamlessly from its cursor), or
    *   2. the worker snapshot (no cache → first entry or a NEW session on the
    *      same worker — full 64k-line history; live output appends below it).
-   * The server replay reconciles afterwards; swapReplayedScreen() keeps the
-   * snapshot-painted screen when the two would only duplicate each other.
+   * The server replay reconciles afterwards; ReplayBuffer's swap keeps the
+   * snapshot only when the authoritative replay is empty (restart-shell) and
+   * replaces the screen otherwise, so the two can never duplicate each other.
    */
   private paintOnReady() {
     let entry = new TerminalCacheEntry()
@@ -829,12 +828,11 @@ export struct TerminalPage {
         this.webviewController.runJavaScript(`restoreSnapshotChunk("${escaped}")`)
           .catch((e: Error) => console.warn('Failed to restore snapshot chunk: ' + e.message))
       }
-      this.hasRestoredSnapshot = true
+      this.replay.setSnapshotRestored(true)
       // Divider goes in IMMEDIATELY after the restored history (runJavaScript is
       // FIFO, so it lands before the replay/live output that follows) — writing
       // it later at swap time would race the live stream and interleave mid-line.
-      this.writeReconnectDivider()
-    } catch (e) {
+      this.writeReconnectDivider()} catch (e) {
       console.error('Failed to restore terminal snapshot: ' + (e as Error).message)
       showToast(I18n.get('terminal.snapshot.load_failed'))
     }
@@ -1026,59 +1024,6 @@ export struct TerminalPage {
     console.error('Terminal text export failed: ' + message)
   }
 
-  private flushPendingOutput() {
-    if (this.isReplaying) {
-      return
-    }
-    if (!this.webviewReady) {
-      return
-    }
-    if (this.pendingSwap) {
-      this.swapReplayedScreen()
-      return
-    }
-    if (this.pendingBatch.length === 0) {
-      return
-    }
-    this.flushBatch()
-  }
-
-  /**
-   * Atomically replace the screen with the authoritative replay: the reset
-   * wipes the locally cached paint (stale by definition), then the full replay
-   * goes in as one write. The cache file is rewritten from the same bytes.
-   */
-  private swapReplayedScreen() {
-    this.pendingSwap = false
-    if (this.hasRestoredSnapshot) {
-      // The snapshot already paints everything this replay could contain —
-      // for a NEW session the authoritative replay is empty, and for a
-      // re-opened session it duplicates the snapshot's tail. Resetting here
-      // would destroy the concatenated history for nothing. pendingBatch may
-      // still hold LIVE output that arrived during the replay window (e.g.
-      // the fresh shell banner) — flush it BELOW the restored history, after
-      // the reconnect divider that marks where the previous terminal ended.
-      console.info('[snapshot] skip reset+replay swap (snapshot restored)')
-      this.pendingSwap = false
-      this.flushBatch()
-      return
-    }
-    this.runResetTerminal()
-    if (this.pendingBatch.length === 0) {
-      // Empty authoritative replay — the cached screen must not outlive it.
-      TerminalCache.getInstance().clear(this.sessionId)
-      return
-    }
-    const packed = this.pendingBatch.join('|')
-    this.pendingBatch = []
-    this.flushScheduled = false
-    this.writePackedToWebview(packed)
-    // A legacy full replay carries no sequence — drop the cursor so the next
-    // open falls back to a full replay instead of trusting a stale one.
-    TerminalCache.getInstance().replaceAll(this.sessionId, packed)
-    TerminalCache.getInstance().clearCursor(this.sessionId)
-  }
-
   /** Dim separator between the previous terminal's output and the fresh one. */
   private writeReconnectDivider() {
     const divider = I18n.get('terminal.reconnect_divider')
@@ -1101,9 +1046,9 @@ export struct TerminalPage {
     }
     this.initialFitDone = true
     this.fitAndResize().then(() => {
-      this.flushPendingOutput()
+      this.replay.flushWhenReady()
     }).catch(() => {
-      this.flushPendingOutput()
+      this.replay.flushWhenReady()
     })
   }
 
