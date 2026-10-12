@@ -40,6 +40,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get paste => '粘贴';
 
   @override
+  String get done => '完成';
+
+  @override
   String get save => '保存';
 
   @override
@@ -805,6 +808,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get workspaceNameHint => '例如：我的服务器';
+
+  @override
+  String get workspaceNameAlreadyExists => '这台电脑上已经有同名工作区，请换一个名称。';
 
   @override
   String get workspaceRootLabel => '根路径';

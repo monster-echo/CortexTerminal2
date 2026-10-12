@@ -26,6 +26,7 @@ import 'package:corterm_mobile/features/tunnels/data/tunnel_repository.dart';
 import 'package:corterm_mobile/features/workspaces/data/workspace_providers.dart';
 import 'package:corterm_mobile/core/models/workspace.dart';
 import 'package:corterm_mobile/features/session/session_controller.dart';
+import 'package:corterm_mobile/shared/widgets/corterm_ui.dart';
 
 import 'package:corterm_mobile/features/membership/data/membership_repository.dart';
 import 'package:corterm_mobile/features/profile/data/profile_repository.dart';
@@ -48,6 +49,17 @@ class _IntegrationApi implements ApiClient {
   @override
   Future<List<dynamic>> getList(String path) async {
     if (path == '/api/billing/plans') return [];
+    if (path == '/api/workspaces') {
+      return [
+        {
+          'id': 'ws1',
+          'workerId': 'w1',
+          'name': 'CortexTerminal2',
+          'rootPath': '/Users/tester/Projects/CortexTerminal2',
+          'isDefault': false,
+        },
+      ];
+    }
     throw StateError('Unexpected integration API request: $path');
   }
 
@@ -209,6 +221,41 @@ void main() {
     expect(find.text('创建工作区'), findsWidgets);
     // query 预选的电脑名渲染出来。
     expect(find.text('Mac mini'), findsOneWidget);
+  });
+
+  testWidgets('创建工作区：同一台电脑的重复名称在请求前给出提示', (tester) async {
+    await sharedPreferences.setString('workspace.last_worker', 'w1');
+    await sharedPreferences.setString(
+      'workspace.last_folder.w1',
+      './CortexTerminal2',
+    );
+    final (t, router) = await pump(tester);
+    router.go('/workspaces/new?workerId=w1');
+    await settle(t);
+    expect(
+      t.widget<TextField>(find.byType(TextField)).controller!.text,
+      'CortexTerminal2',
+    );
+    expect(
+      t.widget<PrimaryButton>(find.byType(PrimaryButton)).onPressed,
+      isNotNull,
+    );
+
+    await t.tap(find.byType(PrimaryButton));
+    await settle(t);
+    expect(find.text('这台电脑上已经有同名工作区，请换一个名称。'), findsOneWidget);
+    expect(
+      t.widget<PrimaryButton>(find.byType(PrimaryButton)).onPressed,
+      isNull,
+    );
+    await t.enterText(find.byType(TextField), 'CortexTerminal2-copy');
+    await settle(t);
+    expect(find.text('这台电脑上已经有同名工作区，请换一个名称。'), findsNothing);
+    expect(
+      t.widget<PrimaryButton>(find.byType(PrimaryButton)).onPressed,
+      isNotNull,
+    );
+    expect(t.takeException(), isNull);
   });
 
   testWidgets('工作区详情 → 新建会话流（锁定）', (tester) async {

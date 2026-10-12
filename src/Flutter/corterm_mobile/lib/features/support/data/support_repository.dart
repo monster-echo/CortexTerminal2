@@ -2,34 +2,25 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/api_client.dart';
 
-/// 客服群组（QQ 群带号码，Telegram 群带链接）。
+/// 客服群组（带链接与二维码）。
 class SupportGroup {
   SupportGroup({
     required this.name,
-    this.number,
-    this.url,
+    required this.url,
     required this.qrCodeUrl,
   });
 
   final String name;
-  final String? number;
-  final String? url;
+  final String url;
   final String qrCodeUrl;
 }
 
 /// 客服信息（对齐 Gateway GET /api/support/info，AllowAnonymous）。
+/// 唯一客服渠道是飞书，QQ/Telegram 字段不再解析。
 class SupportInfo {
-  SupportInfo({
-    this.qqGroup,
-    this.telegramGroup,
-    this.feishuGroup,
-    required this.email,
-  });
+  SupportInfo({this.feishuGroup});
 
-  final SupportGroup? qqGroup;
-  final SupportGroup? telegramGroup;
   final SupportGroup? feishuGroup;
-  final String email;
 }
 
 class SupportRepository {
@@ -39,20 +30,14 @@ class SupportRepository {
 
   Future<SupportInfo> get() async {
     final json = await _client.getMap('/api/support/info');
-    return SupportInfo(
-      qqGroup: _parseGroup(json['qqGroup']),
-      telegramGroup: _parseGroup(json['telegramGroup']),
-      feishuGroup: _parseGroup(json['feishuGroup']),
-      email: json['email'] as String? ?? '',
-    );
+    return SupportInfo(feishuGroup: _parseGroup(json['feishuGroup']));
   }
 
   SupportGroup? _parseGroup(Object? raw) {
     if (raw is! Map<String, dynamic>) return null;
     return SupportGroup(
       name: raw['name'] as String? ?? '',
-      number: raw['number'] as String?,
-      url: raw['url'] as String?,
+      url: raw['url'] as String? ?? '',
       qrCodeUrl: raw['qrCodeUrl'] as String? ?? '',
     );
   }

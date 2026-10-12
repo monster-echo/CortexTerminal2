@@ -668,7 +668,14 @@ class SessionController extends StateNotifier<SessionState> {
     var payload = seq;
     // latch：消费时不自动取消（对齐 ArkTS VirtualKeyBar）。
     if (state.ctrlArmed) {
-      payload = _applyCtrl(seq);
+      payload = switch (seq) {
+        '\x1b' => '\x03', // Ctrl+Esc maps to Ctrl+C in ArkTS.
+        '\x1b[A' => '\x1b[1;5A',
+        '\x1b[B' => '\x1b[1;5B',
+        '\x1b[C' => '\x1b[1;5C',
+        '\x1b[D' => '\x1b[1;5D',
+        _ => _applyCtrl(seq),
+      };
       if (payload.isEmpty) return;
     }
     if (state.altArmed) {

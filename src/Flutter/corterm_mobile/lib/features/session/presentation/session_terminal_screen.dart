@@ -474,12 +474,35 @@ class _SessionTerminalScreenState extends ConsumerState<SessionTerminalScreen> {
                         TerminalKeyboardToolbar(
                           enabled: entry.canInput,
                           ctrlArmed: ws.ctrlArmed,
+                          altArmed: ws.altArmed,
                           onKey: (seq) => ref
                               .read(sessionControllerProvider.notifier)
                               .sendKey(seq),
                           onCtrlToggle: (armed) => ref
                               .read(sessionControllerProvider.notifier)
                               .setCtrlArmed(armed),
+                          onAltToggle: (armed) => ref
+                              .read(sessionControllerProvider.notifier)
+                              .setAltArmed(armed),
+                          onPaste: () async {
+                            if (!entry.canInput) return;
+                            final clipboard = await Clipboard.getData(
+                              Clipboard.kTextPlain,
+                            );
+                            final text = clipboard?.text;
+                            if (text != null && text.isNotEmpty) {
+                              if (ws.ctrlArmed || ws.altArmed) {
+                                ref
+                                    .read(sessionControllerProvider.notifier)
+                                    .sendKey(text);
+                              } else {
+                                // Terminal.paste honors xterm bracketed-paste mode.
+                                entry.terminal.paste(text);
+                              }
+                            }
+                          },
+                          onDone: () => FocusManager.instance.primaryFocus
+                              ?.unfocus(disposition: UnfocusDisposition.scope),
                         ),
                     ],
                   ),

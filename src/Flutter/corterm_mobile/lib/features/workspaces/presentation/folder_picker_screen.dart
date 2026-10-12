@@ -37,7 +37,9 @@ class _FolderPickerScreenState extends ConsumerState<FolderPickerScreen> {
     super.initState();
     final remembered = ref
         .read(sharedPreferencesProvider)
-        .getString('workspace.last_folder.${widget.workerId}');
+        .getString(
+          '${ref.read(workspaceMemoryPrefixProvider)}.last_folder.${widget.workerId}',
+        );
     if (remembered != null &&
         (remembered == '.' || remembered.startsWith('./'))) {
       _rel = remembered == '.' ? '' : remembered.substring(2);
@@ -104,6 +106,31 @@ class _FolderPickerScreenState extends ConsumerState<FolderPickerScreen> {
   void _toStart() {
     _root = '.';
     _open('');
+  }
+
+  /// 面包屑段：当前根（绝对路径时逐级展开）与相对路径的每一级，点击回到该级。
+  List<(String, VoidCallback)> _crumbs() {
+    final crumbs = <(String, VoidCallback)>[];
+    void addRelSegments(String rel) {
+      final parts = rel.split('/').where((s) => s.isNotEmpty).toList();
+      for (var i = 0; i < parts.length; i++) {
+        final target = parts.sublist(0, i + 1).join('/');
+        crumbs.add((parts[i], () => _open(target)));
+      }
+    }
+
+    if (_root != '.') {
+      final parts = _root.split('/').where((s) => s.isNotEmpty).toList();
+      for (var i = 0; i < parts.length; i++) {
+        final target = '/${parts.sublist(0, i + 1).join('/')}';
+        crumbs.add((parts[i], () {
+          _root = target;
+          _open('');
+        }));
+      }
+    }
+    addRelSegments(_rel);
+    return crumbs;
   }
 
   bool get _canUp => _rel.isNotEmpty || (_root != '.' && _root != '/');
@@ -353,17 +380,21 @@ class _FolderPickerScreenState extends ConsumerState<FolderPickerScreen> {
                   icon: const Icon(Icons.home_outlined, size: 16),
                   label: Text(l10n.folderStart),
                 ),
-                if (_absolute != '.') ...[
+                // 面包屑：每一段都可点回该级目录（对齐 ArkTS NewWorkspaceFlow）。
+                for (final (label, onTap) in _crumbs()) ...[
                   Icon(
                     Icons.chevron_right,
                     size: 14,
                     color: colors.textSecondary,
                   ),
-                  TextButton(
-                    onPressed: _jumpPath,
-                    child: Text(_absolute, maxLines: 1),
-                  ),
+                  TextButton(onPressed: onTap, child: Text(label, maxLines: 1)),
                 ],
+                if (_absolute != '.')
+                  IconButton(
+                    tooltip: l10n.jump,
+                    icon: const Icon(Icons.edit_outlined, size: 16),
+                    onPressed: _jumpPath,
+                  ),
               ],
             ),
           ),

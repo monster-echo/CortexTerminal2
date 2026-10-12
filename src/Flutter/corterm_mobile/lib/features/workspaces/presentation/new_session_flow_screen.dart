@@ -83,12 +83,13 @@ class _NewSessionFlowScreenState extends ConsumerState<NewSessionFlowScreen> {
   Widget build(BuildContext context) {
     final colors = colorsOf(context);
     final l10n = AppLocalizations.of(context)!;
-    final workspaces =
-        ref.watch(workspacesProvider).asData?.value ?? const <Workspace>[];
+    final workspacesAsync = ref.watch(workspacesProvider);
+    final workspaces = workspacesAsync.asData?.value ?? const <Workspace>[];
     final selectedWorkspace = workspaces
         .where((w) => w.workspaceId == _workspaceId)
         .firstOrNull;
-    final workers = ref.watch(workersProvider).asData?.value ?? const [];
+    final workersAsync = ref.watch(workersProvider);
+    final workers = workersAsync.asData?.value ?? const [];
     final isLocked = widget.lockWorkspaceId != null;
     final selectedWorkerId = selectedWorkspace?.workerId ?? _workerId;
     final availableWorkspaces =
@@ -109,7 +110,29 @@ class _NewSessionFlowScreenState extends ConsumerState<NewSessionFlowScreen> {
         padding: const EdgeInsets.only(bottom: 16),
         children: [
           SectionHeader(l10n.computersTitle),
-          if (isLocked && selectedWorkspace != null)
+          if (workersAsync.isLoading)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (workersAsync.hasError)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${workersAsync.error}',
+                    style: TextStyle(fontSize: 14, color: colors.danger),
+                  ),
+                  TextButton(
+                    onPressed: () => ref.invalidate(workersProvider),
+                    child: Text(l10n.retry),
+                  ),
+                ],
+              ),
+            )
+          else if (isLocked && selectedWorkspace != null)
             ListRow(
               title:
                   workers
@@ -118,6 +141,11 @@ class _NewSessionFlowScreenState extends ConsumerState<NewSessionFlowScreen> {
                       .firstOrNull ??
                   selectedWorkspace.workerId,
               leading: const Icon(Icons.computer),
+            )
+          else if (workers.where((w) => w.isOnline).isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              child: EmptyState(icon: Icons.computer_outlined, message: l10n.noWorkers),
             )
           else
             for (final w
@@ -165,6 +193,29 @@ class _NewSessionFlowScreenState extends ConsumerState<NewSessionFlowScreen> {
               subtitle: selectedWorkspace.rootPath,
               leading: const Icon(Icons.folder),
             )
+          else if (selectedWorkerId != null &&
+              workspacesAsync.isLoading)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (selectedWorkerId != null && workspacesAsync.hasError)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${workspacesAsync.error}',
+                    style: TextStyle(fontSize: 14, color: colors.danger),
+                  ),
+                  TextButton(
+                    onPressed: () => ref.invalidate(workspacesProvider),
+                    child: Text(l10n.retry),
+                  ),
+                ],
+              ),
+            )
           else if (selectedWorkerId != null) ...[
             for (final ws in availableWorkspaces)
               ListRow(
@@ -210,7 +261,7 @@ class _NewSessionFlowScreenState extends ConsumerState<NewSessionFlowScreen> {
       bottomNavigationBar: SafeArea(
         minimum: const EdgeInsets.fromLTRB(16, 8, 16, 16),
         child: PrimaryButton(
-          label: l10n.createSession,
+          label: _creating ? l10n.loading : l10n.createSession,
           onPressed: selectedWorkspace == null || _creating
               ? null
               : () => _create(selectedWorkspace),

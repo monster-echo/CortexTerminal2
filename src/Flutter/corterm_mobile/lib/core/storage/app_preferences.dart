@@ -4,7 +4,16 @@ import 'package:flutter/material.dart' show ThemeMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../auth/auth_controller.dart';
+import '../config/app_config.dart';
 import '../models/terminal_color_scheme.dart';
+
+/// 工作区记忆 key 前缀：含网关与账号，切换账号/网关不串记忆（对齐 ArkTS memoryKey）。
+final workspaceMemoryPrefixProvider = Provider<String>((ref) {
+  final gateway = ref.watch(appConfigProvider);
+  final username = ref.watch(authProvider).username;
+  return 'workspace.${Uri.encodeComponent(gateway)}.${Uri.encodeComponent(username ?? '')}';
+});
 
 /// SharedPreferences 实例，main() 启动时 override 注入。
 final sharedPreferencesProvider = Provider<SharedPreferences>(

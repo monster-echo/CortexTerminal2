@@ -88,8 +88,7 @@ class FakeProfileRepo implements ProfileRepository {
 class FakeSupportRepo implements SupportRepository {
   @override
   Future<SupportInfo> get() async => SupportInfo(
-        email: 'support@example.com',
-        qqGroup: SupportGroup(name: 'QQ', number: '123', qrCodeUrl: ''),
+        feishuGroup: SupportGroup(name: '飞书群', url: '', qrCodeUrl: ''),
       );
 
   @override

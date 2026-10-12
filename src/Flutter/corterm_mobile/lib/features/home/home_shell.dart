@@ -66,11 +66,6 @@ class _HomeShellState extends ConsumerState<HomeShell> {
                     ),
                     onPressed: () => context.push('/workspaces/new'),
                   ),
-                  IconButton(
-                    tooltip: l10n.newSession,
-                    icon: Icon(Icons.add, color: c.textPrimary),
-                    onPressed: () => context.push('/sessions/new'),
-                  ),
                 ],
               ),
             ),
@@ -417,7 +412,7 @@ class _UngroupedCard extends StatelessWidget {
 }
 
 /// 侧边栏（design/01 §4）：顶部 Corterm + 🔍；工作区最多 5 个、首个默认展开；
-/// 底部 + 新建（新建 Session）与用户头像。
+/// 工作区列表、电脑入口与用户头像；工作区内承载 Session 创建入口。
 class CortermSidebar extends ConsumerStatefulWidget {
   const CortermSidebar({super.key});
 
@@ -546,12 +541,6 @@ class _CortermSidebarState extends ConsumerState<CortermSidebar> {
                           onOpenSession: (sessionId) {
                             Navigator.of(context).pop();
                             context.push('/sessions/$sessionId');
-                          },
-                          onCreateSession: () {
-                            Navigator.of(context).pop();
-                            context.push(
-                              '/sessions/new?workspaceId=${ws.workspaceId}',
-                            );
                           },
                           onToggle: () {
                             final next = ws.workspaceId == expanded
@@ -685,7 +674,6 @@ class _SidebarWorkspace extends ConsumerWidget {
     required this.expanded,
     required this.onOpen,
     required this.onOpenSession,
-    required this.onCreateSession,
     required this.onToggle,
   });
 
@@ -693,7 +681,6 @@ class _SidebarWorkspace extends ConsumerWidget {
   final bool expanded;
   final VoidCallback onOpen;
   final ValueChanged<String> onOpenSession;
-  final VoidCallback onCreateSession;
   final VoidCallback onToggle;
 
   @override
@@ -815,32 +802,6 @@ class _SidebarWorkspace extends ConsumerWidget {
                                   ),
                                 ),
                               ),
-                            InkWell(
-                              onTap: onCreateSession,
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 7,
-                                ),
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      Icons.add,
-                                      size: 16,
-                                      color: c.textSecondary,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      l10n.newSession,
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        color: c.textSecondary,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
                           ],
                         ),
                 )

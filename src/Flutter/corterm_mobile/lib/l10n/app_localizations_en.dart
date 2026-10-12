@@ -40,6 +40,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get paste => 'Paste';
 
   @override
+  String get done => 'Done';
+
+  @override
   String get save => 'Save';
 
   @override
@@ -822,6 +825,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get workspaceNameHint => 'e.g. My server';
+
+  @override
+  String get workspaceNameAlreadyExists =>
+      'A workspace with this name already exists on this computer. Choose another name.';
 
   @override
   String get workspaceRootLabel => 'Root path';

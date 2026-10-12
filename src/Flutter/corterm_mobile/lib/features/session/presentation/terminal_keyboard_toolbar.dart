@@ -2,65 +2,68 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../app/theme/corterm_theme.dart';
+import '../../../l10n/app_localizations.dart';
 
-/// 键盘辅助工具栏（design/04 §3）：仅在系统键盘弹出时显示。
-/// Ctrl 为粘性 latch（吸合期间软键盘字母变控制字符，由 controller 负责）。
+/// Matches ArkTS VirtualKeyBar: Esc, sticky modifiers, Tab variants, arrows,
+/// Paste, and a fixed Done button while the system keyboard is visible.
 class TerminalKeyboardToolbar extends StatelessWidget {
   const TerminalKeyboardToolbar({
     super.key,
     required this.enabled,
     required this.ctrlArmed,
+    required this.altArmed,
     required this.onKey,
     required this.onCtrlToggle,
+    required this.onAltToggle,
+    required this.onPaste,
+    required this.onDone,
   });
 
-  /// 仅 live（附着完成）时可用，防止输入落入未附着的会话。
   final bool enabled;
-
-  /// CTRL 粘性吸合态。
   final bool ctrlArmed;
-
-  /// 直接发送按键序列 / 字符（如 '\x1b'、'\t'、'|'、'/'、'\x1b[A'）。
+  final bool altArmed;
   final void Function(String seq) onKey;
-
-  /// 切换 CTRL 吸合。
   final void Function(bool armed) onCtrlToggle;
+  final void Function(bool armed) onAltToggle;
+  final VoidCallback onPaste;
+  final VoidCallback onDone;
 
-  static const height = 42.0;
+  static const height = 44.0;
 
   @override
   Widget build(BuildContext context) {
     final colors = colorsOf(context);
+    final l10n = AppLocalizations.of(context)!;
 
-    Widget key(String label, VoidCallback onTap, {bool active = false}) =>
+    Widget key(String label, VoidCallback action, {bool active = false}) =>
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 3),
+          padding: const EdgeInsets.symmetric(horizontal: 2),
           child: Material(
-            color: active
-                ? colors.accent.withValues(alpha: 0.22)
-                : colors.surfaceElevated,
+            color: active ? colors.surfaceSelected : colors.surfaceElevated,
             borderRadius: BorderRadius.circular(8),
             child: InkWell(
               onTap: enabled
                   ? () {
                       HapticFeedback.selectionClick();
-                      onTap();
+                      action();
                     }
                   : null,
               borderRadius: BorderRadius.circular(8),
               child: Container(
-                height: 34,
+                constraints: const BoxConstraints(minWidth: 36),
+                height: 36,
                 alignment: Alignment.center,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
                 child: Text(
                   label,
                   style: TextStyle(
-                    fontSize: 13,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
                     color: !enabled
                         ? colors.textSecondary.withValues(alpha: 0.4)
                         : active
-                            ? colors.accent
-                            : colors.textPrimary,
+                        ? colors.accent
+                        : colors.textPrimary,
                   ),
                 ),
               ),
@@ -74,22 +77,61 @@ class TerminalKeyboardToolbar extends StatelessWidget {
         color: colors.surface,
         border: Border(top: BorderSide(color: colors.divider)),
       ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 6),
-        child: Row(
-          children: [
-            key('Ctrl', () => onCtrlToggle(!ctrlArmed), active: ctrlArmed),
-            key('Esc', () => onKey('\x1b')),
-            key('Tab', () => onKey('\t')),
-            key('|', () => onKey('|')),
-            key('/', () => onKey('/')),
-            key('↑', () => onKey('\x1b[A')),
-            key('↓', () => onKey('\x1b[B')),
-            key('←', () => onKey('\x1b[D')),
-            key('→', () => onKey('\x1b[C')),
-          ],
-        ),
+      child: Row(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              child: Row(
+                children: [
+                  key('Esc', () => onKey('\x1b')),
+                  key(
+                    'Ctrl',
+                    () => onCtrlToggle(!ctrlArmed),
+                    active: ctrlArmed,
+                  ),
+                  key('Alt', () => onAltToggle(!altArmed), active: altArmed),
+                  key('Tab', () => onKey('\t')),
+                  key('S-Tab', () => onKey('\x1b[Z')),
+                  key('←', () => onKey('\x1b[D')),
+                  key('↑', () => onKey('\x1b[A')),
+                  key('↓', () => onKey('\x1b[B')),
+                  key('→', () => onKey('\x1b[C')),
+                  key(l10n.paste, onPaste),
+                ],
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(left: 2, right: 4),
+            child: Material(
+              color: colors.emphasis,
+              borderRadius: BorderRadius.circular(8),
+              child: InkWell(
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  onDone();
+                },
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  constraints: const BoxConstraints(minWidth: 52),
+                  height: 36,
+                  alignment: Alignment.center,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Text(
+                    l10n.done,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: colors.onEmphasis,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

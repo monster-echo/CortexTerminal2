@@ -158,6 +158,12 @@ abstract class AppLocalizations {
   /// **'Paste'**
   String get paste;
 
+  /// No description provided for @done.
+  ///
+  /// In en, this message translates to:
+  /// **'Done'**
+  String get done;
+
   /// No description provided for @save.
   ///
   /// In en, this message translates to:
@@ -1621,6 +1627,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'e.g. My server'**
   String get workspaceNameHint;
+
+  /// No description provided for @workspaceNameAlreadyExists.
+  ///
+  /// In en, this message translates to:
+  /// **'A workspace with this name already exists on this computer. Choose another name.'**
+  String get workspaceNameAlreadyExists;
 
   /// No description provided for @workspaceRootLabel.
   ///

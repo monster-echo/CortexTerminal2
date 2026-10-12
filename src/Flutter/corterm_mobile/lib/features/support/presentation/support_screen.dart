@@ -45,24 +45,20 @@ class SupportScreen extends ConsumerWidget {
                 title: data.feishuGroup!.name.isNotEmpty
                     ? data.feishuGroup!.name
                     : l10n.feishuGroup,
-                subtitle: data.feishuGroup!.url ?? '',
+                subtitle: data.feishuGroup!.url,
                 qrCodeUrl: data.feishuGroup!.qrCodeUrl,
-                onCopy:
-                    data.feishuGroup!.url == null ||
-                        data.feishuGroup!.url!.isEmpty
+                onCopy: data.feishuGroup!.url.isEmpty
                     ? null
                     : () {
                         Clipboard.setData(
-                          ClipboardData(text: data.feishuGroup!.url!),
+                          ClipboardData(text: data.feishuGroup!.url),
                         );
                         showAppToast(context, l10n.copied);
                       },
-                onOpen:
-                    data.feishuGroup!.url == null ||
-                        data.feishuGroup!.url!.isEmpty
+                onOpen: data.feishuGroup!.url.isEmpty
                     ? null
                     : () => launchUrl(
-                        Uri.parse(data.feishuGroup!.url!),
+                        Uri.parse(data.feishuGroup!.url),
                         mode: LaunchMode.externalApplication,
                       ),
               ),

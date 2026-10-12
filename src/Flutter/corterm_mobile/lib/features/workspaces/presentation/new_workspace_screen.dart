@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../app/theme/corterm_theme.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../../core/api/api_exception.dart';
 import '../../../core/storage/app_preferences.dart';
 import '../../../core/models/worker.dart';
 import '../../../shared/widgets/corterm_ui.dart';
@@ -24,9 +25,13 @@ class _NewWorkspaceScreenState extends ConsumerState<NewWorkspaceScreen> {
   String? _folder;
   bool _nameAutoFilled = false;
   bool _creating = false;
+  bool _duplicateName = false;
   String? _error;
   bool _queryRead = false;
   bool _returnResult = false;
+  // 恢复自偏好（而非路由预选）的电脑：加载到列表后需校验在线，离线则清空。
+  bool _restoredLastWorker = false;
+  bool _restoreChecked = false;
 
   final _nameController = TextEditingController();
 
@@ -40,10 +45,14 @@ class _NewWorkspaceScreenState extends ConsumerState<NewWorkspaceScreen> {
       final params = GoRouterState.of(context).uri.queryParameters;
       final preselect = params['workerId'];
       if (preselect != null && preselect.isNotEmpty) _workerId = preselect;
+      final prefix = ref.read(workspaceMemoryPrefixProvider);
       final prefs = ref.read(sharedPreferencesProvider);
-      _workerId ??= prefs.getString('workspace.last_worker');
+      if (_workerId == null) {
+        _workerId = prefs.getString('$prefix.last_worker');
+        _restoredLastWorker = _workerId != null;
+      }
       if (_workerId != null) {
-        _folder = prefs.getString('workspace.last_folder.$_workerId');
+        _folder = prefs.getString('$prefix.last_folder.$_workerId');
       }
       if (_folder != null) {
         _nameController.text = _folder == '.'
@@ -67,9 +76,13 @@ class _NewWorkspaceScreenState extends ConsumerState<NewWorkspaceScreen> {
     if (selected == null || !mounted) return;
     setState(() {
       _workerId = selected.workerId;
+      _error = null;
+      _duplicateName = false;
       _folder = ref
           .read(sharedPreferencesProvider)
-          .getString('workspace.last_folder.$_workerId');
+          .getString(
+            '${ref.read(workspaceMemoryPrefixProvider)}.last_folder.$_workerId',
+          );
       if (_nameAutoFilled) {
         _nameController.text = _folder == '.'
             ? AppLocalizations.of(context)!.homeFolder
@@ -77,7 +90,10 @@ class _NewWorkspaceScreenState extends ConsumerState<NewWorkspaceScreen> {
       }
       ref
           .read(sharedPreferencesProvider)
-          .setString('workspace.last_worker', _workerId!);
+          .setString(
+            '${ref.read(workspaceMemoryPrefixProvider)}.last_worker',
+            _workerId!,
+          );
     });
   }
 
@@ -88,10 +104,15 @@ class _NewWorkspaceScreenState extends ConsumerState<NewWorkspaceScreen> {
     if (folder == null || !mounted) return;
     await ref
         .read(sharedPreferencesProvider)
-        .setString('workspace.last_folder.$_workerId', folder);
+        .setString(
+          '${ref.read(workspaceMemoryPrefixProvider)}.last_folder.$_workerId',
+          folder,
+        );
     if (!mounted) return;
     setState(() {
       _folder = folder;
+      _error = null;
+      _duplicateName = false;
       // 名称默认取文件夹 basename，用户可改（只在第一次带入时自动填）。
       if (_nameController.text.isEmpty || _nameAutoFilled) {
         _nameController.text = folder == '.'
@@ -110,21 +131,37 @@ class _NewWorkspaceScreenState extends ConsumerState<NewWorkspaceScreen> {
         _nameController.text.trim().isEmpty) {
       return;
     }
+    final l10n = AppLocalizations.of(context)!;
     setState(() {
       _creating = true;
       _error = null;
     });
     try {
+      final name = _nameController.text.trim();
+      final existing = await ref.read(workspaceRepositoryProvider).list();
+      final duplicate = existing.any(
+        (workspace) =>
+            workspace.workerId == _workerId &&
+            workspace.name.trim().toLowerCase() == name.toLowerCase(),
+      );
+      if (duplicate) {
+        if (!mounted) return;
+        setState(() {
+          _error = l10n.workspaceNameAlreadyExists;
+          _duplicateName = true;
+          _creating = false;
+        });
+        return;
+      }
       await ref
           .read(sharedPreferencesProvider)
-          .setString('workspace.last_worker', _workerId!);
+          .setString(
+            '${ref.read(workspaceMemoryPrefixProvider)}.last_worker',
+            _workerId!,
+          );
       final ws = await ref
           .read(workspaceRepositoryProvider)
-          .create(
-            workerId: _workerId!,
-            name: _nameController.text,
-            rootPath: _folder!,
-          );
+          .create(workerId: _workerId!, name: name, rootPath: _folder!);
       // 新工作区不在缓存列表里，先失效；流程内调用时把结果带回调用方。
       if (mounted) {
         ref.invalidate(workspacesProvider);
@@ -137,7 +174,10 @@ class _NewWorkspaceScreenState extends ConsumerState<NewWorkspaceScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = '$e';
+        _error = e is ApiException && e.statusCode == 409
+            ? l10n.workspaceNameAlreadyExists
+            : '$e';
+        _duplicateName = e is ApiException && e.statusCode == 409;
         _creating = false;
       });
     }
@@ -148,6 +188,26 @@ class _NewWorkspaceScreenState extends ConsumerState<NewWorkspaceScreen> {
     final colors = colorsOf(context);
     final l10n = AppLocalizations.of(context)!;
     final workersAsync = ref.watch(workersProvider);
+    final workersValue = workersAsync.asData?.value;
+
+    // 恢复自偏好的上次电脑：列表就绪后校验在线，离线则清空预选（对齐 ArkTS）。
+    if (workersValue != null && _restoredLastWorker && !_restoreChecked) {
+      _restoreChecked = true;
+      final restored = workersValue
+          .where((w) => w.workerId == _workerId)
+          .firstOrNull;
+      if (restored == null || !restored.isOnline) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          setState(() {
+            _workerId = null;
+            _folder = null;
+            _nameController.clear();
+            _nameAutoFilled = false;
+          });
+        });
+      }
+    }
 
     return Scaffold(
       backgroundColor: colors.background,
@@ -172,12 +232,38 @@ class _NewWorkspaceScreenState extends ConsumerState<NewWorkspaceScreen> {
         child: switch (workersAsync) {
           AsyncLoading() => const Center(child: CircularProgressIndicator()),
           AsyncError(:final error) => Center(
-            child: Text('$error', style: TextStyle(color: colors.danger)),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Text(
+                    '$error',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: colors.danger),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: () => ref.invalidate(workersProvider),
+                  child: Text(l10n.retry),
+                ),
+              ],
+            ),
           ),
           AsyncValue(:final value) => _form(context, value ?? const []),
         },
       ),
     );
+  }
+
+  /// 文件夹行回显：主目录 / ~/相对路径 / 绝对路径（对齐 ArkTS 展示）。
+  String _folderDisplay(AppLocalizations l10n) {
+    final f = _folder;
+    if (f == null) return l10n.selectFolderTitle;
+    if (f == '.') return l10n.homeFolder;
+    if (f.startsWith('./')) return '~/${f.substring(2)}';
+    return f;
   }
 
   Widget _form(BuildContext context, List<WorkerSummary> workers) {
@@ -189,6 +275,7 @@ class _NewWorkspaceScreenState extends ConsumerState<NewWorkspaceScreen> {
         worker.isOnline &&
         _folder != null &&
         _nameController.text.trim().isNotEmpty &&
+        !_duplicateName &&
         !_creating;
 
     Widget fieldLabel(String text, {bool first = false}) => Padding(
@@ -283,9 +370,7 @@ class _NewWorkspaceScreenState extends ConsumerState<NewWorkspaceScreen> {
               ),
               fieldLabel(l10n.selectFolderTitle),
               selectionRow(
-                title: _folder == '.'
-                    ? l10n.homeFolder
-                    : _folder ?? l10n.selectFolderTitle,
+                title: _folderDisplay(l10n),
                 icon: Icons.folder_outlined,
                 onTap: worker == null ? null : _pickFolder,
               ),
@@ -294,7 +379,11 @@ class _NewWorkspaceScreenState extends ConsumerState<NewWorkspaceScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: TextField(
                   controller: _nameController,
-                  onChanged: (_) => setState(() => _nameAutoFilled = false),
+                  onChanged: (_) => setState(() {
+                    _nameAutoFilled = false;
+                    _error = null;
+                    _duplicateName = false;
+                  }),
                   decoration: InputDecoration(
                     hintText: l10n.workspaceNameLabel,
                     filled: true,
@@ -333,7 +422,7 @@ class _NewWorkspaceScreenState extends ConsumerState<NewWorkspaceScreen> {
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
           child: PrimaryButton(
-            label: l10n.workspaceCreateTitle,
+            label: _creating ? l10n.loading : l10n.workspaceCreateTitle,
             onPressed: canCreate ? _create : null,
           ),
         ),
