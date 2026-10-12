@@ -1361,6 +1361,59 @@ app.MapPost("/api/auth/password/login", async (PasswordLoginRequest request, ISe
     }
 }).AllowAnonymous();
 
+// 公开自助注册（区别于管理员专用的 /api/auth/password/register）：
+// 滑块验证码必填 + IP 失败计数防刷；用户名 3-32 位字母/数字/._-，密码 ≥8 位。
+app.MapPost("/api/auth/password/signup", async (PasswordSignupRequest request, IServiceProvider serviceProvider, HttpContext httpCtx, CaptchaService captchaService, FailedAttemptTracker attemptTracker) =>
+{
+    if (string.IsNullOrEmpty(request.Username) || string.IsNullOrEmpty(request.Password))
+        return Results.BadRequest(new { error = "Username and password are required" });
+    if (request.Username.Length < 3 || request.Username.Length > 32
+        || !request.Username.All(c => char.IsAsciiLetterOrDigit(c) || c is '.' or '_' or '-'))
+        return Results.BadRequest(new { error = "Username must be 3-32 characters (letters, digits, . _ -)" });
+    if (request.Password.Length < 8)
+        return Results.BadRequest(new { error = "Password must be at least 8 characters" });
+    if (string.IsNullOrEmpty(request.CaptchaToken) || !captchaService.ValidateToken(request.CaptchaToken))
+        return Results.Json(new { error = "CAPTCHA_REQUIRED" }, statusCode: 403);
+
+    var clientIp = httpCtx.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+    if (attemptTracker.IsCaptchaRequired(clientIp))
+    {
+        attemptTracker.RecordFailure(clientIp);
+        return Results.Json(new { error = "Too many attempts, try again later" }, statusCode: 429);
+    }
+
+    try
+    {
+        var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
+        using var scope = scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        if (await db.Users.AnyAsync(u => u.Username == request.Username)
+            || await db.UserIdentities.AnyAsync(i => i.AuthProvider == "password" && i.AuthProviderId == request.Username))
+        {
+            attemptTracker.RecordFailure(clientIp);
+            return Results.Conflict(new { error = "Username already exists" });
+        }
+
+        var dbUser = await EnsureUser(serviceProvider, request.Username, null, request.DisplayName, null, "password", request.Username);
+        if (dbUser is null) return Results.Problem("Failed to create user");
+
+        var passwordIdentity = await db.UserIdentities.FirstAsync(i => i.UserId == dbUser.Id && i.AuthProvider == "password");
+        passwordIdentity.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
+        dbUser.UpdatedAtUtc = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync();
+
+        attemptTracker.RecordSuccess(clientIp);
+        var jwt = CreateAccessToken(dbUser.Username, dbUser.Email, dbUser.Role,
+            membershipTier: dbUser.MembershipTier, membershipExpiresUtc: dbUser.MembershipExpiresAtUtc);
+        return Results.Ok(new { accessToken = jwt, username = dbUser.Username });
+    }
+    catch (InvalidOperationException)
+    {
+        return Results.Problem("Database not available");
+    }
+}).AllowAnonymous();
+
 app.MapPost("/api/auth/password/register", async (PasswordRegisterRequest request, IServiceProvider serviceProvider, ClaimsPrincipal userPrincipal) =>
 {
     var userId = GetUserId(userPrincipal);
@@ -2643,6 +2696,41 @@ app.MapPost("/api/iap/purchase/verify", async (VerifyIapPurchaseRequest body, Cl
     return Results.Ok(new { subscriptionId = sub.Id, isActive = sub.Status == SubscriptionStatuses.Active, expiresAtUtc = sub.ExpiresAtUtc });
 }).RequireAuthorization();
 
+// 华为订阅服务端通知（AGC「订阅消息通知」回调地址）：续订 / 过期 / 取消。匿名端点——信任来自
+// 服务端再用华为 IAP API 反查 purchaseToken（校验失败直接 400）。通知里的 token 若无对应订阅
+// （如老订单），返回 200 ignored 让华为停止重试。
+app.MapPost("/api/iap/webhook/huawei", async (HttpContext ctx, JsonElement body, IServiceProvider serviceProvider) =>
+{
+    string? token = null;
+    string productId = "";
+    if (body.ValueKind == JsonValueKind.Object)
+    {
+        if (body.TryGetProperty("purchaseToken", out var t) && t.ValueKind == JsonValueKind.String)
+            token = t.GetString();
+        if (body.TryGetProperty("productId", out var p) && p.ValueKind == JsonValueKind.String)
+            productId = p.GetString() ?? "";
+        else if (body.TryGetProperty("subscriptionId", out var sid) && sid.ValueKind == JsonValueKind.String)
+            productId = sid.GetString() ?? "";
+    }
+    if (string.IsNullOrWhiteSpace(token) || string.IsNullOrWhiteSpace(productId))
+        return Results.BadRequest(new { error = "purchaseToken and productId/subscriptionId are required" });
+
+    var validator = serviceProvider.GetRequiredService<IHuaweiIapValidator>();
+    HuaweiVerifiedTransaction verified;
+    try
+    {
+        verified = await validator.VerifyAsync(token, productId, ctx.RequestAborted);
+    }
+    catch (IapReceiptInvalidException ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+
+    var membership = serviceProvider.GetRequiredService<MembershipService>();
+    var handled = await membership.ApplyHuaweiSubscriptionStateAsync(verified, ctx.RequestAborted);
+    return Results.Ok(new { handled });
+}).AllowAnonymous();
+
 // Apple App Store Server Notifications V2. Apple calls this endpoint directly (no auth header we
 // can validate — the trust comes from the JWS signature on the payload itself), so it is
 // anonymous. The body is the raw signedPayload JWS string; we verify the signature inside the
@@ -3854,6 +3942,7 @@ record HuaweiQuickLoginRequest(string AuthCode, string UnionID, string OpenID);
 record AppleNativeLoginRequest(string Code);
 record PasswordLoginRequest(string Username, string Password, string? CaptchaToken);
 record PasswordRegisterRequest(string Username, string Password, string? DisplayName);
+record PasswordSignupRequest(string Username, string Password, string? DisplayName, string? CaptchaToken);
 record ChangePasswordRequest(string? CurrentPassword, string NewPassword);
 record LinkPhoneIdentityRequest(string Phone, string Code);
 record SendPhoneLinkCodeRequest(string Phone);

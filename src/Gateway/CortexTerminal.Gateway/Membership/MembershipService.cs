@@ -241,6 +241,38 @@ public sealed class MembershipService(IDbContextFactory<AppDbContext> dbFactory)
         return existing;
     }
 
+    /// <summary>
+    /// 华为订阅服务端通知（续订 / 过期 / 取消）的状态机：按 purchaseToken 找到既有订阅，
+    /// 依据华为服务器校验结果推进 Active/Expired，并刷新用户有效会员（RefreshEffectiveEntitlementAsync）。
+    /// 返回 false 表示本网关没有该 token 对应的订阅（如购买发生在客户端验证路径之外），调用方应 200 忽略。
+    /// </summary>
+    public async Task<bool> ApplyHuaweiSubscriptionStateAsync(HuaweiVerifiedTransaction verified, CancellationToken ct)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var sub = await db.Subscriptions.FirstOrDefaultAsync(
+            s => s.Source == SubscriptionSources.IapHuawei && s.PlatformTransactionId == verified.PurchaseToken, ct);
+        if (sub is null) return false;
+        var user = await db.Users.FindAsync(new object?[] { sub.UserId }, ct)
+            ?? await db.Users.FirstOrDefaultAsync(u => u.Username == sub.UserId, ct)
+            ?? throw new ArgumentException($"User not found: {sub.UserId}");
+
+        var now = DateTimeOffset.UtcNow;
+        DateTimeOffset? expires = null;
+        if (verified.ExpiresDateMs is long ms && ms > 0)
+            expires = DateTimeOffset.FromUnixTimeMilliseconds(ms);
+        var active = verified.PurchaseState == 0
+            && (verified.IsSubscriptionValid ?? true)
+            && (expires is null || expires > now);
+
+        sub.Status = active ? SubscriptionStatuses.Active : SubscriptionStatuses.Expired;
+        if (expires is not null) sub.ExpiresAtUtc = expires;
+        sub.UpdatedAtUtc = now;
+
+        await RefreshEffectiveEntitlementAsync(db, user, sub.UserId, ct);
+        await db.SaveChangesAsync(ct);
+        return true;
+    }
+
     public async Task<Subscription> GrantFromGoogleIapAsync(
         string userId, GoogleVerifiedPurchase verified, string planCode, CancellationToken ct)
     {

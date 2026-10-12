@@ -479,6 +479,17 @@ export class ApiService {
     return await ApiService.post('/api/auth/password/login', body as Object, false) as Record<string, Object>
   }
 
+  static async signupWithPassword(username: string, password: string, captchaToken: string = ''): Promise<Record<string, Object>> {
+    const body: Record<string, string> = {
+      'username': username,
+      'password': password
+    }
+    if (captchaToken.length > 0) {
+      body['captchaToken'] = captchaToken
+    }
+    return await ApiService.post('/api/auth/password/signup', body as Object, false) as Record<string, Object>
+  }
+
   static async getCaptchaChallenge(): Promise<Record<string, Object>> {
     return await ApiService.get('/api/auth/captcha/challenge', false) as Record<string, Object>
   }

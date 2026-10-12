@@ -27,6 +27,8 @@ export struct LoginPage {
   @State password: string = ''
   @State anonymousPhone: string = ''
   @State isAgreementAccepted: boolean = false
+  @State authAction: string = 'login'
+  @State pendingAction: string = 'login'
   @StorageLink('language') currentLang: string = 'en'
   @Consume('pageStack') pageStack: NavPathStack
 
@@ -106,7 +108,11 @@ export struct LoginPage {
   private captchaDialogController: CustomDialogController = new CustomDialogController({
     builder: SliderCaptchaDialog({
       onSuccess: (token: string) => {
-        this.handlePasswordLogin(token)
+        if (this.pendingAction === 'signup') {
+          this.handlePasswordSignup(token)
+        } else {
+          this.handlePasswordLogin(token)
+        }
       },
       onCancel: () => {
         this.isPasswordLoading = false
@@ -131,6 +137,10 @@ export struct LoginPage {
 
           if (this.loginMode === 'huawei') {
             this.HuaweiLoginSection()
+            Text(I18n.get('auth.login.huawei_autoregister_hint'))
+              .fontSize(12)
+              .fontColor($r('app.color.terminal_text_muted'))
+              .margin({ top: 12 })
             this.DividerSection()
             this.PasswordLoginEntry()
           } else {
@@ -416,7 +426,7 @@ export struct LoginPage {
             .height(20)
             .color($r('app.color.terminal_inverse_on_surface'))
         } else {
-          Text(I18n.get('auth.login.button'))
+          Text(I18n.get(this.authAction === 'signup' ? 'auth.login.signup_button' : 'auth.login.button'))
             .fontSize(16)
             .fontWeight(FontWeight.Medium)
             .fontColor($r('app.color.terminal_inverse_on_surface'))
@@ -431,8 +441,31 @@ export struct LoginPage {
       .opacity(this.username.length > 0 && this.password.length > 0 ? 1 : 0.5)
       .onClick(() => {
         clickHaptic()
-        this.handlePasswordLogin()
+        if (this.authAction === 'signup') {
+          this.handlePasswordSignup()
+        } else {
+          this.handlePasswordLogin()
+        }
       })
+
+      Text(this.authAction === 'signup'
+        ? I18n.get('auth.login.login_link')
+        : I18n.get('auth.login.signup_link'))
+        .fontSize(14)
+        .fontColor($r('app.color.terminal_secondary'))
+        .margin({ top: 16 })
+        .onClick(() => {
+          clickHaptic()
+          this.authAction = this.authAction === 'signup' ? 'login' : 'signup'
+          this.errorMessage = ''
+        })
+
+      if (this.authAction === 'signup') {
+        Text(I18n.get('auth.login.signup_agreement_hint'))
+          .fontSize(12)
+          .fontColor($r('app.color.terminal_text_muted'))
+          .margin({ top: 8 })
+      }
     }
     .width('100%')
     .padding({ left: 24, right: 24 })
@@ -539,10 +572,48 @@ export struct LoginPage {
       const e = err as Error
       if (e instanceof AuthError && e.kind === AuthErrorKind.CAPTCHA_REQUIRED) {
         this.isPasswordLoading = false
+        this.pendingAction = 'login'
         this.captchaDialogController.open()
         return
       }
       this.errorMessage = e.message || I18n.get('auth.login.error')
+      this.isPasswordLoading = false
+    }
+  }
+
+  private async handlePasswordSignup(captchaToken: string = '') {
+    if (captchaToken === '') {
+      if (!this.isAgreementAccepted) {
+        this.agreementDialogController.open()
+        return
+      }
+      if (this.username.length === 0 || this.password.length === 0) {
+        this.errorMessage = I18n.get('auth.login.enter_credentials')
+        return
+      }
+      if (this.password.length < 8) {
+        this.errorMessage = '密码至少 8 位'
+        return
+      }
+      this.pendingUsername = this.username
+      this.pendingPassword = this.password
+    }
+
+    this.isPasswordLoading = true
+    this.errorMessage = ''
+    try {
+      await AuthService.signupWithPassword(this.pendingUsername, this.pendingPassword, captchaToken)
+      this.isPasswordLoading = false
+      AuthService.navigateHome(this.pageStack)
+    } catch (err) {
+      const e = err as Error
+      if (e instanceof AuthError && e.kind === AuthErrorKind.CAPTCHA_REQUIRED) {
+        this.isPasswordLoading = false
+        this.pendingAction = 'signup'
+        this.captchaDialogController.open()
+        return
+      }
+      this.errorMessage = e.message || I18n.get('auth.login.signup_failed')
       this.isPasswordLoading = false
     }
   }

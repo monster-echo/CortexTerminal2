@@ -20,6 +20,11 @@ export class AuthService {
     AuthState.setSession((response['accessToken'] as string) ?? '', (response['username'] as string) ?? username)
   }
 
+  static async signupWithPassword(username: string, password: string, captchaToken: string = ''): Promise<void> {
+    const response = await ApiService.signupWithPassword(username, password, captchaToken)
+    AuthState.setSession((response['accessToken'] as string) ?? '', (response['username'] as string) ?? username)
+  }
+
   static async getCaptchaChallenge(): Promise<Record<string, Object>> {
     return await ApiService.getCaptchaChallenge()
   }
