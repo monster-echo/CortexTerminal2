@@ -11,8 +11,7 @@ namespace CortexTerminal.Worker.Agent;
 /// <c>~/.claude/settings.json</c> and writes a lightweight reporter script into the
 /// Worker install dir. Each hook execs the reporter, which forwards the raw Claude Code
 /// event payload (wrapped in the Corterm envelope) to the Worker's loopback
-/// <c>/agent-event</c> endpoint — the same wire format the old shim → cortap →
-/// HookForwarder pipeline produced.
+/// <c>/agent-event</c> endpoint.
 ///
 /// <para>
 /// Ownership is marked by the reporter command path: any hook entry whose command contains
@@ -43,6 +42,8 @@ public sealed class ClaudeHooksInstaller : IAgentIntegration
     private readonly ILogger<ClaudeHooksInstaller> _logger;
     private readonly string _installDir;
     private readonly string _shimsDir;
+    private readonly string _zdotdir;
+    private readonly string _powershellInitFile;
     private readonly string _settingsPath;
     private readonly bool _configEnabled;
     private readonly bool _isWindows;
@@ -55,6 +56,8 @@ public sealed class ClaudeHooksInstaller : IAgentIntegration
             throw new ArgumentException("Install directory must not be empty.", nameof(installDir));
         _installDir = installDir;
         _shimsDir = Path.Combine(installDir, "shims");
+        _zdotdir = Path.Combine(installDir, "zdotdir");
+        _powershellInitFile = Path.Combine(installDir, "prompt.ps1");
         _configEnabled = enabled;
         _logger = logger;
         _isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
@@ -81,20 +84,62 @@ public sealed class ClaudeHooksInstaller : IAgentIntegration
     }
 
     /// <summary>
-    /// Deletes the shim scripts this Worker version family wrote into the install dir's
-    /// shims directory (claude/codex/opencode plus their .cmd twins). Only these names are
-    /// removed — anything else in the directory is left untouched. Cheap no-op on fresh
-    /// installs; runs at every startup so upgrades from the shim era self-clean.
+    /// Deletes the leftovers of the retired shim-era agent integration from the install
+    /// dir: the shim scripts (claude/codex/opencode plus their .cmd twins — only these
+    /// names are removed, anything else in the directory is left untouched), the managed
+    /// zdotdir, and the PowerShell init file. Cheap no-op on fresh installs; runs at every
+    /// startup so upgrades from the shim era self-clean.
     /// </summary>
     public void CleanupLegacyShims()
     {
-        if (!Directory.Exists(_shimsDir)) return;
-        foreach (var name in LegacyShimNames)
+        if (Directory.Exists(_shimsDir))
         {
-            DeleteLegacyShim(Path.Combine(_shimsDir, name));
-            DeleteLegacyShim(Path.Combine(_shimsDir, name + ".cmd"));
+            foreach (var name in LegacyShimNames)
+            {
+                DeleteLegacyShim(Path.Combine(_shimsDir, name));
+                DeleteLegacyShim(Path.Combine(_shimsDir, name + ".cmd"));
+            }
+            if (Directory.EnumerateFileSystemEntries(_shimsDir).Any())
+            {
+                _logger.LogInformation("Legacy agent shims cleaned from {ShimsDir}.", _shimsDir);
+            }
+            else
+            {
+                Directory.Delete(_shimsDir);
+                _logger.LogInformation("Removed empty legacy shims dir {ShimsDir}.", _shimsDir);
+            }
         }
-        _logger.LogInformation("Legacy agent shims cleaned from {ShimsDir}.", _shimsDir);
+
+        TryDeleteLegacyDir(_zdotdir, "legacy managed zdotdir");
+        TryDeleteLegacyFile(_powershellInitFile, "legacy PowerShell init file");
+    }
+
+    private void TryDeleteLegacyDir(string path, string description)
+    {
+        try
+        {
+            if (!Directory.Exists(path)) return;
+            Directory.Delete(path, recursive: true);
+            _logger.LogInformation("Deleted {Description} at {Path}.", description, path);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to delete {Description} at {Path}; will retry next startup.", description, path);
+        }
+    }
+
+    private void TryDeleteLegacyFile(string path, string description)
+    {
+        try
+        {
+            if (!File.Exists(path)) return;
+            File.Delete(path);
+            _logger.LogInformation("Deleted {Description} at {Path}.", description, path);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to delete {Description} at {Path}; will retry next startup.", description, path);
+        }
     }
 
     private void DeleteLegacyShim(string path)

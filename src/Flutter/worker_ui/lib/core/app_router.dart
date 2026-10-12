@@ -7,12 +7,9 @@ import '../screens/agent_tools_screen.dart';
 import '../screens/auth_screen.dart';
 import '../screens/dashboard_screen.dart';
 import '../screens/doctor_screen.dart';
-import '../screens/session_detail_screen.dart';
-import '../screens/sessions_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/update_screen.dart';
 import '../widgets/app_bar.dart';
-import 'models.dart';
 
 /// 全局 navigator key：托盘侧需要 context 时使用（toast）。
 final rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -33,22 +30,6 @@ final appRouter = GoRouter(
       path: '/auth',
       builder: (context, _) =>
           _page(context, AppStrings.t(context, 'auth.title'), const AuthScreen()),
-    ),
-    GoRoute(
-      path: '/sessions',
-      builder: (context, _) =>
-          _page(context, AppStrings.t(context, 'sessions.title'), const SessionsScreen()),
-    ),
-    GoRoute(
-      path: '/sessions/detail',
-      builder: (context, state) {
-        final session = state.extra! as SessionSummary;
-        return _page(
-          context,
-          AppStrings.t(context, 'sessionDetail.title'),
-          SessionDetailScreen(session: session),
-        );
-      },
     ),
     GoRoute(
       path: '/agent-tools',

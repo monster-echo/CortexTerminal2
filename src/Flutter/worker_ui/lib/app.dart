@@ -41,7 +41,7 @@ class _CortexAppState extends State<CortexApp> {
       return;
     }
     setState(() {
-      _service = CortermService(cortermPath: paths.corterm, cortapPath: paths.cortap);
+      _service = CortermService(cortermPath: paths.corterm);
       _error = null;
     });
   }

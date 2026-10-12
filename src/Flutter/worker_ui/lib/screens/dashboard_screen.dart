@@ -328,7 +328,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WindowListener {
     );
   }
 
-  // ── 功能入口：会话 / Agent 工具 / 诊断 / 设置 / 关于 ──
+  // ── 功能入口：Agent 工具 / 诊断 / 设置 / 关于 ──
   Widget _entriesSection(BuildContext context, Status s) {
     final t = AppStrings.t;
     return Column(
@@ -336,13 +336,6 @@ class _DashboardScreenState extends State<DashboardScreen> with WindowListener {
       children: [
         AppGroupCard(
           children: [
-            AppRow(
-              icon: LucideIcons.terminal,
-              label: t(context, 'nav.sessions'),
-              chevron: true,
-              onTap: () => _go(context, '/sessions'),
-            ),
-            const Divider(height: 1),
             AppRow(
               icon: LucideIcons.cpu,
               label: t(context, 'nav.agentTools'),

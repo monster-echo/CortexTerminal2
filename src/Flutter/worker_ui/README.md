@@ -1,6 +1,6 @@
 # 云枢终端 (Corterm)
 
-本机桌面连接面板（macOS / Windows / Linux）——装在用户自己的电脑上，让手机上的云枢终端 App 可以远程访问这台电脑。用 UI 替代 `corterm`/`cortap` 命令行。
+本机桌面连接面板（macOS / Windows / Linux）——装在用户自己的电脑上，让手机上的云枢终端 App 可以远程访问这台电脑。用 UI 替代 `corterm` 命令行。
 
 ## 功能
 
@@ -8,7 +8,6 @@
 - **诊断**：`corterm doctor` 全项检查（✓/✗ + 计数）。
 - **更新**：`corterm update --check` 查最新版，一键 `update --json` 流式更新（阶段 + 重启）。
 - **认证**：设备码登录（显示链接 + 二维码 + 等待轮询）/ 登出。
-- **会话**：`cortap sessions` 列表 + 实时日志查看器（轮询 `cortap events --json`，自动滚底，可暂停）。
 - **设置**：corterm 二进制路径覆盖、主题（系统/浅/深）、语言（zh/en）。
 
 > 命名说明：对用户统一叫「云枢终端 / Corterm」，视角是"这台电脑"（此设备、我的计算机）；
@@ -16,7 +15,7 @@
 
 ## 通信方式
 
-应用通过 `Process` 调用本机 `corterm`/`cortap` 二进制，解析其 `--json` 输出。**不加** daemon 控制 API、**不走** gateway。二进制解析顺序：
+应用通过 `Process` 调用本机 `corterm` 二进制，解析其 `--json` 输出。**不加** daemon 控制 API、**不走** gateway。二进制解析顺序：
 
 1. 设置里手动指定的路径
 2. `$CORTERM_HOME` / `$CORTEX_TERMINAL_HOME`
@@ -33,7 +32,7 @@ flutter test
 flutter run -d macos        # 本机只有 macOS 桌面可验证
 ```
 
-`test/real_binary_e2e_test.dart` 用 `/tmp/corterm-test` 下发布的真实 corterm/cortap 走一遍解析（二进制缺失时自动跳过）——本地验证发布后二进制与 App 的对接。
+`test/real_binary_e2e_test.dart` 用 `/tmp/corterm-test` 下发布的真实 corterm 走一遍解析（二进制缺失时自动跳过）——本地验证发布后二进制与 App 的对接。
 
 ## 目录
 

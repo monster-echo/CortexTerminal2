@@ -1,5 +1,5 @@
 name: worker_ui
-description: "Corterm Worker 本机控制面板 — 用 UI 替代 corterm/cortap 命令行。"
+description: "Corterm Worker 本机控制面板 — 用 UI 替代 corterm 命令行。"
 publish_to: 'none'
 
 version: 0.2.0+1
@@ -51,8 +51,8 @@ flutter:
     - assets/tray_icon.png
     - assets/tray_icon.ico
     # 内置 worker 二进制（一体：装 App 即带 worker，首跑自动装到 ~/.corterm）。
-    # 必须声明目录而不是逐个文件：Windows 构建时 CI 放进来的是 corterm.exe/
-    # cortap.exe，逐文件声明会漏掉 .exe（ui-v0.1.0 的 Windows 包因此没带 worker，
+        # 必须声明目录而不是逐个文件：Windows 构建时 CI 放进来的是 corterm.exe，
+    # 逐文件声明会漏掉 .exe（ui-v0.1.0 的 Windows 包因此没带 worker，
     # App 只能撞 PATH 上的旧版 corterm 报「stdout 不是合法 JSON」）。
     - assets/bin/
 

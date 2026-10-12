@@ -11,7 +11,7 @@ import 'package:worker_ui/theme/app_theme.dart';
 /// Fake service：不跑真实进程，只喂内存数据。
 class _FakeService extends CortermService {
   _FakeService()
-      : super(cortermPath: '/tmp/fake-corterm', cortapPath: '/tmp/fake-cortap');
+      : super(cortermPath: '/tmp/fake-corterm');
 
   @override
   Future<Status> status() async => const Status(
@@ -77,7 +77,7 @@ void main() {
     for (final label in ['Theme', 'Language', 'Launch at login']) {
       expect(find.text(label), findsOneWidget, reason: '缺少偏好项 $label');
     }
-    for (final label in ['Auth', 'Agent Tools', 'Diagnostics', 'Sessions']) {
+    for (final label in ['Auth', 'Agent Tools', 'Diagnostics']) {
       expect(find.text(label), findsNothing, reason: '管理入口 $label 不应留在设置页');
     }
   });
@@ -85,7 +85,7 @@ void main() {
 
 class _FailingService extends CortermService {
   _FailingService()
-      : super(cortermPath: '/tmp/fake-corterm', cortapPath: '/tmp/fake-cortap');
+      : super(cortermPath: '/tmp/fake-corterm');
 
   @override
   Future<Status> status() async => throw CortermException('boom');

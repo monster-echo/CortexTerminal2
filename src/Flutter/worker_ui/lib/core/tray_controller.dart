@@ -51,7 +51,7 @@ class TrayController extends ChangeNotifier {
     try {
       final paths = await resolveBinaryPaths();
       if (paths == null) return;
-      service ??= CortermService(cortermPath: paths.corterm, cortapPath: paths.cortap);
+      service ??= CortermService(cortermPath: paths.corterm);
       status = await service!.status();
     } catch (_) {
       status = null;

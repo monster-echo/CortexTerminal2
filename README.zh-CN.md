@@ -48,7 +48,7 @@ graph LR
 - **会话持久化** -- 随时断开和重连，Shell 持续运行，重连时自动回放历史输出。
 - **多机管理** -- 单个 Gateway 连接和管理任意数量的远程机器。
 - **移动端支持** -- iOS / Android 原生应用，内置终端虚拟键盘、触觉反馈和自适应布局。
-- **AI Agent 追踪** -- 实时查看 Claude Code 的工作过程。`cortap` 捕获每次 prompt、工具调用和通知，Console 渲染为结构化时间线，让你能监控任意 Worker 上跑着的 agent。
+- **AI Agent 追踪** -- 实时查看 Claude Code 的工作过程。Claude Code hooks 把每次 prompt、工具调用和通知上报到 Worker，Console 渲染为结构化时间线，让你能监控任意 Worker 上跑着的 agent。
 - **文件传输** -- Console 与 Worker 之间的双向文件交换，基于 S3 兼容存储。Console 投递的文件会立即落到 shell 工作目录；写入 `$CORTERM_ARTIFACTS_DIR` 的文件会以气泡形式出现，按需下载。
 - **资源监控** -- 每个 Worker 的实时 CPU / 内存占用，加上客户端到 Worker 的延迟探测。
 - **多种登录方式** -- 密码、手机短信、GitHub OAuth、Google OAuth、Apple Sign-In。
@@ -143,65 +143,11 @@ dotnet test tests/Gateway --filter "Category=Integration"
 ## Roadmap
 
 - [x] **文件传输** -- Console 与 Worker 之间通过 S3 presigned URL 双向传输（详见下文）
-- [x] **`cortap` CLI** -- 包装 `claude` 等代理，将每个 hook 事件落本地日志并转发到 Worker（详见下文）
+- [x] **Agent 事件追踪** -- Claude Code hooks 把每次 prompt、工具调用和通知上报到 Worker 并转发给 Console（旧的 `cortap` 包装 CLI 已退役，由 hooks 注入取代）
 - [ ] **端口转发** -- 通过 Gateway 将本地端口隧道转发到远程机器
 - [ ] **结构化输出** -- 将常见命令输出（`top`、`ps`、`docker ps`）渲染为可交互的卡片
 - [ ] **多标签终端** -- 在单个浏览器标签页中打开多个会话
 - [ ] **命令片段** -- 保存并复用常用命令
-
-## cortap
-
-`cortap` 是可选的 CLI 工具，用于包装代理二进制（`claude` 等），并通过两条路径捕获 Claude Code 的每个 hook 事件：
-
-1. **Worker 模式**（在 Corterm PTY 中启动时默认开启）：事件通过 HTTP POST 上报到 Worker，再经 SignalR 转发给 Console / 移动端 UI。
-2. **独立模式**（无 Worker 可达时）：事件以 JSONL 格式写入 `~/.corterm/sessions/<sessionId>/events.jsonl`。
-
-两条路径会同时启用 —— 即使在 Worker 模式下，本地 JSONL 也会同步写入，作为审计日志和 Worker 离线时的回放数据源。
-
-### 用法
-
-```bash
-# 包装 claude —— Worker 在不在都能跑。全程静默,不影响 agent 原生 TUI;
-# 之后用 `cortap sessions` 查历史 session。
-cortap claude
-```
-
-### 子命令
-
-```bash
-# 实时跟随最近一个活跃 session（多个时列出全部让你选）
-cortap tail
-
-# 跟随指定 session
-cortap tail <sessionId>
-
-# 合并所有活跃 session，每行带 session 前缀
-cortap tail --all
-
-# 一次性输出（不跟随）
-cortap tail --no-follow
-
-# 列出所有已记录的 session
-cortap sessions
-
-# 带过滤条件查询历史事件
-cortap events --session <id> --since 1h --grep "Bash"
-cortap events --session <id> --event PostToolUse
-cortap events --last 50
-```
-
-### Session 日志布局
-
-```
-~/.corterm/sessions/
-├── <sessionId>/
-│   ├── meta.json         # sessionId、kind、cwd、startedAt、endedAt?、pid
-│   ├── events.jsonl      # 每个 hook 事件一行 JSON
-│   └── pid               # cortap 主进程 PID（正常退出时删除）
-└── ...
-```
-
-崩溃的 session（pid 文件指向已死进程且 meta.json 无 `endedAt`）会在下一次 `cortap` 启动时被检测到，并在 meta.json 中标记 `crashed: true`。
 
 ## 远程文件（文件夹管理）
 

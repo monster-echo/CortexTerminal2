@@ -24,7 +24,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\Worker\CortexTerminal.Worker\CortexTerminal.Worker.csproj" />
-    <ProjectReference Include="..\..\..\src\Worker\CortexTerminal.AgentRunner\CortexTerminal.AgentRunner.csproj" />
     <ProjectReference Include="..\..\..\src\Shared\CortexTerminal.Contracts\CortexTerminal.Contracts.csproj" />
   </ItemGroup>
 

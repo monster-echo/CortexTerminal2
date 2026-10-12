@@ -11,8 +11,6 @@ void main() {
     final paths = await resolveBinaryPaths();
     if (paths == null) return;
     expect(File(paths.corterm).existsSync(), isTrue);
-    final cortapName = Platform.isWindows ? 'cortap.exe' : 'cortap';
-    expect(paths.cortap, endsWith(cortapName));
   });
 
   test('resolveBinaryPaths does not throw when nothing found', () async {

@@ -1,6 +1,5 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using CortexTerminal.AgentRunner;
 using CortexTerminal.Worker.Agent;
 using Microsoft.Extensions.Logging;
 using Xunit;
@@ -208,44 +207,35 @@ public sealed class ClaudeHooksInstallerTests : IDisposable
     }
 
     [Fact]
+    public void CleanupLegacyShims_RemovesEmptyShimsDir_WhenNothingUserOwnedRemains()
+    {
+        var shimsDir = Path.Combine(_installDir, "shims");
+        Directory.CreateDirectory(shimsDir);
+        File.WriteAllText(Path.Combine(shimsDir, "claude"), "stale");
+
+        CreateInstaller().CleanupLegacyShims();
+
+        Assert.False(Directory.Exists(shimsDir));
+    }
+
+    [Fact]
+    public void CleanupLegacyShims_RemovesZdotdirAndPowerShellInit()
+    {
+        var zdotdir = Path.Combine(_installDir, "zdotdir");
+        Directory.CreateDirectory(zdotdir);
+        File.WriteAllText(Path.Combine(zdotdir, ".zshrc"), "stale");
+        File.WriteAllText(Path.Combine(_installDir, "prompt.ps1"), "stale");
+
+        CreateInstaller().CleanupLegacyShims();
+
+        Assert.False(Directory.Exists(zdotdir));
+        Assert.False(File.Exists(Path.Combine(_installDir, "prompt.ps1")));
+    }
+
+    [Fact]
     public void CleanupLegacyShims_IsNoOp_WhenShimsDirMissing()
     {
         CreateInstaller().CleanupLegacyShims();  // must not throw
-    }
-
-    // ── payload compatibility: reporter envelope == HookForwarder envelope ──
-
-    [Theory]
-    [InlineData("SessionStart")]
-    [InlineData("UserPromptSubmit")]
-    [InlineData("PreToolUse")]
-    [InlineData("PostToolUse")]
-    [InlineData("Notification")]
-    [InlineData("Stop")]
-    public void ReporterEnvelope_MatchesHookForwarderEnvelope(string eventType)
-    {
-        var rawPayload = """
-            {
-              "session_id": "agent-internal-id",
-              "hook_event_name": "EVENT",
-              "cwd": "/tmp/work",
-              "prompt": "hello"
-            }
-            """.Replace("EVENT", eventType);
-
-        // Reporter path: stdin wrapped by ClaudeHooksInstaller.BuildEnvelopeJson.
-        var reporterEnvelope = JsonNode.Parse(
-            ClaudeHooksInstaller.BuildEnvelopeJson(rawPayload, sessionId: "corterm-session-1", eventType: eventType))!.AsObject();
-
-        // Old path: stdin fed to cortap hook claude → HookForwarder.BuildEnvelopeJson
-        // (event_type derived from the payload's hook_event_name).
-        var forwarderEnvelope = JsonNode.Parse(
-            HookForwarder.BuildEnvelopeJson(rawPayload, sessionId: "corterm-session-1", kindName: "claude-code"))!.AsObject();
-
-        Assert.Equal(forwarderEnvelope["session_id"]!.GetValue<string>(), reporterEnvelope["session_id"]!.GetValue<string>());
-        Assert.Equal(forwarderEnvelope["agent_kind"]!.GetValue<string>(), reporterEnvelope["agent_kind"]!.GetValue<string>());
-        Assert.Equal(forwarderEnvelope["event_type"]!.GetValue<string>(), reporterEnvelope["event_type"]!.GetValue<string>());
-        Assert.True(JsonNode.DeepEquals(forwarderEnvelope["payload"], reporterEnvelope["payload"]));
     }
 
     [Fact]

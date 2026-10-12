@@ -16,7 +16,7 @@ import '../widgets/primary_button.dart';
 import '../widgets/states.dart';
 
 /// 统一更新页：应用 + Worker 一个概念。一次检查、一个按钮。
-/// 更新顺序：先 Worker（corterm + cortap 一体更新），后 UI —— UI 更新会
+/// 更新顺序：先 Worker（corterm），后 UI —— UI 更新会
 /// 重启应用，必须放在最后收尾。
 class UpdateScreen extends StatefulWidget {
   const UpdateScreen({super.key});

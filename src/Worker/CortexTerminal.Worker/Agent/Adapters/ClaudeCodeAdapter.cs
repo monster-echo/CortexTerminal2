@@ -9,9 +9,9 @@ namespace CortexTerminal.Worker.Agent.Adapters;
 /// <summary>
 /// Parses Claude Code hook events (SessionStart / SessionEnd / UserPromptSubmit / PreToolUse /
 /// PostToolUse / Stop / SubagentStop / Notification / PreCompact) into structured activity frames.
-/// Each event payload is the JSON Claude Code passes to the hook command on stdin; the wrapper's
-/// <c>hook</c> subcommand wraps it in the standard envelope and POSTs to the loopback HTTP
-/// endpoint, which hands the payload here.
+/// Each event payload is the JSON Claude Code passes to the hook command on stdin; the
+/// reporter script installed by <see cref="ClaudeHooksInstaller"/> wraps it in the standard
+/// envelope and POSTs to the loopback HTTP endpoint, which hands the payload here.
 ///
 /// Reference: https://code.claude.com/docs/en/hooks
 /// </summary>
@@ -26,8 +26,7 @@ public sealed class ClaudeCodeAdapter : IAgentAdapter
         var explicitPath = Environment.GetEnvironmentVariable("CLAUDE_BINARY_PATH");
         if (!string.IsNullOrWhiteSpace(explicitPath) && File.Exists(explicitPath)) return explicitPath;
 
-        var originalPath = Environment.GetEnvironmentVariable("CORTERM_ORIGINAL_PATH") ?? Environment.GetEnvironmentVariable("PATH");
-        return AgentBinaryProbe.FindOnPath("claude", originalPath);
+        return AgentBinaryProbe.FindOnPath("claude", Environment.GetEnvironmentVariable("PATH"));
     }
 
     public IReadOnlyDictionary<string, string> BuildEnvironment(AgentSessionContext context)

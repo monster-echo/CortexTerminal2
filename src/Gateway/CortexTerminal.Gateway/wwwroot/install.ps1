@@ -46,12 +46,9 @@ function Stop-RunningWorker {
         try { Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue } catch {}
     }
 
-    # Kill both the worker (corterm) and the agent wrapper (cortap) so Windows
-    # releases the image lock on BOTH executables. Expand-Archive -Force must
-    # overwrite cortap.exe too; a running cortap (a live claude/codex/opencode
-    # PTY session) would otherwise hold the lock and abort extraction.
+    # Kill the worker so Windows releases the image lock on the executable.
     $stopped = $false
-    foreach ($procName in @($BIN_NAME, "cortap")) {
+    foreach ($procName in @($BIN_NAME)) {
         $proc = Get-Process -Name $procName -ErrorAction SilentlyContinue
         if ($proc) {
             Write-Info "Stopping running $procName (PID $($proc.Id)) before overwrite ..."
@@ -64,7 +61,7 @@ function Stop-RunningWorker {
         # Wait for the OS to actually release the image locks (up to 10s).
         $deadline = (Get-Date).AddSeconds(10)
         while ((Get-Date) -lt $deadline) {
-            $still = Get-Process -Name @($BIN_NAME, "cortap") -ErrorAction SilentlyContinue
+            $still = Get-Process -Name $BIN_NAME -ErrorAction SilentlyContinue
             if (-not $still) { break }
             Start-Sleep -Milliseconds 200
         }

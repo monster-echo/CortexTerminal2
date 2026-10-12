@@ -8,7 +8,6 @@ void main() {
     test('throws CortermException when binary is missing', () {
       final svc = CortermService(
         cortermPath: '/nonexistent/corterm',
-        cortapPath: '/nonexistent/cortap',
       );
       expect(svc.status(), throwsA(isA<CortermException>()));
     });
@@ -33,7 +32,7 @@ void main() {
       );
       await Process.run('chmod', ['+x', script.path]);
 
-      final svc = CortermService(cortermPath: script.path, cortapPath: script.path);
+      final svc = CortermService(cortermPath: script.path);
       final status = await svc.status();
 
       expect(status.version, '0.5.14');

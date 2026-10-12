@@ -2,28 +2,26 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
-/// corterm / cortap 二进制路径对。
+/// corterm 二进制路径。
 class BinaryPaths {
-  const BinaryPaths({required this.corterm, required this.cortap});
+  const BinaryPaths({required this.corterm});
 
   final String corterm;
-  final String cortap;
 }
 
-/// 解析 corterm/cortap 绝对路径。
+/// 解析 corterm 绝对路径。
 ///
 /// GUI 启动不继承 shell PATH（Finder/Dock/资源管理器只给最小环境），所以：
 /// ① `$CORTERM_HOME`/`$CORTEX_TERMINAL_HOME` → ② 默认 `~/.corterm/corterm`
 /// （安装脚本的 INSTALL_DIR，App 内置 worker 也会自动装到这）→ ③ PATH 里找（尽力而为）。
 /// 装 App 即带 worker，二者一体：ensureWorkerInstalled 保证 ② 处一定有一个
 /// 支持 `--json` 的 worker（缺了装内置的，坏/旧了修内置的）。
-/// Windows 用 `corterm.exe`/`cortap.exe`，home 目录用 `USERPROFILE`。
+/// Windows 用 `corterm.exe`，home 目录用 `USERPROFILE`。
 Future<BinaryPaths?> resolveBinaryPaths() async {
   await ensureWorkerInstalled();
 
   final isWindows = Platform.isWindows;
   final cortermName = isWindows ? 'corterm.exe' : 'corterm';
-  final cortapName = isWindows ? 'cortap.exe' : 'cortap';
 
   final candidates = <String>[];
   final envHome =
@@ -39,16 +37,14 @@ Future<BinaryPaths?> resolveBinaryPaths() async {
   for (final candidate in candidates) {
     final file = File(candidate);
     if (file.existsSync()) {
-      final dir = p.dirname(candidate);
-      return BinaryPaths(corterm: candidate, cortap: p.join(dir, cortapName));
+      return BinaryPaths(corterm: candidate);
     }
   }
 
   // PATH 兜底（GUI 下通常解析不到，仅当从终端启动时有效）
   final pathEntry = await _which(cortermName);
   if (pathEntry != null) {
-    final dir = p.dirname(pathEntry);
-    return BinaryPaths(corterm: pathEntry, cortap: p.join(dir, cortapName));
+    return BinaryPaths(corterm: pathEntry);
   }
 
   return null;
@@ -113,12 +109,11 @@ Future<bool> _probeJson(String cortermPath) async {
   }
 }
 
-/// 把 App 内置的 corterm/cortap/appsettings.json 装到 [installDir]（幂等）。
+/// 把 App 内置的 corterm/appsettings.json 装到 [installDir]（幂等）。
 /// appsettings.json 是用户的网关配置，只补缺不覆盖；二进制总是补齐/替换。
 Future<void> _installBundledWorker(String installDir,
     {required String exePath, required bool isWindows, required bool isMacOS}) async {
   final cortermName = isWindows ? 'corterm.exe' : 'corterm';
-  final cortapName = isWindows ? 'cortap.exe' : 'cortap';
 
   if (bundledAssetPathFor(cortermName, exePath: exePath, isMacOS: isMacOS) == null) {
     return; // 没内置二进制，交给安装/设置
@@ -126,7 +121,7 @@ Future<void> _installBundledWorker(String installDir,
 
   try {
     Directory(installDir).createSync(recursive: true);
-    for (final name in [cortermName, cortapName, 'appsettings.json']) {
+    for (final name in [cortermName, 'appsettings.json']) {
       final src = bundledAssetPathFor(name, exePath: exePath, isMacOS: isMacOS);
       if (src == null) continue;
       final dest = File(p.join(installDir, name));

@@ -28,14 +28,13 @@ jobs:
 
       - name: Download worker binaries (osx-arm64)
         run: |
-          # 锁定 worker 捆绑版本：v0.5.21 起 cortap 退役（hooks 注入取代），
-          # UI 的会话/Agent 工具链路迁移完成前不跟随 latest。
-          latest=worker-v0.5.20
+          # v0.5.21 起 cortap 退役（hooks 注入取代），UI 不再捆绑 cortap。
+          latest=worker-v0.5.21
           echo "bundling worker release: $latest"
           mkdir -p /tmp/worker src/Flutter/worker_ui/assets/bin
           gh release download "$latest" --pattern 'corterm-osx-arm64.tar.gz' --dir /tmp/worker
           tar -xzf /tmp/worker/corterm-osx-arm64.tar.gz -C /tmp/worker
-          cp /tmp/worker/corterm /tmp/worker/cortap /tmp/worker/appsettings.json src/Flutter/worker_ui/assets/bin/
+          cp /tmp/worker/corterm /tmp/worker/appsettings.json src/Flutter/worker_ui/assets/bin/
         env:
           GH_TOKEN: ${{ github.token }}
 
@@ -85,17 +84,16 @@ jobs:
       - name: Download worker binaries (win-x64)
         shell: bash
         run: |
-          # 锁定 worker 捆绑版本：v0.5.21 起 cortap 退役（hooks 注入取代），
-          # UI 的会话/Agent 工具链路迁移完成前不跟随 latest。
-          latest=worker-v0.5.20
+          # v0.5.21 起 cortap 退役（hooks 注入取代），UI 不再捆绑 cortap。
+          latest=worker-v0.5.21
           echo "bundling worker release: $latest"
           mkdir -p /tmp/worker src/Flutter/worker_ui/assets/bin
           gh release download "$latest" --pattern 'corterm-win-x64.zip' --dir /tmp/worker
           cd /tmp/worker && unzip -o corterm-win-x64.zip -d win && cd -
-          cp /tmp/worker/win/corterm.exe /tmp/worker/win/cortap.exe /tmp/worker/win/appsettings.json src/Flutter/worker_ui/assets/bin/
+          cp /tmp/worker/win/corterm.exe /tmp/worker/win/appsettings.json src/Flutter/worker_ui/assets/bin/
           # assets/bin 声明为目录资产，repo 里提交的 mac 二进制会被一起打进 Windows
           # 包（白胖 40MB 死重）——拷入 .exe 后清掉 Unix 名的旧文件。
-          rm -f src/Flutter/worker_ui/assets/bin/corterm src/Flutter/worker_ui/assets/bin/cortap
+          rm -f src/Flutter/worker_ui/assets/bin/corterm
         env:
           GH_TOKEN: ${{ github.token }}
 
@@ -146,14 +144,13 @@ jobs:
 
       - name: Download worker binaries (linux-x64)
         run: |
-          # 锁定 worker 捆绑版本：v0.5.21 起 cortap 退役（hooks 注入取代），
-          # UI 的会话/Agent 工具链路迁移完成前不跟随 latest。
-          latest=worker-v0.5.20
+          # v0.5.21 起 cortap 退役（hooks 注入取代），UI 不再捆绑 cortap。
+          latest=worker-v0.5.21
           echo "bundling worker release: $latest"
           mkdir -p /tmp/worker src/Flutter/worker_ui/assets/bin
           gh release download "$latest" --pattern 'corterm-linux-x64.tar.gz' --dir /tmp/worker
           tar -xzf /tmp/worker/corterm-linux-x64.tar.gz -C /tmp/worker
-          cp /tmp/worker/corterm /tmp/worker/cortap /tmp/worker/appsettings.json src/Flutter/worker_ui/assets/bin/
+          cp /tmp/worker/corterm /tmp/worker/appsettings.json src/Flutter/worker_ui/assets/bin/
         env:
           GH_TOKEN: ${{ github.token }}
 

@@ -27,7 +27,7 @@ class UiUpdateCheck {
 /// 应用（云枢终端 UI）自更新：查 GitHub `ui-v*` release → 下载平台安装包 →
 /// 覆盖安装 → 重启应用。
 ///
-/// worker（corterm + cortap）更新不在这里 —— 走 `corterm update --json`
+/// worker（corterm）更新不在这里 —— 走 `corterm update --json`
 /// （CortermService.update），一次更新同时带上两个二进制。
 class SelfUpdater {
   SelfUpdater._();

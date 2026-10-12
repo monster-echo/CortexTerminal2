@@ -4,13 +4,12 @@ import 'dart:io';
 
 import 'models.dart';
 
-/// 封装对 corterm/cortap 的进程调用。全部走 `--json`，解析 stdout。
+/// 封装对 corterm 的进程调用。全部走 `--json`，解析 stdout。
 /// 失败即抛 [CortermException]，由 UI 层展示错误 banner —— 不吞错误。
 class CortermService {
-  CortermService({required this.cortermPath, required this.cortapPath});
+  CortermService({required this.cortermPath});
 
   final String cortermPath;
-  final String cortapPath;
 
   Future<Status> status() async {
     final r = await _run(cortermPath, ['status', '--json']);
@@ -56,28 +55,6 @@ class CortermService {
   Future<ServiceResult> logout() async {
     final r = await _run(cortermPath, ['logout', '--json']);
     return ServiceResult.fromJson(_decodeMap(r));
-  }
-
-  Future<List<SessionSummary>> sessions() async {
-    final r = await _run(cortapPath, ['sessions', '--json']);
-    final decoded = _tryJsonDecode(r.stdout);
-    if (decoded is! List) {
-      throw CortermException(
-        'cortap sessions --json 返回了非数组（exit=${r.exitCode}）\nstdout: ${r.stdout}\nstderr: ${r.stderr}',
-      );
-    }
-    return decoded
-        .whereType<Map>()
-        .map((m) => SessionSummary.fromJson(Map<String, dynamic>.from(m)))
-        .toList();
-  }
-
-  Future<List<CortermEvent>> events(String sessionId, {int? last}) async {
-    final args = ['events', '--session', sessionId, '--json'];
-    if (last != null) args.addAll(['--last', '$last']);
-    final r = await _run(cortapPath, args);
-    final lines = r.stdout.split('\n').where((l) => l.trim().isNotEmpty);
-    return lines.map(CortermEvent.fromLine).toList();
   }
 
   // ── 内部实现 ──
