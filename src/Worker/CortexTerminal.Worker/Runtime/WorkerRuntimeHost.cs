@@ -25,6 +25,7 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
     private readonly RelayTransferService _relayTransfers;
     private readonly RelayLink _relayLink;
     private readonly LocalTransferListener _listener;
+    private readonly CortexTerminal.Worker.P2P.PunchTransferService? _punchService;
     private readonly IAgentIntegration? _agentIntegration;
     private readonly ILogger<WorkerRuntimeHost> _logger;
     private readonly ILoggerFactory _loggerFactory;
@@ -54,8 +55,9 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         LocalTransferListener listener,
         ISystemMetricsCollector? metricsCollector = null,
         TimeSpan? metricsInterval = null,
-        IAgentIntegration? agentIntegration = null)
-        : this(workerId, gatewayClient, ptyHost, DefaultMaxTransferSizeBytes, loggerFactory, lifetime, DefaultReconnectInterval, relayLink, relayTransfers, listener, metricsCollector, metricsInterval, agentIntegration) { }
+        IAgentIntegration? agentIntegration = null,
+        CortexTerminal.Worker.P2P.PunchTransferService? punchService = null)
+        : this(workerId, gatewayClient, ptyHost, DefaultMaxTransferSizeBytes, loggerFactory, lifetime, DefaultReconnectInterval, relayLink, relayTransfers, listener, metricsCollector, metricsInterval, agentIntegration, punchService) { }
 
     internal WorkerRuntimeHost(
         string workerId,
@@ -70,7 +72,8 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         LocalTransferListener listener,
         ISystemMetricsCollector? metricsCollector = null,
         TimeSpan? metricsInterval = null,
-        IAgentIntegration? agentIntegration = null)
+        IAgentIntegration? agentIntegration = null,
+        CortexTerminal.Worker.P2P.PunchTransferService? punchService = null)
     {
         _workerId = workerId;
         _gatewayClient = gatewayClient;
@@ -81,6 +84,7 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         _relayTransfers = relayTransfers;
         _relayLink = relayLink;
         _listener = listener;
+        _punchService = punchService;
         _loggerFactory = loggerFactory;
         _lifetime = lifetime;
         _logger = loggerFactory.CreateLogger<WorkerRuntimeHost>();
@@ -121,6 +125,10 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         _subscriptions.Add(_gatewayClient.OnIssueRelayToken((relayUrl, token) =>
         {
             _relayLink.Configure(relayUrl, token);
+            // P2P 打洞锚点随 worker online 启动（同一条 24h worker-relay 令牌驱动）：
+            // 常驻向 gateway rendezvous 续约 STUN 端点，文件传输时客户端即时取用，
+            // 不必等 prepare 后再从零 STUN/注册。
+            _punchService?.StartAnchor(_workerId, token);
             return Task.FromResult(new FileOperationAck(true, null));
         }));
         _subscriptions.Add(_gatewayClient.OnProbeTunnelPort(port => _relayLink.ProbePort(port, ProbeTimeout)));

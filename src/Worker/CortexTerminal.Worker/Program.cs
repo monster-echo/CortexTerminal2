@@ -652,7 +652,8 @@ rootCommand.SetAction(async (ParseResult parseResult, CancellationToken cancella
         services.GetRequiredService<RelayTransferService>(),
         services.GetRequiredService<LocalTransferListener>(),
         ResolveMetricsCollectorOrNull(services),
-        agentIntegration: services.GetService<IAgentIntegration>()));
+        agentIntegration: services.GetService<IAgentIntegration>(),
+        punchService: services.GetService<CortexTerminal.Worker.P2P.PunchTransferService>()));
 
     static CortexTerminal.Worker.Metrics.ISystemMetricsCollector? ResolveMetricsCollectorOrNull(IServiceProvider services)
     {
