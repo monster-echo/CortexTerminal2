@@ -42,10 +42,36 @@ class _FilePreviewScreenState extends ConsumerState<FilePreviewScreen> {
 
   bool get _isText {
     const exts = [
-      '.txt', '.log', '.json', '.js', '.ts', '.jsx', '.tsx', '.py', '.sh',
-      '.md', '.conf', '.yaml', '.yml', '.toml', '.xml', '.html', '.css',
-      '.ini', '.env', '.sql', '.c', '.h', '.cpp', '.hpp', '.java', '.go',
-      '.rs', '.rb', '.php', '.dart',
+      '.txt',
+      '.log',
+      '.json',
+      '.js',
+      '.ts',
+      '.jsx',
+      '.tsx',
+      '.py',
+      '.sh',
+      '.md',
+      '.conf',
+      '.yaml',
+      '.yml',
+      '.toml',
+      '.xml',
+      '.html',
+      '.css',
+      '.ini',
+      '.env',
+      '.sql',
+      '.c',
+      '.h',
+      '.cpp',
+      '.hpp',
+      '.java',
+      '.go',
+      '.rs',
+      '.rb',
+      '.php',
+      '.dart',
     ];
     return widget.sizeBytes <= 512 * 1024 &&
         exts.any(widget.name.toLowerCase().endsWith);
@@ -61,7 +87,9 @@ class _FilePreviewScreenState extends ConsumerState<FilePreviewScreen> {
     final l10n = AppLocalizations.of(context)!;
     setState(() => _downloading = true);
     try {
-      final file = await ref.read(fileRepositoryProvider).download(
+      final file = await ref
+          .read(fileRepositoryProvider)
+          .download(
             workspaceId: widget.workspaceId,
             path: widget.path,
             filename: widget.name,
@@ -84,132 +112,148 @@ class _FilePreviewScreenState extends ConsumerState<FilePreviewScreen> {
 
     // 文件页属于 Dark Tool Context（design/05 §8）。
     return Theme(
-      data: cortermDarkToolTheme(),
-      child: Builder(builder: (context) {
-    final c = colorsOf(context);
-    return Scaffold(
-      backgroundColor: c.background,
-      appBar: AppBar(
-        backgroundColor: c.background,
-        foregroundColor: c.textPrimary,
-        elevation: 0,
-        title: Text(
-          widget.name,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            color: c.textPrimary,
-            fontSize: 17,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: FutureBuilder<Uint8List>(
-            future: _future,
-            builder: (context, snap) {
-              if (snap.hasError) {
-                return ErrorState(
-                  message: '${snap.error}',
-                  onRetry: () => setState(() => _future = _load()),
-                );
-              }
-              if (!snap.hasData) {
-                return const Center(child: ShadProgress(value: null));
-              }
-              final bytes = snap.data!;
-              Widget content;
-              if (_isImage) {
-                content = Expanded(
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: InteractiveViewer(
-                      maxScale: 4,
-                      child: Center(
-                        child: Image.memory(bytes, fit: BoxFit.contain),
-                      ),
-                    ),
-                  ),
-                );
-              } else if (_isText) {
-                content = Expanded(
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: c.surface,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: c.divider),
-                    ),
-                    child: SingleChildScrollView(
-                      child: Text(
-                        String.fromCharCodes(bytes),
-                        style: TextStyle(
-                          fontFamily: 'packages/shadcn_ui/GeistMono',
-                          fontSize: 13,
-                          color: c.textPrimary,
+      data: cortermToolTheme(context),
+      child: Builder(
+        builder: (context) {
+          final c = colorsOf(context);
+          return Scaffold(
+            backgroundColor: c.background,
+            appBar: AppBar(
+              backgroundColor: c.background,
+              foregroundColor: c.textPrimary,
+              elevation: 0,
+              title: Text(
+                widget.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: c.textPrimary,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            body: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: FutureBuilder<Uint8List>(
+                  future: _future,
+                  builder: (context, snap) {
+                    if (snap.hasError) {
+                      return ErrorState(
+                        message: '${snap.error}',
+                        onRetry: () => setState(() => _future = _load()),
+                      );
+                    }
+                    if (!snap.hasData) {
+                      return const Center(child: ShadProgress(value: null));
+                    }
+                    final bytes = snap.data!;
+                    Widget content;
+                    if (_isImage) {
+                      content = Expanded(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: InteractiveViewer(
+                            maxScale: 4,
+                            child: Center(
+                              child: Image.memory(bytes, fit: BoxFit.contain),
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                  ),
-                );
-              } else {
-                content = Expanded(
-                  child: Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
+                      );
+                    } else if (_isText) {
+                      content = Expanded(
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: c.surface,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: c.divider),
+                          ),
+                          child: SingleChildScrollView(
+                            child: Text(
+                              String.fromCharCodes(bytes),
+                              style: TextStyle(
+                                fontFamily: 'packages/shadcn_ui/GeistMono',
+                                fontSize: 13,
+                                color: c.textPrimary,
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    } else {
+                      content = Expanded(
+                        child: Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                LucideIcons.fileQuestion,
+                                size: 48,
+                                color: c.textSecondary,
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                l10n.previewUnsupported,
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  color: c.textPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                _fmtSize(widget.sizeBytes),
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: c.textSecondary,
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+                              ShadButton.outline(
+                                enabled: !_downloading,
+                                onPressed: _download,
+                                leading: _downloading
+                                    ? const SizedBox(
+                                        width: 14,
+                                        height: 14,
+                                        child: ShadProgress(value: null),
+                                      )
+                                    : const Icon(
+                                        LucideIcons.download,
+                                        size: 16,
+                                      ),
+                                child: Text(l10n.download),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Icon(LucideIcons.fileQuestion,
-                            size: 48, color: c.textSecondary),
-                        const SizedBox(height: 12),
-                        Text(
-                          l10n.previewUnsupported,
-                          style: TextStyle(fontSize: 15, color: c.textPrimary),
-                        ),
-                        const SizedBox(height: 4),
+                        content,
+                        const SizedBox(height: 8),
                         Text(
                           _fmtSize(widget.sizeBytes),
+                          textAlign: TextAlign.center,
                           style: TextStyle(
-                              fontSize: 13, color: c.textSecondary),
-                        ),
-                        const SizedBox(height: 20),
-                        ShadButton.outline(
-                          enabled: !_downloading,
-                          onPressed: _download,
-                          leading: _downloading
-                              ? const SizedBox(
-                                  width: 14,
-                                  height: 14,
-                                  child: ShadProgress(value: null))
-                              : const Icon(LucideIcons.download, size: 16),
-                          child: Text(l10n.download),
+                            fontSize: 12,
+                            color: c.textSecondary,
+                          ),
                         ),
                       ],
-                    ),
-                  ),
-                );
-              }
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  content,
-                  const SizedBox(height: 8),
-                  Text(
-                    _fmtSize(widget.sizeBytes),
-                    textAlign: TextAlign.center,
-                    style:
-                        TextStyle(fontSize: 12, color: c.textSecondary),
-                  ),
-                ],
-              );
-            },
-          ),
-        ),
+                    );
+                  },
+                ),
+              ),
+            ),
+          );
+        },
       ),
-    );
-      }),
     );
   }
 

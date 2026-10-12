@@ -11,7 +11,7 @@ class CortermAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.leading,
     this.actions,
     this.bottom,
-    this.centerTitle = true,
+    this.centerTitle = false,
     this.showLeading = true,
     this.leadingWidth,
     this.backgroundColor,
@@ -51,15 +51,14 @@ class CortermAppBar extends StatelessWidget implements PreferredSizeWidget {
       automaticallyImplyLeading: showLeading,
       leading: leading,
       leadingWidth: leadingWidth,
-      title: titleWidget ??
+      title:
+          titleWidget ??
           Text(
             title,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: ShadTheme.of(context).textTheme.large.copyWith(
-                  color: scheme.foreground,
-                  fontSize: 17,
-                ),
+            style: ShadTheme.of(context).textTheme.large
+                .copyWith(color: scheme.foreground, fontSize: 17),
           ),
       actions: actions,
       // M3 默认 actionsPadding 为 0（贴屏边）；补 8 让图标视觉边距 = 8+8=16，

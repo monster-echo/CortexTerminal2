@@ -260,12 +260,16 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
     final controller = TextEditingController(text: initial);
     return showModalBottomSheet<String>(
       context: context,
+      sheetAnimationStyle: const AnimationStyle(
+        duration: Duration(milliseconds: 280),
+        reverseDuration: Duration(milliseconds: 220),
+      ),
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
         // Modal 路由在 Navigator 根上，需显式 Dark Theme。
         return Theme(
-          data: cortermDarkToolTheme(),
+          data: cortermToolTheme(context),
           child: Builder(
             builder: (sheetContext) {
               final c = colorsOf(sheetContext);
@@ -368,12 +372,16 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
     final contentController = TextEditingController();
     return showModalBottomSheet<(String, String)>(
       context: context,
+      sheetAnimationStyle: const AnimationStyle(
+        duration: Duration(milliseconds: 280),
+        reverseDuration: Duration(milliseconds: 220),
+      ),
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
         // Modal 路由在 Navigator 根上，需显式 Dark Theme。
         return Theme(
-          data: cortermDarkToolTheme(),
+          data: cortermToolTheme(context),
           child: Builder(
             builder: (sheetContext) {
               final c = colorsOf(sheetContext);
@@ -545,6 +553,10 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
     };
     showModalBottomSheet<void>(
       context: context,
+      sheetAnimationStyle: const AnimationStyle(
+        duration: Duration(milliseconds: 280),
+        reverseDuration: Duration(milliseconds: 220),
+      ),
       isScrollControlled: true,
       builder: (context) => SafeArea(
         child: SizedBox(
@@ -621,7 +633,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
         _open(filesParentPath(_path));
       },
       child: Theme(
-        data: cortermDarkToolTheme(),
+        data: cortermToolTheme(context),
         child: Builder(
           builder: (context) {
             final c = colorsOf(context);

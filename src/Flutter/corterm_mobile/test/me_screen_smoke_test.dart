@@ -11,6 +11,10 @@ import 'package:corterm_mobile/core/auth/token_store.dart';
 import 'package:corterm_mobile/app/theme/corterm_theme.dart';
 import 'package:corterm_mobile/features/membership/presentation/me_screen.dart';
 import 'package:corterm_mobile/l10n/app_localizations.dart';
+import 'package:corterm_mobile/features/profile/data/profile_repository.dart';
+import 'package:corterm_mobile/features/membership/data/store_purchase_controller.dart';
+
+import 'fakes.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -18,18 +22,23 @@ void main() {
 
   AuthController fakeAuth() {
     final controller = AuthController(_FakeStore());
-    controller.state =
-        const AuthState(status: AuthStatus.authenticated, username: 'tester');
+    controller.state = const AuthState(
+      status: AuthStatus.authenticated,
+      username: 'tester',
+    );
     return controller;
   }
 
   Widget wrap(Widget child) {
     return ProviderScope(
-      overrides: [authProvider.overrideWith((ref) => fakeAuth())],
+      overrides: [
+        authProvider.overrideWith((ref) => fakeAuth()),
+        profileRepositoryProvider.overrideWith((ref) => FakeProfileRepo()),
+        membershipStatusProvider.overrideWith((ref) async => {'tier': 'free'}),
+      ],
       child: ShadApp(
-        materialThemeBuilder: (context, theme) => theme.copyWith(
-          extensions: const [CortermColors.light],
-        ),
+        materialThemeBuilder: (context, theme) =>
+            theme.copyWith(extensions: const [CortermColors.light]),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: child,
@@ -49,12 +58,21 @@ void main() {
   /// 因此这里以纯 Dart 断言校验路由表内容（不依赖 Firebase observer）。
   test('route table contains /me and root redirect exists', () {
     final routerSource = File('lib/app/router.dart').readAsStringSync();
-    expect(routerSource.contains("GoRoute(path: '/me'"), isTrue,
-        reason: '/me route must be registered');
-    expect(routerSource.contains("if (state.uri.path == '/')"), isTrue,
-        reason: "root '/' must redirect instead of throwing GoException");
-    expect(routerSource.contains('errorBuilder'), isTrue,
-        reason: 'unknown paths must render error page, not throw');
+    expect(
+      routerSource.contains("GoRoute(path: '/me'"),
+      isTrue,
+      reason: '/me route must be registered',
+    );
+    expect(
+      routerSource.contains("if (state.uri.path == '/')"),
+      isTrue,
+      reason: "root '/' must redirect instead of throwing GoException",
+    );
+    expect(
+      routerSource.contains('errorBuilder'),
+      isTrue,
+      reason: 'unknown paths must render error page, not throw',
+    );
   });
 }
 

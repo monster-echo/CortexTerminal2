@@ -29,38 +29,40 @@ class PreferencesScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         children: [
+          AppGroupHeader(l10n.appearance),
           AppGroupCard(
             children: [
-              AppRow(
-                icon: LucideIcons.contrast,
+              _PreferenceChoiceRow(
                 label: l10n.appearance,
-                trailing: ShadSelect<ThemeMode>(
-                  initialValue: themeMode,
+                choice: _SegmentedChoice<ThemeMode>(
+                  value: themeMode,
                   options: [
-                    ShadOption(
-                      value: ThemeMode.system,
-                      child: Text(l10n.appearanceSystem),
-                    ),
-                    ShadOption(
-                      value: ThemeMode.light,
-                      child: Text(l10n.appearanceLight),
-                    ),
-                    ShadOption(
-                      value: ThemeMode.dark,
-                      child: Text(l10n.appearanceDark),
-                    ),
+                    (ThemeMode.light, l10n.appearanceLight),
+                    (ThemeMode.dark, l10n.appearanceDark),
+                    (ThemeMode.system, l10n.appearanceSystem),
                   ],
-                  selectedOptionBuilder: (context, value) =>
-                      Text(switch (value) {
-                        ThemeMode.light => l10n.appearanceLight,
-                        ThemeMode.dark => l10n.appearanceDark,
-                        ThemeMode.system => l10n.appearanceSystem,
-                      }),
-                  onChanged: (v) => v == null
-                      ? null
-                      : ref.read(themeModeProvider.notifier).set(v),
+                  onChanged: (value) =>
+                      ref.read(themeModeProvider.notifier).set(value),
                 ),
               ),
+              _PreferenceChoiceRow(
+                label: l10n.language,
+                choice: _SegmentedChoice<String>(
+                  value: localeTag ?? '',
+                  options: [
+                    ('zh', l10n.languageChinese),
+                    ('en', l10n.languageEnglish),
+                    ('', l10n.languageSystem),
+                  ],
+                  onChanged: (value) =>
+                      ref.read(localeProvider.notifier).set(value),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          AppGroupCard(
+            children: [
               AppRow(
                 icon: LucideIcons.terminal,
                 label: l10n.terminalTheme,
@@ -72,25 +74,11 @@ class PreferencesScreen extends ConsumerWidget {
                 chevron: true,
                 onTap: () => context.push('/settings/terminal-themes'),
               ),
-              AppRow(
-                icon: LucideIcons.globe,
-                label: l10n.language,
-                trailing: ShadSelect<String>(
-                  initialValue: localeTag ?? '',
-                  options: [
-                    const ShadOption(value: '', child: Text('System')),
-                    const ShadOption(value: 'en', child: Text('English')),
-                    const ShadOption(value: 'zh', child: Text('简体中文')),
-                  ],
-                  selectedOptionBuilder: (context, value) =>
-                      Text(switch (value) {
-                        'en' => l10n.languageEnglish,
-                        'zh' => l10n.languageChinese,
-                        _ => l10n.languageSystem,
-                      }),
-                  onChanged: (v) => ref.read(localeProvider.notifier).set(v),
-                ),
-              ),
+            ],
+          ),
+          AppGroupHeader(l10n.terminal),
+          AppGroupCard(
+            children: [
               AppRow(
                 icon: LucideIcons.monitorSmartphone,
                 label: l10n.keepScreenAwake,
@@ -143,10 +131,9 @@ class _ScrollbackRow extends ConsumerWidget {
     final l10n = AppLocalizations.of(context)!;
     final pref = ref.watch(scrollbackPreferenceProvider);
 
-    return AppRow(
-      icon: LucideIcons.history,
+    return _PreferenceChoiceRow(
       label: l10n.scrollbackQuota,
-      trailing: pref.when(
+      choice: pref.when(
         loading: () => const SizedBox(
           width: 14,
           height: 14,
@@ -162,16 +149,13 @@ class _ScrollbackRow extends ConsumerWidget {
                 ? '${p.maxBytes ~/ 1048576}M'
                 : '${p.maxBytes ~/ 1024}K';
           }
-          return ShadSelect<int>(
-            initialValue: p.maxBytes,
+          return _SegmentedChoice<int>(
+            value: p.maxBytes,
             options: [
-              for (final entry in options.entries)
-                ShadOption(value: entry.key, child: Text(entry.value)),
+              for (final entry in options.entries) (entry.key, entry.value),
             ],
-            selectedOptionBuilder: (context, value) =>
-                Text(options[value] ?? '$value'),
             onChanged: (v) async {
-              if (v == null || v == p.maxBytes) return;
+              if (v == p.maxBytes) return;
               try {
                 await ref
                     .read(preferencesRepositoryProvider)
@@ -187,6 +171,104 @@ class _ScrollbackRow extends ConsumerWidget {
           );
         },
       ),
+    );
+  }
+}
+
+class _PreferenceChoiceRow extends StatelessWidget {
+  const _PreferenceChoiceRow({required this.label, required this.choice});
+
+  final String label;
+  final Widget choice;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = colorsOf(context);
+    final labelWidget = Text(
+      label,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(fontSize: 15, color: colors.textPrimary),
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stacked =
+            constraints.maxWidth < 350 ||
+            MediaQuery.textScalerOf(context).scale(1) > 1.15;
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+          child: stacked
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    labelWidget,
+                    const SizedBox(height: 8),
+                    Align(alignment: Alignment.centerRight, child: choice),
+                  ],
+                )
+              : Row(
+                  children: [
+                    Expanded(child: labelWidget),
+                    const SizedBox(width: 8),
+                    choice,
+                  ],
+                ),
+        );
+      },
+    );
+  }
+}
+
+class _SegmentedChoice<T> extends StatelessWidget {
+  const _SegmentedChoice({
+    required this.value,
+    required this.options,
+    required this.onChanged,
+  });
+
+  final T value;
+  final List<(T, String)> options;
+  final ValueChanged<T> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = colorsOf(context);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (final option in options)
+          Semantics(
+            selected: option.$1 == value,
+            button: true,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: () => onChanged(option.$1),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOutCubic,
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 7),
+                decoration: BoxDecoration(
+                  color: option.$1 == value
+                      ? colors.surfaceSelected
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  option.$2,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: option.$1 == value
+                        ? FontWeight.w600
+                        : FontWeight.normal,
+                    color: option.$1 == value
+                        ? colors.textPrimary
+                        : colors.textSecondary,
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

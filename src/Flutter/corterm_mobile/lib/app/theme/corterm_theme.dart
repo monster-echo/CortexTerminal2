@@ -49,56 +49,56 @@ class CortermColors extends ThemeExtension<CortermColors> {
   final Color onScrim;
 
   static const light = CortermColors(
-    background: Color(0xFFFFFFFF),
-    surface: Color(0xFFF5F5F5),
-    surfaceSelected: Color(0xFFECECEC),
+    background: Color(0xFFF8FAFC),
+    surface: Color(0xFFEEF2F6),
+    surfaceSelected: Color(0xFFEEF2F6),
     surfaceElevated: Color(0xFFFFFFFF),
-    textPrimary: Color(0xFF111111),
-    textSecondary: Color(0xFF6F6F6F),
-    divider: Color(0xFFE7E7E7),
-    accent: Color(0xFF4A90F8),
-    success: Color(0xFF34C759),
-    warning: Color(0xFFFF9F0A),
-    danger: Color(0xFFFF3B30),
-    onEmphasis: Color(0xFFFFFFFF),
-    emphasis: Color(0xFF111111),
+    textPrimary: Color(0xFF111827),
+    textSecondary: Color(0xFF64748B),
+    divider: Color(0xFFE5E7EB),
+    accent: Color(0xFF0369A1),
+    success: Color(0xFF15803D),
+    warning: Color(0xFFA16207),
+    danger: Color(0xFFB91C1C),
+    onEmphasis: Color(0xFFF8FAFC),
+    emphasis: Color(0xFF111827),
     scrim: Color(0xFF000000),
     onScrim: Color(0xFFFFFFFF),
   );
 
   /// Light App Context 的深色变体（用户切换 Dark 时全局使用）。
   static const dark = CortermColors(
-    background: Color(0xFF0B0D0F),
-    surface: Color(0xFF171A1F),
-    surfaceSelected: Color(0xFF20242A),
-    surfaceElevated: Color(0xFF20242A),
-    textPrimary: Color(0xFFF5F5F5),
-    textSecondary: Color(0xFF9CA3AF),
-    divider: Color(0xFF2B3037),
-    accent: Color(0xFF3B82F6),
-    success: Color(0xFF34C759),
-    warning: Color(0xFFFF9F0A),
-    danger: Color(0xFFFF453A),
-    onEmphasis: Color(0xFF111111),
-    emphasis: Color(0xFFF5F5F5),
+    background: Color(0xFF0F1419),
+    surface: Color(0xFF1F2937),
+    surfaceSelected: Color(0xFF232B36),
+    surfaceElevated: Color(0xFF161B22),
+    textPrimary: Color(0xFFE5E7EB),
+    textSecondary: Color(0xFF94A3B8),
+    divider: Color(0xFF26313D),
+    accent: Color(0xFF7DD3FC),
+    success: Color(0xFF86EFAC),
+    warning: Color(0xFFFBBF24),
+    danger: Color(0xFFFCA5A5),
+    onEmphasis: Color(0xFF111827),
+    emphasis: Color(0xFFF8FAFC),
     scrim: Color(0xFF000000),
     onScrim: Color(0xFFFFFFFF),
   );
 
   static const darkTool = CortermColors(
-    background: Color(0xFF0B0D0F),
-    surface: Color(0xFF171A1F),
-    surfaceSelected: Color(0xFF20242A),
-    surfaceElevated: Color(0xFF20242A),
-    textPrimary: Color(0xFFF5F5F5),
-    textSecondary: Color(0xFF9CA3AF),
-    divider: Color(0xFF2B3037),
-    accent: Color(0xFF3B82F6),
-    success: Color(0xFF34C759),
-    warning: Color(0xFFFF9F0A),
-    danger: Color(0xFFFF453A),
-    onEmphasis: Color(0xFF111111),
-    emphasis: Color(0xFFF5F5F5),
+    background: Color(0xFF0F1419),
+    surface: Color(0xFF1F2937),
+    surfaceSelected: Color(0xFF232B36),
+    surfaceElevated: Color(0xFF161B22),
+    textPrimary: Color(0xFFE5E7EB),
+    textSecondary: Color(0xFF94A3B8),
+    divider: Color(0xFF26313D),
+    accent: Color(0xFF7DD3FC),
+    success: Color(0xFF86EFAC),
+    warning: Color(0xFFFBBF24),
+    danger: Color(0xFFFCA5A5),
+    onEmphasis: Color(0xFF111827),
+    emphasis: Color(0xFFF8FAFC),
     scrim: Color(0xFF000000),
     onScrim: Color(0xFFFFFFFF),
   );
@@ -167,6 +167,43 @@ class CortermColors extends ThemeExtension<CortermColors> {
 CortermColors colorsOf(BuildContext context) =>
     Theme.of(context).extension<CortermColors>()!;
 
+/// Short, quiet navigation motion shared by ArkTS-parity pages.
+class CortermPageTransitionsBuilder extends PageTransitionsBuilder {
+  const CortermPageTransitionsBuilder();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    final direction = Directionality.of(context) == TextDirection.rtl
+        ? -1.0
+        : 1.0;
+    final offset = Tween<Offset>(
+      begin: Offset(0.08 * direction, 0),
+      end: Offset.zero,
+    ).chain(CurveTween(curve: Curves.easeOutCubic));
+    return FadeTransition(
+      opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
+      child: SlideTransition(position: animation.drive(offset), child: child),
+    );
+  }
+}
+
+const cortermPageTransitions = PageTransitionsTheme(
+  builders: {
+    TargetPlatform.android: CortermPageTransitionsBuilder(),
+    TargetPlatform.iOS: CortermPageTransitionsBuilder(),
+    TargetPlatform.linux: CortermPageTransitionsBuilder(),
+    TargetPlatform.macOS: CortermPageTransitionsBuilder(),
+    TargetPlatform.windows: CortermPageTransitionsBuilder(),
+    TargetPlatform.fuchsia: CortermPageTransitionsBuilder(),
+  },
+);
+
 /// Light App Context 全局主题（design/07 §2）。
 ThemeData cortermLightTheme() {
   const c = CortermColors.light;
@@ -184,6 +221,7 @@ ThemeData cortermLightTheme() {
   );
   return base.copyWith(
     extensions: [c],
+    pageTransitionsTheme: cortermPageTransitions,
     appBarTheme: AppBarTheme(
       backgroundColor: c.background,
       surfaceTintColor: Colors.transparent,
@@ -200,10 +238,14 @@ ThemeData cortermLightTheme() {
   );
 }
 
-/// Dark Tool Context 主题，Session / 文件 / 端口转发页通过 `Theme` 包裹使用。
-ThemeData cortermDarkToolTheme() {
+/// Tool pages use the same app theme as the rest of the navigation stack.
+/// Terminal colors are scoped to the terminal screen only.
+ThemeData cortermToolTheme(BuildContext context) => Theme.of(context);
+
+/// Base material theme used only to derive per-session terminal colors.
+ThemeData cortermDarkTerminalTheme() {
   const c = CortermColors.darkTool;
-  final base = ThemeData(
+  return ThemeData(
     useMaterial3: true,
     brightness: Brightness.dark,
     scaffoldBackgroundColor: c.background,
@@ -214,19 +256,13 @@ ThemeData cortermDarkToolTheme() {
       surface: c.background,
       error: c.danger,
     ),
-  );
-  return base.copyWith(
     extensions: [c],
+    pageTransitionsTheme: cortermPageTransitions,
     appBarTheme: AppBarTheme(
       backgroundColor: c.background,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       foregroundColor: c.textPrimary,
-      titleTextStyle: TextStyle(
-        fontSize: 17,
-        fontWeight: FontWeight.w600,
-        color: c.textPrimary,
-      ),
     ),
     dividerTheme: DividerThemeData(color: c.divider, thickness: 0.5),
   );

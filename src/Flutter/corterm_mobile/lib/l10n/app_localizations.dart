@@ -1163,7 +1163,7 @@ abstract class AppLocalizations {
   /// No description provided for @sessionCount.
   ///
   /// In en, this message translates to:
-  /// **'{n} sessions'**
+  /// **'{n, plural, one{{n} session} other{{n} sessions}}'**
   String sessionCount(int n);
 
   /// No description provided for @workerHostname.
@@ -2095,6 +2095,228 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No terminal working directory yet — go back to the terminal and press enter once.'**
   String get filesCwdMissing;
+
+  /// No description provided for @workspaceSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a project and pick up your work'**
+  String get workspaceSubtitle;
+
+  /// No description provided for @workspaceSearch.
+  ///
+  /// In en, this message translates to:
+  /// **'Search workspaces'**
+  String get workspaceSearch;
+
+  /// No description provided for @workspaceAll.
+  ///
+  /// In en, this message translates to:
+  /// **'All workspaces'**
+  String get workspaceAll;
+
+  /// No description provided for @workspaceNoResults.
+  ///
+  /// In en, this message translates to:
+  /// **'No matching workspaces'**
+  String get workspaceNoResults;
+
+  /// No description provided for @ungroupedSessions.
+  ///
+  /// In en, this message translates to:
+  /// **'Ungrouped sessions'**
+  String get ungroupedSessions;
+
+  /// No description provided for @computersTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Computers'**
+  String get computersTitle;
+
+  /// No description provided for @connectComputer.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect computer'**
+  String get connectComputer;
+
+  /// No description provided for @profileAndSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Profile and settings'**
+  String get profileAndSettings;
+
+  /// No description provided for @workspaceMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'Workspace unavailable'**
+  String get workspaceMissing;
+
+  /// No description provided for @sessionsLoadRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load sessions. Tap to retry'**
+  String get sessionsLoadRetry;
+
+  /// No description provided for @sessionRunning.
+  ///
+  /// In en, this message translates to:
+  /// **'Running'**
+  String get sessionRunning;
+
+  /// No description provided for @sessionEnded.
+  ///
+  /// In en, this message translates to:
+  /// **'Ended'**
+  String get sessionEnded;
+
+  /// No description provided for @portForwardingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Port forwarding'**
+  String get portForwardingTitle;
+
+  /// No description provided for @selectComputerTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose computer'**
+  String get selectComputerTitle;
+
+  /// No description provided for @selectFolderTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose folder'**
+  String get selectFolderTitle;
+
+  /// No description provided for @chooseComputerFirst.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a computer first'**
+  String get chooseComputerFirst;
+
+  /// No description provided for @homeFolder.
+  ///
+  /// In en, this message translates to:
+  /// **'Home directory'**
+  String get homeFolder;
+
+  /// No description provided for @workspaceNameAutoHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Uses the folder name if left blank'**
+  String get workspaceNameAutoHint;
+
+  /// No description provided for @workspaceCreateFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not create workspace'**
+  String get workspaceCreateFailed;
+
+  /// No description provided for @sessionCreateFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not create session'**
+  String get sessionCreateFailed;
+
+  /// No description provided for @moveToWorkspace.
+  ///
+  /// In en, this message translates to:
+  /// **'Move to workspace'**
+  String get moveToWorkspace;
+
+  /// No description provided for @ungroupedEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No ungrouped sessions'**
+  String get ungroupedEmpty;
+
+  /// No description provided for @workspaceCreatePrompt.
+  ///
+  /// In en, this message translates to:
+  /// **'Create a workspace first'**
+  String get workspaceCreatePrompt;
+
+  /// No description provided for @computerUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Computer unavailable'**
+  String get computerUnavailable;
+
+  /// No description provided for @folderSearch.
+  ///
+  /// In en, this message translates to:
+  /// **'Filter this folder'**
+  String get folderSearch;
+
+  /// No description provided for @folderUp.
+  ///
+  /// In en, this message translates to:
+  /// **'Parent folder'**
+  String get folderUp;
+
+  /// No description provided for @folderStart.
+  ///
+  /// In en, this message translates to:
+  /// **'Home folder'**
+  String get folderStart;
+
+  /// No description provided for @folderGo.
+  ///
+  /// In en, this message translates to:
+  /// **'Go to folder'**
+  String get folderGo;
+
+  /// No description provided for @folderPathHint.
+  ///
+  /// In en, this message translates to:
+  /// **'./project or an absolute path'**
+  String get folderPathHint;
+
+  /// No description provided for @folderNew.
+  ///
+  /// In en, this message translates to:
+  /// **'New folder'**
+  String get folderNew;
+
+  /// No description provided for @folderName.
+  ///
+  /// In en, this message translates to:
+  /// **'Folder name'**
+  String get folderName;
+
+  /// No description provided for @folderNoMatches.
+  ///
+  /// In en, this message translates to:
+  /// **'No matching folders'**
+  String get folderNoMatches;
+
+  /// No description provided for @useCurrentFolder.
+  ///
+  /// In en, this message translates to:
+  /// **'Use this folder'**
+  String get useCurrentFolder;
+
+  /// No description provided for @forkSession.
+  ///
+  /// In en, this message translates to:
+  /// **'Fork session'**
+  String get forkSession;
+
+  /// No description provided for @copyAllOutput.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy all output'**
+  String get copyAllOutput;
+
+  /// No description provided for @reconnectAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Reconnect'**
+  String get reconnectAction;
+
+  /// No description provided for @computerOfflineWaiting.
+  ///
+  /// In en, this message translates to:
+  /// **'Computer offline. Waiting for it to reconnect…'**
+  String get computerOfflineWaiting;
 }
 
 class _AppLocalizationsDelegate

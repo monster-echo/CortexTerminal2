@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
 
 import '../../app/theme/corterm_theme.dart';
 
@@ -25,51 +26,59 @@ class _SwipeDeleteState extends State<SwipeDelete> {
   Widget build(BuildContext context) {
     final c = colorsOf(context);
     final zh = Localizations.localeOf(context).languageCode == 'zh';
-    return Dismissible(
+    return Slidable(
       key: ValueKey(widget.key),
-      direction: _busy ? DismissDirection.none : DismissDirection.endToStart,
-      background: Container(
-        color: c.danger,
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 24),
-        child: Icon(Icons.delete_outline, color: c.onEmphasis),
-      ),
-      confirmDismiss: (_) async {
-        final confirmed = await showDialog<bool>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: Text(widget.title),
-            content: Text(widget.message),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: Text(zh ? '取消' : 'Cancel'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, true),
-                child: Text(
-                  zh ? '删除' : 'Delete',
-                  style: TextStyle(color: c.danger),
+      enabled: !_busy,
+      endActionPane: ActionPane(
+        motion: const DrawerMotion(),
+        extentRatio: .22,
+        children: [
+          SlidableAction(
+            onPressed: (context) async {
+              final slidableController = Slidable.of(context);
+              final confirmed = await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: Text(widget.title),
+                  content: Text(widget.message),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: Text(zh ? '取消' : 'Cancel'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: Text(
+                        zh ? '删除' : 'Delete',
+                        style: TextStyle(color: c.danger),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-            ],
+              );
+              if (confirmed != true || !mounted) return;
+              setState(() => _busy = true);
+              try {
+                await widget.onDelete();
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context)
+                      .showSnackBar(SnackBar(content: Text('$e')));
+                }
+              } finally {
+                if (mounted) setState(() => _busy = false);
+              }
+              // Keep the row mounted until the owner refreshes its authoritative list.
+              slidableController?.close();
+            },
+            backgroundColor: c.danger,
+            foregroundColor: c.onEmphasis,
+            icon: Icons.delete_outline,
+            label: zh ? '删除' : 'Delete',
+            borderRadius: BorderRadius.circular(12),
           ),
-        );
-        if (confirmed != true || !mounted) return false;
-        setState(() => _busy = true);
-        try {
-          await widget.onDelete();
-        } catch (e) {
-          if (context.mounted) {
-            ScaffoldMessenger.of(context)
-                .showSnackBar(SnackBar(content: Text('$e')));
-          }
-        } finally {
-          if (mounted) setState(() => _busy = false);
-        }
-        // The owner invalidates the authoritative list; never dismiss on failure.
-        return false;
-      },
+        ],
+      ),
       child: widget.child,
     );
   }

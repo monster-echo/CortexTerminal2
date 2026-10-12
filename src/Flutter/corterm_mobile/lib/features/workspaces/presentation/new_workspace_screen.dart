@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../app/theme/corterm_theme.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../core/storage/app_preferences.dart';
 import '../../../core/models/worker.dart';
 import '../../../shared/widgets/corterm_ui.dart';
@@ -46,7 +47,7 @@ class _NewWorkspaceScreenState extends ConsumerState<NewWorkspaceScreen> {
       }
       if (_folder != null) {
         _nameController.text = _folder == '.'
-            ? '主目录'
+            ? AppLocalizations.of(context)!.homeFolder
             : _folder!.split('/').where((s) => s.isNotEmpty).lastOrNull ?? '';
         _nameAutoFilled = true;
       }
@@ -71,7 +72,7 @@ class _NewWorkspaceScreenState extends ConsumerState<NewWorkspaceScreen> {
           .getString('workspace.last_folder.$_workerId');
       if (_nameAutoFilled) {
         _nameController.text = _folder == '.'
-            ? '主目录'
+            ? AppLocalizations.of(context)!.homeFolder
             : _folder?.split('/').lastOrNull ?? '';
       }
       ref
@@ -93,10 +94,10 @@ class _NewWorkspaceScreenState extends ConsumerState<NewWorkspaceScreen> {
       _folder = folder;
       // 名称默认取文件夹 basename，用户可改（只在第一次带入时自动填）。
       if (_nameController.text.isEmpty || _nameAutoFilled) {
-        _nameController.text = folder
-            .split('/')
-            .where((s) => s.isNotEmpty)
-            .last;
+        _nameController.text = folder == '.'
+            ? AppLocalizations.of(context)!.homeFolder
+            : folder.split('/').where((s) => s.isNotEmpty).lastOrNull ??
+                  AppLocalizations.of(context)!.homeFolder;
         _nameAutoFilled = true;
       }
     });
@@ -145,6 +146,7 @@ class _NewWorkspaceScreenState extends ConsumerState<NewWorkspaceScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = colorsOf(context);
+    final l10n = AppLocalizations.of(context)!;
     final workersAsync = ref.watch(workersProvider);
 
     return Scaffold(
@@ -152,10 +154,14 @@ class _NewWorkspaceScreenState extends ConsumerState<NewWorkspaceScreen> {
       appBar: AppBar(
         backgroundColor: colors.background,
         surfaceTintColor: Colors.transparent,
-        title: const Text('新建工作区'),
+        centerTitle: false,
+        toolbarHeight: 52,
+        title: Text(l10n.workspaceCreateTitle),
         actions: [
           IconButton(
-            tooltip: '刷新电脑',
+            tooltip: Localizations.localeOf(context).languageCode == 'zh'
+                ? '刷新电脑'
+                : 'Refresh computers',
             icon: const Icon(Icons.refresh),
             onPressed: () => ref.invalidate(workersProvider),
           ),
@@ -176,6 +182,7 @@ class _NewWorkspaceScreenState extends ConsumerState<NewWorkspaceScreen> {
 
   Widget _form(BuildContext context, List<WorkerSummary> workers) {
     final colors = colorsOf(context);
+    final l10n = AppLocalizations.of(context)!;
     final worker = workers.where((w) => w.workerId == _workerId).firstOrNull;
     final canCreate =
         worker != null &&
@@ -184,45 +191,149 @@ class _NewWorkspaceScreenState extends ConsumerState<NewWorkspaceScreen> {
         _nameController.text.trim().isNotEmpty &&
         !_creating;
 
-    return ListView(
-      padding: const EdgeInsets.only(bottom: 24),
-      children: [
-        SectionHeader('电脑'),
-        ListRow(
-          title: worker?.displayName ?? '请选择电脑',
-          subtitle: worker?.hostname,
-          leading: const Icon(Icons.computer),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: _pickWorker,
+    Widget fieldLabel(String text, {bool first = false}) => Padding(
+      padding: EdgeInsets.fromLTRB(16, first ? 16 : 20, 16, 8),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w500,
+          color: colors.textSecondary,
         ),
-        SectionHeader('文件夹'),
-        ListRow(
-          title: _folder == '.' ? '主目录' : _folder ?? '请选择文件夹',
-          leading: const Icon(Icons.folder),
-          onTap: worker == null ? null : _pickFolder,
-          trailing: worker == null ? null : const Icon(Icons.chevron_right),
-        ),
-        SectionHeader('名称'),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: TextField(
-            controller: _nameController,
-            onChanged: (_) => setState(() => _nameAutoFilled = false),
-            decoration: const InputDecoration(hintText: '工作区名称'),
-          ),
-        ),
-        if (_error != null)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-            child: Text(
-              _error!,
-              style: TextStyle(fontSize: 14, color: colors.danger),
+      ),
+    );
+
+    Widget selectionRow({
+      required String title,
+      String? subtitle,
+      required IconData icon,
+      required VoidCallback? onTap,
+    }) => Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Material(
+        color: colors.surfaceElevated,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onTap,
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 56),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: colors.divider),
+            ),
+            child: Row(
+              children: [
+                Icon(icon, size: 20, color: colors.textSecondary),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 15,
+                          color: colors.textPrimary,
+                        ),
+                      ),
+                      if (subtitle != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: colors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.chevron_right,
+                  size: 18,
+                  color: colors.textSecondary,
+                ),
+              ],
             ),
           ),
+        ),
+      ),
+    );
+
+    return Column(
+      children: [
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.only(bottom: 16),
+            children: [
+              fieldLabel(l10n.computersTitle, first: true),
+              selectionRow(
+                title: worker?.displayName ?? l10n.selectComputerTitle,
+                subtitle: worker?.hostname,
+                icon: Icons.computer_outlined,
+                onTap: _pickWorker,
+              ),
+              fieldLabel(l10n.selectFolderTitle),
+              selectionRow(
+                title: _folder == '.'
+                    ? l10n.homeFolder
+                    : _folder ?? l10n.selectFolderTitle,
+                icon: Icons.folder_outlined,
+                onTap: worker == null ? null : _pickFolder,
+              ),
+              fieldLabel(l10n.workspaceNameLabel),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: TextField(
+                  controller: _nameController,
+                  onChanged: (_) => setState(() => _nameAutoFilled = false),
+                  decoration: InputDecoration(
+                    hintText: l10n.workspaceNameLabel,
+                    filled: true,
+                    fillColor: colors.surfaceElevated,
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 14,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: colors.divider),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: colors.divider),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: colors.accent),
+                    ),
+                  ),
+                ),
+              ),
+              if (_error != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                  child: Text(
+                    _error!,
+                    style: TextStyle(fontSize: 14, color: colors.danger),
+                  ),
+                ),
+            ],
+          ),
+        ),
         Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
           child: PrimaryButton(
-            label: '创建工作区',
+            label: l10n.workspaceCreateTitle,
             onPressed: canCreate ? _create : null,
           ),
         ),

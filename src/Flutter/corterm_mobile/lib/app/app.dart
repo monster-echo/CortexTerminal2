@@ -78,6 +78,17 @@ class _CortermAppState extends ConsumerState<CortermApp>
         scaffoldBackgroundColor: theme.brightness == Brightness.dark
             ? CortermColors.dark.background
             : CortermColors.light.background,
+        pageTransitionsTheme: cortermPageTransitions,
+        bottomSheetTheme: const BottomSheetThemeData(showDragHandle: true),
+        appBarTheme: theme.appBarTheme.copyWith(
+          centerTitle: false,
+          toolbarHeight: 52,
+          titleTextStyle: theme.textTheme.titleMedium?.copyWith(
+            fontSize: 17,
+            fontWeight: FontWeight.w500,
+            color: theme.colorScheme.onSurface,
+          ),
+        ),
         extensions: [
           theme.brightness == Brightness.dark
               ? CortermColors.dark

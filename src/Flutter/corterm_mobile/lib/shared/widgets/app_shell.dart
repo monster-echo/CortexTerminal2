@@ -34,13 +34,19 @@ class AppShellScaffold extends StatelessWidget {
         leadingWidth: 48,
         leading: Padding(
           padding: const EdgeInsets.only(left: 4),
-          child: BackButton(color: c.textPrimary, onPressed: () => context.pop()),
+          child: BackButton(
+            color: c.textPrimary,
+            onPressed: () => context.pop(),
+          ),
         ),
-        title: Text(title,
-            style: TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w600,
-                color: c.textPrimary)),
+        title: Text(
+          title,
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: c.textPrimary,
+          ),
+        ),
         centerTitle: false,
         actions: actions,
       ),

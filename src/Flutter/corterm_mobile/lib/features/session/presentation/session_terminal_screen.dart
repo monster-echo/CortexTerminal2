@@ -9,6 +9,7 @@ import 'package:xterm/xterm.dart';
 
 import '../../../app/theme/corterm_theme.dart';
 import '../../../app/theme/terminal_theme.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../core/storage/app_preferences.dart';
 import '../../../core/models/session.dart';
 import '../../../shared/widgets/states.dart';
@@ -60,7 +61,9 @@ class _SessionTerminalScreenState extends ConsumerState<SessionTerminalScreen> {
         if (!mounted) return;
         showAppToast(
           context,
-          notice.kind == OscNoticeKind.clipboard ? '已复制' : notice.message,
+          notice.kind == OscNoticeKind.clipboard
+              ? AppLocalizations.of(context)!.copied
+              : notice.message,
         );
         ref.read(sessionControllerProvider.notifier).clearOscNotice();
       });
@@ -92,6 +95,7 @@ class _SessionTerminalScreenState extends ConsumerState<SessionTerminalScreen> {
   );
 
   void _showMoreMenu(SessionSummary? session) {
+    final l10n = AppLocalizations.of(context)!;
     final workspaceId = session?.workspaceId ?? '';
     final workspaces = ref.read(workspacesProvider).value ?? const [];
     final workspace = workspaceId.isEmpty
@@ -101,6 +105,10 @@ class _SessionTerminalScreenState extends ConsumerState<SessionTerminalScreen> {
 
     showModalBottomSheet<void>(
       context: context,
+      sheetAnimationStyle: const AnimationStyle(
+        duration: Duration(milliseconds: 280),
+        reverseDuration: Duration(milliseconds: 220),
+      ),
       backgroundColor: _pageTheme().scaffoldBackgroundColor,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
@@ -146,7 +154,7 @@ class _SessionTerminalScreenState extends ConsumerState<SessionTerminalScreen> {
                     if (workspace != null) ...[
                       Divider(height: 1, color: colors.divider),
                       _MenuItem(
-                        label: '文件',
+                        label: l10n.files,
                         onTap: () {
                           Navigator.pop(sheetContext);
                           final root = workspace.rootPath ?? '/';
@@ -161,7 +169,7 @@ class _SessionTerminalScreenState extends ConsumerState<SessionTerminalScreen> {
                     ],
                     Divider(height: 1, color: colors.divider),
                     _MenuItem(
-                      label: 'Fork 会话',
+                      label: l10n.forkSession,
                       onTap: () {
                         Navigator.pop(sheetContext);
                         _forkSession(session);
@@ -169,20 +177,22 @@ class _SessionTerminalScreenState extends ConsumerState<SessionTerminalScreen> {
                     ),
                     Divider(height: 1, color: colors.divider),
                     _MenuItem(
-                      label: '复制全部输出',
+                      label: l10n.copyAllOutput,
                       onTap: () {
                         Navigator.pop(sheetContext);
                         _copyAllOutput();
                       },
                     ),
-                    Divider(height: 1, color: colors.divider),
-                    _MenuItem(
-                      label: '端口转发',
-                      onTap: () {
-                        Navigator.pop(sheetContext);
-                        context.push('/workspaces/$workspaceId/tunnels');
-                      },
-                    ),
+                    if (workspace != null) ...[
+                      Divider(height: 1, color: colors.divider),
+                      _MenuItem(
+                        label: l10n.portForwardingTitle,
+                        onTap: () {
+                          Navigator.pop(sheetContext);
+                          context.push('/workspaces/$workspaceId/tunnels');
+                        },
+                      ),
+                    ],
                     const SizedBox(height: 8),
                   ],
                 ),
@@ -207,6 +217,84 @@ class _SessionTerminalScreenState extends ConsumerState<SessionTerminalScreen> {
     }
   }
 
+  void _showSessionSwitcher() {
+    final sessions = ref.read(sessionsProvider).asData?.value ?? const [];
+    final theme = _pageTheme();
+    showModalBottomSheet<void>(
+      context: context,
+      sheetAnimationStyle: const AnimationStyle(
+        duration: Duration(milliseconds: 280),
+        reverseDuration: Duration(milliseconds: 220),
+      ),
+      backgroundColor: theme.scaffoldBackgroundColor,
+      showDragHandle: true,
+      builder: (sheetContext) => Theme(
+        data: theme,
+        child: SafeArea(
+          top: false,
+          child: SizedBox(
+            height: MediaQuery.sizeOf(sheetContext).height * .62,
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Text(
+                    AppLocalizations.of(context)!.sessions,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: colorsOf(sheetContext).textPrimary,
+                    ),
+                  ),
+                ),
+                for (final item in sessions)
+                  ListTile(
+                    leading: Icon(
+                      item.status.isRunning
+                          ? Icons.circle
+                          : Icons.circle_outlined,
+                      size: 9,
+                      color: item.status.isRunning
+                          ? colorsOf(sheetContext).success
+                          : colorsOf(sheetContext).textSecondary,
+                    ),
+                    title: Text(item.displayName),
+                    subtitle: Text(item.status.name),
+                    trailing: item.sessionId == widget.sessionId
+                        ? Icon(
+                            Icons.check,
+                            color: colorsOf(sheetContext).accent,
+                          )
+                        : null,
+                    onTap: item.sessionId == widget.sessionId
+                        ? null
+                        : () {
+                            Navigator.pop(sheetContext);
+                            context.pushReplacement(
+                              '/sessions/${item.sessionId}',
+                            );
+                          },
+                  ),
+                if (sessions.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 24),
+                    child: Text(
+                      AppLocalizations.of(context)!.noSessions,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: colorsOf(sheetContext).textSecondary,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   /// 复制当前 buffer 全部文本到系统剪贴板。
   void _copyAllOutput() {
     try {
@@ -215,7 +303,7 @@ class _SessionTerminalScreenState extends ConsumerState<SessionTerminalScreen> {
           .bufferText(widget.sessionId);
       Clipboard.setData(ClipboardData(text: text));
       if (!mounted) return;
-      showAppToast(context, '已复制');
+      showAppToast(context, AppLocalizations.of(context)!.copied);
     } catch (e) {
       if (!mounted) return;
       showAppToast(context, '$e', destructive: true);
@@ -224,9 +312,10 @@ class _SessionTerminalScreenState extends ConsumerState<SessionTerminalScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final ws = ref.watch(sessionControllerProvider);
     final entry = ws.entryOf(widget.sessionId);
-    final sessions = ref.watch(sessionsProvider).value ?? const [];
+    final sessions = ref.watch(sessionsProvider).asData?.value ?? const [];
     final session = sessions
         .where((s) => s.sessionId == widget.sessionId)
         .firstOrNull;
@@ -241,120 +330,163 @@ class _SessionTerminalScreenState extends ConsumerState<SessionTerminalScreen> {
 
     final pageTheme = terminalPageTheme(terminalTheme);
     final dark = pageTheme.brightness == Brightness.dark;
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle(
-        statusBarColor: terminalTheme.background,
-        statusBarIconBrightness: dark ? Brightness.light : Brightness.dark,
-        statusBarBrightness: dark ? Brightness.dark : Brightness.light,
-        systemNavigationBarColor: terminalTheme.background,
-        systemNavigationBarIconBrightness: dark
-            ? Brightness.light
-            : Brightness.dark,
-      ),
-      child: Theme(
-        data: pageTheme,
-        // Theme 内解析由终端颜色派生的页面 tokens。
-        child: Builder(
-          builder: (context) {
-            final colors = colorsOf(context);
-            return Scaffold(
-              backgroundColor: colors.background,
-              body: entry == null
-                  ? Center(
-                      child: Text(
-                        '正在连接…',
-                        style: TextStyle(color: colors.textSecondary),
+    return PopScope(
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) {
+          FocusManager.instance.primaryFocus?.unfocus(
+            disposition: UnfocusDisposition.scope,
+          );
+        }
+      },
+      child: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: SystemUiOverlayStyle(
+          statusBarColor: terminalTheme.background,
+          statusBarIconBrightness: dark ? Brightness.light : Brightness.dark,
+          statusBarBrightness: dark ? Brightness.dark : Brightness.light,
+          systemNavigationBarColor: terminalTheme.background,
+          systemNavigationBarIconBrightness: dark
+              ? Brightness.light
+              : Brightness.dark,
+        ),
+        child: Theme(
+          data: pageTheme,
+          // Theme 内解析由终端颜色派生的页面 tokens。
+          child: Builder(
+            builder: (context) {
+              final colors = colorsOf(context);
+              return Scaffold(
+                backgroundColor: colors.background,
+                resizeToAvoidBottomInset: true,
+                body: SafeArea(
+                  top: true,
+                  bottom: false,
+                  child: Column(
+                    children: [
+                      _TerminalHeader(
+                        title: session?.name ?? l10n.connConnecting,
+                        status: switch (entry?.connState) {
+                          null ||
+                          TerminalConnState.idle ||
+                          TerminalConnState.connecting ||
+                          TerminalConnState.replaying => l10n.connConnecting,
+                          TerminalConnState.live =>
+                            entry!.rttMs != null
+                                ? '${entry.rttMs}ms'
+                                : l10n.connLive,
+                          TerminalConnState.reconnecting =>
+                            l10n.connReconnecting,
+                          TerminalConnState.workerOffline =>
+                            l10n.computerOfflineWaiting,
+                          TerminalConnState.exited => l10n.statusExited,
+                          TerminalConnState.error => l10n.sessionErrorBanner,
+                        },
+                        statusColor: entry?.connState == TerminalConnState.live
+                            ? colors.success
+                            : _isDead(
+                                entry?.connState ?? TerminalConnState.idle,
+                              )
+                            ? colors.danger
+                            : colors.warning,
+                        onBack: () {
+                          FocusManager.instance.primaryFocus?.unfocus(
+                            disposition: UnfocusDisposition.scope,
+                          );
+                          context.pop();
+                        },
+                        onSwitch: () => _showSessionSwitcher(),
+                        onMore: () => _showMoreMenu(session),
                       ),
-                    )
-                  : Stack(
-                      children: [
-                        Positioned.fill(
-                          child: TerminalView(
-                            // epoch 变化（reattach 重放）→ 重建 view，buffer 全新。
-                            key: ValueKey(
-                              'term-${widget.sessionId}-${entry.epoch}',
-                            ),
-                            entry.terminal,
-                            controller: _terminalController,
-                            theme: terminalTheme,
-                            textStyle: TerminalStyle(
-                              fontSize: fontSize,
-                              fontFamily: 'packages/shadcn_ui/GeistMono',
-                            ),
-                            readOnly: !entry.canInput,
-                            autofocus: true,
-                          ),
+                      Expanded(
+                        child: entry == null
+                            ? Center(
+                                child: Text(
+                                  l10n.connConnecting,
+                                  style: TextStyle(color: colors.textSecondary),
+                                ),
+                              )
+                            : Stack(
+                                children: [
+                                  Positioned.fill(
+                                    child: TerminalView(
+                                      // epoch 变化（reattach 重放）→ 重建 view，buffer 全新。
+                                      key: ValueKey(
+                                        'term-${widget.sessionId}-${entry.epoch}',
+                                      ),
+                                      entry.terminal,
+                                      controller: _terminalController,
+                                      theme: terminalTheme,
+                                      textStyle: TerminalStyle(
+                                        fontSize: fontSize,
+                                        fontFamily:
+                                            'packages/shadcn_ui/GeistMono',
+                                      ),
+                                      readOnly: !entry.canInput,
+                                      autofocus: true,
+                                    ),
+                                  ),
+                                  if (entry.connState ==
+                                      TerminalConnState.reconnecting)
+                                    Positioned(
+                                      top:
+                                          MediaQuery.paddingOf(context).top +
+                                          56,
+                                      left: 0,
+                                      right: 0,
+                                      child: Center(
+                                        child: _OverlayPill(
+                                          text: l10n.connReconnecting,
+                                        ),
+                                      ),
+                                    ),
+                                  if (entry.connState ==
+                                      TerminalConnState.workerOffline)
+                                    Positioned(
+                                      top:
+                                          MediaQuery.paddingOf(context).top +
+                                          56,
+                                      left: 0,
+                                      right: 0,
+                                      child: Center(
+                                        child: _OverlayPill(
+                                          text: l10n.computerOfflineWaiting,
+                                        ),
+                                      ),
+                                    ),
+                                  if (_isDead(entry.connState))
+                                    Positioned(
+                                      bottom: 24,
+                                      left: 16,
+                                      right: 16,
+                                      child: _DisconnectedCard(
+                                        entry: entry,
+                                        onReconnect: () => ref
+                                            .read(
+                                              sessionControllerProvider
+                                                  .notifier,
+                                            )
+                                            .open(widget.sessionId),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                      ),
+                      if (keyboardOpen && entry != null)
+                        TerminalKeyboardToolbar(
+                          enabled: entry.canInput,
+                          ctrlArmed: ws.ctrlArmed,
+                          onKey: (seq) => ref
+                              .read(sessionControllerProvider.notifier)
+                              .sendKey(seq),
+                          onCtrlToggle: (armed) => ref
+                              .read(sessionControllerProvider.notifier)
+                              .setCtrlArmed(armed),
                         ),
-                        // 左上悬浮返回：退出页面 ≠ 结束会话（design/04 §6）。
-                        Positioned(
-                          top: MediaQuery.paddingOf(context).top + 4,
-                          left: 8,
-                          child: _FloatingButton(
-                            icon: Icons.arrow_back,
-                            tooltip: '返回',
-                            onTap: () => context.pop(),
-                          ),
-                        ),
-                        // 右上悬浮三点菜单。
-                        Positioned(
-                          top: MediaQuery.paddingOf(context).top + 4,
-                          right: 8,
-                          child: _FloatingButton(
-                            icon: Icons.more_vert,
-                            tooltip: '更多',
-                            onTap: () => _showMoreMenu(session),
-                          ),
-                        ),
-                        if (entry.connState == TerminalConnState.reconnecting)
-                          Positioned(
-                            top: MediaQuery.paddingOf(context).top + 56,
-                            left: 0,
-                            right: 0,
-                            child: Center(child: _OverlayPill(text: '正在重新连接…')),
-                          ),
-                        if (entry.connState == TerminalConnState.workerOffline)
-                          Positioned(
-                            top: MediaQuery.paddingOf(context).top + 56,
-                            left: 0,
-                            right: 0,
-                            child: Center(
-                              child: _OverlayPill(text: '电脑已离线，等待其上线…'),
-                            ),
-                          ),
-                        if (_isDead(entry.connState))
-                          Positioned(
-                            bottom: 24,
-                            left: 16,
-                            right: 16,
-                            child: _DisconnectedCard(
-                              entry: entry,
-                              onReconnect: () => ref
-                                  .read(sessionControllerProvider.notifier)
-                                  .open(widget.sessionId),
-                            ),
-                          ),
-                        // 键盘弹出时才有底部工具栏（design/04 §2/§3）。
-                        Positioned(
-                          left: 0,
-                          right: 0,
-                          bottom: 0,
-                          child: keyboardOpen
-                              ? TerminalKeyboardToolbar(
-                                  enabled: entry.canInput,
-                                  ctrlArmed: ws.ctrlArmed,
-                                  onKey: (seq) => ref
-                                      .read(sessionControllerProvider.notifier)
-                                      .sendKey(seq),
-                                  onCtrlToggle: (armed) => ref
-                                      .read(sessionControllerProvider.notifier)
-                                      .setCtrlArmed(armed),
-                                )
-                              : const SizedBox.shrink(),
-                        ),
-                      ],
-                    ),
-            );
-          },
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
         ),
       ),
     );
@@ -365,27 +497,88 @@ class _SessionTerminalScreenState extends ConsumerState<SessionTerminalScreen> {
       state == TerminalConnState.exited || state == TerminalConnState.error;
 }
 
-class _FloatingButton extends StatelessWidget {
-  const _FloatingButton({
-    required this.icon,
-    required this.tooltip,
-    required this.onTap,
+class _TerminalHeader extends StatelessWidget {
+  const _TerminalHeader({
+    required this.title,
+    required this.status,
+    required this.statusColor,
+    required this.onBack,
+    required this.onSwitch,
+    required this.onMore,
   });
 
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onTap;
+  final String title;
+  final String status;
+  final Color statusColor;
+  final VoidCallback onBack;
+  final VoidCallback onSwitch;
+  final VoidCallback onMore;
 
   @override
   Widget build(BuildContext context) {
-    final colors = colorsOf(context);
-    return Material(
-      color: colors.surfaceElevated.withValues(alpha: 0.6),
-      borderRadius: BorderRadius.circular(20),
-      child: IconButton(
-        icon: Icon(icon, size: 20, color: colors.textPrimary),
-        tooltip: tooltip,
-        onPressed: onTap,
+    final c = colorsOf(context);
+    return SizedBox(
+      height: 52,
+      child: Row(
+        children: [
+          IconButton(
+            tooltip: MaterialLocalizations.of(context).backButtonTooltip,
+            onPressed: onBack,
+            icon: Icon(Icons.chevron_left, color: c.textPrimary, size: 24),
+          ),
+          Expanded(
+            child: InkWell(
+              onTap: onSwitch,
+              child: Row(
+                children: [
+                  Flexible(
+                    child: Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: c.textPrimary,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  Icon(Icons.expand_more, color: c.textSecondary, size: 18),
+                ],
+              ),
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+            decoration: BoxDecoration(
+              color: statusColor.withValues(alpha: .12),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 7,
+                  height: 7,
+                  decoration: BoxDecoration(
+                    color: statusColor,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  status,
+                  style: TextStyle(color: statusColor, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: AppLocalizations.of(context)!.more,
+            onPressed: onMore,
+            icon: Icon(Icons.more_vert, color: c.textPrimary),
+          ),
+        ],
       ),
     );
   }
@@ -435,6 +628,7 @@ class _DisconnectedCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = colorsOf(context);
+    final l10n = AppLocalizations.of(context)!;
     final dead = entry.connState == TerminalConnState.exited;
     return Material(
       color: colors.surfaceElevated,
@@ -445,7 +639,7 @@ class _DisconnectedCard extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              dead ? '连接已结束' : '连接已断开',
+              dead ? l10n.sessionEnded : l10n.connClosed,
               style: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
@@ -463,11 +657,11 @@ class _DisconnectedCard extends StatelessWidget {
             FilledButton(
               onPressed: onReconnect,
               style: FilledButton.styleFrom(
-                backgroundColor: colors.accent,
-                foregroundColor: colorsOf(context).onEmphasis,
+                backgroundColor: colors.emphasis,
+                foregroundColor: colors.onEmphasis,
                 minimumSize: const Size.fromHeight(44),
               ),
-              child: const Text('重新连接'),
+              child: Text(l10n.reconnectAction),
             ),
           ],
         ),

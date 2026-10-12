@@ -25,10 +25,11 @@ class _MembershipScreenState extends ConsumerState<MembershipScreen> {
     final controller = ref.read(storePurchaseProvider.notifier);
     final membership = ref.watch(membershipStatusProvider);
     final plans = ref.watch(membershipPlansProvider);
-    final isPro = membership.value?['tier'] == 'pro';
-    final lifetime = isPro && membership.value?['expiresAtUtc'] == null;
+    final membershipData = membership.asData?.value;
+    final isPro = membershipData?['tier'] == 'pro';
+    final lifetime = isPro && membershipData?['expiresAtUtc'] == null;
     final expiry = DateTime.tryParse(
-      membership.value?['expiresAtUtc'] as String? ?? '',
+      membershipData?['expiresAtUtc'] as String? ?? '',
     );
     final products = store.products.toList()
       ..sort(
@@ -53,8 +54,8 @@ class _MembershipScreenState extends ConsumerState<MembershipScreen> {
         products.where((p) => store.plans[p.id] == 'pro_year').firstOrNull ??
         products.firstOrNull;
     final selectedPlan = selected == null ? null : store.plans[selected.id];
-    final benefits = plans.value
-        ?.where((p) => p['code'] == (selectedPlan ?? 'pro_year'))
+    final benefits = plans.asData?.value
+        .where((p) => p['code'] == (selectedPlan ?? 'pro_year'))
         .firstOrNull;
     // Keep an existing subscription in store management, avoiding simultaneous
     // monthly/yearly subscriptions. A lifetime upgrade remains available.
@@ -91,7 +92,7 @@ class _MembershipScreenState extends ConsumerState<MembershipScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: c.surface,
+                color: c.surfaceElevated,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: membership.when(
@@ -128,23 +129,33 @@ class _MembershipScreenState extends ConsumerState<MembershipScreen> {
             if (benefits != null)
               Padding(
                 padding: const EdgeInsets.only(top: 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      tr(
-                        '最多连接 ${benefits['maxWorkers']} 台电脑',
-                        'Connect up to ${benefits['maxWorkers']} computers',
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: c.surfaceElevated,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: c.divider),
+                  ),
+                  child: Column(
+                    children: [
+                      _MembershipBenefitRow(
+                        icon: Icons.computer_outlined,
+                        label: tr('连接电脑', 'Connected computers'),
+                        value: '${benefits['maxWorkers']}',
+                        color: c,
                       ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      tr(
-                        '终端回滚额度 ${benefits['maxScrollbackMegabytes']} MB',
-                        'Terminal scrollback quota: ${benefits['maxScrollbackMegabytes']} MB',
+                      Divider(height: 1, color: c.divider),
+                      _MembershipBenefitRow(
+                        icon: Icons.history_rounded,
+                        label: tr('终端回滚额度', 'Terminal scrollback'),
+                        value: '${benefits['maxScrollbackMegabytes']} MB',
+                        color: c,
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             const SizedBox(height: 20),
@@ -188,11 +199,11 @@ class _MembershipScreenState extends ConsumerState<MembershipScreen> {
                     child: Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: c.surface,
+                        color: c.surfaceElevated,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                           color: product.id == selected?.id
-                              ? c.accent
+                              ? c.textPrimary
                               : c.divider,
                           width: product.id == selected?.id ? 2 : 1,
                         ),
@@ -204,7 +215,7 @@ class _MembershipScreenState extends ConsumerState<MembershipScreen> {
                                 ? Icons.radio_button_checked
                                 : Icons.radio_button_off,
                             color: product.id == selected?.id
-                                ? c.accent
+                                ? c.textPrimary
                                 : c.textSecondary,
                           ),
                           const SizedBox(width: 12),
@@ -248,7 +259,7 @@ class _MembershipScreenState extends ConsumerState<MembershipScreen> {
             if (products.isNotEmpty)
               FilledButton(
                 style: FilledButton.styleFrom(
-                  backgroundColor: c.accent,
+                  backgroundColor: c.emphasis,
                   foregroundColor: c.onEmphasis,
                 ),
                 onPressed: canBuy ? () => controller.buy(selected) : null,
@@ -339,4 +350,39 @@ class _MembershipScreenState extends ConsumerState<MembershipScreen> {
       ),
     );
   }
+}
+
+class _MembershipBenefitRow extends StatelessWidget {
+  const _MembershipBenefitRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final CortermColors color;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: 52,
+    child: Row(
+      children: [
+        Icon(icon, size: 19, color: color.textSecondary),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(label, style: TextStyle(color: color.textPrimary)),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            color: color.textPrimary,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    ),
+  );
 }

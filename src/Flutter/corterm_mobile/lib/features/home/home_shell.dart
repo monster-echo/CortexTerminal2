@@ -3,8 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/theme/corterm_theme.dart';
+import '../../core/auth/auth_controller.dart';
+import '../../core/storage/app_preferences.dart';
+import '../../l10n/app_localizations.dart';
 import '../../shared/widgets/swipe_delete.dart';
 import '../workers/data/workspace_repository.dart';
+import '../profile/data/profile_repository.dart';
+import '../profile/presentation/profile_screen.dart';
 import '../../core/models/session.dart';
 import '../../core/models/worker.dart';
 import '../../core/models/workspace.dart';
@@ -13,7 +18,7 @@ import '../../shared/utils/relative_time.dart';
 import '../sessions/data/sessions_providers.dart';
 import '../workspaces/data/workspace_providers.dart';
 
-/// 首页（design/01 §1-§3）：☰ [ 工作区 | 电脑 ] +。
+/// ArkTS ShellScaffold 的 Flutter 对应页：工作区列表为根页面，侧栏负责其他一级入口。
 class HomeShell extends ConsumerStatefulWidget {
   const HomeShell({super.key});
 
@@ -22,12 +27,12 @@ class HomeShell extends ConsumerStatefulWidget {
 }
 
 class _HomeShellState extends ConsumerState<HomeShell> {
-  int _tab = 0; // 0 = 工作区, 1 = 电脑
   final _scaffoldKey = GlobalKey<ScaffoldState>();
 
   @override
   Widget build(BuildContext context) {
     final c = colorsOf(context);
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       key: _scaffoldKey,
       drawer: const CortermSidebar(),
@@ -39,30 +44,37 @@ class _HomeShellState extends ConsumerState<HomeShell> {
               child: Row(
                 children: [
                   IconButton(
+                    tooltip: l10n.workspacesSectionTitle,
                     icon: Icon(Icons.menu, color: c.textPrimary),
                     onPressed: () => _scaffoldKey.currentState?.openDrawer(),
                   ),
                   Expanded(
-                    child: Center(
-                      child: _SegmentedTabs(
-                        labels: const ['工作区', '电脑'],
-                        index: _tab,
-                        onChanged: (i) => setState(() => _tab = i),
+                    child: Text(
+                      l10n.workspacesSectionTitle,
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: c.textPrimary,
                       ),
                     ),
                   ),
                   IconButton(
-                    icon: Icon(Icons.add, color: c.textPrimary),
-                    onPressed: () => context.push(
-                      _tab == 0 ? '/workspaces/new' : '/computers/new',
+                    tooltip: l10n.workspaceCreateTitle,
+                    icon: Icon(
+                      Icons.create_new_folder_outlined,
+                      color: c.textPrimary,
                     ),
+                    onPressed: () => context.push('/workspaces/new'),
+                  ),
+                  IconButton(
+                    tooltip: l10n.newSession,
+                    icon: Icon(Icons.add, color: c.textPrimary),
+                    onPressed: () => context.push('/sessions/new'),
                   ),
                 ],
               ),
             ),
-            Expanded(
-              child: _tab == 0 ? const _WorkspaceTab() : const _ComputerTab(),
-            ),
+            const Expanded(child: _WorkspaceTab()),
           ],
         ),
       ),
@@ -70,64 +82,28 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   }
 }
 
-class _SegmentedTabs extends StatelessWidget {
-  const _SegmentedTabs({
-    required this.labels,
-    required this.index,
-    required this.onChanged,
-  });
+/// 工作区 Tab（design/01 §2）：名称 / 所属电脑 / 会话数或最近活动。
+class _WorkspaceTab extends ConsumerStatefulWidget {
+  const _WorkspaceTab();
 
-  final List<String> labels;
-  final int index;
-  final ValueChanged<int> onChanged;
+  @override
+  ConsumerState<_WorkspaceTab> createState() => _WorkspaceTabState();
+}
+
+class _WorkspaceTabState extends ConsumerState<_WorkspaceTab> {
+  final _searchController = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final c = colorsOf(context);
-    return Container(
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(
-        color: c.surface,
-        borderRadius: const BorderRadius.all(Radius.circular(12)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (var i = 0; i < labels.length; i++)
-            GestureDetector(
-              onTap: () => onChanged(i),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 7,
-                ),
-                decoration: BoxDecoration(
-                  color: i == index ? c.surfaceSelected : Colors.transparent,
-                  borderRadius: const BorderRadius.all(Radius.circular(9)),
-                ),
-                child: Text(
-                  labels[i],
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: i == index ? FontWeight.w600 : FontWeight.w400,
-                    color: i == index ? c.textPrimary : c.textSecondary,
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-/// 工作区 Tab（design/01 §2）：名称 / 所属电脑 / 会话数或最近活动。
-class _WorkspaceTab extends ConsumerWidget {
-  const _WorkspaceTab();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final c = colorsOf(context);
+    final l10n = AppLocalizations.of(context)!;
     final workspaces = ref.watch(workspacesProvider);
     final workers = ref.watch(workersProvider);
 
@@ -145,10 +121,18 @@ class _WorkspaceTab extends ConsumerWidget {
       ),
       data: (list) {
         final workerMap = <String, WorkerSummary>{
-          for (final w in workers.value ?? const <WorkerSummary>[])
+          for (final w in workers.asData?.value ?? const <WorkerSummary>[])
             w.workerId: w,
         };
         final ungrouped = ref.watch(ungroupedSessionsProvider);
+        final query = _query.trim().toLowerCase();
+        final filtered = list.where((workspace) {
+          if (query.isEmpty) return true;
+          final worker = workerMap[workspace.workerId];
+          return '${workspace.displayName} ${workspace.rootPath ?? ''} ${worker?.displayName ?? ''}'
+              .toLowerCase()
+              .contains(query);
+        }).toList();
         return RefreshIndicator(
           onRefresh: () async {
             ref.invalidate(sessionsProvider);
@@ -157,23 +141,102 @@ class _WorkspaceTab extends ConsumerWidget {
             if (refreshed.isEmpty) return;
           },
           child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
             physics: const AlwaysScrollableScrollPhysics(),
             children: [
-              if (list.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.all(24),
-                  child: Text('还没有工作区，点右上角 + 新建'),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(0, 0, 0, 14),
+                child: Text(
+                  l10n.workspaceSubtitle,
+                  style: TextStyle(fontSize: 14, color: c.textSecondary),
                 ),
-              for (final w in list)
-                _WorkspaceRow(workspace: w, worker: workerMap[w.workerId]),
-              if (ungrouped.isNotEmpty)
-                ListRow(
-                  title: '未分组会话',
-                  subtitle: '${ungrouped.length} 个会话未关联工作区',
-                  leading: Icon(Icons.inbox_outlined, color: c.textSecondary),
-                  trailing: Icon(Icons.chevron_right, color: c.textSecondary),
-                  onTap: () => context.push('/sessions/ungrouped'),
+              ),
+              TextField(
+                controller: _searchController,
+                onChanged: (value) => setState(() => _query = value),
+                decoration: InputDecoration(
+                  hintText: l10n.workspaceSearch,
+                  prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                  suffixIcon: _query.isEmpty
+                      ? null
+                      : IconButton(
+                          tooltip: MaterialLocalizations.of(context)
+                              .deleteButtonTooltip,
+                          icon: const Icon(Icons.close_rounded, size: 18),
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() => _query = '');
+                          },
+                        ),
+                  filled: true,
+                  fillColor: c.surface,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: c.divider),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: c.divider),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: c.accent),
+                  ),
                 ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(2, 18, 2, 8),
+                child: Row(
+                  children: [
+                    Text(
+                      l10n.workspaceAll,
+                      style: TextStyle(fontSize: 13, color: c.textSecondary),
+                    ),
+                    const Spacer(),
+                    Text(
+                      '${filtered.length}',
+                      style: TextStyle(fontSize: 13, color: c.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+              AnimatedSize(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeInOutCubic,
+                alignment: Alignment.topCenter,
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 180),
+                  switchInCurve: Curves.easeOutCubic,
+                  switchOutCurve: Curves.easeInCubic,
+                  child: Column(
+                    key: ValueKey(
+                      list.isEmpty
+                          ? 'no-workspaces'
+                          : filtered.map((w) => w.workspaceId).join('|'),
+                    ),
+                    children: [
+                      if (list.isEmpty)
+                        EmptyState(
+                          icon: Icons.folder_open_outlined,
+                          message: l10n.workspaceEmpty,
+                        ),
+                      if (list.isNotEmpty && filtered.isEmpty)
+                        EmptyState(
+                          icon: Icons.search_off_outlined,
+                          message: l10n.workspaceNoResults,
+                        ),
+                      for (final w in filtered)
+                        _WorkspaceRow(
+                          workspace: w,
+                          worker: workerMap[w.workerId],
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              _UngroupedCard(count: ungrouped.length),
             ],
           ),
         );
@@ -191,13 +254,12 @@ class _WorkspaceRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final c = colorsOf(context);
+    final l10n = AppLocalizations.of(context)!;
     final sessions = ref.watch(
       workspaceSessionsProvider(workspace.workspaceId),
     );
-    final running = sessions.where((s) => s.status.isRunning).length;
-    final subtitle = sessions.isEmpty
-        ? (worker?.displayName ?? '')
-        : '${worker?.displayName ?? ''} · $running 个会话运行中';
+    final workerName = worker?.displayName ?? workspace.workerId;
+    final online = worker?.isOnline ?? false;
 
     final zh = Localizations.localeOf(context).languageCode == 'zh';
     return SwipeDelete(
@@ -213,66 +275,143 @@ class _WorkspaceRow extends ConsumerWidget {
         ref.invalidate(workspacesProvider);
         ref.invalidate(sessionsProvider);
       },
-      child: ListRow(
-        title: workspace.displayName,
-        subtitle: subtitle,
-        leading: Icon(Icons.folder_outlined, color: c.textSecondary),
-        trailing: Icon(Icons.chevron_right, color: c.textSecondary),
-        onTap: () => context.push('/workspaces/${workspace.workspaceId}'),
+      child: Material(
+        color: c.surfaceElevated,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => context.push('/workspaces/${workspace.workspaceId}'),
+          child: Container(
+            height: 112,
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: c.divider),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.folder_outlined, size: 22, color: c.textPrimary),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        workspace.displayName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                          color: c.textPrimary,
+                        ),
+                      ),
+                    ),
+                    Icon(Icons.chevron_right, size: 18, color: c.textSecondary),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(left: 34),
+                      child: Icon(
+                        Icons.circle,
+                        size: 7,
+                        color: online ? c.success : c.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        '$workerName · ${online ? l10n.workerOnline : l10n.workerOffline}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 13, color: c.textSecondary),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 34),
+                        child: Text(
+                          workspace.rootPath ?? '',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: c.textSecondary,
+                            fontFamily: 'monospace',
+                          ),
+                        ),
+                      ),
+                    ),
+                    Text(
+                      l10n.sessionCount(sessions.length),
+                      style: TextStyle(fontSize: 11, color: c.textSecondary),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
 }
 
-/// 电脑 Tab（design/01 §3）：已配对 Worker 列表。
-class _ComputerTab extends ConsumerWidget {
-  const _ComputerTab();
+class _UngroupedCard extends StatelessWidget {
+  const _UngroupedCard({required this.count});
+
+  final int count;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final c = colorsOf(context);
-    final workers = ref.watch(workersProvider);
-    final workspaces = ref.watch(workspacesProvider);
-
-    return workers.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Text(
-            '$e',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: c.danger, fontSize: 14),
+    final l10n = AppLocalizations.of(context)!;
+    return Material(
+      color: c.surfaceElevated,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => context.push('/sessions/ungrouped'),
+        child: Container(
+          height: 60,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: c.divider),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.terminal_rounded, size: 22, color: c.textPrimary),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  l10n.ungroupedSessions,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                    color: c.textPrimary,
+                  ),
+                ),
+              ),
+              Text(
+                '$count',
+                style: TextStyle(fontSize: 13, color: c.textSecondary),
+              ),
+              const SizedBox(width: 8),
+              Icon(Icons.chevron_right, size: 18, color: c.textSecondary),
+            ],
           ),
         ),
       ),
-      data: (list) {
-        if (list.isEmpty) {
-          return const EmptyState(
-            icon: Icons.computer_outlined,
-            message: '还没有配对电脑，点右上角 + 添加',
-          );
-        }
-        final ws = workspaces.value ?? const <Workspace>[];
-        return RefreshIndicator(
-          onRefresh: () async => ref.refresh(workersProvider.future),
-          child: ListView.builder(
-            physics: const AlwaysScrollableScrollPhysics(),
-            itemCount: list.length,
-            itemBuilder: (context, i) {
-              final w = list[i];
-              final count = ws.where((x) => x.workerId == w.workerId).length;
-              return ListRow(
-                title: w.displayName,
-                subtitle: '${w.isOnline ? '在线' : '离线'} · $count 个工作区',
-                leading: Icon(Icons.computer_outlined, color: c.textSecondary),
-                trailing: Icon(Icons.chevron_right, color: c.textSecondary),
-                onTap: () => context.push('/computers/${w.workerId}'),
-              );
-            },
-          ),
-        );
-      },
     );
   }
 }
@@ -287,14 +426,23 @@ class CortermSidebar extends ConsumerStatefulWidget {
 }
 
 class _CortermSidebarState extends ConsumerState<CortermSidebar> {
-  static const _maxVisible = 5;
   String? _expandedId;
-  bool _showAll = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _expandedId = ref
+        .read(sharedPreferencesProvider)
+        .getString('workspace.last_opened');
+  }
 
   @override
   Widget build(BuildContext context) {
     final c = colorsOf(context);
+    final l10n = AppLocalizations.of(context)!;
     final workspaces = ref.watch(workspacesProvider);
+    final workerCount = ref.watch(workersProvider).asData?.value.length ?? 0;
+    final ungroupedCount = ref.watch(ungroupedSessionsProvider).length;
 
     return Drawer(
       backgroundColor: c.background,
@@ -306,19 +454,22 @@ class _CortermSidebarState extends ConsumerState<CortermSidebar> {
               padding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
               child: Row(
                 children: [
-                  Expanded(
-                    child: Text(
-                      'Corterm',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: c.textPrimary,
-                      ),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.asset(
+                      'assets/branding/icon.png',
+                      width: 30,
+                      height: 30,
                     ),
                   ),
-                  IconButton(
-                    icon: Icon(Icons.search, color: c.textSecondary),
-                    onPressed: () => context.push('/search'),
+                  const SizedBox(width: 10),
+                  Text(
+                    'Corterm',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: c.textPrimary,
+                    ),
                   ),
                 ],
               ),
@@ -334,37 +485,114 @@ class _CortermSidebarState extends ConsumerState<CortermSidebar> {
                   ),
                 ),
                 data: (list) {
-                  // 首个默认展开（§5），无工作区时无需展开态。
-                  final expanded =
-                      _expandedId ??
-                      (list.isNotEmpty ? list.first.workspaceId : null);
-                  final visible = _showAll
-                      ? list
-                      : list.take(_maxVisible).toList();
+                  final expanded = _expandedId;
                   return ListView(
                     padding: const EdgeInsets.symmetric(horizontal: 8),
                     children: [
-                      for (final ws in visible)
+                      _SidebarNavRow(
+                        icon: Icons.grid_view_rounded,
+                        label: l10n.workspacesSectionTitle,
+                        selected: true,
+                        onTap: () => Navigator.of(context).pop(),
+                      ),
+                      _SidebarNavRow(
+                        icon: Icons.terminal_rounded,
+                        label: l10n.ungroupedSessions,
+                        count: ungroupedCount,
+                        onTap: () {
+                          Navigator.of(context).pop();
+                          context.push('/sessions/ungrouped');
+                        },
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 12, bottom: 4),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                l10n.workspacesSectionTitle,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: c.textSecondary,
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: l10n.workspaceCreateTitle,
+                              visualDensity: VisualDensity.compact,
+                              icon: Icon(Icons.add, color: c.textPrimary),
+                              onPressed: () {
+                                Navigator.of(context).pop();
+                                context.push('/workspaces/new');
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                      for (final ws in list)
                         _SidebarWorkspace(
                           workspace: ws,
                           expanded: ws.workspaceId == expanded,
-                          onToggle: () => setState(
-                            () => _expandedId = ws.workspaceId == expanded
+                          onOpen: () {
+                            ref
+                                .read(sharedPreferencesProvider)
+                                .setString(
+                                  'workspace.last_opened',
+                                  ws.workspaceId,
+                                );
+                            Navigator.of(context).pop();
+                            context.push('/workspaces/${ws.workspaceId}');
+                          },
+                          onOpenSession: (sessionId) {
+                            Navigator.of(context).pop();
+                            context.push('/sessions/$sessionId');
+                          },
+                          onCreateSession: () {
+                            Navigator.of(context).pop();
+                            context.push(
+                              '/sessions/new?workspaceId=${ws.workspaceId}',
+                            );
+                          },
+                          onToggle: () {
+                            final next = ws.workspaceId == expanded
                                 ? null
-                                : ws.workspaceId,
-                          ),
+                                : ws.workspaceId;
+                            setState(() => _expandedId = next);
+                            final prefs = ref.read(sharedPreferencesProvider);
+                            if (next == null) {
+                              prefs.remove('workspace.last_opened');
+                            } else {
+                              prefs.setString('workspace.last_opened', next);
+                            }
+                          },
                         ),
-                      if (!_showAll && list.length > _maxVisible)
-                        TextButton(
-                          onPressed: () => setState(() => _showAll = true),
-                          child: Align(
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              '更多工作区',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: c.textSecondary,
-                              ),
+                      const SizedBox(height: 12),
+                      Divider(color: c.divider),
+                      _SidebarNavRow(
+                        icon: Icons.computer_outlined,
+                        label: l10n.computersTitle,
+                        count: workerCount,
+                        onTap: () {
+                          Navigator.of(context).pop();
+                          context.push('/computers');
+                        },
+                      ),
+                      _SidebarNavRow(
+                        icon: Icons.qr_code_scanner_rounded,
+                        label: l10n.connectComputer,
+                        onTap: () {
+                          Navigator.of(context).pop();
+                          context.push('/activate');
+                        },
+                      ),
+                      if (list.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Text(
+                            l10n.workspaceEmpty,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: c.textSecondary,
                             ),
                           ),
                         ),
@@ -376,29 +604,72 @@ class _CortermSidebarState extends ConsumerState<CortermSidebar> {
             Divider(color: c.divider),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextButton.icon(
-                      onPressed: () => context.push('/sessions/new'),
-                      icon: Icon(Icons.add, color: c.textPrimary),
-                      label: Text(
-                        '新建',
-                        style: TextStyle(fontSize: 15, color: c.textPrimary),
-                      ),
-                      style: TextButton.styleFrom(
-                        alignment: Alignment.centerLeft,
-                      ),
+              child: Consumer(
+                builder: (context, ref, _) {
+                  final auth = ref.watch(authProvider);
+                  final profile = ref.watch(profileProvider).asData?.value;
+                  final avatarUrl = ref
+                      .watch(profileRepositoryProvider)
+                      .resolveAvatarUrl(profile?.avatarUrl);
+                  final displayName =
+                      profile?.displayName?.trim().isNotEmpty == true
+                      ? profile!.displayName!.trim()
+                      : auth.username ?? l10n.meTitle;
+                  return InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      context.push('/me');
+                    },
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 20,
+                          backgroundColor: c.surfaceSelected,
+                          foregroundImage: avatarUrl.isEmpty
+                              ? null
+                              : NetworkImage(avatarUrl),
+                          child: Text(
+                            displayName.trim().isNotEmpty
+                                ? displayName
+                                      .trim()
+                                      .substring(0, 1)
+                                      .toUpperCase()
+                                : 'U',
+                            style: TextStyle(color: c.textPrimary),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                displayName,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: c.textPrimary,
+                                ),
+                              ),
+                              Text(
+                                l10n.profileAndSettings,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: c.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(
+                          Icons.chevron_right,
+                          size: 16,
+                          color: c.textSecondary,
+                        ),
+                      ],
                     ),
-                  ),
-                  IconButton(
-                    icon: Icon(
-                      Icons.account_circle_outlined,
-                      color: c.textSecondary,
-                    ),
-                    onPressed: () => context.push('/me'),
-                  ),
-                ],
+                  );
+                },
               ),
             ),
           ],
@@ -412,135 +683,169 @@ class _SidebarWorkspace extends ConsumerWidget {
   const _SidebarWorkspace({
     required this.workspace,
     required this.expanded,
+    required this.onOpen,
+    required this.onOpenSession,
+    required this.onCreateSession,
     required this.onToggle,
   });
 
   final Workspace workspace;
   final bool expanded;
+  final VoidCallback onOpen;
+  final ValueChanged<String> onOpenSession;
+  final VoidCallback onCreateSession;
   final VoidCallback onToggle;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final c = colorsOf(context);
+    final l10n = AppLocalizations.of(context)!;
     final sessions = ref.watch(
       workspaceSessionsProvider(workspace.workspaceId),
     );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        InkWell(
-          onTap: onToggle,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-            child: Row(
-              children: [
-                Icon(Icons.folder_outlined, size: 18, color: c.textSecondary),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    workspace.displayName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 15, color: c.textPrimary),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          child: Row(
+            children: [
+              Icon(Icons.folder_outlined, size: 18, color: c.textSecondary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: InkWell(
+                  onTap: onOpen,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Text(
+                      workspace.displayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 14, color: c.textPrimary),
+                    ),
                   ),
                 ),
-                Icon(
-                  expanded
-                      ? Icons.keyboard_arrow_up
-                      : Icons.keyboard_arrow_down,
-                  size: 18,
-                  color: c.textSecondary,
+              ),
+              IconButton(
+                tooltip: l10n.sessions,
+                visualDensity: VisualDensity.compact,
+                icon: AnimatedRotation(
+                  turns: expanded ? 0.25 : 0,
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOutCubic,
+                  child: Icon(
+                    Icons.chevron_right,
+                    size: 16,
+                    color: c.textSecondary,
+                  ),
                 ),
-              ],
-            ),
+                onPressed: onToggle,
+              ),
+            ],
           ),
         ),
-        if (expanded)
-          Padding(
-            padding: const EdgeInsets.only(left: 20),
-            child: sessions.isEmpty
-                ? Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 6,
-                    ),
-                    child: Text(
-                      '无会话',
-                      style: TextStyle(fontSize: 13, color: c.textSecondary),
-                    ),
-                  )
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      for (final s in sessions)
-                        InkWell(
-                          onTap: () => context.push('/sessions/${s.sessionId}'),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 7,
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  s.status.isRunning
-                                      ? Icons.circle
-                                      : Icons.circle_outlined,
-                                  size: 8,
-                                  color: s.status.isRunning
-                                      ? c.success
-                                      : c.textSecondary,
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    _sessionTitle(s),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      color: c.textSecondary,
-                                    ),
-                                  ),
-                                ),
-                                Text(
-                                  relativeTime(s.lastActivityAt),
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: c.textSecondary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      InkWell(
-                        onTap: () => context.push(
-                          '/sessions/new?workspaceId=${workspace.workspaceId}',
-                        ),
-                        child: Padding(
+        AnimatedSize(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeInOutCubic,
+          alignment: Alignment.topCenter,
+          child: expanded
+              ? Padding(
+                  padding: const EdgeInsets.only(left: 20),
+                  child: sessions.isEmpty
+                      ? Padding(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 8,
-                            vertical: 7,
+                            vertical: 6,
                           ),
-                          child: Row(
-                            children: [
-                              Icon(Icons.add, size: 16, color: c.textSecondary),
-                              const SizedBox(width: 8),
-                              Text(
-                                '新建会话',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: c.textSecondary,
+                          child: Text(
+                            l10n.noSessions,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: c.textSecondary,
+                            ),
+                          ),
+                        )
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            for (final s in sessions)
+                              InkWell(
+                                onTap: () => onOpenSession(s.sessionId),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 7,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        s.status.isRunning
+                                            ? Icons.circle
+                                            : Icons.circle_outlined,
+                                        size: 8,
+                                        color: s.status.isRunning
+                                            ? c.success
+                                            : c.textSecondary,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          _sessionTitle(s),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            color: c.textSecondary,
+                                          ),
+                                        ),
+                                      ),
+                                      Text(
+                                        relativeTime(
+                                          s.lastActivityAt,
+                                          languageCode: Localizations.localeOf(
+                                            context,
+                                          ).languageCode,
+                                        ),
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: c.textSecondary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
-                            ],
-                          ),
+                            InkWell(
+                              onTap: onCreateSession,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 7,
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.add,
+                                      size: 16,
+                                      color: c.textSecondary,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      l10n.newSession,
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: c.textSecondary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                    ],
-                  ),
-          ),
+                )
+              : const SizedBox(width: double.infinity),
+        ),
       ],
     );
   }
@@ -548,3 +853,48 @@ class _SidebarWorkspace extends ConsumerWidget {
 
 String _sessionTitle(SessionSummary s) =>
     s.name.isNotEmpty ? s.name : '终端 ${s.sessionId.substring(0, 8)}';
+
+class _SidebarNavRow extends StatelessWidget {
+  const _SidebarNavRow({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.selected = false,
+    this.count,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool selected;
+  final int? count;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = colorsOf(context);
+    return ListTile(
+      dense: true,
+      minLeadingWidth: 22,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      selected: selected,
+      selectedTileColor: c.surfaceSelected,
+      leading: Icon(icon, size: 20, color: c.textPrimary),
+      title: Text(label, style: TextStyle(fontSize: 14, color: c.textPrimary)),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (count != null)
+            Text(
+              '$count',
+              style: TextStyle(fontSize: 12, color: c.textSecondary),
+            ),
+          if (!selected) ...[
+            const SizedBox(width: 6),
+            Icon(Icons.chevron_right, size: 16, color: c.textSecondary),
+          ],
+        ],
+      ),
+      onTap: onTap,
+    );
+  }
+}

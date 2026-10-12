@@ -32,9 +32,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   Widget build(BuildContext context) {
     final c = colorsOf(context);
     final workspaces =
-        ref.watch(workspacesProvider).value ?? const <Workspace>[];
-    final sessions = ref.watch(sessionsProvider).value ?? const <SessionSummary>[];
-    final workers = ref.watch(workersProvider).value ?? const <WorkerSummary>[];
+        ref.watch(workspacesProvider).asData?.value ?? const <Workspace>[];
+    final sessions =
+        ref.watch(sessionsProvider).asData?.value ?? const <SessionSummary>[];
+    final workers =
+        ref.watch(workersProvider).asData?.value ?? const <WorkerSummary>[];
 
     final q = _query.trim().toLowerCase();
     final wsHits = q.isEmpty
@@ -67,10 +69,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                 ListRow(
                                   title: w.displayName,
                                   subtitle: w.rootPath,
-                                  leading: Icon(Icons.folder_outlined,
-                                      color: c.textSecondary),
-                                  onTap: () => context
-                                      .push('/workspaces/${w.workspaceId}'),
+                                  leading: Icon(
+                                    Icons.folder_outlined,
+                                    color: c.textSecondary,
+                                  ),
+                                  onTap: () => context.push(
+                                    '/workspaces/${w.workspaceId}',
+                                  ),
                                 ),
                             ],
                           ),
@@ -83,8 +88,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                   title: s.displayName,
                                   subtitle:
                                       '${_workspaceName(workspaces, s.workspaceId)} · ${s.status.isRunning ? '运行中' : '已结束'}',
-                                  leading: Icon(Icons.terminal_outlined,
-                                      color: c.textSecondary),
+                                  leading: Icon(
+                                    Icons.terminal_outlined,
+                                    color: c.textSecondary,
+                                  ),
                                   onTap: () =>
                                       context.push('/sessions/${s.sessionId}'),
                                 ),
@@ -99,8 +106,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                   title: w.displayName,
                                   subtitle:
                                       '${w.isOnline ? '在线' : '离线'} · ${w.hostname ?? ''}',
-                                  leading: Icon(Icons.computer_outlined,
-                                      color: c.textSecondary),
+                                  leading: Icon(
+                                    Icons.computer_outlined,
+                                    color: c.textSecondary,
+                                  ),
                                   onTap: () =>
                                       context.push('/computers/${w.workerId}'),
                                 ),
@@ -110,7 +119,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                             sessionHits.isEmpty &&
                             workerHits.isEmpty)
                           const EmptyState(
-                              icon: Icons.search_off, message: '无结果'),
+                            icon: Icons.search_off,
+                            message: '无结果',
+                          ),
                       ],
                     ),
             ),
@@ -127,15 +138,20 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                       style: TextStyle(fontSize: 16, color: c.textPrimary),
                       decoration: InputDecoration(
                         hintText: '搜索',
-                        hintStyle:
-                            TextStyle(fontSize: 16, color: c.textSecondary),
+                        hintStyle: TextStyle(
+                          fontSize: 16,
+                          color: c.textSecondary,
+                        ),
                         filled: true,
                         fillColor: c.surface,
                         contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 14),
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
                         border: OutlineInputBorder(
-                          borderRadius:
-                              const BorderRadius.all(Radius.circular(24)),
+                          borderRadius: const BorderRadius.all(
+                            Radius.circular(24),
+                          ),
                           borderSide: BorderSide.none,
                         ),
                       ),
@@ -169,7 +185,9 @@ bool _matchWorker(WorkerSummary w, String q) =>
 
 String _basename(String? path) {
   if (path == null || path.isEmpty) return '';
-  final trimmed = path.endsWith('/') ? path.substring(0, path.length - 1) : path;
+  final trimmed = path.endsWith('/')
+      ? path.substring(0, path.length - 1)
+      : path;
   final i = trimmed.lastIndexOf('/');
   return i >= 0 ? trimmed.substring(i + 1) : trimmed;
 }

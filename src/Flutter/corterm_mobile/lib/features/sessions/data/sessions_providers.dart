@@ -28,7 +28,8 @@ class SessionGroups {
 }
 
 final sessionGroupsProvider = Provider<SessionGroups>((ref) {
-  final sessions = ref.watch(sessionsProvider).value ?? const <SessionSummary>[];
+  final sessions =
+      ref.watch(sessionsProvider).asData?.value ?? const <SessionSummary>[];
   final running = sessions.where((s) => s.status.isRunning).toList()
     ..sort((a, b) => b.lastActivityAt.compareTo(a.lastActivityAt));
   final recent = sessions.where((s) => !s.status.isRunning).toList()

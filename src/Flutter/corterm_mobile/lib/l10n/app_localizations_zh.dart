@@ -1058,4 +1058,115 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get filesCwdMissing => '尚未获取到终端当前目录——回到终端按一次回车再试。';
+
+  @override
+  String get workspaceSubtitle => '选择项目，继续你的工作';
+
+  @override
+  String get workspaceSearch => '搜索工作区';
+
+  @override
+  String get workspaceAll => '全部工作区';
+
+  @override
+  String get workspaceNoResults => '没有匹配的工作区';
+
+  @override
+  String get ungroupedSessions => '未分组会话';
+
+  @override
+  String get computersTitle => '电脑';
+
+  @override
+  String get connectComputer => '连接电脑';
+
+  @override
+  String get profileAndSettings => '个人资料与设置';
+
+  @override
+  String get workspaceMissing => '工作区暂不可用';
+
+  @override
+  String get sessionsLoadRetry => '会话加载失败，点击重试';
+
+  @override
+  String get sessionRunning => '进行中';
+
+  @override
+  String get sessionEnded => '已结束';
+
+  @override
+  String get portForwardingTitle => '端口转发';
+
+  @override
+  String get selectComputerTitle => '选择电脑';
+
+  @override
+  String get selectFolderTitle => '选择文件夹';
+
+  @override
+  String get chooseComputerFirst => '请先选择电脑';
+
+  @override
+  String get homeFolder => '主目录';
+
+  @override
+  String get workspaceNameAutoHint => '留空时使用文件夹名称';
+
+  @override
+  String get workspaceCreateFailed => '创建工作区失败';
+
+  @override
+  String get sessionCreateFailed => '创建会话失败';
+
+  @override
+  String get moveToWorkspace => '移到工作区';
+
+  @override
+  String get ungroupedEmpty => '没有未分组会话';
+
+  @override
+  String get workspaceCreatePrompt => '请先创建工作区';
+
+  @override
+  String get computerUnavailable => '电脑暂不可用';
+
+  @override
+  String get folderSearch => '筛选当前文件夹';
+
+  @override
+  String get folderUp => '上级文件夹';
+
+  @override
+  String get folderStart => '主目录';
+
+  @override
+  String get folderGo => '前往文件夹';
+
+  @override
+  String get folderPathHint => './项目 或绝对路径';
+
+  @override
+  String get folderNew => '新建文件夹';
+
+  @override
+  String get folderName => '文件夹名称';
+
+  @override
+  String get folderNoMatches => '没有匹配的文件夹';
+
+  @override
+  String get useCurrentFolder => '使用当前文件夹';
+
+  @override
+  String get forkSession => 'Fork 会话';
+
+  @override
+  String get copyAllOutput => '复制全部输出';
+
+  @override
+  String get reconnectAction => '重新连接';
+
+  @override
+  String get computerOfflineWaiting => '电脑已离线，等待其上线…';
 }

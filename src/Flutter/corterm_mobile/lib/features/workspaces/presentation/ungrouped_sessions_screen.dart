@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../app/theme/corterm_theme.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../shared/utils/relative_time.dart';
 import '../../../shared/widgets/corterm_ui.dart';
 import '../../../shared/widgets/swipe_delete.dart';
@@ -21,9 +22,14 @@ class UngroupedSessionsScreen extends ConsumerWidget {
     WidgetRef ref,
     String sessionId,
   ) async {
+    final l10n = AppLocalizations.of(context)!;
     final workspaces = ref.read(workspacesProvider).value ?? const [];
     final target = await showModalBottomSheet<String>(
       context: context,
+      sheetAnimationStyle: const AnimationStyle(
+        duration: Duration(milliseconds: 280),
+        reverseDuration: Duration(milliseconds: 220),
+      ),
       backgroundColor: colorsOf(context).background,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
@@ -38,7 +44,7 @@ class UngroupedSessionsScreen extends ConsumerWidget {
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                 child: Text(
-                  '移动到工作区',
+                  l10n.moveToWorkspace,
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
@@ -50,7 +56,7 @@ class UngroupedSessionsScreen extends ConsumerWidget {
                 Padding(
                   padding: const EdgeInsets.all(16),
                   child: Text(
-                    '还没有工作区，先创建一个吧',
+                    l10n.workspaceCreatePrompt,
                     style: TextStyle(fontSize: 14, color: colors.textSecondary),
                   ),
                 ),
@@ -85,6 +91,7 @@ class UngroupedSessionsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = colorsOf(context);
+    final l10n = AppLocalizations.of(context)!;
     final sessions = ref.watch(ungroupedSessionsProvider);
 
     return Scaffold(
@@ -93,7 +100,7 @@ class UngroupedSessionsScreen extends ConsumerWidget {
         backgroundColor: colors.background,
         surfaceTintColor: Colors.transparent,
         title: Text(
-          '未分组会话 (${sessions.length})',
+          '${l10n.ungroupedSessions} (${sessions.length})',
           style: TextStyle(
             fontSize: 17,
             fontWeight: FontWeight.w600,
@@ -102,7 +109,7 @@ class UngroupedSessionsScreen extends ConsumerWidget {
         ),
       ),
       body: sessions.isEmpty
-          ? const EmptyState(icon: Icons.inbox_outlined, message: '没有未分组的会话')
+          ? EmptyState(icon: Icons.inbox_outlined, message: l10n.ungroupedEmpty)
           : RefreshIndicator(
               onRefresh: () async => ref.invalidate(sessionsProvider),
               child: ListView(
@@ -110,8 +117,11 @@ class UngroupedSessionsScreen extends ConsumerWidget {
                   for (final s in sessions)
                     SwipeDelete(
                       key: ValueKey(s.sessionId),
-                      title: '删除会话',
-                      message: '删除「${s.displayName}」？此操作不可撤销。',
+                      title: l10n.deleteSession,
+                      message:
+                          Localizations.localeOf(context).languageCode == 'zh'
+                          ? '删除「${s.displayName}」？此操作不可撤销。'
+                          : 'Delete "${s.displayName}"? This cannot be undone.',
                       onDelete: () async {
                         await ref
                             .read(sessionRepositoryProvider)
@@ -121,13 +131,13 @@ class UngroupedSessionsScreen extends ConsumerWidget {
                       child: ListRow(
                         title: s.displayName,
                         subtitle:
-                            '${s.workerName ?? s.workerId} · ${s.status.isAlive ? '运行中' : '已结束'} · ${relativeTime(s.lastActivityAt)}',
+                            '${s.workerName ?? s.workerId} · ${s.status.isAlive ? l10n.sessionRunning : l10n.sessionEnded} · ${relativeTime(s.lastActivityAt, languageCode: Localizations.localeOf(context).languageCode)}',
                         leading: Icon(
                           Icons.terminal_outlined,
                           color: colors.textSecondary,
                         ),
                         trailing: IconButton(
-                          tooltip: '移动到工作区',
+                          tooltip: l10n.moveToWorkspace,
                           icon: Icon(
                             Icons.drive_file_move_outline,
                             size: 20,

@@ -63,7 +63,7 @@ ThemeData terminalPageTheme(TerminalTheme terminal) {
   final dark =
       ThemeData.estimateBrightnessForColor(terminal.background) ==
       Brightness.dark;
-  final base = dark ? cortermDarkToolTheme() : cortermLightTheme();
+  final base = dark ? cortermDarkTerminalTheme() : cortermLightTheme();
   final colors = base.extension<CortermColors>()!.copyWith(
     background: terminal.background,
     surface: Color.lerp(terminal.background, terminal.foreground, 0.08),
@@ -73,6 +73,11 @@ ThemeData terminalPageTheme(TerminalTheme terminal) {
     textSecondary: Color.lerp(terminal.foreground, terminal.background, 0.35),
     divider: Color.lerp(terminal.background, terminal.foreground, 0.25),
     accent: terminal.cursor,
+    emphasis: terminal.cursor,
+    onEmphasis:
+        ThemeData.estimateBrightnessForColor(terminal.cursor) == Brightness.dark
+        ? Colors.white
+        : Colors.black,
   );
   return base.copyWith(
     scaffoldBackgroundColor: colors.background,

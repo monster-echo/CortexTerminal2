@@ -22,38 +22,41 @@ class TerminalThemesScreen extends ConsumerWidget {
 
     Widget themeTile(TerminalColorScheme scheme, {bool custom = false}) {
       final selected = selection == scheme.id;
-      return AppRow(
-        leadingWidget: _SchemePreview(scheme: scheme),
-        label: terminalThemeDisplayName(scheme, l10n),
-        onTap: () =>
-            ref.read(terminalThemeSelectionProvider.notifier).set(scheme.id),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (custom) ...[
-              ShadIconButton.ghost(
-                icon: const Icon(LucideIcons.squarePen, size: 16),
-                onPressed: () => context.push(
-                  '/settings/terminal-themes/edit',
-                  extra: scheme,
+      final c = colorsOf(context);
+      return Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        decoration: BoxDecoration(
+          color: selected ? c.surfaceSelected : c.surfaceElevated,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected ? c.accent : c.divider,
+            width: selected ? 1.5 : 1,
+          ),
+        ),
+        child: AppRow(
+          leadingWidget: _SchemePreview(scheme: scheme),
+          label: terminalThemeDisplayName(scheme, l10n),
+          onTap: () =>
+              ref.read(terminalThemeSelectionProvider.notifier).set(scheme.id),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (custom) ...[
+                ShadIconButton.ghost(
+                  icon: const Icon(LucideIcons.squarePen, size: 16),
+                  onPressed: () => context.push(
+                    '/settings/terminal-themes/edit',
+                    extra: scheme,
+                  ),
                 ),
-              ),
-              ShadIconButton.ghost(
-                icon: Icon(
-                  LucideIcons.trash,
-                  size: 16,
-                  color: colorsOf(context).danger,
+                ShadIconButton.ghost(
+                  icon: Icon(LucideIcons.trash, size: 16, color: c.danger),
+                  onPressed: () => _confirmDelete(context, ref, scheme),
                 ),
-                onPressed: () => _confirmDelete(context, ref, scheme),
-              ),
+              ],
+              if (selected) Icon(LucideIcons.check, size: 18, color: c.accent),
             ],
-            if (selected)
-              Icon(
-                LucideIcons.check,
-                size: 18,
-                color: colorsOf(context).accent,
-              ),
-          ],
+          ),
         ),
       );
     }
@@ -66,9 +69,14 @@ class TerminalThemesScreen extends ConsumerWidget {
           AppGroupCard(
             children: [
               AppRow(
-                icon: LucideIcons.monitor,
+                leadingWidget: const Icon(LucideIcons.monitor),
                 label: l10n.terminalThemeSystem,
-                value: selection == followAppTerminalTheme ? '✓' : null,
+                value: Localizations.localeOf(context).languageCode == 'zh'
+                    ? '随 App 亮暗模式自动切换'
+                    : 'Automatically follows the app appearance',
+                trailing: selection == followAppTerminalTheme
+                    ? Icon(LucideIcons.check, color: colorsOf(context).accent)
+                    : null,
                 onTap: () => ref
                     .read(terminalThemeSelectionProvider.notifier)
                     .set(followAppTerminalTheme),

@@ -40,7 +40,9 @@ class _PortForwardingScreenState extends ConsumerState<PortForwardingScreen> {
   }) async {
     setState(() => _busy = true);
     try {
-      await ref.read(tunnelRepositoryProvider).create(
+      await ref
+          .read(tunnelRepositoryProvider)
+          .create(
             workspaceId: widget.workspaceId,
             name: name,
             localPort: localPort,
@@ -66,7 +68,9 @@ class _PortForwardingScreenState extends ConsumerState<PortForwardingScreen> {
   }) async {
     setState(() => _busy = true);
     try {
-      await ref.read(tunnelRepositoryProvider).update(
+      await ref
+          .read(tunnelRepositoryProvider)
+          .update(
             workspaceId: widget.workspaceId,
             tunnelId: t.tunnelId,
             name: name,
@@ -134,6 +138,10 @@ class _PortForwardingScreenState extends ConsumerState<PortForwardingScreen> {
   void _showRuleSheet({TunnelSummary? existing}) {
     showModalBottomSheet<void>(
       context: context,
+      sheetAnimationStyle: const AnimationStyle(
+        duration: Duration(milliseconds: 280),
+        reverseDuration: Duration(milliseconds: 220),
+      ),
       isScrollControlled: true,
       backgroundColor: colorsOf(context).surface,
       builder: (_) => _RuleSheet(
@@ -141,17 +149,20 @@ class _PortForwardingScreenState extends ConsumerState<PortForwardingScreen> {
         onSubmit: (name, localPort, remoteAddress, remotePort) {
           Navigator.of(context).pop();
           if (existing != null) {
-            _edit(existing,
-                name: name,
-                localPort: localPort,
-                remoteAddress: remoteAddress,
-                remotePort: remotePort);
+            _edit(
+              existing,
+              name: name,
+              localPort: localPort,
+              remoteAddress: remoteAddress,
+              remotePort: remotePort,
+            );
           } else {
             _create(
-                name: name,
-                localPort: localPort,
-                remoteAddress: remoteAddress,
-                remotePort: remotePort);
+              name: name,
+              localPort: localPort,
+              remoteAddress: remoteAddress,
+              remotePort: remotePort,
+            );
           }
         },
       ),
@@ -161,7 +172,7 @@ class _PortForwardingScreenState extends ConsumerState<PortForwardingScreen> {
   @override
   Widget build(BuildContext context) {
     return Theme(
-      data: cortermDarkToolTheme(),
+      data: cortermToolTheme(context),
       child: Builder(
         builder: (context) {
           final c = colorsOf(context);
@@ -200,10 +211,8 @@ class _PortForwardingScreenState extends ConsumerState<PortForwardingScreen> {
                   itemCount: tunnels.length,
                   separatorBuilder: (_, _) =>
                       Divider(color: c.divider, height: 1, indent: 16),
-                  itemBuilder: (context, i) => _TunnelTile(
-                    tunnel: tunnels[i],
-                    screen: this,
-                  ),
+                  itemBuilder: (context, i) =>
+                      _TunnelTile(tunnel: tunnels[i], screen: this),
                 );
               },
             ),
@@ -246,7 +255,9 @@ class _TunnelTile extends StatelessWidget {
           Text(
             t.running ? 'ON' : 'OFF',
             style: TextStyle(
-                fontSize: 12, color: t.running ? c.success : c.textSecondary),
+              fontSize: 12,
+              color: t.running ? c.success : c.textSecondary,
+            ),
           ),
           const SizedBox(width: 4),
           Switch(
@@ -285,22 +296,30 @@ class _RuleSheet extends StatefulWidget {
 
   final TunnelSummary? existing;
   final void Function(
-          String? name, int localPort, String remoteAddress, int remotePort)
-      onSubmit;
+    String? name,
+    int localPort,
+    String remoteAddress,
+    int remotePort,
+  )
+  onSubmit;
 
   @override
   State<_RuleSheet> createState() => _RuleSheetState();
 }
 
 class _RuleSheetState extends State<_RuleSheet> {
-  late final _nameController =
-      TextEditingController(text: widget.existing?.name ?? '');
+  late final _nameController = TextEditingController(
+    text: widget.existing?.name ?? '',
+  );
   late final _localPortController = TextEditingController(
-      text: widget.existing == null ? '' : '${widget.existing!.localPort}');
-  late final _remoteHostController =
-      TextEditingController(text: widget.existing?.remoteAddress ?? '127.0.0.1');
+    text: widget.existing == null ? '' : '${widget.existing!.localPort}',
+  );
+  late final _remoteHostController = TextEditingController(
+    text: widget.existing?.remoteAddress ?? '127.0.0.1',
+  );
   late final _remotePortController = TextEditingController(
-      text: widget.existing == null ? '' : '${widget.existing!.remotePort}');
+    text: widget.existing == null ? '' : '${widget.existing!.remotePort}',
+  );
 
   @override
   void dispose() {
@@ -333,50 +352,71 @@ class _RuleSheetState extends State<_RuleSheet> {
   @override
   Widget build(BuildContext context) {
     final canSubmit =
-        _validPort(_localPortController.text) && _validPort(_remotePortController.text);
+        _validPort(_localPortController.text) &&
+        _validPort(_remotePortController.text);
     // Modal 路由在 Navigator 根上，显式包 Dark Theme 保证弹层对比度。
     return Theme(
-      data: cortermDarkToolTheme(),
-      child: Builder(builder: (context) {
-        return Padding(
-          padding: EdgeInsets.only(
-            left: 24,
-            right: 24,
-            top: 24,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-          ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SectionHeader(widget.existing == null ? '新建转发规则' : '编辑转发规则'),
-          _field(context, '名称（可选）', _nameController, keyboardType: TextInputType.text),
-          _field(context, '本地端口', _localPortController,
-              keyboardType: TextInputType.number,
-              onChanged: (_) => setState(() {})),
-          _field(context, '远端地址', _remoteHostController,
-              keyboardType: TextInputType.url),
-          _field(context, '远端端口', _remotePortController,
-              keyboardType: TextInputType.number, onChanged: (v) {
-            setState(() {});
-            // 输入远端端口后，本地端口默认同值，用户可修改。
-            final remote = int.tryParse(v);
-            if (remote != null &&
-                remote > 0 &&
-                _localPortController.text.isEmpty) {
-              _localPortController.text = '$remote';
-            }
-          }),
-          const SizedBox(height: 24),
-          PrimaryButton(
-            label: widget.existing == null ? '创建并启动' : '保存',
-            onPressed: canSubmit ? _submit : null,
-          ),
-        ],
-      ),
+      data: cortermToolTheme(context),
+      child: Builder(
+        builder: (context) {
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 24,
+              right: 24,
+              top: 24,
+              bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SectionHeader(widget.existing == null ? '新建转发规则' : '编辑转发规则'),
+                _field(
+                  context,
+                  '名称（可选）',
+                  _nameController,
+                  keyboardType: TextInputType.text,
+                ),
+                _field(
+                  context,
+                  '本地端口',
+                  _localPortController,
+                  keyboardType: TextInputType.number,
+                  onChanged: (_) => setState(() {}),
+                ),
+                _field(
+                  context,
+                  '远端地址',
+                  _remoteHostController,
+                  keyboardType: TextInputType.url,
+                ),
+                _field(
+                  context,
+                  '远端端口',
+                  _remotePortController,
+                  keyboardType: TextInputType.number,
+                  onChanged: (v) {
+                    setState(() {});
+                    // 输入远端端口后，本地端口默认同值，用户可修改。
+                    final remote = int.tryParse(v);
+                    if (remote != null &&
+                        remote > 0 &&
+                        _localPortController.text.isEmpty) {
+                      _localPortController.text = '$remote';
+                    }
+                  },
+                ),
+                const SizedBox(height: 24),
+                PrimaryButton(
+                  label: widget.existing == null ? '创建并启动' : '保存',
+                  onPressed: canSubmit ? _submit : null,
+                ),
+              ],
+            ),
           );
-        }),
-      );
+        },
+      ),
+    );
   }
 
   Widget _field(
@@ -392,8 +432,7 @@ class _RuleSheetState extends State<_RuleSheet> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label,
-              style: TextStyle(fontSize: 14, color: c.textSecondary)),
+          Text(label, style: TextStyle(fontSize: 14, color: c.textSecondary)),
           const SizedBox(height: 8),
           TextField(
             controller: controller,
@@ -403,8 +442,10 @@ class _RuleSheetState extends State<_RuleSheet> {
             decoration: InputDecoration(
               filled: true,
               fillColor: c.surfaceElevated,
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 14,
+              ),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
                 borderSide: BorderSide(color: c.divider),

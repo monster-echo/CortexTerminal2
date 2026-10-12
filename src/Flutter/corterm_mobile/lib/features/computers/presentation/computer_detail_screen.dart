@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../app/theme/corterm_theme.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../core/models/workspace.dart';
 import '../../../shared/widgets/app_bar.dart';
 import '../../../shared/widgets/swipe_delete.dart';
@@ -20,13 +21,14 @@ class ComputerDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
     final workers = ref.watch(workersProvider);
     final workspaces = ref.watch(workspacesProvider);
 
     return Scaffold(
       backgroundColor: colorsOf(context).background,
       appBar: CortermAppBar(
-        title: '电脑',
+        title: l10n.computersTitle,
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -48,16 +50,21 @@ class ComputerDetailScreen extends ConsumerWidget {
         data: (list) {
           final worker = list.where((w) => w.workerId == workerId).firstOrNull;
           if (worker == null) {
-            return const EmptyState(icon: Icons.computer, message: '电脑暂不可用');
+            return EmptyState(
+              icon: Icons.computer,
+              message: l10n.computerUnavailable,
+            );
           }
           return ListView(
             children: [
               ListRow(
                 title: worker.displayName,
-                subtitle: worker.isOnline ? '在线' : '离线',
+                subtitle: worker.isOnline
+                    ? l10n.workerOnline
+                    : l10n.workerOffline,
                 leading: _StatusDot(online: worker.isOnline),
               ),
-              const SectionHeader('工作区'),
+              SectionHeader(l10n.workspacesSectionTitle),
               workspaces.when(
                 loading: () => const Padding(
                   padding: EdgeInsets.all(24),
@@ -75,11 +82,11 @@ class ComputerDetailScreen extends ConsumerWidget {
                       .where((w) => w.workerId == workerId)
                       .toList();
                   if (items.isEmpty) {
-                    return const Padding(
-                      padding: EdgeInsets.all(24),
+                    return Padding(
+                      padding: const EdgeInsets.all(24),
                       child: EmptyState(
                         icon: Icons.folder_open,
-                        message: '还没有工作区',
+                        message: l10n.workspaceEmpty,
                       ),
                     );
                   }
@@ -93,7 +100,7 @@ class ComputerDetailScreen extends ConsumerWidget {
               Padding(
                 padding: const EdgeInsets.all(16),
                 child: PrimaryButton(
-                  label: '新建工作区',
+                  label: l10n.workspaceCreateTitle,
                   onPressed: () =>
                       context.push('/workspaces/new?workerId=$workerId'),
                 ),

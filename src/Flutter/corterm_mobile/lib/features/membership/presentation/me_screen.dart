@@ -9,6 +9,7 @@ import '../../../app/theme/corterm_theme.dart';
 import '../../../shared/widgets/app_shell.dart';
 import '../../../shared/widgets/list_group.dart';
 import '../../profile/presentation/profile_screen.dart';
+import '../../profile/data/profile_repository.dart';
 import '../data/store_purchase_controller.dart';
 
 /// Account, membership and help. Personalization lives in Settings.
@@ -22,12 +23,14 @@ class MeScreen extends ConsumerWidget {
     final zh = Localizations.localeOf(context).languageCode == 'zh';
     String tr(String cn, String en) => zh ? cn : en;
     final auth = ref.watch(authProvider);
-    final profile = ref.watch(profileProvider).value;
+    final profile = ref.watch(profileProvider).asData?.value;
+    final profileRepo = ref.watch(profileRepositoryProvider);
     final displayName = profile?.displayName?.trim();
     final membership = ref.watch(membershipStatusProvider);
-    final isPro = membership.value?['tier'] == 'pro';
+    final membershipData = membership.asData?.value;
+    final isPro = membershipData?['tier'] == 'pro';
     final expiry = DateTime.tryParse(
-      membership.value?['expiresAtUtc'] as String? ?? '',
+      membershipData?['expiresAtUtc'] as String? ?? '',
     );
     return AppShellScaffold(
       tab: ShellTab.me,
@@ -51,14 +54,77 @@ class MeScreen extends ConsumerWidget {
           children: [
             AppGroupCard(
               children: [
-                AppRow(
-                  icon: LucideIcons.user,
-                  label: (displayName != null && displayName.isNotEmpty)
-                      ? displayName
-                      : auth.username ?? l10n.meTitle,
-                  value: l10n.profileTitle,
-                  chevron: true,
-                  onTap: () => context.push('/settings/profile'),
+                Material(
+                  type: MaterialType.transparency,
+                  child: InkWell(
+                    onTap: () => showModalBottomSheet<void>(
+                      context: context,
+                      sheetAnimationStyle: const AnimationStyle(
+                        duration: Duration(milliseconds: 280),
+                        reverseDuration: Duration(milliseconds: 220),
+                      ),
+                      isScrollControlled: true,
+                      useSafeArea: true,
+                      backgroundColor: c.background,
+                      showDragHandle: true,
+                      builder: (sheetContext) => SizedBox(
+                        height: MediaQuery.sizeOf(sheetContext).height * .9,
+                        child: const ProfileScreen(),
+                      ),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                      child: Row(
+                        children: [
+                          _ProfileAvatar(
+                            url: profileRepo.resolveAvatarUrl(
+                              profile?.avatarUrl,
+                            ),
+                            fallback: displayName?.isNotEmpty == true
+                                ? displayName!
+                                : auth.username ?? 'U',
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  (displayName != null &&
+                                          displayName.isNotEmpty)
+                                      ? displayName
+                                      : auth.username ?? l10n.meTitle,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: c.textPrimary,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  l10n.profileTitle,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: c.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(
+                            Icons.chevron_right,
+                            size: 18,
+                            color: c.textSecondary,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -123,6 +189,29 @@ class MeScreen extends ConsumerWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ProfileAvatar extends StatelessWidget {
+  const _ProfileAvatar({required this.url, required this.fallback});
+
+  final String url;
+  final String fallback;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = colorsOf(context);
+    return CircleAvatar(
+      radius: 24,
+      backgroundColor: c.surfaceSelected,
+      foregroundImage: url.isEmpty ? null : NetworkImage(url),
+      child: Text(
+        fallback.trim().isEmpty
+            ? 'U'
+            : fallback.trim().substring(0, 1).toUpperCase(),
+        style: TextStyle(fontSize: 18, color: c.textPrimary),
       ),
     );
   }

@@ -10,6 +10,7 @@ import '../features/activate/activate_screen.dart';
 import '../features/auth/presentation/login_screen.dart';
 import '../features/workers/presentation/worker_select_screen.dart';
 import '../features/computers/presentation/computer_detail_screen.dart';
+import '../features/computers/presentation/computers_screen.dart';
 import '../features/computers/presentation/pair_computer_screen.dart';
 import '../features/files/presentation/file_preview_screen.dart';
 import '../features/files/presentation/files_screen.dart';
@@ -88,6 +89,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/workers/select',
         builder: (_, _) => const WorkerSelectScreen(),
       ),
+      GoRoute(path: '/computers', builder: (_, _) => const ComputersScreen()),
       GoRoute(path: '/home', builder: (_, _) => const HomeShell()),
       GoRoute(path: '/search', builder: (_, _) => const SearchScreen()),
 

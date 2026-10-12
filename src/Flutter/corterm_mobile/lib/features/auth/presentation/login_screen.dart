@@ -84,7 +84,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           methods.methods.where((m) => _supportedOauth.contains(m)),
         );
         // 平台能力判断（非降级）：Apple 原生流仅 iOS 提供（web 不提供）。
-        _hasApple = methods.methods.contains('apple') &&
+        _hasApple =
+            methods.methods.contains('apple') &&
             !kIsWeb &&
             defaultTargetPlatform == TargetPlatform.iOS;
         _methodsLoaded = true;
@@ -122,9 +123,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       child: Builder(
         builder: (bodyContext) => Text(
           l10n.consentAlertBody,
-          style: ShadTheme.of(bodyContext)
-              .textTheme
-              .muted
+          style: ShadTheme.of(bodyContext).textTheme.muted
               .copyWith(color: colorsOf(bodyContext).textSecondary),
         ),
       ),
@@ -175,15 +174,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (_passwordMode) {
         result = await _passwordLogin();
       } else {
-        result = await ref.read(authRepositoryProvider).verifyPhoneCode(
+        result = await ref
+            .read(authRepositoryProvider)
+            .verifyPhoneCode(
               phone: _phone.text.trim(),
               code: _code.text.trim(),
             );
       }
-      await ref.read(authProvider.notifier).loggedIn(
-            token: result.accessToken,
-            username: result.username,
-          );
+      await ref
+          .read(authProvider.notifier)
+          .loggedIn(token: result.accessToken, username: result.username);
       if (mounted) context.go('/home');
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -236,7 +236,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       } on ApiException catch (e) {
         if (!e.isCaptchaRequired) rethrow;
         final token = await _solveCaptcha();
-        await repo.sendPhoneCode(phone: _phone.text.trim(), captchaToken: token);
+        await repo.sendPhoneCode(
+          phone: _phone.text.trim(),
+          captchaToken: token,
+        );
       }
       if (!mounted) return;
       setState(() => _resendIn = 60);
@@ -260,7 +263,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final uri = Uri.parse('$gateway/api/auth/$provider?redirect=$redirect');
     final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!ok && mounted) {
-      setState(() => _error = AppLocalizations.of(context)!.oauthFailed(provider));
+      setState(
+        () => _error = AppLocalizations.of(context)!.oauthFailed(provider),
+      );
     }
   }
 
@@ -280,10 +285,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       final result = await ref
           .read(authRepositoryProvider)
           .appleLogin(authorizationCode: credential.authorizationCode);
-      await ref.read(authProvider.notifier).loggedIn(
-            token: result.accessToken,
-            username: result.username,
-          );
+      await ref
+          .read(authProvider.notifier)
+          .loggedIn(token: result.accessToken, username: result.username);
       if (mounted) context.go('/home');
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -388,9 +392,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final privacyDoc = privacyPolicyOf(localeTag);
     final termsDoc = termsOfServiceOf(localeTag);
 
-    // 次行入口：非 primary 的登录方式 + OAuth，横排一行。
-    // 默认密码为 primary → 次行 = 手机登录 + GitHub/Google(/Apple)；
-    // 切换成手机为主后，次行 = 密码登录 + OAuth。
+    final zh = Localizations.localeOf(context).languageCode == 'zh';
+    String providerLabel(String name) =>
+        zh ? '使用 $name 登录' : 'Continue with $name';
+
+    // 主登录方式之外保留服务端提供的所有入口；OAuth 按平台能力显示。
     final secondaryEntries = <Widget>[
       if (!_passwordMode && _hasPassword)
         ShadButton.outline(
@@ -411,236 +417,276 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           enabled: !_busy,
           onPressed: () => _startOauth(p),
           leading: p == 'github' ? const GithubMark() : const GoogleG(),
-          child: Text(p == 'github' ? 'GitHub' : 'Google'),
+          child: Text(providerLabel(p == 'github' ? 'GitHub' : 'Google')),
         ),
       if (_hasApple)
         ShadButton.outline(
           enabled: !_busy,
           onPressed: _appleLogin,
           leading: const Icon(LucideIcons.apple, size: 16),
-          child: const Text('Apple'),
+          child: Text(providerLabel('Apple')),
         ),
     ];
 
     return Scaffold(
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 400),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const SizedBox(height: 32),
-                  // 品牌区：logo + 名称 + tagline。
-                  Center(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(18),
-                      child: Image.asset(
-                        'assets/branding/icon.png',
-                        width: 72,
-                        height: 72,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    l10n.appName,
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.h2.copyWith(color: c.textPrimary),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    l10n.aboutTagline,
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.muted.copyWith(color: c.textSecondary),
-                  ),
-                  const SizedBox(height: 32),
-                  if (_passwordMode) ...[
-                    ShadInputFormField(
-                      controller: _user,
-                      focusNode: _userFocus,
-                      label: Text(l10n.username),
-                      placeholder: Text(l10n.username),
-                      autofillHints: const [AutofillHints.username],
-                      textInputAction: TextInputAction.next,
-                      onSubmitted: (_) => _passwordFocus.requestFocus(),
-                      enabled: !_busy,
-                      validator: _required,
-                      autovalidateMode: AutovalidateMode.onUserInteraction,
-                      onChanged: _onInputChanged,
-                    ),
-                    const SizedBox(height: 16),
-                    ShadInputFormField(
-                      controller: _password,
-                      focusNode: _passwordFocus,
-                      label: Text(l10n.password),
-                      placeholder: Text(l10n.password),
-                      obscureText: _obscure,
-                      autofillHints: const [AutofillHints.password],
-                      textInputAction: TextInputAction.done,
-                      onSubmitted: (_) => _login(),
-                      enabled: !_busy,
-                      validator: _required,
-                      autovalidateMode: AutovalidateMode.onUserInteraction,
-                      onChanged: _onInputChanged,
-                      trailing: _EyeButton(
-                        obscure: _obscure,
-                        onToggle: () => setState(() => _obscure = !_obscure),
-                      ),
-                    ),
-                  ] else ...[
-                    ShadInputFormField(
-                      controller: _phone,
-                      focusNode: _phoneFocus,
-                      label: Text(l10n.phoneNumber),
-                      placeholder: Text(l10n.phoneNumber),
-                      keyboardType: TextInputType.phone,
-                      autofillHints: const [AutofillHints.telephoneNumber],
-                      textInputAction: TextInputAction.next,
-                      onSubmitted: (_) => _codeFocus.requestFocus(),
-                      enabled: !_busy,
-                      validator: _required,
-                      autovalidateMode: AutovalidateMode.onUserInteraction,
-                      onChanged: _onInputChanged,
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
+        child: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 400),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Expanded(
-                          child: ShadInputFormField(
-                            controller: _code,
-                            focusNode: _codeFocus,
-                            label: Text(l10n.verificationCode),
-                            placeholder: Text(l10n.verificationCode),
-                            keyboardType: TextInputType.number,
+                        const SizedBox(height: 28),
+                        // 品牌区：logo + 名称 + tagline。
+                        Center(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(18),
+                            child: Image.asset(
+                              'assets/branding/icon.png',
+                              width: 80,
+                              height: 80,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          l10n.appName,
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.h2.copyWith(
+                            color: c.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          l10n.aboutTagline,
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.muted.copyWith(
+                            color: c.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(height: 28),
+                        if (_passwordMode) ...[
+                          ShadInputFormField(
+                            controller: _user,
+                            focusNode: _userFocus,
+                            label: Text(l10n.username),
+                            placeholder: Text(l10n.username),
+                            autofillHints: const [AutofillHints.username],
+                            textInputAction: TextInputAction.next,
+                            onSubmitted: (_) => _passwordFocus.requestFocus(),
+                            enabled: !_busy,
+                            validator: _required,
+                            autovalidateMode:
+                                AutovalidateMode.onUserInteraction,
+                            onChanged: _onInputChanged,
+                          ),
+                          const SizedBox(height: 16),
+                          ShadInputFormField(
+                            controller: _password,
+                            focusNode: _passwordFocus,
+                            label: Text(l10n.password),
+                            placeholder: Text(l10n.password),
+                            obscureText: _obscure,
+                            autofillHints: const [AutofillHints.password],
                             textInputAction: TextInputAction.done,
                             onSubmitted: (_) => _login(),
                             enabled: !_busy,
                             validator: _required,
-                            autovalidateMode: AutovalidateMode.onUserInteraction,
+                            autovalidateMode:
+                                AutovalidateMode.onUserInteraction,
+                            onChanged: _onInputChanged,
+                            trailing: _EyeButton(
+                              obscure: _obscure,
+                              onToggle: () =>
+                                  setState(() => _obscure = !_obscure),
+                            ),
+                          ),
+                        ] else ...[
+                          ShadInputFormField(
+                            controller: _phone,
+                            focusNode: _phoneFocus,
+                            label: Text(l10n.phoneNumber),
+                            placeholder: Text(l10n.phoneNumber),
+                            keyboardType: TextInputType.phone,
+                            autofillHints: const [
+                              AutofillHints.telephoneNumber,
+                            ],
+                            textInputAction: TextInputAction.next,
+                            onSubmitted: (_) => _codeFocus.requestFocus(),
+                            enabled: !_busy,
+                            validator: _required,
+                            autovalidateMode:
+                                AutovalidateMode.onUserInteraction,
                             onChanged: _onInputChanged,
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        // 高度与输入框对齐（sm = 40）。
-                        ShadButton(
-                          size: ShadButtonSize.sm,
-                          enabled: _resendIn <= 0 && _phone.text.trim().isNotEmpty && !_busy,
-                          onPressed: _sendCode,
-                          child: Text(
-                            _resendIn > 0
-                                ? l10n.phoneCodeResendIn(_resendIn)
-                                : l10n.sendCode,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                  // 登录失败（服务器/网络）——独立于 methods 加载失败。
-                  if (_error != null) ...[
-                    const SizedBox(height: 16),
-                    ShadAlert.destructive(
-                      icon: const Icon(LucideIcons.circleAlert),
-                      title: Text(l10n.loginFailed),
-                      description: Text(_error!),
-                    ),
-                  ],
-                  const SizedBox(height: 24),
-                  // 主按钮：黑底白字胶囊（Corterm 设计系统）。
-                  PrimaryButton(
-                    label: _busy ? l10n.signingIn : l10n.signIn,
-                    onPressed:
-                        !_busy && _methodsLoaded && _inputValid ? _login : null,
-                  ),
-                  if (secondaryEntries.isNotEmpty) ...[
-                    const SizedBox(height: 24),
-                    Row(
-                      children: [
-                        const Expanded(child: Divider()),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          child: Text(
-                            l10n.otherLoginMethods,
-                            style: theme.textTheme.muted.copyWith(
-                              color: c.textSecondary,
-                            ),
-                          ),
-                        ),
-                        const Expanded(child: Divider()),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    // 次行入口：非 primary 的登录方式 + OAuth。
-                    // Wrap 而非 Row+Expanded：条目多/文案长时按钮保持自然宽度并换行，
-                    // 不会被压缩到内部 Row 溢出（等宽压缩正是 overflow 的来源）。
-                    Wrap(
-                      alignment: WrapAlignment.center,
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [for (final entry in secondaryEntries) entry],
-                    ),
-                  ],
-                  if (_methodsFailed) ...[
-                    const SizedBox(height: 8),
-                    ShadAlert(
-                      icon: const Icon(LucideIcons.wifiOff),
-                      title: Text(l10n.loginMethodsUnavailable),
-                      description: Text(_methodsErrorDetail ?? ''),
-                    ),
-                    Center(
-                      child: ShadButton.link(
-                        onPressed: _loadMethods,
-                        child: Text(l10n.retry),
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 24),
-                  // 国内商店合规勾选行：页面最底部；整行可点；
-                  // 未勾选直接点登录 → 弹「同意并继续」对话框（见 _ensureConsent）。
-                  InkWell(
-                    borderRadius: BorderRadius.circular(8),
-                    onTap: () => setState(() => _consented = !_consented),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          SizedBox(
-                            height: 20,
-                            child: ShadCheckbox(
-                              value: _consented,
-                              onChanged: (v) => setState(() => _consented = v),
-                            ),
-                          ),
-                          Expanded(
-                            child: Padding(
-                              padding: const EdgeInsets.only(left: 8),
-                              child: Text.rich(
-                                TextSpan(
-                                  style: theme.textTheme.muted
-                                      .copyWith(color: c.textSecondary),
-                                  children: [
-                                    TextSpan(text: l10n.consentPrefix),
-                                    _docLink(context, termsDoc.title, 'terms'),
-                                    TextSpan(text: l10n.consentAnd),
-                                    _docLink(context, privacyDoc.title, 'privacy'),
-                                  ],
+                          const SizedBox(height: 16),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Expanded(
+                                child: ShadInputFormField(
+                                  controller: _code,
+                                  focusNode: _codeFocus,
+                                  label: Text(l10n.verificationCode),
+                                  placeholder: Text(l10n.verificationCode),
+                                  keyboardType: TextInputType.number,
+                                  textInputAction: TextInputAction.done,
+                                  onSubmitted: (_) => _login(),
+                                  enabled: !_busy,
+                                  validator: _required,
+                                  autovalidateMode:
+                                      AutovalidateMode.onUserInteraction,
+                                  onChanged: _onInputChanged,
                                 ),
                               ),
+                              const SizedBox(width: 8),
+                              // 高度与输入框对齐（sm = 40）。
+                              ShadButton(
+                                size: ShadButtonSize.sm,
+                                enabled:
+                                    _resendIn <= 0 &&
+                                    _phone.text.trim().isNotEmpty &&
+                                    !_busy,
+                                onPressed: _sendCode,
+                                child: Text(
+                                  _resendIn > 0
+                                      ? l10n.phoneCodeResendIn(_resendIn)
+                                      : l10n.sendCode,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                        // 登录失败（服务器/网络）——独立于 methods 加载失败。
+                        if (_error != null) ...[
+                          const SizedBox(height: 16),
+                          ShadAlert.destructive(
+                            icon: const Icon(LucideIcons.circleAlert),
+                            title: Text(l10n.loginFailed),
+                            description: Text(_error!),
+                          ),
+                        ],
+                        const SizedBox(height: 24),
+                        // 主按钮：黑底白字胶囊（Corterm 设计系统）。
+                        PrimaryButton(
+                          label: _busy ? l10n.signingIn : l10n.signIn,
+                          onPressed: !_busy && _methodsLoaded && _inputValid
+                              ? _login
+                              : null,
+                        ),
+                        if (secondaryEntries.isNotEmpty) ...[
+                          const SizedBox(height: 24),
+                          Row(
+                            children: [
+                              const Expanded(child: Divider()),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                ),
+                                child: Text(
+                                  l10n.otherLoginMethods,
+                                  style: theme.textTheme.muted.copyWith(
+                                    color: c.textSecondary,
+                                  ),
+                                ),
+                              ),
+                              const Expanded(child: Divider()),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              for (
+                                var i = 0;
+                                i < secondaryEntries.length;
+                                i++
+                              ) ...[
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: secondaryEntries[i],
+                                ),
+                                if (i != secondaryEntries.length - 1)
+                                  const SizedBox(height: 8),
+                              ],
+                            ],
+                          ),
+                        ],
+                        if (_methodsFailed) ...[
+                          const SizedBox(height: 8),
+                          ShadAlert(
+                            icon: const Icon(LucideIcons.wifiOff),
+                            title: Text(l10n.loginMethodsUnavailable),
+                            description: Text(_methodsErrorDetail ?? ''),
+                          ),
+                          Center(
+                            child: ShadButton.link(
+                              onPressed: _loadMethods,
+                              child: Text(l10n.retry),
                             ),
                           ),
                         ],
-                      ),
+                        const SizedBox(height: 24),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 24),
-                ],
+                ),
               ),
             ),
-          ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 400),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: () => setState(() => _consented = !_consented),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(
+                          height: 20,
+                          child: ShadCheckbox(
+                            value: _consented,
+                            onChanged: (v) => setState(() => _consented = v),
+                          ),
+                        ),
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.only(left: 8),
+                            child: Text.rich(
+                              TextSpan(
+                                style: theme.textTheme.muted.copyWith(
+                                  color: c.textSecondary,
+                                ),
+                                children: [
+                                  TextSpan(text: l10n.consentPrefix),
+                                  _docLink(context, termsDoc.title, 'terms'),
+                                  TextSpan(text: l10n.consentAnd),
+                                  _docLink(
+                                    context,
+                                    privacyDoc.title,
+                                    'privacy',
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -815,149 +861,167 @@ class _CaptchaDialogState extends State<_CaptchaDialog>
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-            FutureBuilder<_CaptchaImages>(
-              future: _images,
-              builder: (context, snap) {
-                if (snap.hasError) {
-                  return Text('${snap.error}',
-                      style: theme.textTheme.muted
-                          .copyWith(color: c.textSecondary));
-                }
-                if (!snap.hasData) {
-                  return const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(24),
-                      child: SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: ShadProgress(value: null),
-                      ),
-                    ),
-                  );
-                }
-                final bg = snap.data!.background;
-                final slider = snap.data!.slider;
-                return ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: LayoutBuilder(
-                    builder: (context, box) {
-                      _scale = box.maxWidth / bg.width;
-                      _maxDx = (box.maxWidth - slider.width * _scale)
-                          .clamp(0, double.infinity);
-                      return Transform.translate(
-                        offset: Offset(_shakeDx, 0),
-                        child: Stack(
-                          children: [
-                            Image.memory(
-                              _bytesOf(_challenge.backgroundImage),
-                              fit: BoxFit.fill,
-                              width: box.maxWidth,
-                            ),
-                            Positioned(
-                              left: _dx,
-                              top: _challenge.y * _scale,
-                              child: RawImage(
-                                image: slider,
-                                width: slider.width * _scale,
-                                height: slider.height * _scale,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
+        FutureBuilder<_CaptchaImages>(
+          future: _images,
+          builder: (context, snap) {
+            if (snap.hasError) {
+              return Text(
+                '${snap.error}',
+                style: theme.textTheme.muted.copyWith(color: c.textSecondary),
+              );
+            }
+            if (!snap.hasData) {
+              return const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(24),
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: ShadProgress(value: null),
                   ),
-                );
-              },
-            ),
-            const SizedBox(height: 16),
-            // 拖轨：thumb 跟手，松手即校验。
-            LayoutBuilder(
-              builder: (context, box) {
-                const thumbSize = 44.0;
-                final travel = (box.maxWidth - thumbSize).clamp(0.0, double.infinity);
-                final fraction = _maxDx <= 0 ? 0.0 : (_dx / _maxDx).clamp(0.0, 1.0);
-                final thumbLeft = fraction * travel;
-                return GestureDetector(
-                  onHorizontalDragUpdate: _phase == _CaptchaPhase.idle
-                      ? (d) => setState(() {
-                            _dx = (_dx + d.delta.dx).clamp(0, _maxDx);
-                          })
-                      : null,
-                  onHorizontalDragEnd: _phase == _CaptchaPhase.idle ? _onDragEnd : null,
-                  child: Container(
-                    height: thumbSize,
-                    decoration: BoxDecoration(
-                      color: c.surface,
-                      borderRadius: BorderRadius.circular(22),
-                    ),
+                ),
+              );
+            }
+            final bg = snap.data!.background;
+            final slider = snap.data!.slider;
+            return ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: LayoutBuilder(
+                builder: (context, box) {
+                  _scale = box.maxWidth / bg.width;
+                  _maxDx = (box.maxWidth - slider.width * _scale).clamp(
+                    0,
+                    double.infinity,
+                  );
+                  return Transform.translate(
+                    offset: Offset(_shakeDx, 0),
                     child: Stack(
-                      alignment: Alignment.centerLeft,
                       children: [
-                        // 填充条
-                        Positioned(
-                          left: 0,
-                          top: 0,
-                          bottom: 0,
-                          width: thumbLeft + thumbSize,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: fillColor,
-                              borderRadius: BorderRadius.circular(22),
-                            ),
-                          ),
+                        Image.memory(
+                          _bytesOf(_challenge.backgroundImage),
+                          fit: BoxFit.fill,
+                          width: box.maxWidth,
                         ),
-                        // 居中提示文字（拖动后淡出）
-                        if (fraction < 0.15 && _phase == _CaptchaPhase.idle)
-                          Center(
-                            child: Text(
-                              l10n.slideToVerify,
-                              style: theme.textTheme.muted
-                                  .copyWith(color: c.textSecondary),
-                            ),
-                          ),
-                        // Thumb
                         Positioned(
-                          left: thumbLeft,
-                          top: 0,
-                          child: Container(
-                            width: thumbSize,
-                            height: thumbSize,
-                            decoration: BoxDecoration(
-                              color: c.surfaceElevated,
-                              shape: BoxShape.circle,
-                              border: Border.all(color: thumbColor, width: 1.5),
-                            ),
-                            child: switch (_phase) {
-                              _CaptchaPhase.success => Icon(LucideIcons.check,
-                                  size: 20, color: c.success),
-                              _CaptchaPhase.failed => Icon(LucideIcons.x,
-                                  size: 20, color: c.danger),
-                              _CaptchaPhase.verifying => const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: ShadProgress(value: null),
-                                ),
-                              _CaptchaPhase.idle => Icon(LucideIcons.arrowRight,
-                                  size: 20, color: thumbColor),
-                            },
+                          left: _dx,
+                          top: _challenge.y * _scale,
+                          child: RawImage(
+                            image: slider,
+                            width: slider.width * _scale,
+                            height: slider.height * _scale,
                           ),
                         ),
                       ],
                     ),
-                  ),
-                );
-              },
-            ),
-            if (_error != null && _phase == _CaptchaPhase.failed) ...[
-              const SizedBox(height: 8),
-              Text(
-                _error!,
-                textAlign: TextAlign.center,
-                style: theme.textTheme.muted.copyWith(color: c.danger),
+                  );
+                },
               ),
-            ],
-          ],
+            );
+          },
+        ),
+        const SizedBox(height: 16),
+        // 拖轨：thumb 跟手，松手即校验。
+        LayoutBuilder(
+          builder: (context, box) {
+            const thumbSize = 44.0;
+            final travel = (box.maxWidth - thumbSize).clamp(
+              0.0,
+              double.infinity,
+            );
+            final fraction = _maxDx <= 0 ? 0.0 : (_dx / _maxDx).clamp(0.0, 1.0);
+            final thumbLeft = fraction * travel;
+            return GestureDetector(
+              onHorizontalDragUpdate: _phase == _CaptchaPhase.idle
+                  ? (d) => setState(() {
+                      _dx = (_dx + d.delta.dx).clamp(0, _maxDx);
+                    })
+                  : null,
+              onHorizontalDragEnd: _phase == _CaptchaPhase.idle
+                  ? _onDragEnd
+                  : null,
+              child: Container(
+                height: thumbSize,
+                decoration: BoxDecoration(
+                  color: c.surface,
+                  borderRadius: BorderRadius.circular(22),
+                ),
+                child: Stack(
+                  alignment: Alignment.centerLeft,
+                  children: [
+                    // 填充条
+                    Positioned(
+                      left: 0,
+                      top: 0,
+                      bottom: 0,
+                      width: thumbLeft + thumbSize,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: fillColor,
+                          borderRadius: BorderRadius.circular(22),
+                        ),
+                      ),
+                    ),
+                    // 居中提示文字（拖动后淡出）
+                    if (fraction < 0.15 && _phase == _CaptchaPhase.idle)
+                      Center(
+                        child: Text(
+                          l10n.slideToVerify,
+                          style: theme.textTheme.muted.copyWith(
+                            color: c.textSecondary,
+                          ),
+                        ),
+                      ),
+                    // Thumb
+                    Positioned(
+                      left: thumbLeft,
+                      top: 0,
+                      child: Container(
+                        width: thumbSize,
+                        height: thumbSize,
+                        decoration: BoxDecoration(
+                          color: c.surfaceElevated,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: thumbColor, width: 1.5),
+                        ),
+                        child: switch (_phase) {
+                          _CaptchaPhase.success => Icon(
+                            LucideIcons.check,
+                            size: 20,
+                            color: c.success,
+                          ),
+                          _CaptchaPhase.failed => Icon(
+                            LucideIcons.x,
+                            size: 20,
+                            color: c.danger,
+                          ),
+                          _CaptchaPhase.verifying => const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: ShadProgress(value: null),
+                          ),
+                          _CaptchaPhase.idle => Icon(
+                            LucideIcons.arrowRight,
+                            size: 20,
+                            color: thumbColor,
+                          ),
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+        if (_error != null && _phase == _CaptchaPhase.failed) ...[
+          const SizedBox(height: 8),
+          Text(
+            _error!,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.muted.copyWith(color: c.danger),
+          ),
+        ],
+      ],
     );
   }
 }

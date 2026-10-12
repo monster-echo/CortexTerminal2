@@ -476,7 +476,9 @@ class FileListing {
 }
 
 final fileRepositoryProvider = Provider<FileRepository>((ref) {
-  final dio = Dio();
+  final dio = Dio()
+    ..options.connectTimeout = const Duration(seconds: 10)
+    ..options.receiveTimeout = const Duration(seconds: 60);
   ref.onDispose(dio.close);
   return FileRepository(
     ref.watch(apiClientProvider),

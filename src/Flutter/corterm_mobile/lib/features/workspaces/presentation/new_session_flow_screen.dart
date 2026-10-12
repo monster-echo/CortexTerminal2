@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../app/theme/corterm_theme.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../core/models/workspace.dart';
 import '../../../shared/widgets/corterm_ui.dart';
 import '../../sessions/data/session_repository.dart';
@@ -69,46 +70,53 @@ class _NewSessionFlowScreenState extends ConsumerState<NewSessionFlowScreen> {
     }
   }
 
-  /// 电脑无工作区（或列表底部）时的捷径：内联新建工作区，
-  /// 成功后带回新工作区并直接继续创建会话。
+  /// Create a workspace, then return with it selected for confirmation.
   Future<void> _newWorkspace() async {
     final ws = await context.push<Workspace>(
       '/workspaces/new?workerId=$_workerId&returnResult=1',
     );
     if (ws == null || !mounted) return;
     setState(() => _workspaceId = ws.workspaceId);
-    await _create(ws);
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = colorsOf(context);
+    final l10n = AppLocalizations.of(context)!;
     final workspaces =
-        ref.watch(workspacesProvider).value ?? const <Workspace>[];
-    final lockedWorkspace = workspaces
+        ref.watch(workspacesProvider).asData?.value ?? const <Workspace>[];
+    final selectedWorkspace = workspaces
         .where((w) => w.workspaceId == _workspaceId)
         .firstOrNull;
-    final workers = ref.watch(workersProvider).value ?? const [];
+    final workers = ref.watch(workersProvider).asData?.value ?? const [];
+    final isLocked = widget.lockWorkspaceId != null;
+    final selectedWorkerId = selectedWorkspace?.workerId ?? _workerId;
+    final availableWorkspaces =
+        workspaces.where((w) => w.workerId == selectedWorkerId).toList()
+          ..sort((a, b) {
+            if (a.isDefault != b.isDefault) return a.isDefault ? -1 : 1;
+            return a.displayName.compareTo(b.displayName);
+          });
 
     return Scaffold(
       backgroundColor: colors.background,
       appBar: AppBar(
         backgroundColor: colors.background,
         surfaceTintColor: Colors.transparent,
-        title: const Text('新建会话'),
+        title: Text(l10n.newSession),
       ),
       body: ListView(
-        padding: const EdgeInsets.only(bottom: 24),
+        padding: const EdgeInsets.only(bottom: 16),
         children: [
-          SectionHeader('电脑'),
-          if (lockedWorkspace != null)
+          SectionHeader(l10n.computersTitle),
+          if (isLocked && selectedWorkspace != null)
             ListRow(
               title:
                   workers
-                      .where((w) => w.workerId == lockedWorkspace.workerId)
+                      .where((w) => w.workerId == selectedWorkspace.workerId)
                       .map((w) => w.displayName)
                       .firstOrNull ??
-                  lockedWorkspace.workerId,
+                  selectedWorkspace.workerId,
               leading: const Icon(Icons.computer),
             )
           else
@@ -120,31 +128,45 @@ class _NewSessionFlowScreenState extends ConsumerState<NewSessionFlowScreen> {
               ListRow(
                 title: w.displayName,
                 subtitle:
-                    '${w.isOnline ? w.hostname : '离线（不可选） · ${w.hostname}'}',
+                    w.hostname == null ||
+                        w.hostname!.isEmpty ||
+                        w.hostname == w.displayName
+                    ? (w.isOnline ? l10n.workerOnline : l10n.workerOffline)
+                    : '${w.isOnline ? l10n.workerOnline : l10n.workerOffline} · ${w.hostname}',
                 leading: Icon(
                   Icons.computer,
                   color: w.isOnline
                       ? null
                       : colors.textSecondary.withValues(alpha: 0.4),
                 ),
-                selected: w.workerId == _workerId,
+                selected: w.workerId == selectedWorkerId,
                 onTap: w.isOnline
                     ? () => setState(() {
                         _workerId = w.workerId;
-                        _workspaceId = null; // 换电脑后清空已选工作区
+                        final options =
+                            workspaces
+                                .where((ws) => ws.workerId == w.workerId)
+                                .toList()
+                              ..sort((a, b) {
+                                if (a.isDefault != b.isDefault) {
+                                  return a.isDefault ? -1 : 1;
+                                }
+                                return a.displayName.compareTo(b.displayName);
+                              });
+                        _workspaceId = options.firstOrNull?.workspaceId;
                       })
                     : null, // 离线电脑无法启动会话
                 trailing: const Icon(Icons.chevron_right, size: 18),
               ),
-          SectionHeader('工作区'),
-          if (lockedWorkspace != null)
+          SectionHeader(l10n.workspacesSectionTitle),
+          if (isLocked && selectedWorkspace != null)
             ListRow(
-              title: lockedWorkspace.displayName,
-              subtitle: lockedWorkspace.rootPath,
+              title: selectedWorkspace.displayName,
+              subtitle: selectedWorkspace.rootPath,
               leading: const Icon(Icons.folder),
             )
-          else if (_workerId != null) ...[
-            for (final ws in workspaces.where((w) => w.workerId == _workerId))
+          else if (selectedWorkerId != null) ...[
+            for (final ws in availableWorkspaces)
               ListRow(
                 title: ws.displayName,
                 subtitle: ws.rootPath,
@@ -154,22 +176,25 @@ class _NewSessionFlowScreenState extends ConsumerState<NewSessionFlowScreen> {
                 trailing: const Icon(Icons.chevron_right, size: 18),
               ),
             ListRow(
-              title: '新建工作区…',
+              title: l10n.workspaceCreateTitle,
               leading: const Icon(Icons.create_new_folder),
               onTap: _newWorkspace,
               trailing: const Icon(Icons.chevron_right, size: 18),
             ),
           ] else
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
-              child: Text('先选择电脑', style: TextStyle(fontSize: 13)),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                l10n.chooseComputerFirst,
+                style: const TextStyle(fontSize: 13),
+              ),
             ),
-          SectionHeader('名称（可选）'),
+          SectionHeader(l10n.sessionNameLabel),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: TextField(
               controller: _nameController,
-              decoration: const InputDecoration(hintText: '留空则自动命名'),
+              decoration: InputDecoration(hintText: l10n.workspaceNameAutoHint),
             ),
           ),
           if (_error != null)
@@ -180,22 +205,16 @@ class _NewSessionFlowScreenState extends ConsumerState<NewSessionFlowScreen> {
                 style: TextStyle(fontSize: 14, color: colors.danger),
               ),
             ),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: PrimaryButton(
-              label: '创建会话',
-              onPressed:
-                  (lockedWorkspace == null && _workspaceId == null) || _creating
-                  ? null
-                  : () => _create(
-                      lockedWorkspace ??
-                          workspaces
-                              .where((w) => w.workspaceId == _workspaceId)
-                              .first,
-                    ),
-            ),
-          ),
         ],
+      ),
+      bottomNavigationBar: SafeArea(
+        minimum: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+        child: PrimaryButton(
+          label: l10n.createSession,
+          onPressed: selectedWorkspace == null || _creating
+              ? null
+              : () => _create(selectedWorkspace),
+        ),
       ),
     );
   }

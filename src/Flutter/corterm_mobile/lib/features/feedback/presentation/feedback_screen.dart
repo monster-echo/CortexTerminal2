@@ -26,7 +26,7 @@ class _FeedbackScreenState extends ConsumerState<FeedbackScreen> {
   final _content = TextEditingController();
   final _contact = TextEditingController();
 
-  bool _isBug = true;
+  static const _feedbackType = 'feedback';
   final List<_PendingImage> _images = [];
   bool _submitting = false;
   String? _ticketId;
@@ -90,7 +90,7 @@ class _FeedbackScreenState extends ConsumerState<FeedbackScreen> {
           ? Localizations.localeOf(context).languageCode
           : 'en';
       final ticket = await repo.submit(
-        type: _isBug ? 'bug' : 'suggestion',
+        type: _feedbackType,
         subtype: 'mobile',
         content: _content.text.trim(),
         contact: _contact.text.trim(),
@@ -134,15 +134,6 @@ class _FeedbackScreenState extends ConsumerState<FeedbackScreen> {
           : ListView(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
               children: [
-                ShadTabs<bool>(
-                  value: _isBug,
-                  onChanged: (v) => setState(() => _isBug = v),
-                  tabs: [
-                    ShadTab(value: true, child: Text(l10n.feedbackBug)),
-                    ShadTab(value: false, child: Text(l10n.feedbackSuggestion)),
-                  ],
-                ),
-                const SizedBox(height: 16),
                 ShadInputFormField(
                   controller: _content,
                   label: Text(l10n.feedbackContent),

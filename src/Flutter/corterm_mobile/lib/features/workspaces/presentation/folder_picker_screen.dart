@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/theme/corterm_theme.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../core/storage/app_preferences.dart';
 import '../../../shared/widgets/corterm_ui.dart';
 import '../../files/data/file_repository.dart';
@@ -116,25 +117,26 @@ class _FolderPickerScreenState extends ConsumerState<FolderPickerScreen> {
   }
 
   Future<void> _jumpPath() async {
+    final l10n = AppLocalizations.of(context)!;
     final input = TextEditingController(text: _absolute);
     final selected = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('前往文件夹'),
+        title: Text(l10n.folderGo),
         content: TextField(
           controller: input,
           autofocus: true,
-          decoration: const InputDecoration(hintText: './project 或绝对路径'),
+          decoration: InputDecoration(hintText: l10n.folderPathHint),
           onSubmitted: (value) => Navigator.pop(ctx, value),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消'),
+            child: Text(l10n.cancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, input.text),
-            child: const Text('前往'),
+            child: Text(l10n.jump),
           ),
         ],
       ),
@@ -152,28 +154,29 @@ class _FolderPickerScreenState extends ConsumerState<FolderPickerScreen> {
   }
 
   Future<void> _createDirectory() async {
+    final l10n = AppLocalizations.of(context)!;
     final name = await showDialog<String>(
       context: context,
       builder: (dialogContext) {
         final controller = TextEditingController();
         return AlertDialog(
-          title: const Text('新建文件夹'),
+          title: Text(l10n.folderNew),
           content: TextField(
             controller: controller,
             autofocus: true,
-            decoration: const InputDecoration(hintText: '文件夹名称'),
+            decoration: InputDecoration(hintText: l10n.folderName),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('取消'),
+              child: Text(l10n.cancel),
             ),
             TextButton(
               onPressed: () {
                 final v = controller.text.trim();
                 if (v.isNotEmpty) Navigator.pop(dialogContext, v);
               },
-              child: const Text('创建'),
+              child: Text(l10n.create),
             ),
           ],
         );
@@ -205,6 +208,7 @@ class _FolderPickerScreenState extends ConsumerState<FolderPickerScreen> {
   /// 目录列表主体：loading / error / data 三态。错误态保留导航出口
   /// （返回上级 / 回到起点 / 重试），不存在走不出来的目录。
   Widget _buildBody(CortermColors colors) {
+    final l10n = AppLocalizations.of(context)!;
     if (_loading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -222,10 +226,10 @@ class _FolderPickerScreenState extends ConsumerState<FolderPickerScreen> {
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (_rel.isNotEmpty)
-                  TextButton(onPressed: _back, child: const Text('返回上级')),
-                TextButton(onPressed: _toStart, child: const Text('回到起点')),
-                TextButton(onPressed: _load, child: const Text('重试')),
+                if (_canUp)
+                  TextButton(onPressed: _back, child: Text(l10n.folderUp)),
+                TextButton(onPressed: _toStart, child: Text(l10n.folderStart)),
+                TextButton(onPressed: _load, child: Text(l10n.retry)),
               ],
             ),
           ],
@@ -243,12 +247,20 @@ class _FolderPickerScreenState extends ConsumerState<FolderPickerScreen> {
       onRefresh: () async => _open(_rel),
       child: ListView(
         children: [
+          if (_canUp)
+            ListRow(
+              title: l10n.folderUp,
+              leading: Icon(Icons.arrow_upward, color: colors.accent),
+              onTap: _back,
+            ),
           if (dirs.isEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 32),
               child: EmptyState(
                 icon: Icons.folder_open,
-                message: q.isEmpty ? '没有子文件夹' : '无匹配「$_query」的文件夹',
+                message: q.isEmpty
+                    ? l10n.pickerNoSubfolders
+                    : l10n.folderNoMatches,
               ),
             ),
           for (final d in dirs)
@@ -266,6 +278,7 @@ class _FolderPickerScreenState extends ConsumerState<FolderPickerScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = colorsOf(context);
+    final l10n = AppLocalizations.of(context)!;
     final workersAsync = ref.watch(workersProvider);
     final worker = (workersAsync.value ?? const [])
         .where((w) => w.workerId == widget.workerId)
@@ -276,20 +289,15 @@ class _FolderPickerScreenState extends ConsumerState<FolderPickerScreen> {
       appBar: AppBar(
         backgroundColor: colors.background,
         surfaceTintColor: Colors.transparent,
-        title: const Text('选择文件夹'),
+        title: Text(l10n.selectFolderTitle),
         actions: [
           IconButton(
-            tooltip: '前往文件夹',
+            tooltip: l10n.folderGo,
             icon: const Icon(Icons.drive_file_move_outline),
             onPressed: _jumpPath,
           ),
           IconButton(
-            tooltip: '回到起点',
-            icon: const Icon(Icons.home_outlined),
-            onPressed: _rel.isEmpty && _root == '.' ? null : _toStart,
-          ),
-          IconButton(
-            tooltip: '新建文件夹',
+            tooltip: l10n.folderNew,
             icon: _creatingDir
                 ? const SizedBox(
                     width: 18,
@@ -306,40 +314,9 @@ class _FolderPickerScreenState extends ConsumerState<FolderPickerScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    worker == null
-                        ? (_root == '.'
-                              ? (_rel.isEmpty ? '主目录' : '~/$_rel')
-                              : _absolute)
-                        : '${worker.displayName} · ${_root == '.' ? (_rel.isEmpty ? '主目录' : '~/$_rel') : _absolute}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 12, color: colors.textSecondary),
-                  ),
-                ),
-                IconButton(
-                  tooltip: '返回上级',
-                  visualDensity: VisualDensity.compact,
-                  icon: Icon(
-                    Icons.arrow_upward,
-                    size: 20,
-                    color: !_canUp ? colors.divider : colors.textSecondary,
-                  ),
-                  onPressed: _canUp ? _back : null,
-                ),
-                IconButton(
-                  visualDensity: VisualDensity.compact,
-                  icon: Icon(
-                    Icons.refresh,
-                    size: 20,
-                    color: colors.textSecondary,
-                  ),
-                  onPressed: () => _open(_rel),
-                ),
-              ],
+            child: Text(
+              worker?.displayName ?? l10n.computersTitle,
+              style: TextStyle(fontSize: 12, color: colors.textSecondary),
             ),
           ),
           Padding(
@@ -349,7 +326,7 @@ class _FolderPickerScreenState extends ConsumerState<FolderPickerScreen> {
               onChanged: (v) => setState(() => _query = v),
               style: TextStyle(fontSize: 14, color: colors.textPrimary),
               decoration: InputDecoration(
-                hintText: '搜索当前目录',
+                hintText: l10n.folderSearch,
                 hintStyle: TextStyle(fontSize: 14, color: colors.textSecondary),
                 prefixIcon: Icon(
                   Icons.search,
@@ -366,12 +343,36 @@ class _FolderPickerScreenState extends ConsumerState<FolderPickerScreen> {
               ),
             ),
           ),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Row(
+              children: [
+                TextButton.icon(
+                  onPressed: _toStart,
+                  icon: const Icon(Icons.home_outlined, size: 16),
+                  label: Text(l10n.folderStart),
+                ),
+                if (_absolute != '.') ...[
+                  Icon(
+                    Icons.chevron_right,
+                    size: 14,
+                    color: colors.textSecondary,
+                  ),
+                  TextButton(
+                    onPressed: _jumpPath,
+                    child: Text(_absolute, maxLines: 1),
+                  ),
+                ],
+              ],
+            ),
+          ),
           Expanded(child: _buildBody(colors)),
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: PrimaryButton(
-                label: '使用当前文件夹',
+                label: l10n.useCurrentFolder,
                 onPressed: _loading || _error != null || _creatingDir
                     ? null
                     : () => Navigator.pop(context, _absolute),

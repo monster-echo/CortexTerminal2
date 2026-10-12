@@ -565,7 +565,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String sessionCount(int n) {
-    return '$n sessions';
+    String _temp0 = intl.Intl.pluralLogic(
+      n,
+      locale: localeName,
+      other: '$n sessions',
+      one: '$n session',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -1076,4 +1082,116 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get filesCwdMissing =>
       'No terminal working directory yet — go back to the terminal and press enter once.';
+
+  @override
+  String get workspaceSubtitle => 'Choose a project and pick up your work';
+
+  @override
+  String get workspaceSearch => 'Search workspaces';
+
+  @override
+  String get workspaceAll => 'All workspaces';
+
+  @override
+  String get workspaceNoResults => 'No matching workspaces';
+
+  @override
+  String get ungroupedSessions => 'Ungrouped sessions';
+
+  @override
+  String get computersTitle => 'Computers';
+
+  @override
+  String get connectComputer => 'Connect computer';
+
+  @override
+  String get profileAndSettings => 'Profile and settings';
+
+  @override
+  String get workspaceMissing => 'Workspace unavailable';
+
+  @override
+  String get sessionsLoadRetry => 'Could not load sessions. Tap to retry';
+
+  @override
+  String get sessionRunning => 'Running';
+
+  @override
+  String get sessionEnded => 'Ended';
+
+  @override
+  String get portForwardingTitle => 'Port forwarding';
+
+  @override
+  String get selectComputerTitle => 'Choose computer';
+
+  @override
+  String get selectFolderTitle => 'Choose folder';
+
+  @override
+  String get chooseComputerFirst => 'Choose a computer first';
+
+  @override
+  String get homeFolder => 'Home directory';
+
+  @override
+  String get workspaceNameAutoHint => 'Uses the folder name if left blank';
+
+  @override
+  String get workspaceCreateFailed => 'Could not create workspace';
+
+  @override
+  String get sessionCreateFailed => 'Could not create session';
+
+  @override
+  String get moveToWorkspace => 'Move to workspace';
+
+  @override
+  String get ungroupedEmpty => 'No ungrouped sessions';
+
+  @override
+  String get workspaceCreatePrompt => 'Create a workspace first';
+
+  @override
+  String get computerUnavailable => 'Computer unavailable';
+
+  @override
+  String get folderSearch => 'Filter this folder';
+
+  @override
+  String get folderUp => 'Parent folder';
+
+  @override
+  String get folderStart => 'Home folder';
+
+  @override
+  String get folderGo => 'Go to folder';
+
+  @override
+  String get folderPathHint => './project or an absolute path';
+
+  @override
+  String get folderNew => 'New folder';
+
+  @override
+  String get folderName => 'Folder name';
+
+  @override
+  String get folderNoMatches => 'No matching folders';
+
+  @override
+  String get useCurrentFolder => 'Use this folder';
+
+  @override
+  String get forkSession => 'Fork session';
+
+  @override
+  String get copyAllOutput => 'Copy all output';
+
+  @override
+  String get reconnectAction => 'Reconnect';
+
+  @override
+  String get computerOfflineWaiting =>
+      'Computer offline. Waiting for it to reconnect…';
 }

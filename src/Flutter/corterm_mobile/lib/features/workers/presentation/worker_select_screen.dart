@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/theme/corterm_theme.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../core/models/worker.dart';
 import '../../../shared/widgets/corterm_ui.dart';
 import '../../sessions/data/sessions_providers.dart';
@@ -14,6 +15,7 @@ class WorkerSelectScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = colorsOf(context);
+    final l10n = AppLocalizations.of(context)!;
     final workersAsync = ref.watch(workersProvider);
 
     return Scaffold(
@@ -21,10 +23,10 @@ class WorkerSelectScreen extends ConsumerWidget {
       appBar: AppBar(
         backgroundColor: colors.background,
         surfaceTintColor: Colors.transparent,
-        title: const Text('选择电脑'),
+        title: Text(l10n.selectComputerTitle),
         actions: [
           IconButton(
-            tooltip: '刷新',
+            tooltip: l10n.retry,
             icon: const Icon(Icons.refresh),
             onPressed: () => ref.invalidate(workersProvider),
           ),
@@ -46,9 +48,9 @@ class WorkerSelectScreen extends ConsumerWidget {
           ),
           AsyncValue(:final value) =>
             (value ?? const []).isEmpty
-                ? const EmptyState(
+                ? EmptyState(
                     icon: Icons.computer_outlined,
-                    message: '还没有配对电脑',
+                    message: l10n.noWorkers,
                   )
                 : ListView(
                     children: [
@@ -63,7 +65,7 @@ class WorkerSelectScreen extends ConsumerWidget {
                         ListRow(
                           title: w.displayName,
                           subtitle:
-                              '${w.isOnline ? '在线' : '离线（不可选）'} · ${w.hostname ?? ''}',
+                              '${w.isOnline ? l10n.workerOnline : l10n.workerOffline} · ${w.hostname ?? ''}',
                           leading: Icon(
                             Icons.computer_outlined,
                             color: w.isOnline

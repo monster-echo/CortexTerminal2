@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../app/theme/corterm_theme.dart';
 
 /// 设置/诊断/Worker 页共用的「分组列表」原语（shadcn 卡片组风格）：
@@ -43,7 +44,7 @@ class AppGroupCard extends StatelessWidget {
     final c = colorsOf(context);
     return Container(
       decoration: BoxDecoration(
-        color: c.surface,
+        color: c.surfaceElevated,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: c.divider),
       ),
@@ -94,7 +95,9 @@ class AppRow extends StatelessWidget {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-                fontSize: 13, color: valueColor ?? c.textSecondary),
+              fontSize: 13,
+              color: valueColor ?? c.textSecondary,
+            ),
           );
     // ListTile 的底色/水波纹画在最近的 Material 祖先上；AppGroupCard 的
     // DecoratedBox 会遮住它们，所以自带一层透明 Material。
@@ -115,7 +118,8 @@ class AppRow extends StatelessWidget {
           ),
         ),
         subtitle: valueText,
-        trailing: trailing ??
+        trailing:
+            trailing ??
             (chevron
                 ? Icon(Icons.chevron_right, size: 20, color: c.textSecondary)
                 : null),

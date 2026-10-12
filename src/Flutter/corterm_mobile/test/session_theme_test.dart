@@ -19,6 +19,7 @@ import 'package:corterm_mobile/features/session/presentation/session_terminal_sc
 import 'package:corterm_mobile/features/session/presentation/terminal_keyboard_toolbar.dart';
 import 'package:corterm_mobile/features/session/session_controller.dart';
 import 'package:corterm_mobile/features/session/session_state.dart';
+import 'package:corterm_mobile/l10n/app_localizations.dart';
 
 /// 测试不建真连：socket 工厂返回空帧流假 socket。
 class _FakeSocket implements TerminalSocket {
@@ -44,12 +45,11 @@ class _FakeSocket implements TerminalSocket {
 
 class _TestSessionController extends SessionController {
   _TestSessionController(AppPreferences prefs)
-      : super(
-          _NoopRepo(),
-          ({required String sessionId, int sinceSeq = 0}) async =>
-              _FakeSocket(),
-          prefs,
-        );
+    : super(
+        _NoopRepo(),
+        ({required String sessionId, int sinceSeq = 0}) async => _FakeSocket(),
+        prefs,
+      );
 
   void seed(SessionState state) => this.state = state;
 }
@@ -70,14 +70,14 @@ const _phone = Size(402, 874);
 const _keyboardInset = 300.0;
 
 SessionSummary _session() => SessionSummary(
-      sessionId: 's1',
-      name: 'demo',
-      workerId: 'w1',
-      workerName: 'tengxun-2',
-      status: SessionStatus.attached,
-      createdAt: DateTime(2026, 1, 1),
-      lastActivityAt: DateTime(2026, 1, 1),
-    );
+  sessionId: 's1',
+  name: 'demo',
+  workerId: 'w1',
+  workerName: 'tengxun-2',
+  status: SessionStatus.attached,
+  createdAt: DateTime(2026, 1, 1),
+  lastActivityAt: DateTime(2026, 1, 1),
+);
 
 void main() {
   late SharedPreferences sharedPreferences;
@@ -89,11 +89,8 @@ void main() {
     appPreferences = AppPreferences(sharedPreferences);
   });
 
-  /// Light App Context 全局浅色 —— Session 页必须依旧深色（design/00 §4）。
-  Widget harness(
-    SessionController controller, {
-    double keyboardInset = 0,
-  }) {
+  /// Light App Context + 跟随应用的终端配色保持浅色。
+  Widget harness(SessionController controller, {double keyboardInset = 0}) {
     final router = GoRouter(
       initialLocation: '/s',
       routes: [
@@ -110,6 +107,9 @@ void main() {
         sessionsProvider.overrideWith((ref) async => [_session()]),
       ],
       child: MaterialApp.router(
+        locale: const Locale('zh'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         theme: ThemeData(
           useMaterial3: true,
           extensions: const [CortermColors.light],
@@ -158,13 +158,13 @@ void main() {
 
     final rect = tester.getRect(toolbar);
     expect(rect.height, TerminalKeyboardToolbar.height);
-    // 工具栏悬浮在键盘正上方（overlay，不挤占终端区）。
+    // 工具栏占独立布局行，紧贴系统键盘顶部。
     expect(rect.bottom, _phone.height - _keyboardInset);
     expect(rect.top, greaterThanOrEqualTo(0));
-    // 终端区贴到键盘顶边。
+    // 终端可视区结束于工具栏上边缘，不被工具栏或键盘覆盖。
     expect(
       tester.getRect(find.byType(TerminalView)).bottom,
-      _phone.height - _keyboardInset,
+      _phone.height - _keyboardInset - TerminalKeyboardToolbar.height,
     );
   });
 
@@ -182,7 +182,7 @@ void main() {
     expect(tester.getRect(find.byType(TerminalView)).bottom, _phone.height);
   });
 
-  testWidgets('Session 页固定 Dark Tool Context：深色 Scaffold + 深色终端配色', (tester) async {
+  testWidgets('Session 默认跟随浅色 App；可单独切换终端主题', (tester) async {
     tester.view.physicalSize = _phone * 3;
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
@@ -193,11 +193,13 @@ void main() {
     await tester.pump(const Duration(milliseconds: 200));
 
     final context = tester.element(find.byType(TerminalView));
-    expect(Theme.of(context).brightness, Brightness.dark);
-    expect(Theme.of(context).scaffoldBackgroundColor,
-        CortermColors.darkTool.background);
+    expect(Theme.of(context).brightness, Brightness.light);
+    expect(
+      Theme.of(context).scaffoldBackgroundColor,
+      cortermTerminalLightTheme.background,
+    );
 
     final view = tester.widget<TerminalView>(find.byType(TerminalView));
-    expect(view.theme.background, cortermTerminalDarkTheme.background);
+    expect(view.theme.background, cortermTerminalLightTheme.background);
   });
 }
