@@ -2,6 +2,7 @@ using System.CommandLine;
 using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -731,32 +732,45 @@ updateCommand.SetAction(async (ParseResult parseResult, CancellationToken cancel
     string? latestVersion;
     try
     {
-        // 版本查询与下载同路：api.github.com 匿名限额（60 次/h/IP）在共享出口
-        // 极易 403，统一走 githubProxy 前缀代理。
-        using var resp = await http.GetAsync($"{githubProxy}/https://api.github.com/repos/{githubRepo}/releases", cancellationToken);
-        if (!resp.IsSuccessStatusCode)
+        // 不用代理查版本：proxy.0x2a.top 只放行 release 下载路径（HTML/API 均 403）。
+        // 1) 直连 github.com /releases/latest：302 Location 带版本号，不占 API 配额；
+        // 2) 回退直连 api.github.com /releases（匿名 60 次/h/IP，未超限时可用）。
+        try
         {
-            if (json) Console.Out.WriteLine(CliJson.UpdateStage("error", message: $"Failed to fetch releases: {(int)resp.StatusCode} {resp.ReasonPhrase}").ToJsonString());
-            Console.Error.WriteLine($"  Failed to fetch releases: {(int)resp.StatusCode} {resp.ReasonPhrase}");
-            return 1;
+            using var resp = await http.GetAsync($"https://github.com/{githubRepo}/releases/latest", cancellationToken);
+            var finalUrl = resp.RequestMessage?.RequestUri?.ToString() ?? "";
+            var html = await resp.Content.ReadAsStringAsync(cancellationToken);
+            var match = Regex.Match($"{finalUrl} {html}", @"worker-v(\d+(?:\.\d+)+)");
+            latestVersion = match.Success ? match.Groups[1].Value : null;
         }
-        using var doc = await JsonDocument.ParseAsync(await resp.Content.ReadAsStreamAsync(cancellationToken));
-        latestVersion = null;
-        Version? best = null;
-        foreach (var release in doc.RootElement.EnumerateArray())
+        catch (Exception)
         {
-            if (!release.TryGetProperty("tag_name", out var tagEl)) continue;
-            var tag = tagEl.GetString() ?? "";
-            if (!tag.StartsWith("worker-v")) continue;
-            var ver = tag["worker-v".Length..];
-            // GitHub's /releases list is NOT strictly ordered by version or date — a newer
-            // release can appear below an older one (observed: v0.5.10 listed under v0.5.9).
-            // Pick the highest semver across all returned releases, not the first one.
-            if (!Version.TryParse(ver, out var parsed)) continue;
-            if (best is null || parsed > best)
+            latestVersion = null;
+        }
+
+        if (latestVersion is null)
+        {
+            using var resp = await http.GetAsync($"https://api.github.com/repos/{githubRepo}/releases", cancellationToken);
+            if (!resp.IsSuccessStatusCode)
             {
-                best = parsed;
-                latestVersion = ver;
+                if (json) Console.Out.WriteLine(CliJson.UpdateStage("error", message: $"Failed to fetch releases: {(int)resp.StatusCode} {resp.ReasonPhrase}").ToJsonString());
+                Console.Error.WriteLine($"  Failed to fetch releases: {(int)resp.StatusCode} {resp.ReasonPhrase}");
+                return 1;
+            }
+            using var doc = await JsonDocument.ParseAsync(await resp.Content.ReadAsStreamAsync(cancellationToken));
+            Version? best = null;
+            foreach (var release in doc.RootElement.EnumerateArray())
+            {
+                if (!release.TryGetProperty("tag_name", out var tagEl)) continue;
+                var tag = tagEl.GetString() ?? "";
+                if (!tag.StartsWith("worker-v")) continue;
+                var ver = tag["worker-v".Length..];
+                if (!Version.TryParse(ver, out var parsed)) continue;
+                if (best is null || parsed > best)
+                {
+                    best = parsed;
+                    latestVersion = ver;
+                }
             }
         }
     }

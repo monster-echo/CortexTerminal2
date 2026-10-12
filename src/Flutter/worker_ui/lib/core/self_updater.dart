@@ -68,11 +68,46 @@ class SelfUpdater {
   }
 
   static Future<String> _latestVersion() async {
+    // 不用代理查版本：proxy.0x2a.top 只放行 release 下载路径（HTML/API 均 403）。
+    // 1) 直连 github.com /releases/latest：302 Location 带版本号，不占 API 配额；
+    // 2) 回退直连 api.github.com /releases（配额未超时可用）。
+    try {
+      return await _latestViaRedirect();
+    } catch (_) {
+      return _latestViaApi();
+    }
+  }
+
+  static Future<String> _latestViaRedirect() async {
+    var current = Uri.parse('https://github.com/$_repo/releases/latest');
+    final client = _client();
+    for (var hop = 0; hop < 5; hop++) {
+      final req = await client.getUrl(current)
+        ..followRedirects = false
+        ..maxRedirects = 0;
+      final resp = await req.close();
+      if (resp.isRedirect) {
+        final location = resp.headers.value('location');
+        if (location == null) break;
+        current = current.resolve(location);
+        continue;
+      }
+      final body = await resp.transform(utf8.decoder).join();
+      final tag = _tagFromText(current.toString()) ?? _tagFromText(body);
+      if (tag == null) {
+        throw HttpException('未在响应中找到 $_tagPrefix*：${resp.statusCode}');
+      }
+      return tag;
+    }
+    throw StateError('重定向次数过多');
+  }
+
+  static Future<String> _latestViaApi() async {
     final req = await _client().getUrl(Uri.parse('https://api.github.com/repos/$_repo/releases'));
     final resp = await req.close();
     final body = await resp.transform(utf8.decoder).join();
     if (resp.statusCode != 200) {
-      throw HttpException('获取 releases 失败：${resp.statusCode} $body');
+      throw HttpException('获取 releases 失败：${resp.statusCode}（匿名配额 60 次/h/IP 可能已超）');
     }
     final releases = jsonDecode(body) as List;
     String? best;
@@ -81,7 +116,7 @@ class SelfUpdater {
       final tag = (item as Map)['tag_name'] as String? ?? '';
       if (!tag.startsWith(_tagPrefix)) continue;
       final ver = tag.substring(_tagPrefix.length);
-      Version parsed;
+      final Version parsed;
       try {
         parsed = Version.parse(ver);
       } on FormatException {
@@ -94,6 +129,13 @@ class SelfUpdater {
     }
     if (best == null) throw StateError('未找到 $_tagPrefix* 格式的 release');
     return best;
+  }
+
+  /// 从 URL 或 HTML 文本里抓最高语义的 `ui-v<semver>`（首个匹配即可：
+  /// redirect Location 与 tag 页标题都只含目标版本）。
+  static String? _tagFromText(String text) {
+    final m = RegExp(RegExp.escape(_tagPrefix) + r'(\d+(?:\.\d+)+)').firstMatch(text);
+    return m?.group(1);
   }
 
   /// 下载并应用更新。成功路径**不返回**：安装包启动后直接 exit(0)。
