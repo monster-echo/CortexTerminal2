@@ -87,10 +87,16 @@ export struct FilePreviewPage {
       if (!fs.accessSync(previewDir)) {
         fs.mkdirSync(previewDir)
       }
+      // 目标路径即本次预览的唯一归属：残留（上次被看门狗删除任务留下的空文件）
+      // 必须先清掉，否则下载器会改名落盘、预览却读旧路径渲染出空白。
+      const intendedPath = `${previewDir}/${this.fileName}`
+      if (fs.accessSync(intendedPath)) {
+        fs.unlinkSync(intendedPath)
+      }
 
       const init = await FilesService.startDownload(this.workerId, this.rootDir, this.remotePath)
-      this.localPath = `${previewDir}/${this.fileName}`
-      await FilesService.downloadViaEndpoints(context, this.localPath, init.transferId, init.endpoints)
+      await FilesService.downloadViaEndpoints(context, intendedPath, init.transferId, init.endpoints, this.workerId)
+      this.localPath = intendedPath
 
       this.kind = FilePreviewPage.classify(this.fileName, this.fileSize)
       if (this.kind === 'image') {

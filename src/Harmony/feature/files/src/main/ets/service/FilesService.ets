@@ -8,7 +8,7 @@
  */
 import { ApiService, P2pTransfer, P2pPreparation, P2pChannel } from '@rwecho/core'
 import fs from '@ohos.file.fs'
-import { FileDownloader } from './FileDownloader'
+import { FileDownloader, REMOTE_STALL_MS } from './FileDownloader'
 import { TransferRouteLog } from './TransferRouteLog'
 import { FileListingModel, WorkspaceModel, UploadInitModel, DownloadInitModel, TransferEndpointModel } from '../model/FileModels'
 
@@ -84,76 +84,65 @@ export class FilesService {
   }
 
   /**
-   * 端点协商上传（规格 §5）：LAN → p2p（并行准备，6s 内打通才用）→ 公网 → Relay，
+   * 端点协商上传：p2p（worker 常驻锚点，6s 内打通才用）→ 公网 → Relay，
    * 任一端点成功即返回；全部失败抛出最后一次错误。
    */
-  static async uploadViaEndpoints(transferId: string, endpoints: TransferEndpointModel[],
+  static async uploadViaEndpoints(workerId: string, transferId: string, endpoints: TransferEndpointModel[],
     buffer: ArrayBuffer): Promise<void> {
-    await FilesService.transferViaEndpoints(transferId, endpoints, async (channel: P2pChannel, relayToken: string) => {
+    await FilesService.transferViaEndpoints(workerId, transferId, endpoints, async (channel: P2pChannel, relayToken: string): Promise<string> => {
       await P2pTransfer.uploadP2p(channel, transferId, relayToken, buffer)
-    }, async (url: string) => {
+      return ''
+    }, async (url: string): Promise<string> => {
       await ApiService.putBinary(url, buffer)
+      return ''
     })
   }
 
   /**
-   * 端点协商下载（规格 §5）：LAN → p2p → 公网 → Relay，逐个尝试 GET 下载到本地沙箱。
+   * 端点协商下载：p2p（worker 常驻锚点，6s 内打通才用）→ 公网 → Relay，逐个尝试
+   * GET 下载到本地沙箱。LAN 直连已按产品决策移除（手机与 worker 不同网段时必然
+   * 超时，只会拖慢协商）。
    */
   static async downloadViaEndpoints(context: Context, targetPath: string, transferId: string,
-    endpoints: TransferEndpointModel[]): Promise<void> {
-    await FilesService.transferViaEndpoints(transferId, endpoints, async (channel: P2pChannel, relayToken: string) => {
-      await FilesService.downloadOverP2p(channel, transferId, relayToken, targetPath)
-    }, async (url: string) => {
-      await FileDownloader.download(context, targetPath, url)
-    })
+    endpoints: TransferEndpointModel[], workerId: string): Promise<string> {
+    return await FilesService.transferViaEndpoints(workerId, transferId, endpoints,
+      async (channel: P2pChannel, relayToken: string) => {
+        return await FilesService.downloadOverP2p(channel, transferId, relayToken, targetPath)
+      }, async (url: string) => {
+        return await FileDownloader.download(context, targetPath, url, REMOTE_STALL_MS)
+      })
   }
 
   /**
-   * 端点协商公共骨架：发起时并行启动 p2p 准备，尝试顺序 LAN → p2p（READY_WAIT_MS 内打通）
-   * → 其余端点（公网 → Relay 按网关下发顺序）。p2p 失败静默落下一端点——这是规格允许的唯一回落。
+   * 端点协商公共骨架：发起时并行启动 worker 锚点 p2p 准备（注册后首轮即拿 worker
+   * 端点），先等 p2p（READY_WAIT_MS 内打通才用），未打通则按网关下发顺序逐个尝试
+   * 其余端点（公网 → Relay）。p2p 失败静默落下一端点——这是规格允许的唯一回落。
    */
-  private static async transferViaEndpoints(transferId: string, endpoints: TransferEndpointModel[],
-    p2pFn: (channel: P2pChannel, relayToken: string) => Promise<void>,
-    httpFn: (url: string) => Promise<void>): Promise<void> {
+  private static async transferViaEndpoints(workerId: string, transferId: string,
+    endpoints: TransferEndpointModel[],
+    p2pFn: (channel: P2pChannel, relayToken: string) => Promise<string>,
+    httpFn: (url: string) => Promise<string>): Promise<string> {
     if (endpoints.length === 0) {
       throw new Error('no transfer endpoints')
     }
-    const lanEndpoints: TransferEndpointModel[] = []
-    const restEndpoints: TransferEndpointModel[] = []
-    for (let i = 0; i < endpoints.length; i++) {
-      if (endpoints[i].kind.toLowerCase() === 'lan') {
-        lanEndpoints.push(endpoints[i])
-      } else {
-        restEndpoints.push(endpoints[i])
-      }
-    }
-    // p2p 与 LAN 并行准备（punch+STUN+探包可能要数秒）
     const relayToken = FilesService.relayTokenFromEndpoints(endpoints)
-    const preparation: P2pPreparation | null =
-      relayToken.length > 0 ? P2pTransfer.startPreparation(transferId, relayToken) : null
 
-    let lastError = new Error('all transfer endpoints failed')
-    for (let i = 0; i < lanEndpoints.length; i++) {
-      try {
-        await httpFn(lanEndpoints[i].url)
-        TransferRouteLog.record('lan', true)
-        preparation?.cancel()
-        return
-      } catch (e) {
-        lastError = e as Error
-        TransferRouteLog.record('lan', false)
-      }
+    // p2p 与 HTTP 端点并行准备：worker 锚点常驻，注册响应即含 worker 端点
+    let preparation: P2pPreparation | null = null
+    if (workerId.length > 0 && relayToken.length > 0) {
+      preparation = P2pTransfer.startPreparationForWorker(workerId, transferId, relayToken)
     }
 
+    let lastError: Error = new Error('all transfer endpoints failed')
     if (preparation !== null) {
       try {
         const channel = await FilesService.withTimeout(preparation.ready, P2pTransfer.READY_WAIT_MS,
           'P2P hole punching did not complete in time')
         try {
-          await p2pFn(channel, relayToken)
+          const localPath = await p2pFn(channel, relayToken)
           TransferRouteLog.record('p2p', true)
           preparation.cancel()
-          return
+          return localPath
         } finally {
           await channel.close()
         }
@@ -164,23 +153,28 @@ export class FilesService {
       }
     }
 
-    for (let i = 0; i < restEndpoints.length; i++) {
+    for (let i = 0; i < endpoints.length; i++) {
+      // 防御旧网关：LAN 直连端点对手机网络必然不可达，跳过不让它消耗看门狗窗口。
+      if (endpoints[i].kind.toLowerCase() === 'lan') {
+        TransferRouteLog.record('lan', false)
+        continue
+      }
       try {
-        await httpFn(restEndpoints[i].url)
-        TransferRouteLog.record(restEndpoints[i].kind.toLowerCase(), true)
+        const localPath = await httpFn(endpoints[i].url)
+        TransferRouteLog.record(endpoints[i].kind.toLowerCase(), true)
         preparation?.cancel()
-        return
+        return localPath
       } catch (e) {
         lastError = e as Error
-        TransferRouteLog.record(restEndpoints[i].kind.toLowerCase(), false)
+        TransferRouteLog.record(endpoints[i].kind.toLowerCase(), false)
       }
     }
     throw lastError
   }
 
-  /** p2p 数据面下载：流式写目标文件（对齐 FileDownloader 的落盘位置语义）。 */
+  /** p2p 数据面下载：流式写目标文件（落盘位置语义与 FileDownloader 一致），返回实际路径。 */
   private static async downloadOverP2p(channel: P2pChannel, transferId: string, relayToken: string,
-    targetPath: string): Promise<void> {
+    targetPath: string): Promise<string> {
     const finalPath = FileDownloader.resolveAvailablePath(targetPath)
     const file = fs.openSync(finalPath, fs.OpenMode.READ_WRITE | fs.OpenMode.CREATE | fs.OpenMode.TRUNC)
     try {
@@ -190,6 +184,7 @@ export class FilesService {
     } finally {
       fs.closeSync(file)
     }
+    return finalPath
   }
 
   /** RelayToken 在端点 URL 的 token query 里（LAN/公网/Relay 契约相同，取其一）。 */

@@ -203,6 +203,56 @@ export class P2pTransfer {
     return new P2pPreparation(ready, cancel)
   }
 
+  /**
+   * Worker 常驻锚点版预打洞：worker online 时其锚点已向 gateway rendezvous 常驻
+   * 注册（key=workerId）并缓存 NAT 映射端点，这里注册后第一次 POST 即可拿到
+   * worker 端点，探包 <1s 打通——无需等对端从零 STUN/注册。信封（transferId +
+   * relayToken）经 HTTPS+JWT 顺路带给 worker，通道密钥两端仍各自
+   * deriveKey(relayToken, transferId)，UDP 面无明文密钥。
+   */
+  static startPreparationForWorker(workerId: string, transferId: string, relayToken: string): P2pPreparation {
+    const box = new UdpSocketBox()
+    let cancelled = false
+    const cancel = () => {
+      cancelled = true
+      box.close().catch((_e: Object) => {})
+    }
+    const ready = P2pTransfer.prepareWorkerAsync(workerId, transferId, relayToken, box, () => cancelled)
+    return new P2pPreparation(ready, cancel)
+  }
+
+  private static async prepareWorkerAsync(workerId: string, transferId: string, relayToken: string,
+    box: UdpSocketBox, isCancelled: () => boolean): Promise<P2pChannel> {
+    try {
+      await box.bind()
+      const mapped = await P2pTransfer.stunDiscover(box)
+      const deadline = Date.now() + PUNCH_WINDOW_MS
+      let peer: PunchPeer | null = null
+      while (peer === null && Date.now() < deadline && !isCancelled()) {
+        peer = await P2pTransfer.punchOnceForWorker(workerId, transferId, relayToken, mapped)
+        if (peer === null) {
+          await sleep(PUNCH_INTERVAL_MS)
+        }
+      }
+      if (peer === null) {
+        throw new Error('P2P punch window expired without worker anchor endpoint')
+      }
+      await P2pTransfer.probeUntilOpen(box, peer)
+      const stream = new ReliableStream()
+      const keyBytes = await P2pCrypto.deriveKey(relayToken, transferId)
+      const channel = new P2pChannel(box, stream, keyBytes, peer.address, peer.port)
+      box.onDatagram = (data: ArrayBuffer) => {
+        P2pCrypto.openPacket(keyBytes, data).then((plain: ArrayBuffer) => {
+          stream.handleFrame(plain)
+        }).catch((_e: Object) => {})
+      }
+      return channel
+    } catch (e) {
+      await box.close()
+      throw new Error((e as Error).message)
+    }
+  }
+
   private static async prepareAsync(transferId: string, relayToken: string,
     box: UdpSocketBox, isCancelled: () => boolean): Promise<P2pChannel> {
     try {
@@ -256,7 +306,6 @@ export class P2pTransfer {
   private static async punchOnce(transferId: string, relayToken: string,
     mapped: StunMappedAddress): Promise<PunchPeer | null> {
     const gatewayUrl = AppStorage.get<string>('gatewayUrl') as string
-    const jwt = AppStorage.get<string>('authToken') || ''
     const url = `${gatewayUrl}/api/transfers/${encodeURIComponent(transferId)}/punch`
     const body: Record<string, string> = {
       'role': 'client',
@@ -265,9 +314,84 @@ export class P2pTransfer {
     const header: Record<string, string> = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
-      'Authorization': `Bearer ${jwt}`,
+      'Authorization': `Bearer ${AppStorage.get<string>('authToken') || ''}`,
       'X-Corterm-Transfer-Token': relayToken
     }
+    return P2pTransfer.punchPost(url, header, body)
+  }
+
+  /** Worker 锚点端点的一次 punch：JWT 鉴权，信封随请求体送达 worker（经 gateway）。 */
+  private static async punchOnceForWorker(workerId: string, transferId: string, relayToken: string,
+    mapped: StunMappedAddress): Promise<PunchPeer | null> {
+    const gatewayUrl = AppStorage.get<string>('gatewayUrl') as string
+    const url = `${gatewayUrl}/api/p2p/workers/${encodeURIComponent(workerId)}/punch`
+    const body: Record<string, string> = {
+      'role': 'client',
+      'endpoint': `${mapped.ip}:${mapped.port}`,
+      'transferId': transferId,
+      'relayToken': relayToken
+    }
+    const header: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${AppStorage.get<string>('authToken') || ''}`
+    }
+    return new Promise<PunchPeer | null>((resolve, reject) => {
+      const httpRequest = http.createHttp()
+      httpRequest.request(url, {
+        method: http.RequestMethod.POST,
+        header: header,
+        extraData: JSON.stringify(body),
+        expectDataType: http.HttpDataType.OBJECT,
+        connectTimeout: 5000,
+        readTimeout: 5000
+      }, (err, data) => {
+        try {
+          if (err) {
+            resolve(null)
+            return
+          }
+          if (data.responseCode !== 200) {
+            reject(new Error(`punch failed (${data.responseCode})`))
+            return
+          }
+          const record = data.result as Record<string, Object>
+          // worker 锚点不在线（旧版 worker / 断连）：p2p 已无对象可打，
+          // 立即放弃让协商链落到 Relay，而不是空转 60s 打洞窗口。
+          const anchorOnline = (record['anchorOnline'] as boolean) ?? false
+          if (!anchorOnline) {
+            reject(new Error('P2P anchor offline'))
+            return
+          }
+          const readyFlag = (record['ready'] as boolean) ?? false
+          if (!readyFlag) {
+            resolve(null)
+            return
+          }
+          const peerEndpoint = (record['peerEndpoint'] as string) ?? ''
+          if (peerEndpoint.length === 0) {
+            reject(new Error('punch ready but peerEndpoint is empty'))
+            return
+          }
+          const sep = peerEndpoint.lastIndexOf(':')
+          if (sep <= 0) {
+            reject(new Error(`bad peerEndpoint: ${peerEndpoint}`))
+            return
+          }
+          const peer = new PunchPeer()
+          peer.address = peerEndpoint.substring(0, sep)
+          peer.port = Number.parseInt(peerEndpoint.substring(sep + 1))
+          resolve(peer)
+        } finally {
+          httpRequest.destroy()
+        }
+      })
+    })
+  }
+
+  /** punch HTTP 公共骨架：网络抖动返回 null 继续窗口；非 200 上抛。 */
+  private static punchPost(url: string, header: Record<string, string>,
+    body: Record<string, string>): Promise<PunchPeer | null> {
     return new Promise<PunchPeer | null>((resolve, reject) => {
       const httpRequest = http.createHttp()
       httpRequest.request(url, {

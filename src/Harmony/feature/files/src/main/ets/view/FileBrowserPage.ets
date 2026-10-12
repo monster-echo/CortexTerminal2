@@ -821,7 +821,7 @@ export struct FileBrowserPage {
       }
 
       const init = await FilesService.beginUpload(this.workerId, this.rootDir, dirPath, picked.filename, sizeBytes, sha256)
-      await FilesService.uploadViaEndpoints(init.transferId, init.endpoints, buffer)
+      await FilesService.uploadViaEndpoints(this.workerId, init.transferId, init.endpoints, buffer)
     } finally {
       fs.unlinkSync(sandboxPath)
     }
