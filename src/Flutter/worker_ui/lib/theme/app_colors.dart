@@ -17,6 +17,7 @@ class AppColors {
   static const Color darkOnPrimaryButton = Color(0xFFffffff);
   static const Color darkTertiary = Color(0xFF00ba7c);
   static const Color darkError = Color(0xFFff5c5c);
+  static const Color darkWarning = Color(0xFFFBBF24);
   static const Color darkOnSurfaceVariant = Color(0xFF9aa4b0);
   static const Color darkOutline = Color(0xFF6b7785);
   static const Color darkOutlineVariant = Color(0xFF2f3336);
@@ -32,6 +33,7 @@ class AppColors {
   static const Color lightOnPrimaryButton = Color(0xFFffffff);
   static const Color lightTertiary = Color(0xFF00824f);
   static const Color lightError = Color(0xFFc81823);
+  static const Color lightWarning = Color(0xFFA16207);
   static const Color lightOnSurfaceVariant = Color(0xFF536471);
   static const Color lightOutline = Color(0xFF7a8590);
   static const Color lightOutlineVariant = Color(0xFFe0e0e0);

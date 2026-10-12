@@ -11,7 +11,6 @@ import '../theme/app_theme.dart';
 import '../widgets/error_banner.dart';
 import '../widgets/list_group.dart';
 import '../widgets/states.dart';
-
 /// 概览面板（Tailscale 式单列）：
 /// hero 连接状态 → 我的计算机 → 此设备 → 功能入口。
 /// 版本/PID 等运维指标不再是首屏主角，收进「此设备」与子页。
@@ -28,6 +27,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WindowListener {
   Status? _status;
   String? _error;
   bool _loading = true;
+  bool _restarting = false;
 
   @override
   void initState() {
@@ -80,6 +80,21 @@ class _DashboardScreenState extends State<DashboardScreen> with WindowListener {
     _reload();
   }
 
+  /// 服务离线时的一键恢复：corterm restart → 重拉状态。
+  Future<void> _restartService() async {
+    setState(() => _restarting = true);
+    try {
+      await AppScope.of(context).service.service('restart');
+      if (!mounted) return;
+      showAppToast(context, AppStrings.t(context, 'panel.restarted'));
+    } catch (e) {
+      if (!mounted) return;
+      showAppToast(context, e.toString(), destructive: true);
+    }
+    setState(() => _restarting = false);
+    _reload();
+  }
+
   @override
   Widget build(BuildContext context) {
     final status = _status;
@@ -114,11 +129,32 @@ class _DashboardScreenState extends State<DashboardScreen> with WindowListener {
   }
 
   // ── Hero：连接状态，全屏唯一视觉主角 ──
+  // 三态：已登录+网关在线（已连接）/ 已登录但连接断开（服务离线）/ 未登录。
+  // 「已连接」必须是网关侧的真实在线，而不是仅认证令牌有效。
   Widget _hero(BuildContext context, Status s) {
     final t = AppStrings.t;
     final scheme = ShadTheme.of(context).colorScheme;
-    final connected = s.authenticated;
-    final color = connected ? scheme.tertiary : scheme.mutedForeground;
+    final selfOnline = s.workers
+        .where((w) => w.workerId == s.workerId)
+        .any((w) => w.isOnline);
+    final connected = s.authenticated && selfOnline;
+    final serviceOffline = s.authenticated && !selfOnline;
+    final title = connected
+        ? 'panel.connected'
+        : serviceOffline
+            ? 'panel.serviceOffline'
+            : 'panel.disconnected';
+    final hint = connected
+        ? 'panel.connectedHint'
+        : serviceOffline
+            ? 'panel.serviceOfflineHint'
+            : 'panel.disconnectedHint';
+    // 离线用警示黄（状态色，与品牌色分开）；未连接才是灰。
+    final color = connected
+        ? scheme.tertiary
+        : serviceOffline
+            ? scheme.warning
+            : scheme.mutedForeground;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -136,15 +172,15 @@ class _DashboardScreenState extends State<DashboardScreen> with WindowListener {
           ),
           const SizedBox(height: 8),
           Text(
-            t(context, connected ? 'panel.connected' : 'panel.disconnected'),
+            t(context, title),
             style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: scheme.foreground),
           ),
           const SizedBox(height: 4),
           Text(
-            t(context, connected ? 'panel.connectedHint' : 'panel.disconnectedHint'),
+            t(context, hint),
             style: TextStyle(fontSize: 13, color: scheme.mutedForeground),
           ),
-          if (connected && s.user != null) ...[
+          if (s.authenticated && s.user != null) ...[
             const SizedBox(height: 12),
             // 账号行：avatar + 用户名，点击进认证页（登出 / 切换账号）。
             InkWell(
@@ -183,7 +219,22 @@ class _DashboardScreenState extends State<DashboardScreen> with WindowListener {
               ),
             ),
           ],
-          if (!connected) ...[
+          if (serviceOffline) ...[
+            const SizedBox(height: 16),
+            ShadButton(
+              onPressed: _restarting ? null : _restartService,
+              child: Center(
+                child: _restarting
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Text(t(context, 'panel.restartService')),
+              ),
+            ),
+          ],
+          if (!s.authenticated) ...[
             const SizedBox(height: 16),
             ShadButton(
               onPressed: () => _go(context, '/auth'),

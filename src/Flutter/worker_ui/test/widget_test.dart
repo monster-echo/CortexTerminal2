@@ -27,8 +27,9 @@ class _FakeService extends CortermService {
         latestWorkerVersion: '0.5.15',
         updateAvailable: true,
         workers: [
+          // workerId 与顶部 workerId 一致且在线 —— hero「已连接」的前提。
           WorkerInfo(
-            workerId: 'w1',
+            workerId: 'worker-host',
             name: 'box',
             operatingSystem: 'osx',
             version: '0.5.14',

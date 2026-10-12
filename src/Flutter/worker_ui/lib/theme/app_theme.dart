@@ -30,7 +30,11 @@ ShadColorScheme _lightScheme() => const ShadColorScheme(
       input: AppColors.lightOutlineVariant,
       ring: AppColors.lightSecondary,
       selection: Color(0x401a8cd8),
-      custom: {'link': AppColors.lightSecondary, 'tertiary': AppColors.lightTertiary},
+      custom: {
+        'link': AppColors.lightSecondary,
+        'tertiary': AppColors.lightTertiary,
+        'warning': AppColors.lightWarning,
+      },
     );
 
 ShadColorScheme _darkScheme() => const ShadColorScheme(
@@ -54,13 +58,18 @@ ShadColorScheme _darkScheme() => const ShadColorScheme(
       input: AppColors.darkOutlineVariant,
       ring: AppColors.darkSecondary,
       selection: Color(0x407cacf8),
-      custom: {'link': AppColors.darkSecondary, 'tertiary': AppColors.darkTertiary},
+      custom: {
+        'link': AppColors.darkSecondary,
+        'tertiary': AppColors.darkTertiary,
+        'warning': AppColors.darkWarning,
+      },
     );
 
-/// [ShadColorScheme.custom] 的类型安全取用：链接/次要文字色与成功/在线色。
+/// [ShadColorScheme.custom] 的类型安全取用：链接/次要文字色、成功/在线色、警告色。
 extension WorkerSchemeX on ShadColorScheme {
   Color get link => custom['link']!;
   Color get tertiary => custom['tertiary']!;
+  Color get warning => custom['warning']!;
 }
 
 /// Light/Dark shadcn 主题（ShadApp 直接消费）。
