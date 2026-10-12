@@ -101,7 +101,6 @@ export default class EntryAbility extends UIAbility {
     AppStorage.setOrCreate('currentBreakpoint', 'sm')
     AppStorage.setOrCreate('windowWidth', 0)
     AppStorage.setOrCreate('windowHeight', 0)
-    AppStorage.setOrCreate('keyboardHeight', 0)
     AppStorage.setOrCreate('isKeyboardVisible', false)
     AppStorage.setOrCreate('bottomSafeArea', 0)
     AppStorage.setOrCreate('isNetworkAvailable', true)
@@ -170,7 +169,6 @@ export default class EntryAbility extends UIAbility {
       // Monitor keyboard height changes for virtual key bar adjustment
       try {
         win.on('keyboardHeightChange', (height: number) => {
-          AppStorage.setOrCreate('keyboardHeight', height)
           AppStorage.setOrCreate('isKeyboardVisible', height > 0)
         })
       } catch (e) {

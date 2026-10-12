@@ -896,22 +896,11 @@
     }
 
     // === Window resize handling ===
-    // Debounced 150ms (MAUI parity): keyboard show/hide fires window resize per
-    // animation frame; an undebounced fit() reflows the whole 64k-row scrollback
-    // and redraws per intermediate size (visible flicker). One fit after settle.
-    var resizeFitTimer = null;
-    window.addEventListener('resize', function() {
-      if (!fitAddon) return;
-      if (resizeFitTimer) clearTimeout(resizeFitTimer);
-      resizeFitTimer = setTimeout(function() {
-        resizeFitTimer = null;
-        try {
-          fitAddon.fit();
-        } catch(e) {
-          console.warn('fitAddon.fit() failed:', e);
-        }
-      }, 150);
-    });
+    // Removed on purpose. Resize is owned by the native side: the host page
+    // debounces its terminal-area onAreaChange (150ms) and calls fitTerminal()
+    // once the area settles. A window.resize listener here races the layout —
+    // events fired before initTerminal() were silently dropped (fitAddon null),
+    // leaving the terminal fitted to a mid-animation size (the "top sliver" bug).
   </script>
 </body>
 </html>

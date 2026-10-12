@@ -146,7 +146,6 @@ export struct TerminalPage {
   @StorageLink('language') currentLang: string = 'en'
   @Consume('pageStack') pageStack: NavPathStack
   @StorageLink('isKeyboardVisible') isKeyboardVisible: boolean = false
-  @StorageLink('keyboardHeight') @Watch('onKeyboardHeightChange') keyboardHeight: number = 0
   @StorageLink('appBackgroundTick') @Watch('onAppBackground') appBackgroundTick: number = 0
   /** 解析后的终端配色（'dark'/'light'）；变化时同步系统状态栏颜色。 */
   @StorageLink('terminalColorMode') @Watch('onTerminalColorModeChange') terminalColorMode: string = 'dark'
@@ -212,21 +211,35 @@ export struct TerminalPage {
     SystemBarTheme.apply(getContext(this) as common.UIAbilityContext)
   }
 
-  onKeyboardHeightChange() {
+  /**
+   * Terminal area resize is driven ONLY by the Stack's onAreaChange: it is the
+   * single source of truth for the webview's real size (keyboard, foldable,
+   * initial layout — all converge here). Debounced 150ms so keyboard/fold
+   * animation frames collapse into one fit; a JS-side window.resize listener
+   * would race the layout and was removed (see xterm/index.html).
+   */
+  private scheduleTerminalFit() {
     if (!this.webviewReady) {
       return
     }
-    // Debounce: keyboard show/hide updates keyboardHeight across many
-    // animation frames. Without this each frame schedules a separate
-    // fitAndResize → multiple xterm resize/redraws stack up (the "重刷").
-    // Clear the pending fit and run only one after the height settles.
     if (this.resizeDebounceTimer !== -1) {
       clearTimeout(this.resizeDebounceTimer)
     }
     this.resizeDebounceTimer = setTimeout(() => {
       this.resizeDebounceTimer = -1
-      this.fitAndResize()
+      this.fitAndResize().then(() => {
+        this.flushReplayAfterFit()
+      })
     }, 150) as number
+  }
+
+  /** First successful fit after the webview is up unblocks queued replay painting. */
+  private flushReplayAfterFit() {
+    if (!this.webviewReady || this.initialFitDone) {
+      return
+    }
+    this.initialFitDone = true
+    this.replay.flushWhenReady()
   }
 
   aboutToAppear() {
@@ -452,7 +465,9 @@ export struct TerminalPage {
           onInputReady: () => {
             this.webviewReady = true
             this.paintOnReady()
-            this.doInitialFit()
+            // Area may have settled before the webview was ready (keyboard up
+            // during load) — re-run the fit now that initTerminal exists.
+            this.scheduleTerminalFit()
           },
           onInput: (data: string) => {
             if (this.ctrlActive) {
@@ -545,9 +560,15 @@ export struct TerminalPage {
       .layoutWeight(1)
       .alignContent(Alignment.TopStart)
       .onAreaChange((_oldArea: Area, newArea: Area) => {
-        this.overlayW = newArea.width as number
-        this.overlayH = newArea.height as number
+        const w = newArea.width as number
+        const h = newArea.height as number
+        const changed = w !== this.overlayW || h !== this.overlayH
+        this.overlayW = w
+        this.overlayH = h
         this.layoutTerminalMenu()
+        if (changed) {
+          this.scheduleTerminalFit()
+        }
       })
 
       // Virtual key bar (visible when keyboard is shown)
@@ -1038,18 +1059,6 @@ export struct TerminalPage {
   private retryConnection() {
     this.transport.disconnect()
     this.connectSession()
-  }
-
-  private doInitialFit() {
-    if (this.initialFitDone) {
-      return
-    }
-    this.initialFitDone = true
-    this.fitAndResize().then(() => {
-      this.replay.flushWhenReady()
-    }).catch(() => {
-      this.replay.flushWhenReady()
-    })
   }
 
   private fitAndResizeIfReady() {
