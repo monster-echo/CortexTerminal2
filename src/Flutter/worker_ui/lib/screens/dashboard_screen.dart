@@ -128,9 +128,38 @@ class _DashboardScreenState extends State<DashboardScreen> with WindowListener {
     );
   }
 
+  // 黑白反色主按钮（设计规范：主操作不用品牌色），40dp 高、内容自适应。
+  Widget _inverseButton(
+    BuildContext context, {
+    required String label,
+    VoidCallback? onPressed,
+    bool busy = false,
+  }) {
+    final scheme = ShadTheme.of(context).colorScheme;
+    return ShadButton(
+      height: 40,
+      backgroundColor: scheme.foreground,
+      foregroundColor: scheme.background,
+      onPressed: onPressed,
+      enabled: onPressed != null,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (busy) ...[
+            SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(strokeWidth: 2, color: scheme.background),
+            ),
+            const SizedBox(width: 8),
+          ],
+          Text(label),
+        ],
+      ),
+    );
+  }
+
   // ── Hero：连接状态，全屏唯一视觉主角 ──
-  // 三态：已登录+网关在线（已连接）/ 已登录但连接断开（服务离线）/ 未登录。
-  // 「已连接」必须是网关侧的真实在线，而不是仅认证令牌有效。
   Widget _hero(BuildContext context, Status s) {
     final t = AppStrings.t;
     final scheme = ShadTheme.of(context).colorScheme;
@@ -165,17 +194,22 @@ class _DashboardScreenState extends State<DashboardScreen> with WindowListener {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 10,
-            height: 10,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          // 状态行：圆点与标题同行，不留一个孤零零的圆点在上方。
+          Row(
+            children: [
+              Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                t(context, title),
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: scheme.foreground),
+              ),
+            ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            t(context, title),
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: scheme.foreground),
-          ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
           Text(
             t(context, hint),
             style: TextStyle(fontSize: 13, color: scheme.mutedForeground),
@@ -221,24 +255,20 @@ class _DashboardScreenState extends State<DashboardScreen> with WindowListener {
           ],
           if (serviceOffline) ...[
             const SizedBox(height: 16),
-            ShadButton(
+            // 主操作：黑白反色（设计规范），内容自适应宽度，不横铺整卡。
+            _inverseButton(
+              context,
+              label: t(context, 'panel.restartService'),
+              busy: _restarting,
               onPressed: _restarting ? null : _restartService,
-              child: Center(
-                child: _restarting
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Text(t(context, 'panel.restartService')),
-              ),
             ),
           ],
           if (!s.authenticated) ...[
             const SizedBox(height: 16),
-            ShadButton(
+            _inverseButton(
+              context,
+              label: t(context, 'panel.loginConnect'),
               onPressed: () => _go(context, '/auth'),
-              child: Center(child: Text(t(context, 'panel.loginConnect'))),
             ),
           ],
         ],
