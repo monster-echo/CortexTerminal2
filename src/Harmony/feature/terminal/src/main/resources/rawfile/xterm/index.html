@@ -221,6 +221,9 @@
       // Fit immediately to ensure correct size before any output arrives
       try {
         fitAddon.fit();
+        if (term) {
+          term.scrollToBottom();
+        }
       } catch(e) {
         console.warn('fitAddon.fit() failed:', e);
       }
@@ -591,6 +594,17 @@
       if (fitAddon) {
         try {
           fitAddon.fit();
+          // After a row-count change the DOM renderer's async refresh can leave
+          // .xterm-rows translated up by a stale scroll offset: content pinned
+          // to the top edge with blank xterm background below it. The refresh
+          // lands AFTER fit() returns, so re-sync the scroll on several ticks
+          // (0/120/400ms) — the last write wins once xterm settles.
+          if (term) {
+            var resync = function() { term.scrollToBottom(); };
+            resync();
+            setTimeout(resync, 120);
+            setTimeout(resync, 400);
+          }
         } catch(e) {
           console.warn('fitAddon.fit() failed:', e);
         }
@@ -896,11 +910,43 @@
     }
 
     // === Window resize handling ===
-    // Removed on purpose. Resize is owned by the native side: the host page
-    // debounces its terminal-area onAreaChange (150ms) and calls fitTerminal()
-    // once the area settles. A window.resize listener here races the layout —
-    // events fired before initTerminal() were silently dropped (fitAddon null),
-    // leaving the terminal fitted to a mid-animation size (the "top sliver" bug).
+    // Two fit triggers coexist by design:
+    // - native: the host page debounces its terminal-area onAreaChange (150ms)
+    //   and calls fitTerminal() once the area settles.
+    // - here: a ResizeObserver on the container. ArkWeb's inner viewport can
+    //   re-layout LATER than the native surface resizes, so a fit driven only
+    //   by the native area change can still measure a stale (small) container
+    //   height and lock the terminal into a top sliver. The observer fires when
+    //   the browser actually lays out the new size and self-heals that case.
+    var containerFitTimer = null;
+    if (window.ResizeObserver) {
+      var containerObserver = new ResizeObserver(function() {
+        if (!fitAddon) return;
+        if (containerFitTimer) clearTimeout(containerFitTimer);
+        containerFitTimer = setTimeout(function() {
+          containerFitTimer = null;
+          try {
+            fitAddon.fit();
+          } catch(e) {
+            console.warn('fitAddon.fit() failed:', e);
+          }
+        }, 150);
+      });
+      containerObserver.observe(container);
+    } else {
+      window.addEventListener('resize', function() {
+        if (!fitAddon) return;
+        if (containerFitTimer) clearTimeout(containerFitTimer);
+        containerFitTimer = setTimeout(function() {
+          containerFitTimer = null;
+          try {
+            fitAddon.fit();
+          } catch(e) {
+            console.warn('fitAddon.fit() failed:', e);
+          }
+        }, 150);
+      });
+    }
   </script>
 </body>
 </html>
