@@ -85,7 +85,7 @@ public static class TransferEndpoints
 
     private static async Task<IResult> HandleDownloadAsync(
         string transferId, HttpContext context, TransferPairingRegistry registry, IOptions<RelayOptions> options,
-        WorkerRelayRegistry workerSessions)
+        WorkerRelayRegistry workerSessions, ILogger<Program> logger)
     {
         var opts = options.Value;
         if (!TryValidateToken(context, transferId, opts.SharedSecret))
@@ -96,8 +96,10 @@ public static class TransferEndpoints
         // 常驻会话桥（?worker=&lp=）：见 HandleUploadAsync 注释。
         if (TryReadWorkerBridge(context, out var bridgeWorkerId, out var bridgePort))
         {
+            logger.LogInformation("bridge GET {TransferId}: begin, worker={WorkerId}", transferId, bridgeWorkerId);
             await BridgeViaWorkerSessionAsync(context, transferId, bridgeWorkerId, bridgePort,
-                "GET", workerSessions, context.RequestAborted);
+                "GET", workerSessions, context.RequestAborted, logger);
+            logger.LogInformation("bridge GET {TransferId}: end", transferId);
             return Results.Empty;
         }
 
@@ -240,9 +242,12 @@ public static class TransferEndpoints
     /// </summary>
     private static async Task BridgeViaWorkerSessionAsync(
         HttpContext context, string transferId, string workerId, int listenPort,
-        string method, WorkerRelayRegistry workerSessions, CancellationToken originalAborted)
+        string method, WorkerRelayRegistry workerSessions, CancellationToken originalAborted,
+        ILogger<Program>? logger = null)
     {
         var workerSession = workerSessions.Find(workerId);
+        logger?.LogInformation("bridge {TransferId}: session found={Found} open={Open}", transferId,
+            workerSession is not null, workerSession?.IsOpen);
         if (workerSession is null)
         {
             context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
@@ -270,14 +275,17 @@ public static class TransferEndpoints
         {
             call = await workerSession.CallAsync(
                 request, method == "PUT" ? context.Request.Body : null, cts.Token);
+            logger?.LogInformation("bridge {TransferId}: CallAsync returned", transferId);
         }
         catch (OperationCanceledException)
         {
+            logger?.LogWarning("bridge {TransferId}: CallAsync cancelled (504)", transferId);
             context.Response.StatusCode = StatusCodes.Status504GatewayTimeout;
             return;
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            logger?.LogWarning(ex, "bridge {TransferId}: CallAsync failed (502)", transferId);
             context.Response.StatusCode = StatusCodes.Status502BadGateway;
             return;
         }
@@ -297,9 +305,11 @@ public static class TransferEndpoints
                 return;
             }
             head = await headAwaited;
+            logger?.LogInformation("bridge {TransferId}: head received, status={Status}", transferId, head.Status);
         }
         catch (OperationCanceledException)
         {
+            logger?.LogWarning("bridge {TransferId}: head await cancelled", transferId);
             context.Response.StatusCode = StatusCodes.Status504GatewayTimeout;
             return;
         }
@@ -309,8 +319,10 @@ public static class TransferEndpoints
         {
             context.Response.Headers.Append(name, values);
         }
+        await context.Response.Body.FlushAsync(cts.Token);
 
         var bodyReader = call.ResponseBody.Reader;
+        var totalBytes = 0L;
         try
         {
             while (await bodyReader.WaitToReadAsync(cts.Token))
@@ -318,10 +330,14 @@ public static class TransferEndpoints
                 while (bodyReader.TryRead(out var chunk))
                 {
                     await context.Response.Body.WriteAsync(chunk, cts.Token);
+                    totalBytes += chunk.Length;
                 }
+                await context.Response.Body.FlushAsync(cts.Token);
             }
 
             var end = await call.End.Task.WaitAsync(cts.Token);
+            logger?.LogInformation("bridge {TransferId}: body done, {Bytes} bytes, endError={Err}",
+                transferId, totalBytes, end.Error);
             if (end.Error is not null)
             {
                 context.Abort();
@@ -329,6 +345,7 @@ public static class TransferEndpoints
         }
         catch (OperationCanceledException)
         {
+            logger?.LogWarning("bridge {TransferId}: body pump cancelled after {Bytes} bytes", transferId, totalBytes);
             context.Abort();
         }
     }
