@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Net.WebSockets;
 using System.Text;
+using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
 using CortexTerminal.Contracts.Streaming;
@@ -122,10 +123,14 @@ public sealed class WorkerRelayConnection
 
             if (frame.Value.MessageType == WebSocketMessageType.Text)
             {
+                // TEMP DEBUG: transfer-over-worker-session diagnosis
+                var dbg = Encoding.UTF8.GetString(frame.Value.Data);
+                Console.Error.WriteLine($"[wsdbg {WorkerId}] ctrl {dbg.Substring(0, Math.Min(140, dbg.Length))}");
                 HandleControlFrame(frame.Value.Data);
             }
             else
             {
+                Console.Error.WriteLine($"[wsdbg {WorkerId}] data {frame.Value.Data.Length}B");
                 HandleDataFrame(frame.Value.Data);
             }
         }
