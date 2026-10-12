@@ -15,8 +15,10 @@ import { BusinessError } from '@ohos.base'
 
 /** 无字节的宽限期：到点仍无进度/完成即判端点不可达，交给协商链的下一端点。 */
 export const ENDPOINT_STALL_MS: number = 6000
-/** 公网/Relay 端点：首字节要经 relay↔worker 配对，宽限期放大。 */
-export const REMOTE_STALL_MS: number = 30000
+/** 最后一跳（Relay）：relay 会替 worker 握住请求最长 90s 等配对，watchdog 必须比它
+ * 更长——worker↔relay 的跨网首连（部署后首次传输实测 30-40s）不该被客户端掐死。
+ * 它是最后手段，多等不存在“错过下一端点”的代价。 */
+export const LAST_ENDPOINT_STALL_MS: number = 90000
 
 export class FileDownloader {
   /** 下载到沙箱；返回实际落盘路径（目标被占时 resolveAvailablePath 会改名）。 */

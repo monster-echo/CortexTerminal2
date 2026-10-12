@@ -562,7 +562,10 @@ public sealed class RelayTransferService(long maxTransferBytes, ILogger<RelayTra
                 $"transfer/{command.TransferId}/worker",
                 new KeyValuePair<string, string>("token", command.Token));
             using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            connectCts.CancelAfter(TimeSpan.FromSeconds(30));
+            // Relay 会替我们握住客户端请求最长 ClientWaitSeconds(90s)，拨号预算必须
+            // 覆盖跨网首连的真实耗时（实测部署后首次拨号 30-40s）——30s 会掐死本可
+            // 成功的配对，客户端只能收到永久的零字节等待。
+            connectCts.CancelAfter(TimeSpan.FromSeconds(75));
             await socket.ConnectAsync(uri, connectCts.Token);
 
             await RelayProtocolIo.WaitStartAsync(socket, ct);
@@ -633,7 +636,7 @@ public sealed class RelayTransferService(long maxTransferBytes, ILogger<RelayTra
                 $"transfer/{command.TransferId}/worker",
                 new KeyValuePair<string, string>("token", command.Token));
             using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            connectCts.CancelAfter(TimeSpan.FromSeconds(30));
+            connectCts.CancelAfter(TimeSpan.FromSeconds(75));
             await socket.ConnectAsync(uri, connectCts.Token);
 
             await RelayProtocolIo.WaitStartAsync(socket, ct);

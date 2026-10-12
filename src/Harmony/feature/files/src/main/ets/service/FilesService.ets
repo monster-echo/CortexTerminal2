@@ -8,7 +8,7 @@
  */
 import { ApiService, P2pTransfer, P2pPreparation, P2pChannel } from '@rwecho/core'
 import fs from '@ohos.file.fs'
-import { FileDownloader, REMOTE_STALL_MS } from './FileDownloader'
+import { FileDownloader, ENDPOINT_STALL_MS, LAST_ENDPOINT_STALL_MS } from './FileDownloader'
 import { TransferRouteLog } from './TransferRouteLog'
 import { FileListingModel, WorkspaceModel, UploadInitModel, DownloadInitModel, TransferEndpointModel } from '../model/FileModels'
 
@@ -92,7 +92,7 @@ export class FilesService {
     await FilesService.transferViaEndpoints(workerId, transferId, endpoints, async (channel: P2pChannel, relayToken: string): Promise<string> => {
       await P2pTransfer.uploadP2p(channel, transferId, relayToken, buffer)
       return ''
-    }, async (url: string): Promise<string> => {
+    }, async (url: string, _stallMs: number): Promise<string> => {
       await ApiService.putBinary(url, buffer)
       return ''
     })
@@ -108,8 +108,8 @@ export class FilesService {
     return await FilesService.transferViaEndpoints(workerId, transferId, endpoints,
       async (channel: P2pChannel, relayToken: string) => {
         return await FilesService.downloadOverP2p(channel, transferId, relayToken, targetPath)
-      }, async (url: string) => {
-        return await FileDownloader.download(context, targetPath, url, REMOTE_STALL_MS)
+      }, async (url: string, stallMs: number) => {
+        return await FileDownloader.download(context, targetPath, url, stallMs)
       })
   }
 
@@ -121,7 +121,7 @@ export class FilesService {
   private static async transferViaEndpoints(workerId: string, transferId: string,
     endpoints: TransferEndpointModel[],
     p2pFn: (channel: P2pChannel, relayToken: string) => Promise<string>,
-    httpFn: (url: string) => Promise<string>): Promise<string> {
+    httpFn: (url: string, stallMs: number) => Promise<string>): Promise<string> {
     if (endpoints.length === 0) {
       throw new Error('no transfer endpoints')
     }
@@ -159,8 +159,12 @@ export class FilesService {
         TransferRouteLog.record('lan', false)
         continue
       }
+      // 最后一跳多等：它失败就意味着整个传输失败，且 relay 侧自己会等 worker 配对
+      // 最长 90s——客户端的耐心必须 ≥ 服务端的等待，否则配对成功前先被掐死。
+      const isLast = i === endpoints.length - 1
+      const stallMs = isLast ? LAST_ENDPOINT_STALL_MS : ENDPOINT_STALL_MS
       try {
-        const localPath = await httpFn(endpoints[i].url)
+        const localPath = await httpFn(endpoints[i].url, stallMs)
         TransferRouteLog.record(endpoints[i].kind.toLowerCase(), true)
         preparation?.cancel()
         return localPath
