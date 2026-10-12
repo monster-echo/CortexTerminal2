@@ -89,6 +89,9 @@ jobs:
           ln -sfn /Applications/DevEco-Studio.app/Contents/tools/hvigor/hvigor-ohos-plugin node_modules/@ohos/hvigor-ohos-plugin
           HVIGOR="/Applications/DevEco-Studio.app/Contents/tools/hvigor/hvigor/bin/hvigor.js"
           export NODE_PATH="$PWD/node_modules${NODE_PATH:+:$NODE_PATH}"
+          # hvigor refuses to run without this env (00303217); the SDK path is fixed
+          # by the symlinks below, so derive it instead of trusting runner env.
+          export DEVECO_SDK_HOME="/Applications/DevEco-Studio.app/Contents/sdk"
           node "$HVIGOR" clean --no-daemon
           node "$HVIGOR" assembleHap --mode module -p module=entry@default -p product=default --no-daemon
           node "$HVIGOR" assembleApp --mode project -p product=default --no-daemon
