@@ -140,6 +140,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WindowListener {
       height: 32,
       backgroundColor: scheme.foreground,
       foregroundColor: scheme.background,
+      // 悬停保持黑白反色，不回落到主题的品牌蓝。
+      hoverBackgroundColor: scheme.foreground.withValues(alpha: 0.85),
+      hoverForegroundColor: scheme.background,
       onPressed: onPressed,
       enabled: onPressed != null,
       child: Row(
