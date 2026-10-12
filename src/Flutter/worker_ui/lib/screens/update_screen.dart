@@ -4,23 +4,22 @@ import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../core/corterm_service.dart';
+import '../core/app_scope.dart';
 import '../core/models.dart';
 import '../core/self_updater.dart';
 import '../l10n/app_strings.dart';
 import '../theme/app_theme.dart';
+import '../widgets/app_bar.dart';
 import '../widgets/error_banner.dart';
 import '../widgets/list_group.dart';
 import '../widgets/primary_button.dart';
-import '../widgets/section_header.dart';
-import '../widgets/status_card.dart';
+import '../widgets/states.dart';
 
 /// 统一更新页：应用 + Worker 一个概念。一次检查、一个按钮。
 /// 更新顺序：先 Worker（corterm + cortap 一体更新），后 UI —— UI 更新会
 /// 重启应用，必须放在最后收尾。
 class UpdateScreen extends StatefulWidget {
-  const UpdateScreen({super.key, required this.service});
-
-  final CortermService service;
+  const UpdateScreen({super.key});
 
   @override
   State<UpdateScreen> createState() => _UpdateScreenState();
@@ -35,6 +34,8 @@ class _Stage {
 }
 
 class _UpdateScreenState extends State<UpdateScreen> {
+  late CortermService _service;
+  bool _started = false;
   UpdateCheck? _workerCheck;
   UiUpdateCheck? _uiCheck;
   String? _error;
@@ -48,6 +49,16 @@ class _UpdateScreenState extends State<UpdateScreen> {
   bool get _workerAvailable => _workerCheck?.updateAvailable ?? false;
   bool get _anyAvailable => _uiAvailable || _workerAvailable;
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _service = AppScope.of(context).service;
+    if (!_started) {
+      _started = true;
+      _checkForUpdates();
+    }
+  }
+
   Future<void> _checkForUpdates() async {
     setState(() {
       _checking = true;
@@ -56,7 +67,7 @@ class _UpdateScreenState extends State<UpdateScreen> {
     try {
       final results = await Future.wait<dynamic>([
         SelfUpdater.check(),
-        widget.service.updateCheck(),
+        _service.updateCheck(),
       ]);
       if (!mounted) return;
       setState(() {
@@ -83,7 +94,7 @@ class _UpdateScreenState extends State<UpdateScreen> {
 
     if (_workerAvailable) {
       try {
-        await for (final stage in widget.service.update()) {
+        await for (final stage in _service.update()) {
           if (!mounted) return;
           setState(() {
             _stages.add(_Stage(stage.stage, isError: stage.isError, bytes: stage.bytes));
@@ -167,40 +178,53 @@ class _UpdateScreenState extends State<UpdateScreen> {
     final t = AppStrings.t;
     final scheme = ShadTheme.of(context).colorScheme;
     final checked = _workerCheck != null || _uiCheck != null;
-    return SafeArea(
-      child: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          SectionHeader(
-            title: t(context, 'update.title'),
-            trailing: PrimaryButton(
-              label: t(context, 'update.check'),
-              onPressed: _checking || _updating ? null : _checkForUpdates,
-              icon: LucideIcons.search,
+    // 未打版本号的本地构建（UI_VERSION 缺省 0.0.0）不参与更新比较。
+    final devBuild = appVersion == '0.0.0';
+    String withLatest(String current, String? latest) =>
+        (latest == null || latest == current) ? current : '$current → v$latest';
+    return Scaffold(
+      appBar: WorkerAppBar(
+        title: t(context, 'update.title'),
+        actions: [
+          if (!_checking && !_updating)
+            ShadIconButton.ghost(
+              onPressed: _checkForUpdates,
+              icon: Icon(LucideIcons.refreshCw, size: 18),
             ),
-          ),
-          const SizedBox(height: 16),
-          ErrorBanner(message: _error),
-          const SizedBox(height: 16),
-          StatusCard(
-            title: t(context, 'update.allTitle'),
-            items: [
-              (t(context, 'update.uiCurrent'), 'v$appVersion'),
-              if (_workerCheck != null)
-                (t(context, 'update.workerCurrent'), 'v${_workerCheck!.currentVersion}'),
+        ],
+      ),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            if (_checking)
+              const Center(child: Padding(padding: EdgeInsets.all(24), child: SmallSpinner()))
+            else ...[
+              ErrorBanner(message: _error),
               if (checked) ...[
-                // 本地构建可能比线上最新还新（发布前的开发版），此时「最新版本」
-                // 显示为当前版本，避免「最新 < 当前」的观感。
-                (
-                  t(context, 'update.latest'),
-                  _anyAvailable
-                      ? 'v${_uiAvailable ? _uiCheck!.latestVersion : _workerCheck!.latestVersion}'
-                      : 'v$appVersion'
+                // 每行「当前 → 最新」，不再单独设「最新版本」行。
+                AppGroupCard(
+                  children: [
+                    AppRow(
+                      label: t(context, 'update.uiCurrent'),
+                      value: devBuild
+                          ? 'v$appVersion（开发构建）'
+                          : withLatest('v$appVersion', _uiCheck?.latestVersion),
+                    ),
+                    if (_workerCheck != null) ...[
+                      const Divider(height: 1),
+                      AppRow(
+                        label: t(context, 'update.serviceCurrent'),
+                        value: withLatest(
+                          'v${_workerCheck!.currentVersion}',
+                          _workerCheck!.latestVersion,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
-                (t(context, 'update.available'), _anyAvailable ? '●' : '—'),
+                const SizedBox(height: 16),
               ],
-            ],
-          ),
           if (checked && _anyAvailable && !_updating) ...[
             const SizedBox(height: 8),
             Text(
@@ -251,7 +275,9 @@ class _UpdateScreenState extends State<UpdateScreen> {
               ],
             ),
           ],
-        ],
+            ],
+          ],
+        ),
       ),
     );
   }

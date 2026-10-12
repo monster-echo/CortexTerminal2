@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../core/corterm_service.dart';
+import '../core/app_scope.dart';
 import '../core/models.dart';
 import '../l10n/app_strings.dart';
 import '../widgets/app_bar.dart';
@@ -13,9 +14,8 @@ import '../widgets/states.dart';
 /// 会话日志查看器：每 2s 轮询 `cortap events --json --last N`，Dart 侧按 EventFormatter
 /// 逻辑渲染，自动滚底，可暂停/恢复实时。
 class SessionDetailScreen extends StatefulWidget {
-  const SessionDetailScreen({super.key, required this.service, required this.session});
+  const SessionDetailScreen({super.key, required this.session});
 
-  final CortermService service;
   final SessionSummary session;
 
   @override
@@ -23,6 +23,8 @@ class SessionDetailScreen extends StatefulWidget {
 }
 
 class _SessionDetailScreenState extends State<SessionDetailScreen> {
+  late CortermService _service;
+  bool _started = false;
   final ScrollController _scroll = ScrollController();
   final List<CortermEvent> _events = [];
   Timer? _timer;
@@ -31,10 +33,14 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
   bool _loading = true;
 
   @override
-  void initState() {
-    super.initState();
-    _load();
-    _timer = Timer.periodic(const Duration(seconds: 2), (_) => _poll());
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _service = AppScope.of(context).service;
+    if (!_started) {
+      _started = true;
+      _load();
+      _timer = Timer.periodic(const Duration(seconds: 2), (_) => _poll());
+    }
   }
 
   @override
@@ -52,7 +58,7 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
 
   Future<void> _poll() async {
     try {
-      final fresh = await widget.service.events(widget.session.sessionId, last: 200);
+      final fresh = await _service.events(widget.session.sessionId, last: 200);
       if (!mounted) return;
       setState(() {
         _events

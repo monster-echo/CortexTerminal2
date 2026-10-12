@@ -5,13 +5,12 @@ import 'package:launch_at_startup/launch_at_startup.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'app.dart';
+import 'core/app_router.dart';
 import 'core/binary_locator.dart';
 import 'core/settings.dart';
 import 'core/tray_controller.dart';
 import 'l10n/app_strings.dart';
-import 'screens/about_screen.dart';
-import 'screens/auth_screen.dart';
-import 'widgets/app_bar.dart';
+import 'widgets/states.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,16 +25,18 @@ Future<void> main() async {
   await _initWindow();
   await TrayController.instance.init();
   TrayController.command.addListener(_handleTrayCommand);
+  TrayController.toast.addListener(_handleTrayToast);
 
-  runApp(const WorkerUiApp());
+  runApp(const CortexApp());
 }
 
 // ── 窗口：关闭 → 隐藏到托盘 ──
 Future<void> _initWindow() async {
   await windowManager.ensureInitialized();
+  // Tailscale 式窄面板窗口：固定窄宽，主窗口即状态面板。
   final options = WindowOptions(
-    size: const Size(980, 640),
-    minimumSize: const Size(780, 520),
+    size: const Size(380, 640),
+    minimumSize: const Size(360, 520),
     center: true,
     title: AppStrings.of(Settings.instance.locale, 'appTitle'),
   );
@@ -74,17 +75,33 @@ void _handleTrayCommand() {
     case TrayCommand.login:
       _showWindow();
       _openAuthScreen();
-    case TrayCommand.logout:
-      TrayController.instance.logoutFromTray();
     case TrayCommand.about:
       _showWindow();
       _openAboutScreen();
     case TrayCommand.quit:
       exit(0);
+    case TrayCommand.logout:
     case TrayCommand.none:
       break;
   }
   TrayController.command.value = TrayCommand.none;
+}
+
+/// 托盘侧的提示（如开机启动开关结果）：窗口可见时弹 toast，
+/// 窗口隐藏时托盘菜单勾选态 / tooltip 已反映状态，不强行弹窗。
+void _handleTrayToast() {
+  final message = TrayController.toast.value;
+  if (message == null) return;
+  TrayController.toast.value = null;
+  _showTrayToast(message);
+}
+
+Future<void> _showTrayToast(String message) async {
+  final context = rootNavigatorKey.currentContext;
+  if (context == null || !context.mounted) return;
+  if (!await windowManager.isVisible()) return;
+  if (!context.mounted) return;
+  showAppToast(context, message);
 }
 
 Future<void> _showWindow() async {
@@ -94,28 +111,14 @@ Future<void> _showWindow() async {
 
 /// 托盘「登录」→ 显示窗口并跳到认证页。
 void _openAuthScreen() {
-  final service = TrayController.instance.service;
-  if (service == null) return;
-  appNavigatorKey.currentState?.push(
-    MaterialPageRoute(
-      builder: (_) => Scaffold(
-        appBar: WorkerAppBar(title: AppStrings.of(Settings.instance.locale, 'nav.auth')),
-        body: AuthScreen(service: service),
-      ),
-    ),
-  );
+  _showWindow();
+  appRouter.push('/auth');
 }
 
 /// 托盘「关于」→ 显示窗口并跳到关于页。
 void _openAboutScreen() {
-  appNavigatorKey.currentState?.push(
-    MaterialPageRoute(
-      builder: (_) => Scaffold(
-        appBar: WorkerAppBar(title: AppStrings.of(Settings.instance.locale, 'about.title')),
-        body: AboutScreen(workerVersion: TrayController.instance.status?.version),
-      ),
-    ),
-  );
+  _showWindow();
+  appRouter.push('/about');
 }
 
 // ── 开机启动（macOS SMAppService / Windows 注册表 / Linux autostart）──

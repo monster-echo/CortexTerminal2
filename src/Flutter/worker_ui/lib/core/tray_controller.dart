@@ -15,9 +15,6 @@ import 'settings.dart';
 /// 托盘菜单动作（需要 UI 配合的动作由 App 监听处理）。
 enum TrayCommand { none, show, login, logout, about, quit }
 
-/// 全局导航 key：托盘菜单「登录」需要 push 认证页。
-final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
-
 /// 托盘菜单控制器：动态显示登录状态 / 登录登出 / worker 数量，每 30s 刷新。
 class TrayController extends ChangeNotifier {
   TrayController._();
@@ -26,6 +23,9 @@ class TrayController extends ChangeNotifier {
 
   /// 托盘菜单动作（App 监听后执行，执行完置回 none）。
   static final ValueNotifier<TrayCommand> command = ValueNotifier(TrayCommand.none);
+
+  /// 托盘侧产生的用户提示（App 监听后弹 toast，弹完置回 null）。
+  static final ValueNotifier<String?> toast = ValueNotifier(null);
 
   CortermService? service;
   Status? status;
@@ -70,15 +70,19 @@ class TrayController extends ChangeNotifier {
   }
 
   Future<void> _toggleLaunchAtStartup() async {
+    String t(String key) => AppStrings.of(Settings.instance.locale, key);
     try {
       if (_launchAtStartup) {
         await launchAtStartup.disable();
       } else {
         await launchAtStartup.enable();
       }
-      _launchAtStartup = !_launchAtStartup;
+      // 回读系统真实状态，菜单勾选不靠假设。
+      _launchAtStartup = await launchAtStartup.isEnabled();
+      toast.value = t(_launchAtStartup ? 'tray.launchOn' : 'tray.launchOff');
     } catch (_) {
-      // 切换失败保持原状态（macOS 下需 app 在 /Applications）
+      // 失败必须让用户知道（macOS 下需 app 在 /Applications）。
+      toast.value = t('settings.launchAtStartupError');
     }
     await _buildMenu();
   }
@@ -101,20 +105,18 @@ class TrayController extends ChangeNotifier {
       // worker 数量（禁用行）
       MenuItem(
         key: 'workers',
-        label: t('tray.workers').replaceAll('{online}', '$online').replaceAll('{total}', '${workers.length}'),
+        label: t('tray.computers').replaceAll('{online}', '$online').replaceAll('{total}', '${workers.length}'),
         disabled: true,
       ),
-      // 开机启动（复选框）
+      // 开机启动（复选框，勾选态 = 系统真实状态）
       MenuItem.checkbox(
         key: 'startup',
         label: t('tray.launchAtStartup'),
         checked: _launchAtStartup,
         onClick: (_) => _toggleLaunchAtStartup(),
       ),
-      // 未登录才给登录入口；已登录给登出
-      if (loggedIn)
-        MenuItem(key: 'logout', label: t('tray.logout'), onClick: (_) => command.value = TrayCommand.logout)
-      else
+      // 未登录才给登录入口；登出移到 App 内认证页
+      if (!loggedIn)
         MenuItem(key: 'login', label: t('tray.login'), onClick: (_) => command.value = TrayCommand.login),
       // 关于（版本 / 版权 / worker 版本）
       MenuItem(key: 'about', label: t('tray.about'), onClick: (_) => command.value = TrayCommand.about),
@@ -129,16 +131,6 @@ class TrayController extends ChangeNotifier {
     await trayManager.setContextMenu(Menu(items: items));
     final statusText = loggedIn ? (user ?? '') : t('tray.notLoggedIn');
     await trayManager.setToolTip('${t('appTitle')} v$appVersion · $statusText · $online/${workers.length}');
-  }
-
-  /// 托盘登出：直接跑 corterm logout --json，然后刷新菜单。
-  Future<void> logoutFromTray() async {
-    try {
-      await service?.logout();
-    } catch (_) {
-      // 登出失败也要刷新，让菜单反映真实状态
-    }
-    await refresh();
   }
 }
 

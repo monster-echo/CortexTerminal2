@@ -2,33 +2,37 @@ import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../core/corterm_service.dart';
+import '../core/app_scope.dart';
+import 'package:go_router/go_router.dart';
 import '../core/models.dart';
 import '../l10n/app_strings.dart';
 import '../theme/app_theme.dart';
 import '../widgets/error_banner.dart';
 import '../widgets/list_group.dart';
-import '../widgets/section_header.dart';
 import '../widgets/states.dart';
-import 'session_detail_screen.dart';
 
 class SessionsScreen extends StatefulWidget {
-  const SessionsScreen({super.key, required this.service});
-
-  final CortermService service;
+  const SessionsScreen({super.key});
 
   @override
   State<SessionsScreen> createState() => _SessionsScreenState();
 }
 
 class _SessionsScreenState extends State<SessionsScreen> {
+  late CortermService _service;
+  bool _started = false;
   List<SessionSummary>? _sessions;
   String? _error;
   bool _loading = true;
 
   @override
-  void initState() {
-    super.initState();
-    _load();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _service = AppScope.of(context).service;
+    if (!_started) {
+      _started = true;
+      _load();
+    }
   }
 
   Future<void> _load() async {
@@ -37,7 +41,7 @@ class _SessionsScreenState extends State<SessionsScreen> {
       _error = null;
     });
     try {
-      final sessions = await widget.service.sessions();
+      final sessions = await _service.sessions();
       if (!mounted) return;
       setState(() {
         _sessions = sessions;
@@ -68,14 +72,6 @@ class _SessionsScreenState extends State<SessionsScreen> {
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          SectionHeader(
-            title: t(context, 'sessions.title'),
-            trailing: ShadIconButton.ghost(
-              onPressed: _load,
-              icon: Icon(LucideIcons.refreshCw, size: 18),
-            ),
-          ),
-          const SizedBox(height: 8),
           ErrorBanner(message: _error),
           if (_loading)
             const Center(child: Padding(padding: EdgeInsets.all(24), child: SmallSpinner()))
@@ -123,14 +119,7 @@ class _SessionsScreenState extends State<SessionsScreen> {
                             shape: BoxShape.circle,
                           ),
                         ),
-                        onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => SessionDetailScreen(
-                              service: widget.service,
-                              session: s,
-                            ),
-                          ),
-                        ),
+                        onTap: () => context.push('/sessions/detail', extra: s),
                       );
                     },
                   ),

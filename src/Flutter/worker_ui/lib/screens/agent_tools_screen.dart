@@ -6,7 +6,6 @@ import '../l10n/app_strings.dart';
 import '../theme/app_theme.dart';
 import '../widgets/error_banner.dart';
 import '../widgets/list_group.dart';
-import '../widgets/section_header.dart';
 import '../widgets/states.dart';
 
 /// 常见 AI agent CLI 安装检测（Claude Code / Codex / Gemini CLI / OpenCode / Aider）。
@@ -57,14 +56,6 @@ class _AgentToolsScreenState extends State<AgentToolsScreen> {
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          SectionHeader(
-            title: t(context, 'agentTools.title'),
-            trailing: ShadIconButton.ghost(
-              onPressed: _detect,
-              icon: Icon(LucideIcons.refreshCw, size: 18),
-            ),
-          ),
-          const SizedBox(height: 8),
           ErrorBanner(message: _error),
           if (_loading)
             const Center(child: Padding(padding: EdgeInsets.all(32), child: SmallSpinner()))

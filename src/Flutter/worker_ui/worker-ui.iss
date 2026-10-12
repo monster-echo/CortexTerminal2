@@ -1,4 +1,4 @@
-; 云枢终端 (Corterm Worker UI) Windows 安装脚本 — Inno Setup
+; 云枢终端 (Corterm) Windows 安装脚本 — Inno Setup
 ; 用法: iscc.exe /DMyAppVersion=<version> worker-ui.iss
 ; 产物: release\云枢终端-<version>-setup.exe（拖拽安装的 .app 等价物，Windows 的标准安装向导）
 

@@ -2,7 +2,7 @@ name: worker_ui
 description: "Corterm Worker 本机控制面板 — 用 UI 替代 corterm/cortap 命令行。"
 publish_to: 'none'
 
-version: 0.1.0+1
+version: 0.2.0+1
 
 environment:
   sdk: ^3.12.2
@@ -27,6 +27,8 @@ dependencies:
   # UI 框架：shadcn/ui（ShadApp + ShadTheme，Material 仅保留 Scaffold 结构件；
   # LucideIcons 由 shadcn_ui 再导出，无需单独依赖）
   shadcn_ui: ^0.56.3
+  # 声明式路由
+  go_router: ^16.0.0
 
 dev_dependencies:
   flutter_test:

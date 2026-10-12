@@ -2,27 +2,39 @@ import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../core/corterm_service.dart';
+import '../core/app_scope.dart';
 import '../core/models.dart';
 import '../l10n/app_strings.dart';
 import '../theme/app_theme.dart';
+import '../widgets/app_bar.dart';
 import '../widgets/error_banner.dart';
 import '../widgets/list_group.dart';
-import '../widgets/primary_button.dart';
-import '../widgets/section_header.dart';
 
+/// 诊断页：进入即自动运行，清单本身就是结论（✓/✗ + 一行说明）。
+/// 唯一操作「重新运行」收在导航栏右侧，不与结果争夺注意力。
 class DoctorScreen extends StatefulWidget {
-  const DoctorScreen({super.key, required this.service});
-
-  final CortermService service;
+  const DoctorScreen({super.key});
 
   @override
   State<DoctorScreen> createState() => _DoctorScreenState();
 }
 
 class _DoctorScreenState extends State<DoctorScreen> {
+  late CortermService _service;
+  bool _started = false;
   DoctorResult? _result;
   String? _error;
   bool _running = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _service = AppScope.of(context).service;
+    if (!_started) {
+      _started = true;
+      _run();
+    }
+  }
 
   Future<void> _run() async {
     setState(() {
@@ -30,7 +42,7 @@ class _DoctorScreenState extends State<DoctorScreen> {
       _error = null;
     });
     try {
-      final r = await widget.service.doctor();
+      final r = await _service.doctor();
       if (!mounted) return;
       setState(() {
         _result = r;
@@ -49,68 +61,60 @@ class _DoctorScreenState extends State<DoctorScreen> {
   Widget build(BuildContext context) {
     final t = AppStrings.t;
     final scheme = ShadTheme.of(context).colorScheme;
-    return SafeArea(
-      child: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          SectionHeader(
-            title: t(context, 'doctor.title'),
-            trailing: PrimaryButton(
-              label: t(context, 'doctor.run'),
-              onPressed: _running ? null : _run,
-              icon: LucideIcons.play,
-            ),
-          ),
-          const SizedBox(height: 16),
-          ErrorBanner(message: _error),
-          if (_result != null) ...[
-            const SizedBox(height: 16),
-            Text(
-              '${t(context, 'doctor.passed')}: ${_result!.passedCount}   '
-              '${t(context, 'doctor.failed')}: ${_result!.failedCount}',
-              style: TextStyle(
-                color: _result!.failedCount == 0 ? scheme.tertiary : scheme.destructive,
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 12),
-            AppGroupCard(
-              children: [
-                for (var i = 0; i < _result!.checks.length; i++) ...[
-                  if (i > 0) const Divider(height: 1),
-                  Builder(
-                    builder: (context) {
-                      final c = _result!.checks[i];
-                      return AppRow(
-                        icon: c.ok ? LucideIcons.circleCheck : LucideIcons.circleX,
-                        iconColor: c.ok ? scheme.tertiary : scheme.destructive,
-                        label: c.name,
-                        value: c.detail,
-                      );
-                    },
-                  ),
-                ],
-              ],
-            ),
-            if (_result!.failedCount == 0)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  t(context, 'doctor.allPassed'),
-                  style: TextStyle(color: scheme.tertiary, fontWeight: FontWeight.w600),
-                ),
-              ),
-          ] else if (!_running)
-            Padding(
-              padding: const EdgeInsets.only(top: 16),
-              child: Text(
-                t(context, 'doctor.notRun'),
-                style: TextStyle(color: scheme.mutedForeground, fontSize: 14),
-              ),
+    return Scaffold(
+      appBar: WorkerAppBar(
+        title: t(context, 'doctor.title'),
+        actions: [
+          if (!_running)
+            ShadIconButton.ghost(
+              onPressed: _run,
+              icon: Icon(LucideIcons.refreshCw, size: 18),
             ),
         ],
       ),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            ErrorBanner(message: _error),
+            if (_running)
+              const Center(child: Padding(padding: EdgeInsets.all(24), child: _RunningIndicator()))
+            else if (_result != null)
+              AppGroupCard(
+                children: [
+                  for (var i = 0; i < _result!.checks.length; i++) ...[
+                    if (i > 0) const Divider(height: 1),
+                    Builder(
+                      builder: (context) {
+                        final c = _result!.checks[i];
+                        return AppRow(
+                          icon: c.ok ? LucideIcons.circleCheck : LucideIcons.circleX,
+                          iconColor: c.ok ? scheme.tertiary : scheme.destructive,
+                          label: c.name,
+                          value: c.detail,
+                        );
+                      },
+                    ),
+                  ],
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 运行中的极简占位：一条安静的 spinner，不需要文案。
+class _RunningIndicator extends StatelessWidget {
+  const _RunningIndicator();
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox(
+      width: 24,
+      height: 24,
+      child: CircularProgressIndicator(strokeWidth: 2.5),
     );
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:worker_ui/core/app_scope.dart';
 import 'package:worker_ui/core/corterm_service.dart';
 import 'package:worker_ui/core/models.dart';
 import 'package:worker_ui/screens/dashboard_screen.dart';
@@ -38,15 +39,19 @@ class _FakeService extends CortermService {
 }
 
 void main() {
-  Widget wrap(Widget child) => ShadApp(theme: shadLightTheme(), home: Scaffold(body: child));
+  Widget wrap(Widget child) => ShadApp(
+        theme: shadLightTheme(),
+        home: AppScope(service: _FakeService(), child: Scaffold(body: child)),
+      );
 
-  testWidgets('dashboard renders status fields', (tester) async {
+  testWidgets('dashboard panel renders hero, computers and this-device fields', (tester) async {
     await tester.pumpWidget(
-      wrap(DashboardScreen(service: _FakeService())),
+      wrap(const DashboardScreen()),
     );
     await tester.pumpAndSettle();
 
-    // 认证状态、用户、worker 列表都渲染出来
+    // hero 连接状态 + 账号；我的计算机；此设备（设备 ID / 服务版本）都渲染出来
+    expect(find.text('Connected'), findsOneWidget);
     expect(find.text('alice'), findsOneWidget);
     expect(find.text('box'), findsOneWidget);
     expect(find.text('worker-host'), findsOneWidget);
@@ -55,21 +60,24 @@ void main() {
 
   testWidgets('dashboard shows error banner when service throws', (tester) async {
     final failing = _FailingService();
-    await tester.pumpWidget(wrap(DashboardScreen(service: failing)));
+    await tester.pumpWidget(wrap(AppScope(service: failing, child: const DashboardScreen())));
     await tester.pumpAndSettle();
 
     expect(find.textContaining('boom'), findsOneWidget);
   });
 
-  testWidgets('settings shows management section (auth/agentTools/update/doctor/sessions)', (tester) async {
+  testWidgets('settings shows preferences only (management entries live on the panel)', (tester) async {
     await tester.pumpWidget(
-      wrap(SettingsScreen(service: _FakeService())),
+      wrap(const SettingsScreen()),
     );
     await tester.pumpAndSettle();
 
-    // 默认 locale 是 en，管理区 tile 显示英文（服务已并入启动自动拉起，不在管理区）
-    for (final label in ['Auth', 'Agent Tools', 'Update', 'Doctor', 'Sessions']) {
-      expect(find.text(label), findsOneWidget, reason: '缺少管理区入口 $label');
+    // 默认 locale 是 en，设置页只剩偏好项；管理入口已上移概览面板
+    for (final label in ['Theme', 'Language', 'Launch at login']) {
+      expect(find.text(label), findsOneWidget, reason: '缺少偏好项 $label');
+    }
+    for (final label in ['Auth', 'Agent Tools', 'Diagnostics', 'Sessions']) {
+      expect(find.text(label), findsNothing, reason: '管理入口 $label 不应留在设置页');
     }
   });
 }

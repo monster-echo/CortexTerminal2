@@ -6,7 +6,6 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import '../core/self_updater.dart';
 import '../l10n/app_strings.dart';
 import '../widgets/list_group.dart';
-import '../widgets/section_header.dart';
 
 /// 关于云枢终端：应用名 / 版本 / 版权 / worker 版本 / 项目主页。
 class AboutScreen extends StatelessWidget {
@@ -29,8 +28,6 @@ class AboutScreen extends StatelessWidget {
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          SectionHeader(title: t(context, 'about.title')),
-          const SizedBox(height: 24),
           Center(
             child: Column(
               children: [
@@ -61,7 +58,7 @@ class AboutScreen extends StatelessWidget {
           AppGroupCard(
             children: [
               if (workerVersion != null) ...[
-                AppRow(label: t(context, 'about.worker'), value: 'v$workerVersion'),
+                AppRow(label: t(context, 'about.service'), value: 'v$workerVersion'),
                 const Divider(height: 1),
               ],
               AppRow(label: t(context, 'about.copyright'), value: '© 2026 Corterm'),

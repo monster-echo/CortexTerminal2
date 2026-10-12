@@ -1,16 +1,18 @@
-# Corterm Worker UI
+# 云枢终端 (Corterm)
 
-Worker 本机桌面控制面板（macOS / Windows / Linux）——用 UI 替代 `corterm`/`cortap` 命令行。
+本机桌面连接面板（macOS / Windows / Linux）——装在用户自己的电脑上，让手机上的云枢终端 App 可以远程访问这台电脑。用 UI 替代 `corterm`/`cortap` 命令行。
 
 ## 功能
 
-- **状态**：版本 / PID / 运行时长 / 网关 / Worker ID / 认证状态 / 网关信息（含更新提示）/ worker 列表。
+- **概览面板**（Tailscale 式单列）：连接状态 hero → 我的计算机 → 此设备（设备 ID / 服务版本 / 网关 / 运行时长）→ 功能入口。
 - **诊断**：`corterm doctor` 全项检查（✓/✗ + 计数）。
 - **更新**：`corterm update --check` 查最新版，一键 `update --json` 流式更新（阶段 + 重启）。
-- **服务**：start / stop / restart。
 - **认证**：设备码登录（显示链接 + 二维码 + 等待轮询）/ 登出。
 - **会话**：`cortap sessions` 列表 + 实时日志查看器（轮询 `cortap events --json`，自动滚底，可暂停）。
 - **设置**：corterm 二进制路径覆盖、主题（系统/浅/深）、语言（zh/en）。
+
+> 命名说明：对用户统一叫「云枢终端 / Corterm」，视角是"这台电脑"（此设备、我的计算机）；
+> "worker" 只保留在代码与协议层（Gateway 角色名），不再出现在任何界面文案里。
 
 ## 通信方式
 
@@ -40,6 +42,6 @@ lib/
   theme/      # CLAUDE.md 设计 token → Material 主题（dark + light）
   l10n/       # zh/en 极简文案
   core/       # binary_locator / corterm_service / models / settings
-  screens/    # dashboard / doctor / update / service / auth / sessions / settings / terminal(M2 stub)
-  widgets/    # status_card / error_banner / primary_button / section_header
+  screens/    # dashboard(概览面板) / auth / sessions / session_detail / doctor / update / agent_tools / settings / about
+  widgets/    # app_bar / list_group / error_banner / primary_button / section_header / states
 ```
