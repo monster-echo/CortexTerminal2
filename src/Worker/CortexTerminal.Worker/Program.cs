@@ -731,7 +731,9 @@ updateCommand.SetAction(async (ParseResult parseResult, CancellationToken cancel
     string? latestVersion;
     try
     {
-        using var resp = await http.GetAsync($"https://api.github.com/repos/{githubRepo}/releases", cancellationToken);
+        // 版本查询与下载同路：api.github.com 匿名限额（60 次/h/IP）在共享出口
+        // 极易 403，统一走 githubProxy 前缀代理。
+        using var resp = await http.GetAsync($"{githubProxy}/https://api.github.com/repos/{githubRepo}/releases", cancellationToken);
         if (!resp.IsSuccessStatusCode)
         {
             if (json) Console.Out.WriteLine(CliJson.UpdateStage("error", message: $"Failed to fetch releases: {(int)resp.StatusCode} {resp.ReasonPhrase}").ToJsonString());

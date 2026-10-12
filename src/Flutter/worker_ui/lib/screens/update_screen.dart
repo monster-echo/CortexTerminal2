@@ -64,21 +64,33 @@ class _UpdateScreenState extends State<UpdateScreen> {
       _checking = true;
       _error = null;
     });
+    // 开发构建（未注入 UI_VERSION）没有可比版本，跳过 UI 自查，
+    // 只查服务版本——省一次无意义的 GitHub API 调用。
+    final futures = <Future<dynamic>>[
+      if (appVersion != '0.0.0') SelfUpdater.check(),
+      _service.updateCheck(),
+    ];
+    final labels = <String>[
+      if (appVersion != '0.0.0') '应用',
+      '服务',
+    ];
     try {
-      final results = await Future.wait<dynamic>([
-        SelfUpdater.check(),
-        _service.updateCheck(),
-      ]);
+      final results = await Future.wait<dynamic>(futures);
       if (!mounted) return;
       setState(() {
-        _uiCheck = results[0] as UiUpdateCheck;
-        _workerCheck = results[1] as UpdateCheck;
+        var i = 0;
+        if (appVersion != '0.0.0') {
+          _uiCheck = results[i] as UiUpdateCheck;
+          i++;
+        }
+        _workerCheck = results[i] as UpdateCheck;
         _checking = false;
       });
     } catch (e) {
       if (!mounted) return;
+      // 多源并行时无法定位失败方，标注来源让用户知道是哪条链路断了。
       setState(() {
-        _error = e.toString();
+        _error = '${labels.join('/')}版本检查失败：$e';
         _checking = false;
       });
     }
