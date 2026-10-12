@@ -1,7 +1,9 @@
 using System.Net.WebSockets;
+using System.Text;
 using System.Text.Json;
 using CortexTerminal.Contracts.Sessions;
 using CortexTerminal.Contracts.Streaming;
+using CortexTerminal.Relay.Workers;
 using Microsoft.Extensions.Options;
 using System.Threading.Channels;
 
@@ -28,12 +30,22 @@ public static class TransferEndpoints
     // ── 客户端上传 ────────────────────────────────────────────────
 
     private static async Task<IResult> HandleUploadAsync(
-        string transferId, HttpContext context, TransferPairingRegistry registry, IOptions<RelayOptions> options)
+        string transferId, HttpContext context, TransferPairingRegistry registry, IOptions<RelayOptions> options,
+        WorkerRelayRegistry workerSessions)
     {
         var opts = options.Value;
         if (!TryValidateToken(context, transferId, opts.SharedSecret))
         {
             return Results.Unauthorized();
+        }
+
+        // 常驻会话桥（?worker=&lp=）：worker online 时已与 relay 保持长连接，把请求
+        // 经它反代到 worker 本机的 transfer 监听器——单次 RTT，无每传输拨号/配对窗口。
+        if (TryReadWorkerBridge(context, out var bridgeWorkerId, out var bridgePort))
+        {
+            await BridgeViaWorkerSessionAsync(context, transferId, bridgeWorkerId, bridgePort,
+                "PUT", workerSessions, context.RequestAborted);
+            return Results.Empty;
         }
 
         var pair = registry.GetOrCreate(transferId, DateTimeOffset.UtcNow.AddSeconds(opts.TransferTtlSeconds));
@@ -72,12 +84,21 @@ public static class TransferEndpoints
     // ── 客户端下载 ────────────────────────────────────────────────
 
     private static async Task<IResult> HandleDownloadAsync(
-        string transferId, HttpContext context, TransferPairingRegistry registry, IOptions<RelayOptions> options)
+        string transferId, HttpContext context, TransferPairingRegistry registry, IOptions<RelayOptions> options,
+        WorkerRelayRegistry workerSessions)
     {
         var opts = options.Value;
         if (!TryValidateToken(context, transferId, opts.SharedSecret))
         {
             return Results.Unauthorized();
+        }
+
+        // 常驻会话桥（?worker=&lp=）：见 HandleUploadAsync 注释。
+        if (TryReadWorkerBridge(context, out var bridgeWorkerId, out var bridgePort))
+        {
+            await BridgeViaWorkerSessionAsync(context, transferId, bridgeWorkerId, bridgePort,
+                "GET", workerSessions, context.RequestAborted);
+            return Results.Empty;
         }
 
         var pair = registry.GetOrCreate(transferId, DateTimeOffset.UtcNow.AddSeconds(opts.TransferTtlSeconds));
@@ -192,6 +213,125 @@ public static class TransferEndpoints
     }
 
     // ── 共用小件 ─────────────────────────────────────────────────
+
+    // ── 常驻会话桥（?worker=&lp=）────────────────────────────────
+
+    /// <summary>解析 ?worker=&lp= 桥接参数（lp 缺省 47631 = worker Transfer:ListenPort）。</summary>
+    private static bool TryReadWorkerBridge(HttpContext context, out string workerId, out int listenPort)
+    {
+        workerId = context.Request.Query["worker"].FirstOrDefault() ?? string.Empty;
+        var lpRaw = context.Request.Query["lp"].FirstOrDefault() ?? string.Empty;
+        listenPort = 47631;
+        if (workerId.Length == 0)
+        {
+            return false;
+        }
+        if (lpRaw.Length > 0 && !int.TryParse(lpRaw, out listenPort))
+        {
+            listenPort = 47631;
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// 经 worker 常驻 /worker 会话反代一次传输请求到 worker 本机的 transfer 监听器。
+    /// 通道是 worker online 时就建立好的长连接——没有每传输拨号，也没有配对窗口；
+    /// 首字节延迟 ≈ 一跳 localhost 管道 + 磁盘。
+    /// </summary>
+    private static async Task BridgeViaWorkerSessionAsync(
+        HttpContext context, string transferId, string workerId, int listenPort,
+        string method, WorkerRelayRegistry workerSessions, CancellationToken originalAborted)
+    {
+        var workerSession = workerSessions.Find(workerId);
+        if (workerSession is null)
+        {
+            context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+            context.Response.ContentType = "application/json; charset=utf-8";
+            await context.Response.Body.WriteAsync(
+                Encoding.UTF8.GetBytes("{\"error\":\"worker relay session offline\"}"), originalAborted);
+            return;
+        }
+
+        var request = new TunnelRequestFrame
+        {
+            Id = Guid.NewGuid().ToString("N"),
+            Port = listenPort,
+            Method = method,
+            Path = $"/transfer/{transferId}",
+            Query = context.Request.QueryString.Value ?? string.Empty,
+            Headers = [],
+        };
+
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted);
+        cts.CancelAfter(TimeSpan.FromSeconds(90));
+
+        TunnelCall call;
+        try
+        {
+            call = await workerSession.CallAsync(
+                request, method == "PUT" ? context.Request.Body : null, cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            context.Response.StatusCode = StatusCodes.Status504GatewayTimeout;
+            return;
+        }
+        catch (Exception)
+        {
+            context.Response.StatusCode = StatusCodes.Status502BadGateway;
+            return;
+        }
+
+        TunnelResponseHeadFrame head;
+        try
+        {
+            var headAwaited = call.Head.Task.WaitAsync(cts.Token);
+            var finished = await Task.WhenAny(headAwaited, call.End.Task);
+            if (finished != headAwaited)
+            {
+                var earlyEnd = call.End.Task.Result;
+                context.Response.StatusCode = StatusCodes.Status502BadGateway;
+                context.Response.ContentType = "application/json; charset=utf-8";
+                await context.Response.Body.WriteAsync(
+                    Encoding.UTF8.GetBytes(earlyEnd.Error ?? "worker transfer failed"), cts.Token);
+                return;
+            }
+            head = await headAwaited;
+        }
+        catch (OperationCanceledException)
+        {
+            context.Response.StatusCode = StatusCodes.Status504GatewayTimeout;
+            return;
+        }
+
+        context.Response.StatusCode = head.Status;
+        foreach (var (name, values) in head.Headers)
+        {
+            context.Response.Headers.Append(name, values);
+        }
+
+        var bodyReader = call.ResponseBody.Reader;
+        try
+        {
+            while (await bodyReader.WaitToReadAsync(cts.Token))
+            {
+                while (bodyReader.TryRead(out var chunk))
+                {
+                    await context.Response.Body.WriteAsync(chunk, cts.Token);
+                }
+            }
+
+            var end = await call.End.Task.WaitAsync(cts.Token);
+            if (end.Error is not null)
+            {
+                context.Abort();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            context.Abort();
+        }
+    }
 
     private static bool TryValidateToken(HttpContext context, string transferId, string sharedSecret)
     {

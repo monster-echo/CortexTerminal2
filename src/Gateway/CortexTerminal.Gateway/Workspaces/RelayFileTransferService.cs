@@ -348,9 +348,33 @@ public sealed class RelayFileTransferService(
             endpoints.Add(new TransferEndpoint(
                 $"{worker.PublicTransferBaseUrl.TrimEnd('/')}/transfer/{transferId}?token={Uri.EscapeDataString(token)}", TransferEndpoint.KindPublic));
         }
+        // relay 端点附带 worker 身份与其本机 transfer 监听端口：relay 优先把请求经
+        // worker 的常驻 /worker 会话反代到本机监听器（≤300ms，无每传输拨号/配对）；
+        // 旧 relay 忽略这两个参数，走每传输拨号+配对的旧路径。
+        var listenPort = ResolveTransferListenPort(worker);
         endpoints.Add(new TransferEndpoint(
-            $"{_options.PublicUrl.TrimEnd('/')}/transfer/{transferId}?token={Uri.EscapeDataString(token)}", TransferEndpoint.KindRelay));
+            $"{_options.PublicUrl.TrimEnd('/')}/transfer/{transferId}?token={Uri.EscapeDataString(token)}&worker={Uri.EscapeDataString(worker.WorkerId)}&lp={listenPort}",
+            TransferEndpoint.KindRelay));
         return endpoints;
+    }
+
+    /// <summary>worker 本机 transfer 监听端口：优先从 LAN 端点解析，缺省 47631。</summary>
+    private static int ResolveTransferListenPort(RegisteredWorker worker)
+    {
+        foreach (var baseUrl in worker.LanEndpoints ?? Array.Empty<string>())
+        {
+            try
+            {
+                if (Uri.TryCreate(baseUrl, UriKind.Absolute, out var uri) && uri.Port > 0)
+                {
+                    return uri.Port;
+                }
+            }
+            catch (UriFormatException)
+            {
+            }
+        }
+        return 47631;
     }
 
     private async Task<Data.WorkspaceEntity> OwnedWorkspaceAsync(string userId, string workspaceId)
