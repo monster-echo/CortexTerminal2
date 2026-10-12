@@ -37,6 +37,16 @@ public sealed class WorkspaceRegistry(IDbContextFactory<AppDbContext> dbFactory,
             .ToListAsync();
     }
 
+    /// <summary>
+    /// The database uniqueness constraint covers every row, including soft-deleted rows.
+    /// Check the same key before asking the Worker to prepare the directory.
+    /// </summary>
+    public async Task<bool> NameExistsAsync(string workerId, string name)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync();
+        return await db.Workspaces.AnyAsync(w => w.WorkerId == workerId && w.Name == name);
+    }
+
     public async Task<WorkspaceEntity> CreateAsync(string userId, string workerId, string name, string rootPath, bool isDefault = false)
     {
         await using var db = await dbFactory.CreateDbContextAsync();

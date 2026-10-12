@@ -3496,14 +3496,19 @@ app.MapGet("/api/workspaces", async (ClaimsPrincipal user, WorkspaceRegistry wor
 app.MapPost("/api/workspaces", async (CreateWorkspaceRequest body, ClaimsPrincipal user, WorkspaceRegistry workspaces, IWorkerRegistry workers, IWorkerCommandDispatcher workerCommands, IAuditLogStore auditLog, HttpContext httpContext, CancellationToken ct) =>
 {
     var userId = GetUserId(user);
-    if (string.IsNullOrWhiteSpace(body.Name) || string.IsNullOrWhiteSpace(body.RootPath))
+    var name = body.Name?.Trim();
+    if (string.IsNullOrWhiteSpace(name) || name.Length > 100 || string.IsNullOrWhiteSpace(body.RootPath))
     {
-        return Results.BadRequest(new { error = "name and rootPath are required" });
+        return Results.BadRequest(new { error = "a workspace name (up to 100 characters) and rootPath are required" });
     }
     if (!workers.TryGetWorker(body.WorkerId, out var worker)
         || (worker.OwnerUserId is not null && worker.OwnerUserId != userId))
     {
         return Results.NotFound(new { error = "Worker not found" });
+    }
+    if (await workspaces.NameExistsAsync(body.WorkerId, name))
+    {
+        return Results.Conflict(new { error = "A workspace with this name already exists on this computer." });
     }
 
     var command = new CreateWorkspaceDirectoryCommand(Guid.NewGuid().ToString("N"), body.RootPath);
@@ -3525,7 +3530,21 @@ app.MapPost("/api/workspaces", async (CreateWorkspaceRequest body, ClaimsPrincip
         return MapFileError(new WorkspaceFileServiceException(error.Code, error.Message));
     }
 
-    var entity = await workspaces.CreateAsync(userId, body.WorkerId, body.Name, ack.ResolvedPath);
+    WorkspaceEntity entity;
+    try
+    {
+        entity = await workspaces.CreateAsync(userId, body.WorkerId, name, ack.ResolvedPath);
+    }
+    catch (DbUpdateException)
+    {
+        // A concurrent request can pass the preflight check first; translate the unique
+        // index violation into the same client-facing conflict instead of an HTTP 500.
+        if (await workspaces.NameExistsAsync(body.WorkerId, name))
+        {
+            return Results.Conflict(new { error = "A workspace with this name already exists on this computer." });
+        }
+        throw;
+    }
     auditLog.Record(httpContext.CreateAuditEntry(userId, userId, "workspace.create", "workspace", entity.Id));
     return Results.Ok(new { entity.Id, entity.WorkerId, entity.Name, entity.RootPath, entity.IsDefault, entity.CreatedAtUtc });
 }).RequireAuthorization();
