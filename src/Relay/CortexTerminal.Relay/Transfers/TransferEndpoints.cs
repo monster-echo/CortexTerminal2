@@ -93,14 +93,19 @@ public static class TransferEndpoints
             return Results.Unauthorized();
         }
 
-        // 常驻会话桥（?worker=&lp=）：见 HandleUploadAsync 注释。
+        // 常驻会话桥（?worker=&lp=）：worker online 时长连接已就绪，10s 内无响应
+        // 即回落到每传输拨号+配对的旧路径（对已部署 worker 仍可用）。
         if (TryReadWorkerBridge(context, out var bridgeWorkerId, out var bridgePort))
         {
             logger.LogInformation("bridge GET {TransferId}: begin, worker={WorkerId}", transferId, bridgeWorkerId);
-            await BridgeViaWorkerSessionAsync(context, transferId, bridgeWorkerId, bridgePort,
+            var bridged = await BridgeViaWorkerSessionAsync(context, transferId, bridgeWorkerId, bridgePort,
                 "GET", workerSessions, context.RequestAborted, logger);
-            logger.LogInformation("bridge GET {TransferId}: end", transferId);
-            return Results.Empty;
+            logger.LogInformation("bridge GET {TransferId}: end, bridged={Bridged}", transferId, bridged);
+            if (bridged)
+            {
+                return Results.Empty;
+            }
+            // 桥接未成功（会话离线/超时）→ 落回旧配对路径
         }
 
         var pair = registry.GetOrCreate(transferId, DateTimeOffset.UtcNow.AddSeconds(opts.TransferTtlSeconds));
@@ -240,7 +245,7 @@ public static class TransferEndpoints
     /// 通道是 worker online 时就建立好的长连接——没有每传输拨号，也没有配对窗口；
     /// 首字节延迟 ≈ 一跳 localhost 管道 + 磁盘。
     /// </summary>
-    private static async Task BridgeViaWorkerSessionAsync(
+    private static async Task<bool> BridgeViaWorkerSessionAsync(
         HttpContext context, string transferId, string workerId, int listenPort,
         string method, WorkerRelayRegistry workerSessions, CancellationToken originalAborted,
         ILogger<Program>? logger = null)
@@ -254,7 +259,7 @@ public static class TransferEndpoints
             context.Response.ContentType = "application/json; charset=utf-8";
             await context.Response.Body.WriteAsync(
                 Encoding.UTF8.GetBytes("{\"error\":\"worker relay session offline\"}"), originalAborted);
-            return;
+            return false;
         }
 
         var request = new TunnelRequestFrame
@@ -268,7 +273,7 @@ public static class TransferEndpoints
         };
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted);
-        cts.CancelAfter(TimeSpan.FromSeconds(90));
+        cts.CancelAfter(TimeSpan.FromSeconds(10));
 
         TunnelCall call;
         try
@@ -279,15 +284,13 @@ public static class TransferEndpoints
         }
         catch (OperationCanceledException)
         {
-            logger?.LogWarning("bridge {TransferId}: CallAsync cancelled (504)", transferId);
-            context.Response.StatusCode = StatusCodes.Status504GatewayTimeout;
-            return;
+            logger?.LogWarning("bridge {TransferId}: CallAsync cancelled, falling back to legacy pairing", transferId);
+            return false;
         }
         catch (Exception ex)
         {
-            logger?.LogWarning(ex, "bridge {TransferId}: CallAsync failed (502)", transferId);
-            context.Response.StatusCode = StatusCodes.Status502BadGateway;
-            return;
+            logger?.LogWarning(ex, "bridge {TransferId}: CallAsync failed, falling back to legacy pairing", transferId);
+            return false;
         }
 
         TunnelResponseHeadFrame head;
@@ -302,16 +305,15 @@ public static class TransferEndpoints
                 context.Response.ContentType = "application/json; charset=utf-8";
                 await context.Response.Body.WriteAsync(
                     Encoding.UTF8.GetBytes(earlyEnd.Error ?? "worker transfer failed"), cts.Token);
-                return;
+                return false;
             }
             head = await headAwaited;
             logger?.LogInformation("bridge {TransferId}: head received, status={Status}", transferId, head.Status);
         }
         catch (OperationCanceledException)
         {
-            logger?.LogWarning("bridge {TransferId}: head await cancelled", transferId);
-            context.Response.StatusCode = StatusCodes.Status504GatewayTimeout;
-            return;
+            logger?.LogWarning("bridge {TransferId}: head await cancelled, falling back to legacy pairing", transferId);
+            return false;
         }
 
         context.Response.StatusCode = head.Status;
@@ -342,11 +344,13 @@ public static class TransferEndpoints
             {
                 context.Abort();
             }
+            return true;
         }
         catch (OperationCanceledException)
         {
             logger?.LogWarning("bridge {TransferId}: body pump cancelled after {Bytes} bytes", transferId, totalBytes);
             context.Abort();
+            return true;
         }
     }
 
