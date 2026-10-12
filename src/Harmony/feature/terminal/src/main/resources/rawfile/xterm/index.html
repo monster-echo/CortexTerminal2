@@ -200,6 +200,16 @@
       terminalContainer = container;
       term.open(container);
 
+      // ArkWeb scrolls the focused helper textarea into view when the soft
+      // keyboard resizes the page, displacing xterm's self-managed viewport
+      // (see resyncTerminalScroll). Re-sync after every focus.
+      var helperTextarea = container.querySelector('.xterm-helper-textarea');
+      if (helperTextarea) {
+        helperTextarea.addEventListener('focus', function() {
+          setTimeout(resyncTerminalScroll, 200);
+        });
+      }
+
       // Register resize handler BEFORE fit() so the initial resize event is captured.
       // Debounced 150ms (MAUI parity: RESIZE_DEBOUNCE_MS): keyboard animation produces
       // many intermediate sizes; sending each one SIGWINCHes the server, making
@@ -594,17 +604,9 @@
       if (fitAddon) {
         try {
           fitAddon.fit();
-          // After a row-count change the DOM renderer's async refresh can leave
-          // .xterm-rows translated up by a stale scroll offset: content pinned
-          // to the top edge with blank xterm background below it. The refresh
-          // lands AFTER fit() returns, so re-sync the scroll on several ticks
-          // (0/120/400ms) — the last write wins once xterm settles.
-          if (term) {
-            var resync = function() { term.scrollToBottom(); };
-            resync();
-            setTimeout(resync, 120);
-            setTimeout(resync, 400);
-          }
+          resyncTerminalScroll();
+          setTimeout(resyncTerminalScroll, 120);
+          setTimeout(resyncTerminalScroll, 400);
         } catch(e) {
           console.warn('fitAddon.fit() failed:', e);
         }
@@ -919,33 +921,47 @@
     //   height and lock the terminal into a top sliver. The observer fires when
     //   the browser actually lays out the new size and self-heals that case.
     var containerFitTimer = null;
-    if (window.ResizeObserver) {
-      var containerObserver = new ResizeObserver(function() {
-        if (!fitAddon) return;
-        if (containerFitTimer) clearTimeout(containerFitTimer);
-        containerFitTimer = setTimeout(function() {
-          containerFitTimer = null;
-          try {
-            fitAddon.fit();
-          } catch(e) {
-            console.warn('fitAddon.fit() failed:', e);
-          }
-        }, 150);
-      });
-      containerObserver.observe(container);
+    var containerEl = document.getElementById('terminal-container');
+    /**
+     * Re-sync after container relayout. Two hazards:
+     * 1. xterm's DOM renderer self-manages which buffer lines are visible, so
+     *    the native scrollTop of .xterm-viewport must stay 0. When the soft
+     *    keyboard resizes the page, ArkWeb scrolls the focused helper textarea
+     *    into view and leaves that native scrollTop at a large offset — xterm
+     *    never learns about it, and the whole grid gets displaced (content
+     *    pinned to the top edge, blank below). Reset it before re-anchoring.
+     * 2. The renderer's refresh is async, so scrollToBottom is re-run on
+     *    0/120/400ms ticks and the last write wins once xterm settles.
+     */
+    function resyncTerminalScroll() {
+      var vp = terminalContainer ? terminalContainer.querySelector('.xterm-viewport') : null;
+      if (vp && vp.scrollTop !== 0) {
+        vp.scrollTop = 0;
+      }
+      if (term) {
+        term.scrollToBottom();
+      }
+    }
+    function scheduleContainerFit() {
+      if (!fitAddon) return;
+      if (containerFitTimer) clearTimeout(containerFitTimer);
+      containerFitTimer = setTimeout(function() {
+        containerFitTimer = null;
+        try {
+          fitAddon.fit();
+          resyncTerminalScroll();
+          setTimeout(resyncTerminalScroll, 120);
+          setTimeout(resyncTerminalScroll, 400);
+        } catch(e) {
+          console.warn('fitAddon.fit() failed:', e);
+        }
+      }, 150);
+    }
+    if (window.ResizeObserver && containerEl) {
+      var containerObserver = new ResizeObserver(scheduleContainerFit);
+      containerObserver.observe(containerEl);
     } else {
-      window.addEventListener('resize', function() {
-        if (!fitAddon) return;
-        if (containerFitTimer) clearTimeout(containerFitTimer);
-        containerFitTimer = setTimeout(function() {
-          containerFitTimer = null;
-          try {
-            fitAddon.fit();
-          } catch(e) {
-            console.warn('fitAddon.fit() failed:', e);
-          }
-        }, 150);
-      });
+      window.addEventListener('resize', scheduleContainerFit);
     }
   </script>
 </body>
