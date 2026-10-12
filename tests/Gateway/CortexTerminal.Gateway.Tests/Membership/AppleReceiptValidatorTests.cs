@@ -127,7 +127,8 @@ public sealed class AppleReceiptValidatorTests
             OriginalTransactionId: "0123456789",
             ProductId: "corterm.pro.month",
             ExpiresDateMs: 1_700_000_000_000L,
-            Type: "Auto-Renewable Subscription"
+            Type: "Auto-Renewable Subscription",
+            TransactionId: "9876543210"
         ));
     }
 
