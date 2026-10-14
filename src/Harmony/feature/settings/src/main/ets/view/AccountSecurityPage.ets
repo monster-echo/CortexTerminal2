@@ -1,4 +1,6 @@
+import { common } from '@kit.AbilityKit'
 import { ApiService, AuthService, AuthState, I18n, PageLayout, RouteName, showI18nToast, AnalyticsService, AnalyticsEvent, lightHaptic, clickHaptic, heavyHaptic } from '@rwecho/core'
+import { HuaweiIapService } from '../service/HuaweiIapService'
 
 @Component
 export struct AccountSecurityPage {
@@ -9,6 +11,7 @@ export struct AccountSecurityPage {
   @State deleteError: string = ''
   @State subscriptionWarningAccepted: boolean = false
   @State currentUsername: string = ''
+  @State activeSubPlan: string = ''
 
   aboutToAppear() {
     AnalyticsService.onPageStart('AccountSecurity')
@@ -16,6 +19,7 @@ export struct AccountSecurityPage {
     if (this.currentUsername.length === 0) {
       this.loadProfile()
     }
+    this.loadSubscriptionNotice()
   }
 
   private async loadProfile() {
@@ -23,6 +27,27 @@ export struct AccountSecurityPage {
       const profile = await ApiService.getProfile()
       this.currentUsername = (profile['username'] as string) || ''
     } catch (_e) {}
+  }
+
+  private async loadSubscriptionNotice() {
+    try {
+      const sub = await ApiService.getSubscription()
+      const active = (sub['isActive'] as boolean) ?? false
+      const planCode = (sub['planCode'] as string) ?? ''
+      if (active && planCode.length > 0 && planCode !== 'pro_lifetime') {
+        const key = `membership.plan_${planCode}`
+        this.activeSubPlan = I18n.get(key) === key ? planCode : I18n.get(key)
+      }
+    } catch (_e) {}
+  }
+
+  private async manageSubscription() {
+    try {
+      const context = this.getUIContext()?.getHostContext() as common.UIAbilityContext
+      await HuaweiIapService.manageSubscriptions(context, '')
+    } catch (_e) {
+      showI18nToast('membership.manage_failed')
+    }
   }
 
   build() {
@@ -99,6 +124,28 @@ export struct AccountSecurityPage {
           .fontColor($r('app.color.terminal_text_muted'))
           .width('100%')
           .margin({ bottom: 16 })
+
+        if (this.activeSubPlan.length > 0) {
+          Column({ space: 12 }) {
+            Text(I18n.get('security.delete_active_sub').replace('{plan}', this.activeSubPlan))
+              .fontSize(13)
+              .fontColor($r('app.color.terminal_warning'))
+              .lineHeight(20)
+              .width('100%')
+            Button(I18n.get('membership.manage_subscription'))
+              .width('100%')
+              .height(40)
+              .fontSize(14)
+              .fontWeight(FontWeight.Medium)
+              .borderRadius(8)
+              .backgroundColor($r('app.color.terminal_secondary_container'))
+              .fontColor($r('app.color.terminal_on_secondary_container'))
+              .onClick(() => {
+                clickHaptic()
+                this.manageSubscription()
+              })
+          }.width('100%').margin({ bottom: 12 })
+        }
 
         Text(I18n.get('security.subscription_cancel_warning'))
           .fontSize(13)

@@ -38,6 +38,14 @@ export struct MePage {
   private tr(key: string): string { return I18n.get(key) + (this.currentLanguage ? '' : '') }
   private open(route: string) { lightHaptic(); this.pageStack.pushPath({ name: route }) }
 
+  private isExpiringSoon(): boolean {
+    if (!this.isPro || this.expiresAtUtc.length === 0) return false
+    const expires = new Date(this.expiresAtUtc).getTime()
+    if (Number.isNaN(expires)) return false
+    const remaining = expires - Date.now()
+    return remaining > 0 && remaining <= 5 * 24 * 60 * 60 * 1000
+  }
+
   private confirmLogout() {
     this.getUIContext()?.showAlertDialog({
       title: I18n.get('settings.logout_confirm_title'),
@@ -92,6 +100,17 @@ export struct MePage {
           }
           .width('100%').padding(16).borderRadius(12).backgroundColor($r('app.color.terminal_background_panel'))
           .onClick(() => this.open(RouteName.MEMBERSHIP))
+
+          if (this.isExpiringSoon()) {
+            Text(I18n.getWithArgs('membership.renewal_reminder', {
+              'plan': this.tr('membership.current_tier_pro'),
+              'date': this.expiresAtUtc.substring(0, 10)
+            }))
+              .fontSize(13).fontColor($r('app.color.terminal_on_primary_container')).lineHeight(20)
+              .width('100%').padding(12).borderRadius(12)
+              .backgroundColor($r('app.color.terminal_primary_container'))
+              .onClick(() => this.open(RouteName.MEMBERSHIP))
+          }
 
           if (this.error.length > 0) {
             Text(this.error).fontSize(14).fontColor($r('app.color.terminal_error')).onClick(() => this.refreshAccount())

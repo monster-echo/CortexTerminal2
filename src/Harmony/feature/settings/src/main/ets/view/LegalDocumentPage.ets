@@ -32,6 +32,11 @@ export struct LegalDocumentPage {
             .width('100%').padding({ top: 8, bottom: 8 })
             .onClick(() => { this.openDocument('privacy') })
         }
+        if (this.documentKind === 'auto-renewal') {
+          Text(I18n.get('settings.footer_terms')).fontSize(14).fontColor($r('app.color.terminal_secondary'))
+            .width('100%').padding({ top: 8, bottom: 8 })
+            .onClick(() => { this.openDocument('terms') })
+        }
       }.width('100%').alignItems(HorizontalAlign.Start).padding({ left: 20, right: 20, top: 16, bottom: 32 })
     }
   }

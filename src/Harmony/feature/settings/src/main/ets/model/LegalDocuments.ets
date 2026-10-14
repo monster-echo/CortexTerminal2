@@ -61,6 +61,60 @@ const enPrivacy: LegalDocument = new LegalDocument("Privacy Policy", "Last updat
   new LegalSection("6. Contact Us", ["For privacy-related questions, please email rwecho@live.com"]),
 ])
 
+const zhAutoRenewal: LegalDocument = new LegalDocument("会员服务及自动续费规则", "最后更新：2026-10-14", [
+  new LegalSection("1. 会员服务说明", [
+    "Corterm（云枢终端）Pro 会员提供以下增值服务：同时连接更多设备（电脑/Worker）、保留更长的终端回滚记录。各方案的具体权益额度以购买页面展示为准。",
+    "会员权益自支付成功并经服务器核验后立即生效，您可以在应用「会员」页面随时查看当前权益与有效期。"
+  ]),
+  new LegalSection("2. 订阅周期与费用", [
+    "Pro 会员提供月度订阅、年度订阅两种自动续订方案，以及一次性买断方案（不自动续费）。",
+    "开通时的付费金额与续费周期在购买页面的显著位置向您展示；实际扣费金额以华为应用内支付（华为 IAP）结算页显示的本地化价格为准，通过您华为帐号绑定的付款方式进行扣款。"
+  ]),
+  new LegalSection("3. 自动续费说明", [
+    "当您开通自动续订方案时，即表示您同意并授权我们通过华为应用内支付服务，在每个计费周期到期时自动扣取下一周期的费用，以延续您的会员服务。",
+    "在您取消自动续费之前，订阅将持续自动续期。取消自动续费不会产生任何额外费用。"
+  ]),
+  new LegalSection("4. 解除自动续费的流程", [
+    "您可以随时取消自动续费，取消后会员权益将保留至当前计费周期结束，周期到期后不再扣费，会员权益随之失效：",
+    "方式一：在应用「会员」页面点击「管理自动续订」，进入华为订阅管理页面，选择 Corterm 订阅并取消自动续费。",
+    "方式二：打开华为应用市场，进入「我的 → 订阅」，选择 Corterm 订阅，关闭自动续费。"
+  ]),
+  new LegalSection("5. 价格调整", [
+    "如订阅价格发生调整，我们将按照华为应用市场的规则提前向您展示变更后的价格；调整后的价格自下一个计费周期起生效。若您不接受调整后的价格，可在到期前按第 4 条流程取消自动续费。"
+  ]),
+  new LegalSection("6. 退款", [
+    "购买与续费均通过华为应用内支付完成。如需退款，请通过华为客服渠道（华为应用市场「我的 → 帮助与客服」）或您的华为帐号订单记录申请处理。"
+  ]),
+  new LegalSection("7. 联系我们", ["如对本规则有任何疑问，请联系 rwecho@live.com"])
+])
+
+const enAutoRenewal: LegalDocument = new LegalDocument("Membership & Auto-Renewal Terms", "Last updated: 2026-10-14", [
+  new LegalSection("1. Membership Services", [
+    "Corterm Pro membership provides the following premium benefits: connecting more devices (computers/workers) at the same time and retaining longer terminal scrollback history. Exact quotas for each plan are shown on the purchase page.",
+    "Membership benefits take effect immediately after payment succeeds and is verified by the server. You can review your current benefits and expiration date on the Membership page at any time."
+  ]),
+  new LegalSection("2. Billing Period & Price", [
+    "Pro membership offers monthly and yearly auto-renewing subscriptions, plus a one-time lifetime option (no auto-renewal).",
+    "The price and renewal period at the time of purchase are prominently displayed on the purchase page. The actual charged amount is the localized price shown on the Huawei In-App Payments (IAP) checkout, billed through the payment method linked to your HUAWEI ID."
+  ]),
+  new LegalSection("3. Auto-Renewal", [
+    "By subscribing to an auto-renewing plan, you agree and authorize us to charge the next billing period's fee via Huawei In-App Payments when each period ends, in order to continue your membership.",
+    "Your subscription renews automatically until you cancel. Cancelling auto-renewal does not incur any extra charges."
+  ]),
+  new LegalSection("4. How to Cancel Auto-Renewal", [
+    "You may cancel auto-renewal at any time. After cancellation, your benefits remain active until the end of the current billing period; no further charges occur afterwards and membership expires:",
+    "Option 1: On the Membership page in the app, tap \"Manage auto-renewal\" to open Huawei subscription management, select the Corterm subscription and cancel it.",
+    "Option 2: Open AppGallery, go to \"Me > Subscriptions\", select the Corterm subscription and turn off auto-renewal."
+  ]),
+  new LegalSection("5. Price Changes", [
+    "If subscription prices change, the updated price will be shown to you in advance per AppGallery rules and takes effect from the next billing period. If you do not accept the new price, you may cancel before renewal as described in Section 4."
+  ]),
+  new LegalSection("6. Refunds", [
+    "Purchases and renewals are completed through Huawei In-App Payments. For refunds, please contact Huawei customer support (AppGallery > Me > Help & Customer Service) or request it from your HUAWEI ID order history."
+  ]),
+  new LegalSection("7. Contact", ["For questions about these terms, please contact rwecho@live.com"])
+])
+
 const enDeletion: LegalDocument = new LegalDocument("Account Deletion", "Last updated: 2026-05-28", [
   new LegalSection("How to Delete Your Account", ["Open the Corterm app", "Go to the Settings page", "Scroll to the bottom and tap \"Delete Account\"", "Read the confirmation prompt and tap \"Delete\"", "Tap \"Delete\" again in the second confirmation", "After deletion, you will be automatically returned to the login page"]),
   new LegalSection("Effects of Deletion", ["Note: This action is irreversible. You will not be able to recover your account after deletion.", "After account deletion, the following data will be processed:", "Immediately deleted: All terminal session records", "Immediately unbound: Worker bindings", "Immediately revoked: Apple ID login association (if applicable)", "Marked as deleted: Your account information will be marked as \"deleted\" status"]),
@@ -72,5 +126,6 @@ const enDeletion: LegalDocument = new LegalDocument("Account Deletion", "Last up
 export function getLegalDocument(kind: string, language: string): LegalDocument {
   if (kind === 'privacy') return language.startsWith('zh') ? zhPrivacy : enPrivacy
   if (kind === 'account-deletion') return language.startsWith('zh') ? zhDeletion : enDeletion
+  if (kind === 'auto-renewal') return language.startsWith('zh') ? zhAutoRenewal : enAutoRenewal
   return language.startsWith('zh') ? zhTerms : enTerms
 }

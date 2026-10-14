@@ -46,7 +46,6 @@ export struct MembershipPage {
   @State planCode: string = ''
   @State username: string = ''
   @State agreementAccepted: boolean = false
-  @State legalDetails: string = ''
 
   onRefreshTick() {
     this.loadMembership()
@@ -132,6 +131,64 @@ export struct MembershipPage {
   private openLegal(key: string) {
     const param: Record<string, string> = { 'kind': key === 'privacy_policy_url' ? 'privacy' : 'terms' }
     this.pageStack.pushPath({ name: RouteName.LEGAL_DOCUMENT, param: param })
+  }
+
+  private openAutoRenewAgreement() {
+    const param: Record<string, string> = { 'kind': 'auto-renewal' }
+    this.pageStack.pushPath({ name: RouteName.LEGAL_DOCUMENT, param: param })
+  }
+
+  private isSubscriptionPlan(plan: BillingPlan): boolean {
+    return plan.billingPeriod === 'monthly' || plan.billingPeriod === 'yearly'
+  }
+
+  private requiresAgreement(): boolean {
+    const plan = this.selectedPlan()
+    return plan !== null && this.isSubscriptionPlan(plan)
+  }
+
+  private renewCycleLabel(): string {
+    const plan = this.selectedPlan()
+    if (plan === null) return ''
+    if (plan.billingPeriod === 'monthly') return I18n.get('membership.renew_monthly')
+    if (plan.billingPeriod === 'yearly') return I18n.get('membership.renew_yearly')
+    return I18n.get('membership.renew_lifetime')
+  }
+
+  private purchaseAmountLabel(): string {
+    const plan = this.selectedPlan()
+    if (plan === null) return I18n.get('account.price_pending')
+    const price = this.price(plan)
+    if (plan.tier === 'free' || plan.storePrice.length === 0) return price
+    return `${price} ${this.period(plan)}`
+  }
+
+  private currentRenewPrice(): string {
+    const productId = HuaweiIapService.productForPlan(this.planCode)
+    for (let i = 0; i < this.storePrices.length; i++) {
+      if (this.storePrices[i].productId === productId) return this.storePrices[i].localPrice
+    }
+    return ''
+  }
+
+  private isExpiringSoon(): boolean {
+    if (this.planCode.length === 0 || this.planCode === 'pro_lifetime') return false
+    if (this.expiresAtUtc.length === 0) return false
+    const expires = new Date(this.expiresAtUtc).getTime()
+    if (Number.isNaN(expires)) return false
+    const remaining = expires - Date.now()
+    return remaining > 0 && remaining <= 5 * 24 * 60 * 60 * 1000
+  }
+
+  private renewalReminderText(): string {
+    const date = this.expiresAtUtc.substring(0, 10)
+    const price = this.currentRenewPrice()
+    if (price.length > 0) {
+      const args: Record<string, string> = { 'plan': this.planName(this.planCode), 'date': date, 'price': price }
+      return I18n.getWithArgs('membership.renewal_reminder_full', args)
+    }
+    const args: Record<string, string> = { 'plan': this.planName(this.planCode), 'date': date }
+    return I18n.getWithArgs('membership.renewal_reminder', args)
   }
 
   private async purchaseSelectedPlan() {
@@ -299,56 +356,49 @@ export struct MembershipPage {
           if (plan.tier === 'pro') { this.PlanRow(plan) }
         }, (plan: BillingPlan) => plan.code)
       }.width('100%')
-      if (this.selectedPlan() !== null && this.selectedPlan()!.storePrice.length > 0) {
-        Column({ space: 6 }) {
-          Text(this.selectedPlanCode === 'pro_lifetime'
-            ? I18n.getWithArgs('membership.one_time_price', { 'price': this.price(this.selectedPlan()!) })
-            : I18n.getWithArgs('membership.renewal_price', {
-                'price': this.price(this.selectedPlan()!),
-                'period': this.selectedPlanCode === 'pro_year' ? I18n.get('membership.year_period') : I18n.get('membership.month_period')
-              }))
-            .fontSize(14).fontColor($r('app.color.terminal_text')).width('100%')
-          if (this.selectedPlanCode !== 'pro_lifetime') {
-            Text(I18n.get('membership.cancel_instructions')).fontSize(13)
-              .fontColor($r('app.color.terminal_text_muted')).lineHeight(20).width('100%')
-            Row({ space: 10 }) {
-              Checkbox({ name: 'renewalConsent', group: 'renewalConsentGroup' })
-                .select(this.agreementAccepted)
-                .onChange((value: boolean) => { this.agreementAccepted = value })
-              Text(I18n.get('membership.agreement_accept')).fontSize(13)
-                .fontColor($r('app.color.terminal_text')).layoutWeight(1)
-            }.width('100%')
-            Row({ space: 14 }) {
-              Text(I18n.get('membership.service_agreement')).fontSize(13)
-                .fontColor($r('app.color.terminal_on_primary_container'))
-                .onClick(() => { this.legalDetails = 'service' })
-              Text(I18n.get('membership.renewal_agreement')).fontSize(13)
-                .fontColor($r('app.color.terminal_on_primary_container'))
-                .onClick(() => { this.legalDetails = 'renewal' })
-              Text(I18n.get('membership.manage_subscription')).fontSize(13)
-                .fontColor($r('app.color.terminal_on_primary_container'))
-                .onClick(() => this.manageSubscription())
-            }.width('100%')
-          }
-        }.width('100%')
-      }
-      if (this.legalDetails.length > 0) {
-        Column({ space: 12 }) {
-          Text(I18n.get(this.legalDetails === 'service' ? 'membership.service_agreement' : 'membership.renewal_agreement'))
-            .fontSize(18).fontWeight(FontWeight.Bold)
-          Text(I18n.get(this.legalDetails === 'service' ? 'membership.service_agreement_body' : 'membership.renewal_agreement_body'))
-            .fontSize(13).lineHeight(21).fontColor($r('app.color.terminal_text'))
-          Button(I18n.get('common.cancel')).onClick(() => { this.legalDetails = '' })
-        }.width('100%').padding(16).borderRadius(12).backgroundColor($r('app.color.terminal_background_panel'))
+      Column() {
+        this.SummaryRow(I18n.get('membership.selected_plan'), this.planName(this.selectedPlanCode), false)
+        Divider().color($r('app.color.terminal_border_subtle'))
+        this.SummaryRow(I18n.get('membership.pay_amount'), this.purchaseAmountLabel(), true)
+        Divider().color($r('app.color.terminal_border_subtle'))
+        this.SummaryRow(I18n.get('membership.renew_cycle'), this.renewCycleLabel(), false)
+        if (this.requiresAgreement()) {
+          Divider().color($r('app.color.terminal_border_subtle'))
+          this.SummaryRow(I18n.get('membership.charge_time'), I18n.get('membership.charge_time_value'), false)
+        }
+      }.padding({ left: 16, right: 16, top: 4, bottom: 4 }).borderRadius(12)
+        .backgroundColor($r('app.color.terminal_background_panel')).width('100%')
+      if (this.requiresAgreement()) {
+        Row({ space: 8 }) {
+          Checkbox({ name: 'autoRenewAgreement', group: 'membershipAgreement' })
+            .select(this.agreementAccepted)
+            .selectedColor($r('app.color.terminal_text'))
+            .onChange((value: boolean) => { this.agreementAccepted = value })
+          Text() {
+            Span(I18n.get('membership.agreement_prefix')).fontColor($r('app.color.terminal_text_muted'))
+            Span(I18n.get('membership.agreement_doc'))
+              .fontColor($r('app.color.terminal_on_primary_container'))
+              .onClick(() => this.openAutoRenewAgreement())
+          }.fontSize(13).lineHeight(20).layoutWeight(1)
+        }.width('100%').alignItems(VerticalAlign.Center)
       }
       Button(this.isPurchasing ? I18n.get('membership.processing') :
         (this.canPurchase() ? `${I18n.get('membership.purchase_button')} · ${this.price(this.selectedPlan()!)}` : I18n.get('account.price_pending')))
         .width('100%').height(52).fontSize(16).fontWeight(FontWeight.Medium)
         .backgroundColor($r('app.color.terminal_inverse_surface')).fontColor($r('app.color.terminal_inverse_on_surface'))
         .enabled(this.canPurchase()).onClick(() => this.purchaseSelectedPlan())
-      Text(I18n.get(this.selectedPlanCode === 'pro_lifetime' ? 'membership.plan_lifetime_detail' : 'membership.purchase_terms'))
+      Text(I18n.get(this.selectedPlanCode === 'pro_lifetime' ? 'membership.plan_lifetime_detail' : 'membership.cancel_guide'))
         .fontSize(13).fontColor($r('app.color.terminal_text_muted')).lineHeight(20).width('100%')
     }.width('100%')
+  }
+
+  @Builder
+  SummaryRow(label: string, value: string, emphasized: boolean) {
+    Row({ space: 12 }) {
+      Text(label).fontSize(14).fontColor($r('app.color.terminal_text_muted'))
+      Text(value).fontSize(emphasized ? 16 : 14).fontWeight(emphasized ? FontWeight.Bold : FontWeight.Normal)
+        .fontColor($r('app.color.terminal_text')).textAlign(TextAlign.End).layoutWeight(1)
+    }.width('100%').padding({ top: 10, bottom: 10 })
   }
 
   @Builder
@@ -371,6 +421,12 @@ export struct MembershipPage {
   @Builder
   MemberDetails() {
     Column({ space: 20 }) {
+      if (this.isExpiringSoon()) {
+        Text(this.renewalReminderText())
+          .fontSize(13).fontColor($r('app.color.terminal_on_primary_container')).lineHeight(20)
+          .width('100%').padding(12).borderRadius(12)
+          .backgroundColor($r('app.color.terminal_primary_container'))
+      }
       Column({ space: 16 }) {
         Row({ space: 12 }) {
           SymbolGlyph($r('sys.symbol.checkmark_circle')).fontSize(28).fontColor([$r('app.color.terminal_success')])
@@ -380,6 +436,9 @@ export struct MembershipPage {
           }.alignItems(HorizontalAlign.Start)
         }.width('100%')
         this.DetailRow(I18n.get('account.valid_until'), this.expiresAtUtc.length > 0 ? this.expiresAtUtc.substring(0, 10) : I18n.get('membership.plan_pro_lifetime'))
+        if (this.planCode !== 'pro_lifetime' && this.currentRenewPrice().length > 0) {
+          this.DetailRow(I18n.get('membership.renew_amount'), this.currentRenewPrice())
+        }
       }.padding(16).borderRadius(12).backgroundColor($r('app.color.terminal_background_panel'))
       Column() {
         this.DetailRow(I18n.get('account.devices_quota'), `${this.maxWorkers}`)
@@ -391,6 +450,7 @@ export struct MembershipPage {
           .backgroundColor($r('app.color.terminal_inverse_surface')).fontColor($r('app.color.terminal_inverse_on_surface'))
           .enabled(!this.isRestoring && !this.isPurchasing).onClick(() => this.manageSubscription())
         Text(I18n.get('account.huawei_manage_note')).fontSize(13).fontColor($r('app.color.terminal_text_muted')).lineHeight(20)
+        Text(I18n.get('membership.cancel_guide')).fontSize(13).fontColor($r('app.color.terminal_text_muted')).lineHeight(20)
       }
       Button(I18n.get('account.sync_purchases')).width('100%').height(48)
         .backgroundColor($r('app.color.terminal_background_panel')).fontColor($r('app.color.terminal_text'))
