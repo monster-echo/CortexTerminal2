@@ -357,7 +357,7 @@ export struct MembershipPage {
       Radio({ value: plan.code, group: 'membershipPlans' }).checked(this.selectedPlanCode === plan.code)
         .radioStyle({ checkedBackgroundColor: $r('app.color.terminal_text'), uncheckedBorderColor: $r('app.color.terminal_border'), indicatorColor: $r('app.color.terminal_background_panel') })
         .enabled(!this.isPurchasing && !this.isRestoring)
-        .onChange((checked: boolean) => { if (checked) this.selectedPlanCode = plan.code; this.agreementAccepted = false })
+        .onChange((checked: boolean) => { if (checked) { this.selectedPlanCode = plan.code; this.agreementAccepted = false } })
       Column({ space: 4 }) {
         Text(this.planName(plan.code)).fontSize(16).fontWeight(FontWeight.Medium).fontColor($r('app.color.terminal_text'))
         Text(this.period(plan)).fontSize(13).fontColor($r('app.color.terminal_text_muted'))
@@ -365,7 +365,7 @@ export struct MembershipPage {
       Text(this.price(plan)).fontSize(plan.storePrice.length > 0 ? 16 : 13).maxLines(2).textAlign(TextAlign.End).layoutWeight(1).fontWeight(FontWeight.Medium).fontColor($r('app.color.terminal_text'))
     }.width('100%').padding(12).borderRadius(12).backgroundColor($r('app.color.terminal_background_panel'))
       .border({ width: 1, color: this.selectedPlanCode === plan.code ? $r('app.color.terminal_text') : $r('app.color.terminal_border_subtle') })
-      .onClick(() => { if (!this.isPurchasing && !this.isRestoring) this.selectedPlanCode = plan.code; this.agreementAccepted = false })
+      .onClick(() => { if (!this.isPurchasing && !this.isRestoring) { this.selectedPlanCode = plan.code; this.agreementAccepted = false } })
   }
 
   @Builder
