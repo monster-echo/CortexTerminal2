@@ -7,6 +7,7 @@ export struct AccountSecurityPage {
   @State confirmUsername: string = ''
   @State isDeleting: boolean = false
   @State deleteError: string = ''
+  @State subscriptionWarningAccepted: boolean = false
   @State currentUsername: string = ''
 
   aboutToAppear() {
@@ -65,6 +66,7 @@ export struct AccountSecurityPage {
           .backgroundColor($r('app.color.terminal_background_panel'))
           .onClick(() => {
             clickHaptic()
+            this.subscriptionWarningAccepted = false
             this.confirmUsername = ''
             this.deleteError = ''
             this.showDeleteSheet = true
@@ -97,6 +99,21 @@ export struct AccountSecurityPage {
           .fontColor($r('app.color.terminal_text_muted'))
           .width('100%')
           .margin({ bottom: 16 })
+
+        Text(I18n.get('security.subscription_cancel_warning'))
+          .fontSize(13)
+          .fontColor($r('app.color.terminal_text_muted'))
+          .width('100%')
+          .margin({ bottom: 12 })
+        Row({ space: 8 }) {
+          Checkbox({ name: 'subscriptionCancelNotice', group: 'accountDeletion' })
+            .select(this.subscriptionWarningAccepted)
+            .onChange((value: boolean) => { this.subscriptionWarningAccepted = value })
+          Text(I18n.get('security.subscription_cancel_acknowledge'))
+            .fontSize(13)
+            .fontColor($r('app.color.terminal_text'))
+            .layoutWeight(1)
+        }.width('100%').margin({ bottom: 12 })
 
         TextInput({ placeholder: I18n.get('security.type_username_confirm').replace('{n}', this.currentUsername), text: this.confirmUsername })
           .width('100%')
@@ -136,7 +153,7 @@ export struct AccountSecurityPage {
         .borderRadius(12)
         .backgroundColor($r('app.color.terminal_error'))
         .margin({ top: 20 })
-        .enabled(this.confirmUsername === this.currentUsername && !this.isDeleting)
+        .enabled(this.confirmUsername === this.currentUsername && this.subscriptionWarningAccepted && !this.isDeleting)
         .opacity(this.confirmUsername === this.currentUsername ? 1 : 0.5)
         .onClick(() => {
           heavyHaptic()
