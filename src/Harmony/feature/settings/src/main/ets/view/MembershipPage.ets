@@ -45,6 +45,8 @@ export struct MembershipPage {
   @State storePrices: HuaweiStorePrice[] = []
   @State planCode: string = ''
   @State username: string = ''
+  @State agreementAccepted: boolean = false
+  @State legalDetails: string = ''
 
   onRefreshTick() {
     this.loadMembership()
@@ -124,7 +126,7 @@ export struct MembershipPage {
 
   private canPurchase(): boolean {
     const plan = this.selectedPlan()
-    return plan !== null && plan.storePrice.length > 0 && !this.isPurchasing && !this.isRestoring
+    return plan !== null && plan.storePrice.length > 0 && !this.isPurchasing && !this.isRestoring && (plan.code === 'pro_lifetime' || this.agreementAccepted)
   }
 
   private openLegal(key: string) {
@@ -297,6 +299,48 @@ export struct MembershipPage {
           if (plan.tier === 'pro') { this.PlanRow(plan) }
         }, (plan: BillingPlan) => plan.code)
       }.width('100%')
+      if (this.selectedPlan() !== null && this.selectedPlan()!.storePrice.length > 0) {
+        Column({ space: 6 }) {
+          Text(this.selectedPlanCode === 'pro_lifetime'
+            ? I18n.getWithArgs('membership.one_time_price', { 'price': this.price(this.selectedPlan()!) })
+            : I18n.getWithArgs('membership.renewal_price', {
+                'price': this.price(this.selectedPlan()!),
+                'period': this.selectedPlanCode === 'pro_year' ? I18n.get('membership.year_period') : I18n.get('membership.month_period')
+              }))
+            .fontSize(14).fontColor($r('app.color.terminal_text')).width('100%')
+          if (this.selectedPlanCode !== 'pro_lifetime') {
+            Text(I18n.get('membership.cancel_instructions')).fontSize(13)
+              .fontColor($r('app.color.terminal_text_muted')).lineHeight(20).width('100%')
+            Row({ space: 10 }) {
+              Checkbox({ name: 'renewalConsent', group: 'renewalConsentGroup' })
+                .select(this.agreementAccepted)
+                .onChange((value: boolean) => { this.agreementAccepted = value })
+              Text(I18n.get('membership.agreement_accept')).fontSize(13)
+                .fontColor($r('app.color.terminal_text')).layoutWeight(1)
+            }.width('100%')
+            Row({ space: 14 }) {
+              Text(I18n.get('membership.service_agreement')).fontSize(13)
+                .fontColor($r('app.color.terminal_on_primary_container'))
+                .onClick(() => { this.legalDetails = 'service' })
+              Text(I18n.get('membership.renewal_agreement')).fontSize(13)
+                .fontColor($r('app.color.terminal_on_primary_container'))
+                .onClick(() => { this.legalDetails = 'renewal' })
+              Text(I18n.get('membership.manage_subscription')).fontSize(13)
+                .fontColor($r('app.color.terminal_on_primary_container'))
+                .onClick(() => this.manageSubscription())
+            }.width('100%')
+          }
+        }.width('100%')
+      }
+      if (this.legalDetails.length > 0) {
+        Column({ space: 12 }) {
+          Text(I18n.get(this.legalDetails === 'service' ? 'membership.service_agreement' : 'membership.renewal_agreement'))
+            .fontSize(18).fontWeight(FontWeight.Bold)
+          Text(I18n.get(this.legalDetails === 'service' ? 'membership.service_agreement_body' : 'membership.renewal_agreement_body'))
+            .fontSize(13).lineHeight(21).fontColor($r('app.color.terminal_text'))
+          Button(I18n.get('common.cancel')).onClick(() => { this.legalDetails = '' })
+        }.width('100%').padding(16).borderRadius(12).backgroundColor($r('app.color.terminal_background_panel'))
+      }
       Button(this.isPurchasing ? I18n.get('membership.processing') :
         (this.canPurchase() ? `${I18n.get('membership.purchase_button')} · ${this.price(this.selectedPlan()!)}` : I18n.get('account.price_pending')))
         .width('100%').height(52).fontSize(16).fontWeight(FontWeight.Medium)
@@ -313,7 +357,7 @@ export struct MembershipPage {
       Radio({ value: plan.code, group: 'membershipPlans' }).checked(this.selectedPlanCode === plan.code)
         .radioStyle({ checkedBackgroundColor: $r('app.color.terminal_text'), uncheckedBorderColor: $r('app.color.terminal_border'), indicatorColor: $r('app.color.terminal_background_panel') })
         .enabled(!this.isPurchasing && !this.isRestoring)
-        .onChange((checked: boolean) => { if (checked) this.selectedPlanCode = plan.code })
+        .onChange((checked: boolean) => { if (checked) this.selectedPlanCode = plan.code; this.agreementAccepted = false })
       Column({ space: 4 }) {
         Text(this.planName(plan.code)).fontSize(16).fontWeight(FontWeight.Medium).fontColor($r('app.color.terminal_text'))
         Text(this.period(plan)).fontSize(13).fontColor($r('app.color.terminal_text_muted'))
@@ -321,7 +365,7 @@ export struct MembershipPage {
       Text(this.price(plan)).fontSize(plan.storePrice.length > 0 ? 16 : 13).maxLines(2).textAlign(TextAlign.End).layoutWeight(1).fontWeight(FontWeight.Medium).fontColor($r('app.color.terminal_text'))
     }.width('100%').padding(12).borderRadius(12).backgroundColor($r('app.color.terminal_background_panel'))
       .border({ width: 1, color: this.selectedPlanCode === plan.code ? $r('app.color.terminal_text') : $r('app.color.terminal_border_subtle') })
-      .onClick(() => { if (!this.isPurchasing && !this.isRestoring) this.selectedPlanCode = plan.code })
+      .onClick(() => { if (!this.isPurchasing && !this.isRestoring) this.selectedPlanCode = plan.code; this.agreementAccepted = false })
   }
 
   @Builder
