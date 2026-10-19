@@ -1,7 +1,7 @@
 {
   "string": [
     { "name": "app_name", "value": "Corterm" },
-    { "name": "login_tagline", "value": "Your Cloud Terminal, Always Connected" },
+    { "name": "login_tagline", "value": "Corterm · Always Connected" },
     { "name": "activate_title", "value": "Activate Computer" },
     { "name": "activate_subtitle", "value": "Enter the activation code from your computer" },
     { "name": "activate_code_label", "value": "Activation Code" },
