@@ -281,8 +281,18 @@ public sealed class ClaudeHooksInstallerTests : IDisposable
         psi.Environment.Remove("CORTERM_SESSION_ID");
 
         using var process = System.Diagnostics.Process.Start(psi)!;
-        process.StandardInput.Write("{\"hook_event_name\":\"UserPromptSubmit\"}");
-        process.StandardInput.Close();
+        // The reporter legitimately exits 0 without reading stdin when the env is
+        // missing, so the write can lose the race and hit a closed pipe — that
+        // outcome satisfies the contract (silent zero exit); only the exit code
+        // and empty stdout are asserted.
+        try
+        {
+            process.StandardInput.Write("{\"hook_event_name\":\"UserPromptSubmit\"}");
+            process.StandardInput.Close();
+        }
+        catch (System.IO.IOException)
+        {
+        }
         process.WaitForExit(10_000);
         Assert.Equal(0, process.ExitCode);
         Assert.Equal(string.Empty, process.StandardOutput.ReadToEnd());

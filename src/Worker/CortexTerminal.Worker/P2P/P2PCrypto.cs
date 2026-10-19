@@ -30,12 +30,14 @@ public static class P2PCrypto
 
 /// <summary>
 /// 单个加密会话的编解码：发送方向持有随机 nonce 前缀 + 递增计数器；
-/// 接收方向直接使用包内携带的 nonce，无需对端计数器状态。实例非线程安全——
-/// 调用方（<see cref="PunchStream"/>）在自身锁内串行使用。
+/// 接收方向直接使用包内携带的 nonce，无需对端计数器状态。
+/// AesGcm 实例非线程安全，而 PunchStream 的 ACK/重传路径会并发进入，
+/// 因此 Encrypt/TryDecrypt 内部串行化。
 /// </summary>
 public sealed class P2PCipher
 {
     private readonly AesGcm _aes;
+    private readonly object _gate = new();
     private readonly byte[] _noncePrefix = new byte[4];
     private ulong _counter;
 
@@ -57,13 +59,16 @@ public sealed class P2PCipher
     {
         var datagram = new byte[CiphertextOffsetBytes + plaintext.Length + P2PCrypto.TagSizeBytes];
         datagram[0] = P2PCrypto.DatagramVersion;
-        FillNextNonce(datagram.AsSpan(1, P2PCrypto.NonceSizeBytes));
-        _aes.Encrypt(
-            nonce: datagram.AsSpan(1, P2PCrypto.NonceSizeBytes),
-            plaintext: plaintext,
-            ciphertext: datagram.AsSpan(CiphertextOffsetBytes, plaintext.Length),
-            tag: datagram.AsSpan(^P2PCrypto.TagSizeBytes..),
-            associatedData: ReadOnlySpan<byte>.Empty);
+        lock (_gate)
+        {
+            FillNextNonce(datagram.AsSpan(1, P2PCrypto.NonceSizeBytes));
+            _aes.Encrypt(
+                nonce: datagram.AsSpan(1, P2PCrypto.NonceSizeBytes),
+                plaintext: plaintext,
+                ciphertext: datagram.AsSpan(CiphertextOffsetBytes, plaintext.Length),
+                tag: datagram.AsSpan(^P2PCrypto.TagSizeBytes..),
+                associatedData: ReadOnlySpan<byte>.Empty);
+        }
         return datagram;
     }
 
@@ -84,12 +89,15 @@ public sealed class P2PCipher
         }
         try
         {
-            _aes.Decrypt(
-                nonce: datagram.Slice(1, P2PCrypto.NonceSizeBytes),
-                ciphertext: datagram.Slice(CiphertextOffsetBytes, plaintextLength),
-                tag: datagram[^P2PCrypto.TagSizeBytes..],
-                plaintext: plaintextDestination[..plaintextLength],
-                associatedData: ReadOnlySpan<byte>.Empty);
+            lock (_gate)
+            {
+                _aes.Decrypt(
+                    nonce: datagram.Slice(1, P2PCrypto.NonceSizeBytes),
+                    ciphertext: datagram.Slice(CiphertextOffsetBytes, plaintextLength),
+                    tag: datagram[^P2PCrypto.TagSizeBytes..],
+                    plaintext: plaintextDestination[..plaintextLength],
+                    associatedData: ReadOnlySpan<byte>.Empty);
+            }
         }
         catch (AuthenticationTagMismatchException)
         {
