@@ -10,19 +10,33 @@ import { AuthState } from './AuthState'
 import { RouteName } from '../constants/RouteName'
 
 export class AuthService {
+  private static async saveSession(response: Record<string, Object>, fallbackName: string): Promise<void> {
+    AuthState.setSession((response['accessToken'] as string) ?? '', (response['username'] as string) ?? fallbackName)
+    // Login response only carries username; fetch profile once to persist avatarUrl.
+    const profile = await ApiService.getProfile()
+    const av = (profile['avatarUrl'] as string) ?? ''
+    if (av.length > 0) {
+      AuthState.updateAvatar(av)
+    }
+    const dn = (profile['displayName'] as string) ?? ''
+    if (dn.length > 0) {
+      AuthState.updateDisplayName(dn)
+    }
+  }
+
   static async loginWithHuaweiAuthCode(authCode: string, unionID: string, openID: string): Promise<void> {
     const response = await ApiService.loginWithHuaweiAuthCode(authCode, unionID, openID)
-    AuthState.setSession((response['accessToken'] as string) ?? '', (response['username'] as string) ?? 'huawei')
+    await AuthService.saveSession(response, 'huawei')
   }
 
   static async loginWithPassword(username: string, password: string, captchaToken: string = ''): Promise<void> {
     const response = await ApiService.loginWithPassword(username, password, captchaToken)
-    AuthState.setSession((response['accessToken'] as string) ?? '', (response['username'] as string) ?? username)
+    await AuthService.saveSession(response, username)
   }
 
   static async signupWithPassword(username: string, password: string, captchaToken: string = ''): Promise<void> {
     const response = await ApiService.signupWithPassword(username, password, captchaToken)
-    AuthState.setSession((response['accessToken'] as string) ?? '', (response['username'] as string) ?? username)
+    await AuthService.saveSession(response, username)
   }
 
   static async getCaptchaChallenge(): Promise<Record<string, Object>> {

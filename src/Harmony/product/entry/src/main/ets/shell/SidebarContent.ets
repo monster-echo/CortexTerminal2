@@ -14,10 +14,19 @@ export struct SidebarContent {
   @State workers: WorkerInfo[] = []
   @State sessions: SessionInfo[] = []
   @State expandedId: string = ''
+  @State avatarUrl: string = ''
   @State showNewWorkspaceSheet: boolean = false
 
-  aboutToAppear() { this.expandedId = this.navWorkspaceId; this.loadData() }
-  reload() { this.expandedId = this.navWorkspaceId; this.loadData() }
+  aboutToAppear() {
+    this.expandedId = this.navWorkspaceId
+    this.avatarUrl = AuthState.getResolvedAvatarUrl()
+    this.loadData()
+  }
+  reload() {
+    this.expandedId = this.navWorkspaceId
+    this.avatarUrl = AuthState.getResolvedAvatarUrl()
+    this.loadData()
+  }
   private tr(key: string): string { return I18n.get(key) + (this.currentLanguage ? '' : '') }
   private async loadData() {
     try {
@@ -98,8 +107,8 @@ export struct SidebarContent {
       }.width('100%').layoutWeight(1).align(Alignment.Top).scrollBar(BarState.Off)
       Divider().color($r('app.color.terminal_border_subtle'))
       Row({ space: 10 }) {
-        if (AuthState.getResolvedAvatarUrl().length > 0) {
-          Image(AuthState.getResolvedAvatarUrl()).width(40).height(40).borderRadius(20)
+        if (this.avatarUrl.length > 0) {
+          Image(this.avatarUrl).width(40).height(40).borderRadius(20)
         } else {
           Text(AuthState.getDisplayName().substring(0, 1).toUpperCase() || 'U').width(40).height(40).textAlign(TextAlign.Center)
             .fontSize(16).fontColor($r('app.color.terminal_on_secondary_container')).backgroundColor($r('app.color.terminal_secondary_container')).borderRadius(20)
