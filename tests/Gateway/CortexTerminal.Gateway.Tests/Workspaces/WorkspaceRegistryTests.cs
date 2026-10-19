@@ -21,7 +21,7 @@ public sealed class WorkspaceRegistryTests
     }
 
     [Fact]
-    public async Task NameExists_IsScopedToWorkerAndIncludesSoftDeletedNames()
+    public async Task NameExists_IsScopedToWorkerAndIgnoresSoftDeletedNames()
     {
         var registry = NewRegistry();
         var created = await registry.CreateAsync("user-1", "worker-1", "proj", "/home/user/proj");
@@ -30,7 +30,7 @@ public sealed class WorkspaceRegistryTests
         (await registry.NameExistsAsync("worker-2", "proj")).Should().BeFalse();
 
         await registry.DeleteAsync("user-1", created.Id);
-        (await registry.NameExistsAsync("worker-1", "proj")).Should().BeTrue();
+        (await registry.NameExistsAsync("worker-1", "proj")).Should().BeFalse();
     }
 
     [Fact]
