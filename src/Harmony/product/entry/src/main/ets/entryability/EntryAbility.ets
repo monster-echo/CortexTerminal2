@@ -221,15 +221,12 @@ export default class EntryAbility extends UIAbility {
         PersistentStorage.persistProp('webglEnabled', true)
         PersistentStorage.persistProp('showDevOptions', false)
         PersistentStorage.persistProp('firstLaunchDone', false)
+        PersistentStorage.persistProp('privacyConsented', false)
         this.syncColorMode()
 
         hilog.info(DOMAIN, TAG, `[STARTUP] token=${AppStorage.get<string>('authToken') || '(empty)'} isLoggedIn=${AppStorage.get<boolean>('isLoggedIn') ?? false} language=${AppStorage.get<string>('language') || 'en'}`)
 
-        // Fire APP_FIRST_LAUNCH on first-ever launch
-        if (!AppStorage.get<boolean>('firstLaunchDone')) {
-          AnalyticsService.onEvent(AnalyticsEvent.APP_FIRST_LAUNCH)
-          AppStorage.setOrCreate<boolean>('firstLaunchDone', true)
-        }
+        // APP_FIRST_LAUNCH 埋点在用户同意隐私协议后由 Index 触发（合规：同意前不采集）。
       })
 
       // RESIZE: compress page height when keyboard appears (like Android adjustResize)

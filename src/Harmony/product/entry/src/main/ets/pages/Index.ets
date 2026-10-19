@@ -4,13 +4,15 @@
  */
 import { DynamicsRouter, Interceptor } from 'routermodule'
 import { AuthInterceptorExecute } from '../interceptor/AuthInterceptor'
-import { AuthService, RouteName } from '@rwecho/core'
+import { AnalyticsEvent, AnalyticsService, AuthService, RouteName } from '@rwecho/core'
 import { LoginPage, ActivateWorkerPage, EnterActivationCodePage } from '@rwecho/auth'
 import { TerminalComponent } from '@rwecho/terminal'
 import { FilesPageRoute, FilePreviewPage } from '@rwecho/files'
 import { ShellScaffold } from '../shell/ShellScaffold'
+import { PrivacyConsentDialog } from '../view/PrivacyConsentDialog'
 import { WorkspaceHomePage } from '@rwecho/session'
 import { AccountSecurityPage, ChangePasswordPage, LegalDocumentPage, WebPage, ContactSupportPage, FeedbackPage, ImagePreviewPage, MembershipPage, RedeemPage, ReferralPage, PreferencesPage, TerminalThemesPage, AboutPage } from '@rwecho/settings'
+import { common } from '@kit.AbilityKit'
 
 @Entry
 @Component
@@ -18,11 +20,38 @@ struct Index {
   @Provide('pageStack') pageStack: NavPathStack = DynamicsRouter.navPathStack
   @StorageLink('authToken') @Watch('onAuthChanged') authToken: string = ''
   @StorageLink('isLoggedIn') @Watch('onAuthChanged') isLoggedIn: boolean = false
+  @StorageLink('privacyConsented') @Watch('onPrivacyConsented') privacyConsented: boolean = false
   private isInitialized: boolean = false
+  private privacyDialogController: CustomDialogController = new CustomDialogController({
+    builder: PrivacyConsentDialog({
+      onAgree: () => { this.onPrivacyAgreed() },
+      onDisagree: () => { this.exitApp() },
+      openDoc: (kind: string) => { this.openLegalDoc(kind) }
+    }),
+    autoCancel: false,
+    alignment: DialogAlignment.Center,
+    backgroundColor: $r('app.color.terminal_background_panel'),
+    cornerRadius: 16
+  })
 
   aboutToAppear() {
     Interceptor.registerInterceptorPage(new AuthInterceptorExecute())
+    if (!this.privacyConsented) {
+      // 首启未同意隐私协议：不路由、不采集，等用户在弹窗中做出选择。
+      return
+    }
+    this.routeInitial()
+    this.isInitialized = true
+  }
 
+  // onDidBuild: 组件树完成后才能安全地 open 弹窗
+  onDidBuild() {
+    if (!this.privacyConsented) {
+      this.privacyDialogController.open()
+    }
+  }
+
+  private routeInitial() {
     console.info(`[Index] Startup: isLoggedIn=${this.isLoggedIn} token=${this.authToken.length > 0 ? 'yes' : 'no'}`)
     if (this.isLoggedIn && this.authToken.length > 0) {
       console.info('[Index] Routing to HOME + ensureAuthenticated')
@@ -33,6 +62,30 @@ struct Index {
       this.pageStack.replacePath({ name: RouteName.AUTH_LOGIN })
     }
     this.isInitialized = true
+  }
+
+  private onPrivacyAgreed() {
+    AppStorage.setOrCreate<boolean>('privacyConsented', true)
+    // 同意后才允许首次启动埋点（合规：同意前不采集）。
+    if (!AppStorage.get<boolean>('firstLaunchDone')) {
+      AnalyticsService.onEvent(AnalyticsEvent.APP_FIRST_LAUNCH)
+      AppStorage.setOrCreate<boolean>('firstLaunchDone', true)
+    }
+  }
+
+  private onPrivacyConsented() {
+    if (this.privacyConsented && !this.isInitialized) {
+      this.routeInitial()
+    }
+  }
+
+  private exitApp() {
+    (getContext(this) as common.UIAbilityContext).terminateSelf()
+  }
+
+  private openLegalDoc(kind: string) {
+    const param: Record<string, string> = { 'kind': kind }
+    this.pageStack.pushPath({ name: RouteName.LEGAL_DOCUMENT, param: param })
   }
 
   onAuthChanged() {
