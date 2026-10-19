@@ -147,22 +147,6 @@ export struct MembershipPage {
     return plan !== null && this.isSubscriptionPlan(plan)
   }
 
-  private renewCycleLabel(): string {
-    const plan = this.selectedPlan()
-    if (plan === null) return ''
-    if (plan.billingPeriod === 'monthly') return I18n.get('membership.renew_monthly')
-    if (plan.billingPeriod === 'yearly') return I18n.get('membership.renew_yearly')
-    return I18n.get('membership.renew_lifetime')
-  }
-
-  private purchaseAmountLabel(): string {
-    const plan = this.selectedPlan()
-    if (plan === null) return I18n.get('account.price_pending')
-    const price = this.price(plan)
-    if (plan.tier === 'free' || plan.storePrice.length === 0) return price
-    return `${price} ${this.period(plan)}`
-  }
-
   private currentRenewPrice(): string {
     const productId = HuaweiIapService.productForPlan(this.planCode)
     for (let i = 0; i < this.storePrices.length; i++) {
@@ -346,28 +330,15 @@ export struct MembershipPage {
         Text('Corterm Pro').fontSize(28).fontWeight(FontWeight.Bold).fontColor($r('app.color.terminal_text'))
         Text(I18n.get('account.pro_description')).fontSize(15).fontColor($r('app.color.terminal_text_muted')).lineHeight(22)
       }.width('100%').alignItems(HorizontalAlign.Start)
-      Column() {
-        this.DetailRow(I18n.get('membership.benefit_more_workers'), I18n.getWithArgs('membership.workers_quota', { 'n': `${this.selectedPlan()?.maxWorkers ?? 0}` }))
-        Divider().color($r('app.color.terminal_border_subtle'))
-        this.DetailRow(I18n.get('membership.benefit_scrollback_title'), I18n.getWithArgs('membership.scrollback_quota', { 'n': `${this.selectedPlan()?.maxScrollbackMegabytes ?? 0}` }))
-      }.padding(16).borderRadius(12).backgroundColor($r('app.color.terminal_background_panel'))
       Column({ space: 10 }) {
         ForEach(this.plans, (plan: BillingPlan) => {
           if (plan.tier === 'pro') { this.PlanRow(plan) }
         }, (plan: BillingPlan) => plan.code)
       }.width('100%')
-      Column() {
-        this.SummaryRow(I18n.get('membership.selected_plan'), this.planName(this.selectedPlanCode), false)
-        Divider().color($r('app.color.terminal_border_subtle'))
-        this.SummaryRow(I18n.get('membership.pay_amount'), this.purchaseAmountLabel(), true)
-        Divider().color($r('app.color.terminal_border_subtle'))
-        this.SummaryRow(I18n.get('membership.renew_cycle'), this.renewCycleLabel(), false)
-        if (this.requiresAgreement()) {
-          Divider().color($r('app.color.terminal_border_subtle'))
-          this.SummaryRow(I18n.get('membership.charge_time'), I18n.get('membership.charge_time_value'), false)
-        }
-      }.padding({ left: 16, right: 16, top: 4, bottom: 4 }).borderRadius(12)
-        .backgroundColor($r('app.color.terminal_background_panel')).width('100%')
+      if (this.requiresAgreement()) {
+        Text(I18n.get('membership.charge_time_value'))
+          .fontSize(13).fontColor($r('app.color.terminal_text_muted')).lineHeight(20).width('100%')
+      }
       if (this.requiresAgreement()) {
         Row({ space: 8 }) {
           Checkbox({ name: 'autoRenewAgreement', group: 'membershipAgreement' })
@@ -390,15 +361,6 @@ export struct MembershipPage {
       Text(I18n.get(this.selectedPlanCode === 'pro_lifetime' ? 'membership.plan_lifetime_detail' : 'membership.cancel_guide'))
         .fontSize(13).fontColor($r('app.color.terminal_text_muted')).lineHeight(20).width('100%')
     }.width('100%')
-  }
-
-  @Builder
-  SummaryRow(label: string, value: string, emphasized: boolean) {
-    Row({ space: 12 }) {
-      Text(label).fontSize(14).fontColor($r('app.color.terminal_text_muted'))
-      Text(value).fontSize(emphasized ? 16 : 14).fontWeight(emphasized ? FontWeight.Bold : FontWeight.Normal)
-        .fontColor($r('app.color.terminal_text')).textAlign(TextAlign.End).layoutWeight(1)
-    }.width('100%').padding({ top: 10, bottom: 10 })
   }
 
   @Builder
@@ -455,6 +417,7 @@ export struct MembershipPage {
       Button(I18n.get('account.sync_purchases')).width('100%').height(48)
         .backgroundColor($r('app.color.terminal_background_panel')).fontColor($r('app.color.terminal_text'))
         .enabled(!this.isRestoring && !this.isPurchasing).onClick(() => this.restorePurchases())
+      this.RedeemRow()
     }.width('100%')
   }
 

@@ -126,6 +126,8 @@ export struct AboutPage {
           })
           Divider().color($r('app.color.terminal_border_subtle'))
           this.ActionRow('legal.account_deletion', () => { this.openLegal('account-deletion') })
+          Divider().color($r('app.color.terminal_border_subtle'))
+          this.ActionRow('legal.auto_renewal', () => { this.openLegal('auto-renewal') })
         }
         .aboutCardStyle()
 
