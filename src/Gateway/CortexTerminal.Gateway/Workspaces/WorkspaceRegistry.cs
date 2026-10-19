@@ -38,13 +38,12 @@ public sealed class WorkspaceRegistry(IDbContextFactory<AppDbContext> dbFactory,
     }
 
     /// <summary>
-    /// The database uniqueness constraint covers every row, including soft-deleted rows.
-    /// Check the same key before asking the Worker to prepare the directory.
+    /// 软删除的工作区不占用名字：只检查未删除的行，与数据库的部分唯一索引一致。
     /// </summary>
     public async Task<bool> NameExistsAsync(string workerId, string name)
     {
         await using var db = await dbFactory.CreateDbContextAsync();
-        return await db.Workspaces.AnyAsync(w => w.WorkerId == workerId && w.Name == name);
+        return await db.Workspaces.AnyAsync(w => w.WorkerId == workerId && w.Name == name && w.DeletedAtUtc == null);
     }
 
     public async Task<WorkspaceEntity> CreateAsync(string userId, string workerId, string name, string rootPath, bool isDefault = false)

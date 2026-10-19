@@ -86,7 +86,8 @@ public class AppDbContext : DbContext
         {
             entity.HasIndex(e => e.OwnerUserId);
             entity.HasIndex(e => e.WorkerId);
-            entity.HasIndex(e => new { e.WorkerId, e.Name }).IsUnique();
+            entity.HasIndex(e => new { e.WorkerId, e.Name }).IsUnique()
+                .HasFilter("\"deleted_at_utc\" IS NULL");
         });
 
         modelBuilder.Entity<Plan>(entity =>
