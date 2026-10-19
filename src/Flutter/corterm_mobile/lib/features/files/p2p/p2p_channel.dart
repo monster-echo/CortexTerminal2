@@ -23,12 +23,10 @@ class P2pException implements Exception {
 class P2pChannel {
   /// 由 p2p_transfer（io 实现层）在打洞打通后装配。
   P2pChannel({
-    required P2pCipher cipher,
-    required ReliableStream stream,
-    required void Function() onClose,
-  })  : _cipher = cipher,
-        _stream = stream,
-        _onClose = onClose;
+    required this._cipher,
+    required this._stream,
+    required this._onClose,
+  });
 
   final P2pCipher _cipher;
   final ReliableStream _stream;

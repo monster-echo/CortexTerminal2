@@ -244,25 +244,21 @@ public sealed class ClaudeHooksInstallerTests : IDisposable
         var installer = CreateInstaller();
         installer.MarkReady("http://127.0.0.1:51423/agent-event");
 
-        var shScript = File.ReadAllText(Path.Combine(_installDir, ClaudeHooksInstaller.ReporterMarker + (OperatingSystem.IsWindows() ? ".cmd" : "")));
-        var scripts = new List<string> { shScript };
-        if (OperatingSystem.IsWindows())
-        {
-            scripts.Add(File.ReadAllText(Path.Combine(_installDir, ClaudeHooksInstaller.ReporterMarker + ".ps1")));
-        }
-        foreach (var script in scripts)
-        {
-            // The printf/concat envelope must emit exactly the four HookForwarder fields,
-            // in the same order, with agent_kind hardcoded to the claude-code adapter name.
-            Assert.Contains("{\"session_id\":\"", script);
-            Assert.Contains("\",\"agent_kind\":\"claude-code\",\"event_type\":\"", script);
-            Assert.Contains("\",\"payload\":", script);
-        }
+        // The .cmd twin is a pure delegator to the .ps1 (batch cannot capture multi-line
+        // stdin); the envelope only exists in the sh reporter and the PowerShell twin.
+        var envelopeScript = File.ReadAllText(Path.Combine(_installDir,
+            OperatingSystem.IsWindows() ? ClaudeHooksInstaller.ReporterMarker + ".ps1" : ClaudeHooksInstaller.ReporterMarker));
+        // The printf/concat envelope must emit exactly the four HookForwarder fields,
+        // in the same order, with agent_kind hardcoded to the claude-code adapter name.
+        Assert.Contains("{\"session_id\":\"", envelopeScript);
+        Assert.Contains("\",\"agent_kind\":\"claude-code\",\"event_type\":\"", envelopeScript);
+        Assert.Contains("\",\"payload\":", envelopeScript);
         // Both reporter variants read the payload verbatim from stdin (no jq/rewriting).
-        Assert.Contains("$(cat)", shScript);
+        Assert.Contains(OperatingSystem.IsWindows() ? "[Console]::In.ReadToEnd()" : "$(cat)", envelopeScript);
         if (OperatingSystem.IsWindows())
         {
-            Assert.Contains("[Console]::In.ReadToEnd()", scripts[1]);
+            var cmdScript = File.ReadAllText(Path.Combine(_installDir, ClaudeHooksInstaller.ReporterMarker + ".cmd"));
+            Assert.Contains(ClaudeHooksInstaller.ReporterMarker + ".ps1", cmdScript);
         }
     }
 

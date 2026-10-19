@@ -146,7 +146,7 @@ class _Pending {
 }
 
 class ReliableStream {
-  ReliableStream({required void Function(Uint8List frame) send}) : _send = send;
+  ReliableStream({required this._send});
 
   final void Function(Uint8List frame) _send;
 
@@ -215,9 +215,7 @@ class ReliableStream {
   void _transmit(_Pending p) {
     p.transmissions++;
     _send(P2pFrame.encodeData(p.seq, p.payload));
-    if (p.timer == null) {
-      p.timer = Timer(p.rto, () => _onRto(p));
-    }
+    p.timer ??= Timer(p.rto, () => _onRto(p));
   }
 
   void _onRto(_Pending p) {
