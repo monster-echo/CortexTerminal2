@@ -364,7 +364,6 @@ export const zhStrings: Record<string, string> = {
   'membership.benefits_title': '您的 Pro 权益',
   'membership.benefit_devices': '更多设备',
   'membership.benefit_scrollback': '更长的终端回滚',
-  'membership.benefit_files': '更高的文件读取配额',
   'membership.free_plan_hint': '免费版 {value}',
   'membership.renew_amount': '续费金额',
   'membership.renewal_reminder_full': '您的{plan}将于 {date} 自动续费（{price}），权益将自动延续，可随时取消。',

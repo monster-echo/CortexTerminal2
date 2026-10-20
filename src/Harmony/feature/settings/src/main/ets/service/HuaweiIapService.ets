@@ -1,6 +1,7 @@
 import { common } from '@kit.AbilityKit'
 import { iap } from '@kit.IAPKit'
 import { hilog } from '@kit.PerformanceAnalysisKit'
+import { util } from '@kit.ArkTS'
 import { ApiService } from '@rwecho/core'
 
 export interface HuaweiStorePrice {
@@ -16,6 +17,20 @@ interface HuaweiPurchaseData {
   payOrderId?: string
   orderId?: string
   jwsSubscriptionStatus?: string
+  jwsPurchaseOrder?: string
+}
+
+interface HuaweiJwsOrder {
+  orderId?: string
+  productId?: string
+}
+
+interface HuaweiJwsPayload {
+  purchaseOrderId?: string
+  purchaseToken?: string
+  productId?: string
+  subscriptionId?: string
+  lastPurchaseOrder?: HuaweiJwsOrder
 }
 
 export class HuaweiIapService {
@@ -37,6 +52,38 @@ export class HuaweiIapService {
   static parsePurchaseData(raw: string): HuaweiPurchaseData {
     const parsed = JSON.parse(raw) as HuaweiPurchaseData
     return parsed
+  }
+
+  /**
+   * queryPurchases 返回的 PurchaseData 是 JWS（含 type + jwsPurchaseOrder /
+   * jwsSubscriptionStatus），订单字段在 JWS payload 里，需要解开才能拿到。
+   */
+  static decodeJwsPurchaseData(jws: string): HuaweiPurchaseData {
+    const empty: HuaweiPurchaseData = { purchaseState: 0 }
+    const parts = jws.split('.')
+    if (parts.length < 2) {
+      hilog.error(0x0000, 'CortermIAP', 'JWS malformed, segments=%{public}d', parts.length)
+      return empty
+    }
+    try {
+      const bytes = new util.Base64Helper().decodeSync(parts[1], util.Type.BASIC_URL_SAFE)
+      const json = util.TextDecoder.create('utf-8').decodeToString(bytes)
+      const payload = JSON.parse(json) as HuaweiJwsPayload
+      hilog.info(0x0000, 'CortermIAP',
+        'jws payload: productId=%{public}s tokenLen=%{public}d orderId=%{public}s subscriptionId=%{public}s',
+        `${payload.productId ?? ''}`, `${(payload.purchaseToken ?? '').length}`,
+        `${payload.purchaseOrderId ?? ''}`, `${payload.subscriptionId ?? ''}`)
+      const result: HuaweiPurchaseData = {
+        productId: payload.productId,
+        purchaseToken: payload.purchaseToken,
+        purchaseState: 0,
+        orderId: payload.purchaseOrderId ?? payload.lastPurchaseOrder?.orderId
+      }
+      return result
+    } catch (e) {
+      hilog.error(0x0000, 'CortermIAP', 'failed to decode JWS payload: %{public}s', `${e}`)
+      return empty
+    }
   }
 
   static storePriceFromProduct(product: iap.Product): HuaweiStorePrice {
@@ -140,13 +187,19 @@ export class HuaweiIapService {
       const result = await iap.queryPurchases(context, param)
       for (let i = 0; i < result.purchaseDataList.length; i++) {
         hilog.info(0x0000, 'CortermIAP', 'restore raw[%{public}d]: %{public}s', i, `${result.purchaseDataList[i]}`)
-        const data = HuaweiIapService.parsePurchaseData(result.purchaseDataList[i])
+        let data = HuaweiIapService.parsePurchaseData(result.purchaseDataList[i])
+        if (!data.productId || !data.purchaseToken) {
+          // JWS 格式：订单字段在 payload 里，解开再校验
+          data = HuaweiIapService.decodeJwsPurchaseData(
+            data.jwsPurchaseOrder ?? data.jwsSubscriptionStatus ?? '')
+        }
         if (!data.productId || !data.purchaseToken) continue
         const planCode = data.productId === HuaweiIapService.MONTH_PRODUCT ? 'pro_month'
           : (data.productId === HuaweiIapService.YEAR_PRODUCT ? 'pro_year'
             : (data.productId === HuaweiIapService.LIFETIME_PRODUCT ? 'pro_lifetime' : ''))
         if (planCode.length === 0 || HuaweiIapService.productTypeForPlan(planCode) !== productType) continue
-        await ApiService.verifyHuaweiIap(data.productId, data.purchaseToken)
+        await ApiService.verifyHuaweiIap(data.productId, data.purchaseToken,
+          data.orderId ?? data.payOrderId ?? '')
         count++
       }
       continuationToken = result.continuationToken

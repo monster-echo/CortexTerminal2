@@ -23,9 +23,6 @@ interface BillingPlan {
   priceCurrency: string
   maxWorkers: number
   maxScrollbackMegabytes: number
-  maxArtifactsPerSession: number
-  maxArtifactSizeBytes: number
-  maxArtifactAgeDays: number
   storePrice: string
   subscriptionGroupId: string
 }
@@ -82,9 +79,6 @@ export struct MembershipPage {
           priceCurrency: item['priceCurrency'] as string,
           maxWorkers: item['maxWorkers'] as number,
           maxScrollbackMegabytes: item['maxScrollbackMegabytes'] as number,
-          maxArtifactsPerSession: item['maxArtifactsPerSession'] as number,
-          maxArtifactSizeBytes: item['maxArtifactSizeBytes'] as number,
-          maxArtifactAgeDays: item['maxArtifactAgeDays'] as number,
           storePrice: '',
           subscriptionGroupId: ''
         })
@@ -410,8 +404,6 @@ export struct MembershipPage {
         this.BenefitRow(I18n.get('membership.benefit_devices'), `${this.maxWorkers}`, this.freeWorkers())
         Divider().color($r('app.color.terminal_border_subtle'))
         this.BenefitRow(I18n.get('membership.benefit_scrollback'), `${this.maxScrollbackMegabytes} MB`, this.freeScrollback())
-        Divider().color($r('app.color.terminal_border_subtle'))
-        this.BenefitRow(I18n.get('membership.benefit_files'), this.proFileQuota(), this.freeFileQuota())
       }.width('100%').alignItems(HorizontalAlign.Start).padding(16).borderRadius(12)
         .backgroundColor($r('app.color.terminal_background_panel'))
       if (this.planCode !== 'pro_lifetime') {
@@ -435,11 +427,6 @@ export struct MembershipPage {
     return this.planByCode('free')
   }
 
-  private fileQuota(plan: BillingPlan): string {
-    const sizeMb = Math.round(plan.maxArtifactSizeBytes / 1048576)
-    return `${plan.maxArtifactsPerSession} / ${sizeMb} MB / ${plan.maxArtifactAgeDays}d`
-  }
-
   private freeValue(value: string): string {
     return value.length === 0 ? '' : I18n.getWithArgs('membership.free_plan_hint', { 'value': value })
   }
@@ -452,16 +439,6 @@ export struct MembershipPage {
   private freeScrollback(): string {
     const plan = this.freePlan()
     return plan === null ? '' : `${plan.maxScrollbackMegabytes} MB`
-  }
-
-  private freeFileQuota(): string {
-    const plan = this.freePlan()
-    return plan === null ? '' : this.fileQuota(plan)
-  }
-
-  private proFileQuota(): string {
-    const plan = this.planByCode(this.planCode)
-    return plan === null ? '' : this.fileQuota(plan)
   }
 
   @Builder

@@ -364,7 +364,6 @@ export const enStrings: Record<string, string> = {
   'membership.benefits_title': 'Your Pro benefits',
   'membership.benefit_devices': 'More devices',
   'membership.benefit_scrollback': 'Longer terminal scrollback',
-  'membership.benefit_files': 'Higher file read quota',
   'membership.free_plan_hint': 'Free: {value}',
   'membership.renew_amount': 'Renewal price',
   'membership.renewal_reminder_full': 'Your {plan} renews on {date} ({price}). Benefits continue automatically; cancel anytime.',
