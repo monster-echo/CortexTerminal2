@@ -1,0 +1,54 @@
+name: Apple signing credentials check
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/apple-signing-check]
+    paths: [.github/workflows/apple-signing-check.yml]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: macos-15
+    steps:
+      - name: Inspect existing signing credentials without exporting private keys
+        shell: bash
+        env:
+          CERTIFICATE_BASE64: ${{ secrets.CORTEX_CERTIFICATES_P12_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.CORTEX_CERTIFICATES_P12_PASSWORD }}
+          API_PRIVATE_KEY: ${{ secrets.CORTEX_APPSTORE_API_PRIVATE_KEY }}
+          API_KEY_ID: ${{ secrets.CORTEX_APPSTORE_API_KEY_ID }}
+          API_ISSUER_ID: ${{ secrets.CORTEX_APPSTORE_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          keychain="$RUNNER_TEMP/signing-check.keychain-db"
+          certificate="$RUNNER_TEMP/signing-check.p12"
+          keychain_password="$(openssl rand -hex 24)"
+          cleanup() {
+            security delete-keychain "$keychain" >/dev/null 2>&1 || true
+            rm -f "$certificate"
+          }
+          trap cleanup EXIT
+          test -n "$CERTIFICATE_BASE64" && test -n "$CERTIFICATE_PASSWORD"
+          printf '%s' "$CERTIFICATE_BASE64" | base64 --decode > "$certificate"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security import "$certificate" -P "$CERTIFICATE_PASSWORD" -k "$keychain" -T /usr/bin/codesign >/dev/null
+          security find-identity -v -p codesigning "$keychain" > "$RUNNER_TEMP/identities.txt"
+          cat "$RUNNER_TEMP/identities.txt"
+          {
+            echo '## Existing Apple signing credentials'
+            echo 'P12 imported successfully.'
+            if grep -q 'Developer ID Application:' "$RUNNER_TEMP/identities.txt"; then
+              echo '- Developer ID Application identity with private key: available'
+            else
+              echo '- Developer ID Application identity with private key: MISSING (required for direct macOS distribution)'
+            fi
+            if grep -q 'Apple Distribution:\|3rd Party Mac Developer Application:' "$RUNNER_TEMP/identities.txt"; then
+              echo '- Distribution signing identity: available; profile/platform suitability still requires validation'
+            fi
+            if test -n "$API_PRIVATE_KEY" && test -n "$API_KEY_ID" && test -n "$API_ISSUER_ID"; then
+              echo '- App Store Connect API secret fields: present (authentication not yet validated)'
+            else
+              echo '- App Store Connect API secret fields: incomplete'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
