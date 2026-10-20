@@ -23,6 +23,9 @@ interface BillingPlan {
   priceCurrency: string
   maxWorkers: number
   maxScrollbackMegabytes: number
+  maxArtifactsPerSession: number
+  maxArtifactSizeBytes: number
+  maxArtifactAgeDays: number
   storePrice: string
   subscriptionGroupId: string
 }
@@ -79,6 +82,9 @@ export struct MembershipPage {
           priceCurrency: item['priceCurrency'] as string,
           maxWorkers: item['maxWorkers'] as number,
           maxScrollbackMegabytes: item['maxScrollbackMegabytes'] as number,
+          maxArtifactsPerSession: item['maxArtifactsPerSession'] as number,
+          maxArtifactSizeBytes: item['maxArtifactSizeBytes'] as number,
+          maxArtifactAgeDays: item['maxArtifactAgeDays'] as number,
           storePrice: '',
           subscriptionGroupId: ''
         })
@@ -398,11 +404,16 @@ export struct MembershipPage {
           this.DetailRow(I18n.get('membership.renew_amount'), this.currentRenewPrice())
         }
       }.padding(16).borderRadius(12).backgroundColor($r('app.color.terminal_background_panel'))
-      Column() {
-        this.DetailRow(I18n.get('account.devices_quota'), `${this.maxWorkers}`)
+      Column({ space: 12 }) {
+        Text(I18n.get('membership.benefits_title')).fontSize(14).fontWeight(FontWeight.Medium)
+          .fontColor($r('app.color.terminal_text'))
+        this.BenefitRow(I18n.get('membership.benefit_devices'), `${this.maxWorkers}`, this.freeWorkers())
         Divider().color($r('app.color.terminal_border_subtle'))
-        this.DetailRow(I18n.get('account.scrollback_quota'), `${this.maxScrollbackMegabytes} MB`)
-      }.padding(16).borderRadius(12).backgroundColor($r('app.color.terminal_background_panel'))
+        this.BenefitRow(I18n.get('membership.benefit_scrollback'), `${this.maxScrollbackMegabytes} MB`, this.freeScrollback())
+        Divider().color($r('app.color.terminal_border_subtle'))
+        this.BenefitRow(I18n.get('membership.benefit_files'), this.proFileQuota(), this.freeFileQuota())
+      }.width('100%').alignItems(HorizontalAlign.Start).padding(16).borderRadius(12)
+        .backgroundColor($r('app.color.terminal_background_panel'))
       if (this.planCode !== 'pro_lifetime') {
         Button(I18n.get('membership.manage_subscription')).width('100%').height(52).fontSize(16)
           .backgroundColor($r('app.color.terminal_inverse_surface')).fontColor($r('app.color.terminal_inverse_on_surface'))
@@ -410,9 +421,61 @@ export struct MembershipPage {
         Text(I18n.get('account.huawei_manage_note')).fontSize(13).fontColor($r('app.color.terminal_text_muted')).lineHeight(20)
         this.CancelPanel()
       }
-      Button(I18n.get('account.sync_purchases')).width('100%').height(48)
-        .backgroundColor($r('app.color.terminal_background_panel')).fontColor($r('app.color.terminal_text'))
-        .enabled(!this.isRestoring && !this.isPurchasing).onClick(() => this.restorePurchases())
+    }.width('100%')
+  }
+
+  private planByCode(code: string): BillingPlan | null {
+    for (let i = 0; i < this.plans.length; i++) {
+      if (this.plans[i].code === code) return this.plans[i]
+    }
+    return null
+  }
+
+  private freePlan(): BillingPlan | null {
+    return this.planByCode('free')
+  }
+
+  private fileQuota(plan: BillingPlan): string {
+    const sizeMb = Math.round(plan.maxArtifactSizeBytes / 1048576)
+    return `${plan.maxArtifactsPerSession} / ${sizeMb} MB / ${plan.maxArtifactAgeDays}d`
+  }
+
+  private freeValue(value: string): string {
+    return value.length === 0 ? '' : I18n.getWithArgs('membership.free_plan_hint', { 'value': value })
+  }
+
+  private freeWorkers(): string {
+    const plan = this.freePlan()
+    return plan === null ? '' : `${plan.maxWorkers}`
+  }
+
+  private freeScrollback(): string {
+    const plan = this.freePlan()
+    return plan === null ? '' : `${plan.maxScrollbackMegabytes} MB`
+  }
+
+  private freeFileQuota(): string {
+    const plan = this.freePlan()
+    return plan === null ? '' : this.fileQuota(plan)
+  }
+
+  private proFileQuota(): string {
+    const plan = this.planByCode(this.planCode)
+    return plan === null ? '' : this.fileQuota(plan)
+  }
+
+  @Builder
+  BenefitRow(label: string, proValue: string, freeValue: string) {
+    Row({ space: 12 }) {
+      Text(label).fontSize(14).fontColor($r('app.color.terminal_text')).layoutWeight(1)
+      Column({ space: 2 }) {
+        Text(proValue).fontSize(14).fontWeight(FontWeight.Medium)
+          .fontColor($r('app.color.terminal_text')).textAlign(TextAlign.End)
+        if (freeValue.length > 0) {
+          Text(I18n.getWithArgs('membership.free_plan_hint', { 'value': freeValue }))
+            .fontSize(12).fontColor($r('app.color.terminal_text_tertiary')).textAlign(TextAlign.End)
+        }
+      }.alignItems(HorizontalAlign.End)
     }.width('100%')
   }
 
