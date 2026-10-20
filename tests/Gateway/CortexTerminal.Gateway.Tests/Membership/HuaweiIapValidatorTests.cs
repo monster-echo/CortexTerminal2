@@ -19,6 +19,21 @@ public sealed class HuaweiIapValidatorTests
     [Fact]
     public async Task VerifyAsync_Lifetime_QueriesOrderStatusWithJwtAndMapsFields()
     {
+        // 华为订单状态查询的响应是 JWS 包装的订单数据（jwsPurchaseOrder）
+        using var orderKey = ECDsa.Create();
+        var orderPayload = JsonSerializer.Serialize(new Dictionary<string, object>
+        {
+            ["purchaseOrderId"] = "order-123",
+            ["purchaseToken"] = "token-123",
+            ["applicationId"] = AppId,
+            ["productId"] = "corterm.pro.lifetime",
+            ["productType"] = "1",
+            ["environment"] = "SANDBOX",
+            ["price"] = 26800,
+            ["currency"] = "CNY"
+        });
+        var orderJws = SignJws(orderKey, orderPayload);
+
         string? capturedJwt = null;
         string? capturedBody = null;
         var handler = new StubHandler((request, body) =>
@@ -27,15 +42,7 @@ public sealed class HuaweiIapValidatorTests
             request.Headers.Authorization!.Scheme.Should().Be("Bearer");
             capturedJwt = request.Headers.Authorization.Parameter;
             capturedBody = body;
-            return Json(new
-            {
-                responseCode = "0",
-                productId = "corterm.pro.lifetime",
-                purchaseToken = "token-123",
-                purchaseState = 0,
-                payOrderId = "order-123",
-                kind = 1
-            });
+            return Json(new { responseCode = "0", responseMessage = "success", jwsPurchaseOrder = orderJws });
         });
         using var key = ECDsa.Create();
         var validator = new HuaweiIapValidator(MakeOptions(key), new HttpClient(handler),
@@ -69,21 +76,25 @@ public sealed class HuaweiIapValidatorTests
     [Fact]
     public async Task VerifyAsync_MismatchedProduct_IsRejected()
     {
-        var handler = new StubHandler((_, _) => Json(new
+        // 华为返回的订单是 JWS 包装的，且 productId 与请求不符
+        using var orderKey = ECDsa.Create();
+        var orderPayload = JsonSerializer.Serialize(new Dictionary<string, object>
         {
-            responseCode = "0",
-            productId = "corterm.pro.lifetime",
-            purchaseToken = "token-123",
-            purchaseState = 0,
-            payOrderId = "order-123",
-            kind = 1
-        }));
+            ["purchaseOrderId"] = "order-123",
+            ["purchaseToken"] = "token-123",
+            ["applicationId"] = AppId,
+            ["productId"] = "corterm.pro.lifetime",
+            ["productType"] = "1"
+        });
+        var orderJws = SignJws(orderKey, orderPayload);
+        var handler = new StubHandler((_, _) => Json(new { responseCode = "0", jwsPurchaseOrder = orderJws }));
         using var key = ECDsa.Create();
         var validator = new HuaweiIapValidator(MakeOptions(key), new HttpClient(handler),
             NullLogger<HuaweiIapValidator>.Instance);
 
         var act = () => validator.VerifyAsync("token-123", "order-123", "corterm.pro.month", CancellationToken.None);
         await act.Should().ThrowAsync<IapReceiptInvalidException>();
+        handler.Requests.Should().HaveCount(1);
     }
 
     [Fact]

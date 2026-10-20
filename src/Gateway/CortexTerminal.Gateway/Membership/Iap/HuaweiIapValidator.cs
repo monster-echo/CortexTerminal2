@@ -48,23 +48,90 @@ public sealed class HuaweiIapValidator : IHuaweiIapValidator
             new { purchaseToken, purchaseOrderId }, ct);
         var status = ExpectSuccess(root, "order");
 
-        var verifiedProductId = GetString(status, "productId");
-        var verifiedToken = GetString(status, "purchaseToken");
-        var purchaseState = GetInt(status, "purchaseState");
-        var orderId = GetString(status, "payOrderId") ?? GetString(status, "orderId") ?? purchaseOrderId;
-        var kind = GetInt(status, "kind");
+        // 响应是 JWS 包装的订单数据（jwsPurchaseOrder），需解码验签后才能读取字段。
+        var orderJws = GetString(status, "jwsPurchaseOrder");
+        if (string.IsNullOrWhiteSpace(orderJws))
+            throw new IapReceiptInvalidException("Huawei order status query returned no signed purchase order.");
 
+        var jws = DecodeJws(orderJws);
+        VerifyJwsSignature(jws);
+
+        var verifiedProductId = GetString(jws.Payload, "productId");
+        var verifiedToken = GetString(jws.Payload, "purchaseToken");
+        var verifiedOrderId = GetString(jws.Payload, "purchaseOrderId");
+        var applicationId = GetString(jws.Payload, "applicationId");
+        var productType = GetString(jws.Payload, "productType");
+
+        _logger.LogInformation(
+            "Huawei order JWS verified (productId {ProductId}, environment {Environment}, price {Price}).",
+            verifiedProductId, GetString(jws.Payload, "environment"), GetString(jws.Payload, "price"));
+
+        if (!string.Equals(applicationId, _options.ClientId, StringComparison.Ordinal))
+            throw new IapReceiptInvalidException("Huawei order belongs to a different app.");
         if (!string.Equals(verifiedProductId, productId, StringComparison.Ordinal)
             || !string.Equals(verifiedToken, purchaseToken, StringComparison.Ordinal)
-            || purchaseState != 0)
-            throw new IapReceiptInvalidException("Huawei verified purchase data does not match the request or is not paid.");
-        if (expectedKind != 0 && kind != expectedKind)
+            || !string.Equals(verifiedOrderId, purchaseOrderId, StringComparison.Ordinal))
+            throw new IapReceiptInvalidException("Huawei verified order does not match the request.");
+        if (productType != "1")
+            throw new IapReceiptInvalidException("Huawei lifetime membership must be a non-consumable product.");
+        if (expectedKind != 0 && 1 != expectedKind)
             throw new IapReceiptInvalidException(
-                $"Huawei purchase is of kind {kind}, not the expected kind {expectedKind}.");
+                $"Huawei purchase is of kind 1 (non-consumable), not the expected kind {expectedKind}.");
 
         return new HuaweiVerifiedTransaction(
-            verifiedToken ?? purchaseToken, orderId, verifiedProductId ?? productId,
-            purchaseState, kind, null, null);
+            verifiedToken ?? purchaseToken, verifiedOrderId ?? purchaseOrderId,
+            verifiedProductId ?? productId, 0, 1, null, null);
+    }
+
+    private sealed record HuaweiJws(string HeaderJson, JsonElement Payload, byte[] Signature, byte[] SigningInput);
+
+    private static HuaweiJws DecodeJws(string jws)
+    {
+        var parts = jws.Split('.');
+        if (parts.Length != 3)
+            throw new IapReceiptInvalidException("Huawei JWS is malformed.");
+        try
+        {
+            var headerJson = Encoding.UTF8.GetString(Base64UrlDecode(parts[0]));
+            using var payloadDoc = JsonDocument.Parse(Encoding.UTF8.GetString(Base64UrlDecode(parts[1])));
+            var signature = Base64UrlDecode(parts[2]);
+            var signingInput = Encoding.ASCII.GetBytes($"{parts[0]}.{parts[1]}");
+            return new HuaweiJws(headerJson, payloadDoc.RootElement.Clone(), signature, signingInput);
+        }
+        catch (FormatException ex)
+        {
+            throw new IapReceiptInvalidException("Huawei JWS is malformed.", ex);
+        }
+        catch (JsonException ex)
+        {
+            throw new IapReceiptInvalidException("Huawei JWS is malformed.", ex);
+        }
+    }
+
+    private static void VerifyJwsSignature(HuaweiJws jws)
+    {
+        using var header = JsonDocument.Parse(jws.HeaderJson);
+        if (GetString(header.RootElement, "alg") != "ES256")
+            throw new IapReceiptInvalidException("Huawei JWS uses an unsupported signature algorithm.");
+        if (!header.RootElement.TryGetProperty("x5c", out var x5c)
+            || x5c.ValueKind != JsonValueKind.Array || x5c.GetArrayLength() == 0)
+            throw new IapReceiptInvalidException("Huawei JWS carries no certificate chain.");
+
+        X509Certificate2 leaf;
+        try
+        {
+            leaf = X509CertificateLoader.LoadCertificate(Convert.FromBase64String(x5c[0].GetString() ?? ""));
+        }
+        catch (Exception ex) when (ex is FormatException or CryptographicException)
+        {
+            throw new IapReceiptInvalidException("Huawei JWS certificate chain is malformed.", ex);
+        }
+
+        using var ecdsa = leaf.GetECDsaPublicKey();
+        if (ecdsa is null)
+            throw new IapReceiptInvalidException("Huawei JWS certificate is not an EC certificate.");
+        if (!ecdsa.VerifyData(jws.SigningInput, jws.Signature, HashAlgorithmName.SHA256))
+            throw new IapReceiptInvalidException("Huawei JWS signature is invalid.");
     }
 
     /// <summary>
