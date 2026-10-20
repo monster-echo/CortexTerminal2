@@ -70,7 +70,16 @@ public sealed class MembershipService(IDbContextFactory<AppDbContext> dbFactory)
             ?? throw new ArgumentException($"User not found: {userId}");
 
         var now = DateTimeOffset.UtcNow;
-        var expiry = ComputeExpiry(redeem.BillingPeriod, now);
+        var newExpiry = ComputeExpiry(redeem.BillingPeriod, now);
+
+        // 已有不短于新兑换期限的 Pro 会员（含终身）时不消耗兑换码：
+        // 否则下面的覆盖会把 user.MembershipExpiresAtUtc 改短，终身会员会在到期后被惰性降级。
+        if (user.MembershipTier == MembershipTiers.Pro &&
+            (user.MembershipExpiresAtUtc is null || user.MembershipExpiresAtUtc > newExpiry))
+            throw new RedeemCodeInvalidException(
+                "You already hold an active Pro membership; the code was not consumed.");
+
+        var expiry = newExpiry;
 
         var order = new MembershipOrder
         {

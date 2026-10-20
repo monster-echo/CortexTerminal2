@@ -40,6 +40,51 @@ public sealed class MembershipServiceRedeemTests
     }
 
     [Fact]
+    public async Task RedeemAsync_LifetimeHolder_DoesNotConsumeCode()
+    {
+        var (db, svc, userId, code) = await SetupAsync();
+        var user = await db.Users.SingleAsync(u => u.Id == userId);
+        user.MembershipTier = MembershipTiers.Pro;
+        user.MembershipExpiresAtUtc = null; // 终身：永不过期
+        await db.SaveChangesAsync();
+
+        var act = async () => await svc.RedeemAsync(userId, code.Code, CancellationToken.None);
+        await act.Should().ThrowAsync<RedeemCodeInvalidException>();
+
+        // 兑换码未被消耗，也没有产生订阅
+        (await db.RedeemCodes.AsNoTracking().SingleAsync(c => c.Id == code.Id)).UsedCount.Should().Be(0);
+        db.Subscriptions.AsNoTracking().Count(s => s.UserId == userId).Should().Be(0);
+        (await db.Users.AsNoTracking().SingleAsync(u => u.Id == userId)).MembershipTier
+            .Should().Be(MembershipTiers.Pro);
+    }
+
+    [Fact]
+    public async Task RedeemAsync_LongerExistingExpiry_DoesNotShortenOrConsume()
+    {
+        var (db, svc, userId, _) = await SetupAsync();
+        var user = await db.Users.SingleAsync(u => u.Id == userId);
+        user.MembershipTier = MembershipTiers.Pro;
+        user.MembershipExpiresAtUtc = DateTimeOffset.UtcNow.AddDays(60); // 比月度码的 30 天更长
+        var monthlyPlan = await db.Plans.SingleAsync(p => p.Code == PlanCodes.ProMonth);
+        var monthlyCode = new RedeemCode
+        {
+            Code = "CORTERM-MONTH1", PlanId = monthlyPlan.Id, BillingPeriod = BillingPeriods.Monthly,
+            MaxUses = 1, CreatedByUserId = "admin-1", IsActive = true,
+        };
+        db.RedeemCodes.Add(monthlyCode);
+        await db.SaveChangesAsync();
+
+        var act = async () => await svc.RedeemAsync(userId, monthlyCode.Code, CancellationToken.None);
+        await act.Should().ThrowAsync<RedeemCodeInvalidException>();
+
+        // 到期时间未被缩短，兑换码未被消耗
+        (await db.Users.AsNoTracking().SingleAsync(u => u.Id == userId)).MembershipExpiresAtUtc
+            .Should().BeCloseTo(DateTimeOffset.UtcNow.AddDays(60), TimeSpan.FromSeconds(10));
+        (await db.RedeemCodes.AsNoTracking().SingleAsync(c => c.Id == monthlyCode.Id)).UsedCount.Should().Be(0);
+        db.Subscriptions.AsNoTracking().Count(s => s.UserId == userId).Should().Be(0);
+    }
+
+    [Fact]
     public async Task RedeemAsync_UnknownCode_ThrowsInvalid()
     {
         var (_, svc, userId, _) = await SetupAsync();

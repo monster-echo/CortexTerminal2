@@ -101,12 +101,15 @@ export struct MePage {
           .width('100%').padding(16).borderRadius(12).backgroundColor($r('app.color.terminal_background_panel'))
           .onClick(() => this.open(RouteName.MEMBERSHIP))
 
-          Row() {
-            Text(this.tr('settings.redeem_code_nav')).fontSize(16).fontColor($r('app.color.terminal_text')).layoutWeight(1)
-            SymbolGlyph($r('sys.symbol.chevron_right')).fontSize(16).fontColor([$r('app.color.terminal_text_muted')])
-          }.width('100%').height(56).padding({ left: 16, right: 16 }).borderRadius(12)
-          .backgroundColor($r('app.color.terminal_background_panel'))
-          .onClick(() => this.open(RouteName.REDEEM))
+          // 已是 Pro（含终身）时隐藏：兑换短期码会覆盖会员到期时间，造成降级
+          if (!this.isPro) {
+            Row() {
+              Text(this.tr('settings.redeem_code_nav')).fontSize(16).fontColor($r('app.color.terminal_text')).layoutWeight(1)
+              SymbolGlyph($r('sys.symbol.chevron_right')).fontSize(16).fontColor([$r('app.color.terminal_text_muted')])
+            }.width('100%').height(56).padding({ left: 16, right: 16 }).borderRadius(12)
+            .backgroundColor($r('app.color.terminal_background_panel'))
+            .onClick(() => this.open(RouteName.REDEEM))
+          }
 
           if (this.isExpiringSoon()) {
             Text(I18n.getWithArgs('membership.renewal_reminder', {
