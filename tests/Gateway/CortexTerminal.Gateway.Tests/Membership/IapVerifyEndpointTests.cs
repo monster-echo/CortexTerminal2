@@ -94,6 +94,12 @@ public sealed class IapVerifyEndpointTests
             if (_factory.ValidatorThrows) throw new IapReceiptInvalidException("stub: invalid Huawei subscription JWS");
             return Task.FromResult(_factory.Stub);
         }
+
+        public Task<HuaweiVerifiedTransaction> VerifySubscriptionStatusAsync(string purchaseOrderId, string purchaseToken, string productId, CancellationToken ct)
+        {
+            if (_factory.ValidatorThrows) throw new IapReceiptInvalidException("stub: invalid Huawei subscription status");
+            return Task.FromResult(_factory.Stub);
+        }
     }
 
     private sealed class StubValidator : IAppleReceiptValidator

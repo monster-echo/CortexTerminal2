@@ -136,9 +136,18 @@ public sealed class HuaweiIapValidator : IHuaweiIapValidator
             throw new IapReceiptInvalidException(
                 "Huawei subscription JWS is missing the purchase token or subscription id.");
 
-        // 向华为查询最新状态：确认订阅当前仍生效（而不是只信客户端带来的快照）。
+        return await VerifySubscriptionStatusAsync(
+            jwsOrderId ?? string.Empty, jwsToken, productId, ct);
+    }
+
+    /// <summary>订阅状态查询：向华为确认订阅当前仍生效（而不是只信客户端带来的快照）。</summary>
+    public async Task<HuaweiVerifiedTransaction> VerifySubscriptionStatusAsync(
+        string purchaseOrderId, string purchaseToken, string productId, CancellationToken ct)
+    {
+        ValidateIds(purchaseToken, purchaseOrderId, productId);
+
         var root = await PostIapAsync("/subscription/harmony/v1/application/subscription/status/query",
-            new { purchaseOrderId = jwsOrderId ?? string.Empty, purchaseToken = jwsToken }, ct);
+            new { purchaseOrderId, purchaseToken }, ct);
         var status = ExpectSuccess(root, "subscription");
 
         if (!status.TryGetProperty("lastSubscriptionStatus", out var latest)
@@ -152,8 +161,8 @@ public sealed class HuaweiIapValidator : IHuaweiIapValidator
             verifiedProductId = GetString(liveOrder, "productId");
 
         _logger.LogInformation(
-            "Huawei subscription status queried (subscriptionId {SubscriptionId}, status {Status}, environment {Environment}).",
-            GetString(latest, "subscriptionId"), liveStatus, environment);
+            "Huawei subscription status queried (subscriptionId {SubscriptionId}, status {Status}).",
+            GetString(latest, "subscriptionId"), liveStatus);
 
         if (liveStatus != "1")
             throw new IapReceiptInvalidException("Huawei subscription is not currently active.");
@@ -165,7 +174,7 @@ public sealed class HuaweiIapValidator : IHuaweiIapValidator
                 $"Huawei subscription is for {verifiedProductId}, not {productId}.");
 
         return new HuaweiVerifiedTransaction(
-            jwsToken, jwsOrderId ?? jwsSubscriptionId, productId, 0, 2, expiresMs, true);
+            purchaseToken, purchaseOrderId, productId, 0, 2, expiresMs, true);
     }
 
     private void ValidateIds(string purchaseToken, string purchaseOrderId, string productId)

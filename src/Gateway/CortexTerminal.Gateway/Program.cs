@@ -2640,10 +2640,17 @@ app.MapPost("/api/iap/purchase/verify", async (VerifyIapPurchaseRequest body, Cl
         try
         {
             var validator = serviceProvider.GetRequiredService<IHuaweiIapValidator>();
-            // 带签名的订阅 JWS 走订阅验签；只带 purchaseToken 的（终身/老客户端）走订单校验。
-            var verified = string.IsNullOrWhiteSpace(body.SignedTransaction)
-                ? await validator.VerifyAsync(body.PurchaseToken ?? "", body.PurchaseOrderId ?? "", body.ProductId, ct)
-                : await validator.VerifySubscriptionJwsAsync(body.SignedTransaction, body.ProductId, ct);
+            // 路由：带订阅 JWS → 验 JWS；订阅商品（月/年）→ 订阅状态查询；
+            // 其余（终身买断）→ 订单状态查询。
+            HuaweiVerifiedTransaction verified;
+            if (!string.IsNullOrWhiteSpace(body.SignedTransaction))
+                verified = await validator.VerifySubscriptionJwsAsync(body.SignedTransaction, body.ProductId, ct);
+            else if (planCode is PlanCodes.ProMonth or PlanCodes.ProYear)
+                verified = await validator.VerifySubscriptionStatusAsync(
+                    body.PurchaseOrderId ?? "", body.PurchaseToken ?? "", body.ProductId, ct);
+            else
+                verified = await validator.VerifyAsync(
+                    body.PurchaseToken ?? "", body.PurchaseOrderId ?? "", body.ProductId, ct);
             sub = await membership.GrantFromHuaweiIapAsync(userId, verified, planCode, ct);
             verifiedPurchaseToken = verified.PurchaseToken;
             verifiedPurchaseOrderId = verified.PurchaseOrderId;
