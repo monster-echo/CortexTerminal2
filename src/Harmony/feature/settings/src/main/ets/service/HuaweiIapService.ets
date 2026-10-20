@@ -1,5 +1,6 @@
 import { common } from '@kit.AbilityKit'
 import { iap } from '@kit.IAPKit'
+import { hilog } from '@kit.PerformanceAnalysisKit'
 import { ApiService } from '@rwecho/core'
 
 export interface HuaweiStorePrice {
@@ -14,6 +15,7 @@ interface HuaweiPurchaseData {
   purchaseState?: number
   payOrderId?: string
   orderId?: string
+  jwsSubscriptionStatus?: string
 }
 
 export class HuaweiIapService {
@@ -71,16 +73,40 @@ export class HuaweiIapService {
       applicationUserName: HuaweiIapService.userBinding()
     })
     const data = HuaweiIapService.parsePurchaseData(result.purchaseData)
+    hilog.info(0x0000, 'CortermIAP', 'purchase raw: %{public}s', `${result.purchaseData}`)
+    hilog.info(0x0000, 'CortermIAP',
+      'purchase parsed: state=%{public}s productId=%{public}s tokenLen=%{public}d orderId=%{public}s payOrderId=%{public}s',
+      `${data.purchaseState}`, `${data.productId ?? ''}`, `${(data.purchaseToken ?? '').length}`,
+      `${data.orderId ?? ''}`, `${data.payOrderId ?? ''}`)
+    const productType = HuaweiIapService.productTypeForPlan(planCode)
+
+    // 自动续期订阅：createPurchase 只返回 jwsSubscriptionStatus（ES256 JWS），不含订单字段。
+    // 由网关解码验签并发放权益，再回传 finishPurchase 所需的 token / orderId。
+    if (productType === iap.ProductType.AUTORENEWABLE) {
+      const jws = data.jwsSubscriptionStatus ?? ''
+      if (jws.length === 0) {
+        throw new Error('Huawei subscription purchase did not include a JWS payload.')
+      }
+      const verified = await ApiService.verifyHuaweiIapSubscription(jws, productId)
+      const purchaseToken = verified['purchaseToken'] as string
+      const purchaseOrderId = verified['purchaseOrderId'] as string
+      if (purchaseToken && purchaseOrderId) {
+        await iap.finishPurchase(context, { productType, purchaseToken, purchaseOrderId })
+      }
+      return
+    }
+
+    // 非消耗型（终身买断）：createPurchase 直接返回订单字段，走服务端订单校验。
     if (data.purchaseState !== 0 || data.productId !== productId || !data.purchaseToken) {
-      throw new Error('Huawei did not return a completed purchase for the selected product.')
+      throw new Error(`Huawei purchase incomplete: state=${data.purchaseState}, productId=${data.productId}, hasToken=${data.purchaseToken !== undefined}`)
     }
 
     // Grant only after the backend has independently verified and persisted the Huawei order.
-    await ApiService.verifyHuaweiIap(productId, data.purchaseToken)
     const orderId = data.payOrderId ?? data.orderId
     if (!orderId) throw new Error('Huawei purchase response did not include an order ID.')
+    await ApiService.verifyHuaweiIap(productId, data.purchaseToken, orderId)
     await iap.finishPurchase(context, {
-      productType: HuaweiIapService.productTypeForPlan(planCode),
+      productType: productType,
       purchaseToken: data.purchaseToken,
       purchaseOrderId: orderId
     })
@@ -113,6 +139,7 @@ export class HuaweiIapService {
       }
       const result = await iap.queryPurchases(context, param)
       for (let i = 0; i < result.purchaseDataList.length; i++) {
+        hilog.info(0x0000, 'CortermIAP', 'restore raw[%{public}d]: %{public}s', i, `${result.purchaseDataList[i]}`)
         const data = HuaweiIapService.parsePurchaseData(result.purchaseDataList[i])
         if (!data.productId || !data.purchaseToken) continue
         const planCode = data.productId === HuaweiIapService.MONTH_PRODUCT ? 'pro_month'

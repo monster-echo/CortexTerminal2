@@ -361,12 +361,28 @@ export class ApiService {
     return await ApiService.get('/api/billing/plans', false) as Object[]
   }
 
-  static async verifyHuaweiIap(productId: string, purchaseToken: string): Promise<Record<string, Object>> {
+  static async verifyHuaweiIap(productId: string, purchaseToken: string, purchaseOrderId: string): Promise<Record<string, Object>> {
     const body: Record<string, Object> = {
       'platform': 'huawei',
       'productId': productId,
       'signedTransaction': '',
-      'purchaseToken': purchaseToken
+      'purchaseToken': purchaseToken,
+      'purchaseOrderId': purchaseOrderId
+    }
+    return await ApiService.post('/api/iap/purchase/verify', body) as Record<string, Object>
+  }
+
+  /**
+   * 自动续期订阅：把 createPurchase 返回的 jwsSubscriptionStatus 交给网关解码验签，
+   * 网关发放权益后回传 finishPurchase 所需的 purchaseToken / purchaseOrderId。
+   */
+  static async verifyHuaweiIapSubscription(jws: string, productId: string): Promise<Record<string, Object>> {
+    const body: Record<string, Object> = {
+      'platform': 'huawei',
+      'productId': productId,
+      'signedTransaction': jws,
+      'receiptFormat': 'jws',
+      'purchaseToken': ''
     }
     return await ApiService.post('/api/iap/purchase/verify', body) as Record<string, Object>
   }

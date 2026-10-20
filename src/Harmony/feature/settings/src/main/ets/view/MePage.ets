@@ -102,7 +102,7 @@ export struct MePage {
           .onClick(() => this.open(RouteName.MEMBERSHIP))
 
           Row() {
-            Text(this.tr('membership.menu_redeem')).fontSize(16).fontColor($r('app.color.terminal_text')).layoutWeight(1)
+            Text(this.tr('settings.redeem_code_nav')).fontSize(16).fontColor($r('app.color.terminal_text')).layoutWeight(1)
             SymbolGlyph($r('sys.symbol.chevron_right')).fontSize(16).fontColor([$r('app.color.terminal_text_muted')])
           }.width('100%').height(56).padding({ left: 16, right: 16 }).borderRadius(12)
           .backgroundColor($r('app.color.terminal_background_panel'))

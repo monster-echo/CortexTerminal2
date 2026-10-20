@@ -4,6 +4,7 @@
  * prices are provided by Huawei IAP and verified server-side before delivery.
  */
 import { common } from '@kit.AbilityKit'
+import { BusinessError } from '@kit.BasicServicesKit'
 import {
   ApiService,
   I18n,
@@ -128,9 +129,11 @@ export struct MembershipPage {
     return plan !== null && plan.storePrice.length > 0 && !this.isPurchasing && !this.isRestoring && (plan.code === 'pro_lifetime' || this.agreementAccepted)
   }
 
-  private openLegal(key: string) {
-    const param: Record<string, string> = { 'kind': key === 'privacy_policy_url' ? 'privacy' : 'terms' }
-    this.pageStack.pushPath({ name: RouteName.LEGAL_DOCUMENT, param: param })
+  private purchaseButtonLabel(): string {
+    if (this.isPurchasing) return I18n.get('membership.processing')
+    const plan = this.selectedPlan()
+    if (plan === null) return I18n.get('account.price_pending')
+    return `${I18n.get('membership.purchase_button')} · ${this.price(plan)}`
   }
 
   private openAutoRenewAgreement() {
@@ -186,10 +189,10 @@ export struct MembershipPage {
       await this.loadMembership()
       showI18nToast('membership.purchase_success')
     } catch (e) {
-      const errorCode = (e as Record<string, Object>)['code'] as number
-      if (errorCode !== 1001860000) {
+      const error = e as BusinessError
+      if (error.code !== 1001860000) {
         showI18nToast('membership.purchase_failed')
-        this.storeError = (e as Error).message || I18n.get('membership.purchase_failed')
+        this.storeError = `${error.message} (code ${error.code})`
       }
     } finally {
       this.isPurchasing = false
@@ -286,10 +289,6 @@ export struct MembershipPage {
       : I18n.getWithArgs('membership.benefit_workers', { 'n': `${workers}` })
   }
 
-  private openRedeem() {
-    this.pageStack.pushPath({ name: RouteName.REDEEM })
-  }
-
   build() {
     PageLayout({
       title: I18n.get('membership.title'),
@@ -309,17 +308,10 @@ export struct MembershipPage {
           this.UpgradeContent()
         }
         if (this.storeError.length > 0) {
-          Text(I18n.get('account.store_unavailable')).fontSize(14).fontColor($r('app.color.terminal_error')).width('100%')
+          Text(this.storeError).fontSize(14).fontColor($r('app.color.terminal_error')).width('100%')
           Button(I18n.get('common.retry')).backgroundColor($r('app.color.terminal_background_panel')).fontColor($r('app.color.terminal_text')).onClick(() => this.loadStoreProducts())
         }
-        this.RedeemRow()
-        Row({ space: 24 }) {
-          Text(I18n.get('settings.footer_terms')).fontSize(13).fontColor($r('app.color.terminal_on_primary_container'))
-            .onClick(() => this.openLegal('terms_of_service_url'))
-          Text(I18n.get('settings.footer_privacy')).fontSize(13).fontColor($r('app.color.terminal_on_primary_container'))
-            .onClick(() => this.openLegal('privacy_policy_url'))
-        }.justifyContent(FlexAlign.Center).width('100%').padding({ top: 8, bottom: 24 })
-      }.width('100%').padding({ left: 16, right: 16, top: 16 })
+        }.width('100%').padding({ left: 16, right: 16, top: 16, bottom: 24 })
     }
   }
 
@@ -333,7 +325,7 @@ export struct MembershipPage {
       Column({ space: 10 }) {
         ForEach(this.plans, (plan: BillingPlan) => {
           if (plan.tier === 'pro') { this.PlanRow(plan) }
-        }, (plan: BillingPlan) => plan.code)
+        }, (plan: BillingPlan) => `${plan.code}|${plan.storePrice}`)
       }.width('100%')
       if (this.requiresAgreement()) {
         Text(I18n.get('membership.charge_time_value'))
@@ -344,6 +336,7 @@ export struct MembershipPage {
           Checkbox({ name: 'autoRenewAgreement', group: 'membershipAgreement' })
             .select(this.agreementAccepted)
             .selectedColor($r('app.color.terminal_text'))
+            .mark({ strokeColor: $r('app.color.terminal_background_panel') })
             .onChange((value: boolean) => { this.agreementAccepted = value })
           Text() {
             Span(I18n.get('membership.agreement_prefix')).fontColor($r('app.color.terminal_text_muted'))
@@ -353,13 +346,16 @@ export struct MembershipPage {
           }.fontSize(13).lineHeight(20).layoutWeight(1)
         }.width('100%').alignItems(VerticalAlign.Center)
       }
-      Button(this.isPurchasing ? I18n.get('membership.processing') :
-        (this.canPurchase() ? `${I18n.get('membership.purchase_button')} · ${this.price(this.selectedPlan()!)}` : I18n.get('account.price_pending')))
+      Button(this.purchaseButtonLabel())
         .width('100%').height(52).fontSize(16).fontWeight(FontWeight.Medium)
         .backgroundColor($r('app.color.terminal_inverse_surface')).fontColor($r('app.color.terminal_inverse_on_surface'))
         .enabled(this.canPurchase()).onClick(() => this.purchaseSelectedPlan())
-      Text(I18n.get(this.selectedPlanCode === 'pro_lifetime' ? 'membership.plan_lifetime_detail' : 'membership.cancel_guide'))
-        .fontSize(13).fontColor($r('app.color.terminal_text_muted')).lineHeight(20).width('100%')
+      if (this.selectedPlanCode === 'pro_lifetime') {
+        Text(I18n.get('membership.plan_lifetime_detail'))
+          .fontSize(13).fontColor($r('app.color.terminal_text_muted')).lineHeight(20).width('100%')
+      } else {
+        this.CancelPanel()
+      }
     }.width('100%')
   }
 
@@ -412,12 +408,11 @@ export struct MembershipPage {
           .backgroundColor($r('app.color.terminal_inverse_surface')).fontColor($r('app.color.terminal_inverse_on_surface'))
           .enabled(!this.isRestoring && !this.isPurchasing).onClick(() => this.manageSubscription())
         Text(I18n.get('account.huawei_manage_note')).fontSize(13).fontColor($r('app.color.terminal_text_muted')).lineHeight(20)
-        Text(I18n.get('membership.cancel_guide')).fontSize(13).fontColor($r('app.color.terminal_text_muted')).lineHeight(20)
+        this.CancelPanel()
       }
       Button(I18n.get('account.sync_purchases')).width('100%').height(48)
         .backgroundColor($r('app.color.terminal_background_panel')).fontColor($r('app.color.terminal_text'))
         .enabled(!this.isRestoring && !this.isPurchasing).onClick(() => this.restorePurchases())
-      this.RedeemRow()
     }.width('100%')
   }
 
@@ -430,11 +425,12 @@ export struct MembershipPage {
   }
 
   @Builder
-  RedeemRow() {
-    Row() {
-      Text(I18n.get('membership.menu_redeem')).fontSize(16).fontColor($r('app.color.terminal_text')).layoutWeight(1)
-      SymbolGlyph($r('sys.symbol.chevron_right')).fontSize(16).fontColor([$r('app.color.terminal_text_muted')])
-    }.width('100%').height(56).padding({ left: 16, right: 16 }).borderRadius(12)
-      .backgroundColor($r('app.color.terminal_background_panel')).onClick(() => this.openRedeem())
+  CancelPanel() {
+    Column({ space: 6 }) {
+      Text(I18n.get('membership.cancel_title')).fontSize(14).fontWeight(FontWeight.Medium).fontColor($r('app.color.terminal_text'))
+      Text(I18n.get('membership.cancel_how')).fontSize(13).fontColor($r('app.color.terminal_text_muted')).lineHeight(20).width('100%')
+      Text(I18n.get('membership.cancel_keep')).fontSize(13).fontColor($r('app.color.terminal_text_muted')).lineHeight(20).width('100%')
+    }.width('100%').alignItems(HorizontalAlign.Start).padding(16).borderRadius(12)
+      .backgroundColor($r('app.color.terminal_background_panel'))
   }
 }

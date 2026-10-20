@@ -41,7 +41,7 @@ export struct RedeemPage {
   }
 
   build() {
-    PageLayout({ title: I18n.get('membership.menu_redeem') }) {
+    PageLayout({ title: I18n.get('settings.redeem_code_nav') }) {
       Column() {
         TextInput({ placeholder: I18n.get('membership.redeem_placeholder'), text: this.redeemCodeInput })
           .width('100%')
