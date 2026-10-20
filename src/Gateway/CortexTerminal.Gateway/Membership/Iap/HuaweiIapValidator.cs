@@ -249,10 +249,12 @@ public sealed class HuaweiIapValidator : IHuaweiIapValidator
     private ECDsa JwtKey()
     {
         if (_jwtKey is not null) return _jwtKey;
+        // 兼容 env 里以字面 \n 存储的 PEM（与 AppleOAuth__PrivateKey 同一约定）
+        var pem = _options.SubscriptionPrivateKeyP8.Replace("\\n", "\n").Trim();
         var key = ECDsa.Create();
         try
         {
-            key.ImportFromPem(_options.SubscriptionPrivateKeyP8);
+            key.ImportFromPem(pem);
         }
         catch (Exception ex)
         {
