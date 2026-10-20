@@ -12,5 +12,15 @@ public sealed record HuaweiVerifiedTransaction(
 
 public interface IHuaweiIapValidator
 {
-    Task<HuaweiVerifiedTransaction> VerifyAsync(string purchaseToken, string productId, CancellationToken ct);
+    /// <summary>终身买断（非消耗型）：订单状态查询。</summary>
+    Task<HuaweiVerifiedTransaction> VerifyAsync(string purchaseToken, string purchaseOrderId, string productId, CancellationToken ct);
+
+    /// <summary>订单状态查询（不限制商品类型，供服务端通知等场景使用）。</summary>
+    Task<HuaweiVerifiedTransaction> VerifyOrderAsync(string purchaseToken, string purchaseOrderId, string productId, int expectedKind, CancellationToken ct);
+
+    /// <summary>
+    /// Verifies the JWS that IAP Kit's <c>createPurchase</c> returns for auto-renewable
+    /// subscriptions (PurchaseData.jwsSubscriptionStatus, an ES256 SubGroupStatusPayload).
+    /// </summary>
+    Task<HuaweiVerifiedTransaction> VerifySubscriptionJwsAsync(string jws, string productId, CancellationToken ct);
 }

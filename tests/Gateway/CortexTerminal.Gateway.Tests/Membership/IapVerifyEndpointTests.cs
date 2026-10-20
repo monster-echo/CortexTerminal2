@@ -77,9 +77,21 @@ public sealed class IapVerifyEndpointTests
     {
         private readonly HuaweiFactory _factory;
         public HuaweiStubValidator(HuaweiFactory factory) => _factory = factory;
-        public Task<HuaweiVerifiedTransaction> VerifyAsync(string purchaseToken, string productId, CancellationToken ct)
+        public Task<HuaweiVerifiedTransaction> VerifyAsync(string purchaseToken, string purchaseOrderId, string productId, CancellationToken ct)
         {
             if (_factory.ValidatorThrows) throw new IapReceiptInvalidException("stub: invalid Huawei token");
+            return Task.FromResult(_factory.Stub);
+        }
+
+        public Task<HuaweiVerifiedTransaction> VerifyOrderAsync(string purchaseToken, string purchaseOrderId, string productId, int expectedKind, CancellationToken ct)
+        {
+            if (_factory.ValidatorThrows) throw new IapReceiptInvalidException("stub: invalid Huawei token");
+            return Task.FromResult(_factory.Stub);
+        }
+
+        public Task<HuaweiVerifiedTransaction> VerifySubscriptionJwsAsync(string jws, string productId, CancellationToken ct)
+        {
+            if (_factory.ValidatorThrows) throw new IapReceiptInvalidException("stub: invalid Huawei subscription JWS");
             return Task.FromResult(_factory.Stub);
         }
     }
@@ -170,7 +182,7 @@ public sealed class IapVerifyEndpointTests
 
         async Task<HttpResponseMessage> Verify() => await client.PostAsJsonAsync("/api/iap/purchase/verify", new
         {
-            platform = "huawei", productId = "corterm.pro.lifetime", purchaseToken = "huawei-token-1"
+            platform = "huawei", productId = "corterm.pro.lifetime", purchaseToken = "huawei-token-1", purchaseOrderId = "huawei-order-1"
         });
 
         using var first = await Verify();

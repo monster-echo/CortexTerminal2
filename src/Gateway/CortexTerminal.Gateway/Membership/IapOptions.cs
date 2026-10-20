@@ -10,20 +10,30 @@ public sealed class IapOptions
 
 public sealed class HuaweiIapOptions
 {
-    /// <summary>AppGallery Connect app id (same value as appId/client_id).</summary>
+    /// <summary>AppGallery Connect app id (same value as appId/client_id). JWT 的 aid 与 JWS 的 applicationId 均用它校验。</summary>
     public string ClientId { get; set; } = "";
-    /// <summary>AppGallery Connect app secret. Supply through Iap__Huawei__ClientSecret.</summary>
-    public string ClientSecret { get; set; } = "";
-    /// <summary>Regional Huawei IAP order service root, without a trailing slash.</summary>
-    public string OrderRootUrl { get; set; } = "";
-    /// <summary>Regional Huawei IAP subscription service root, without a trailing slash.</summary>
-    public string SubscriptionRootUrl { get; set; } = "";
-    /// <summary>IAP payment public key from AppGallery Connect, base64-encoded SPKI.</summary>
-    public string PaymentPublicKey { get; set; } = "";
+    /// <summary>HarmonyOS IAP server root, without a trailing slash.</summary>
+    public string RootUrl { get; set; } = "https://iap.cloud.huawei.com";
+    /// <summary>Issuer ID of the in-app purchase server key（AGC 盈利 &gt; 应用内支付服务 &gt; 服务端密钥管理）。</summary>
+    public string IssuerId { get; set; } = "";
+    /// <summary>Key ID of the in-app purchase server key（JWT header 的 kid）。</summary>
+    public string KeyId { get; set; } = "";
+    /// <summary>
+    /// PEM (PKCS#8) content of the in-app purchase server key downloaded from AGC（.p8 文件全文）。
+    /// 通过 Iap__Huawei__SubscriptionPrivateKeyP8 注入，勿提交到仓库。
+    /// </summary>
+    public string SubscriptionPrivateKeyP8 { get; set; } = "";
+    /// <summary>HarmonyOS 包名，用于校验订阅 JWS 的 packageName。</summary>
+    public string BundleName { get; set; } = "";
+    /// <summary>
+    /// Base64 (DER) of the Huawei root certificate that anchors the x5c chain of the
+    /// subscription JWS. When empty the chain is not pinned and only the payload identity
+    /// fields are checked — configure this before enabling real money purchases.
+    /// </summary>
+    public string SubscriptionJwsRootCertBase64 { get; set; } = "";
     public string ProMonthProductId { get; set; } = "corterm.pro.month";
     public string ProYearProductId { get; set; } = "corterm.pro.year";
     public string ProLifetimeProductId { get; set; } = "corterm.pro.lifetime";
-    public string TokenUrl { get; set; } = "https://oauth-login.cloud.huawei.com/oauth2/v3/token";
 }
 
 public sealed class AppleIapOptions

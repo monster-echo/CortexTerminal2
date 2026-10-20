@@ -2624,10 +2624,15 @@ app.MapPost("/api/iap/purchase/verify", async (VerifyIapPurchaseRequest body, Cl
     var userId = GetUserId(user);
     var membership = serviceProvider.GetRequiredService<MembershipService>();
     Subscription sub;
+    string? verifiedPurchaseToken = null;
+    string? verifiedPurchaseOrderId = null;
     if (string.Equals(body.Platform, "huawei", StringComparison.OrdinalIgnoreCase))
     {
-        if (string.IsNullOrWhiteSpace(body.PurchaseToken))
-            return Results.BadRequest(new { errorCode = "iap_receipt_invalid", message = "Huawei purchase token is required." });
+        // 带签名的订阅 JWS 走订阅验签；只带 purchaseToken 的（终身/老客户端）走订单校验。
+        var hasSubscriptionJws = !string.IsNullOrWhiteSpace(body.SignedTransaction);
+        if (!hasSubscriptionJws && (string.IsNullOrWhiteSpace(body.PurchaseToken)
+            || string.IsNullOrWhiteSpace(body.PurchaseOrderId)))
+            return Results.BadRequest(new { errorCode = "iap_receipt_invalid", message = "Huawei purchase token and order id are required." });
         var options = serviceProvider.GetRequiredService<IapOptions>().Huawei;
         var planCode = HuaweiProductIds.ToPlanCode(options, body.ProductId);
         if (planCode is null)
@@ -2635,8 +2640,13 @@ app.MapPost("/api/iap/purchase/verify", async (VerifyIapPurchaseRequest body, Cl
         try
         {
             var validator = serviceProvider.GetRequiredService<IHuaweiIapValidator>();
-            var verified = await validator.VerifyAsync(body.PurchaseToken, body.ProductId, ct);
+            // 带签名的订阅 JWS 走订阅验签；只带 purchaseToken 的（终身/老客户端）走订单校验。
+            var verified = string.IsNullOrWhiteSpace(body.SignedTransaction)
+                ? await validator.VerifyAsync(body.PurchaseToken ?? "", body.PurchaseOrderId ?? "", body.ProductId, ct)
+                : await validator.VerifySubscriptionJwsAsync(body.SignedTransaction, body.ProductId, ct);
             sub = await membership.GrantFromHuaweiIapAsync(userId, verified, planCode, ct);
+            verifiedPurchaseToken = verified.PurchaseToken;
+            verifiedPurchaseOrderId = verified.PurchaseOrderId;
         }
         catch (IapReceiptInvalidException ex) { return Results.BadRequest(new { errorCode = IapReceiptInvalidException.ErrorCode, message = ex.Message }); }
         catch (ArgumentException ex) { return Results.BadRequest(new { errorCode = "iap_invalid_product", message = ex.Message }); }
@@ -2693,7 +2703,15 @@ app.MapPost("/api/iap/purchase/verify", async (VerifyIapPurchaseRequest body, Cl
         UserId: userId, UserName: userId, Action: "membership.iap_verify",
         TargetEntity: "subscription", TargetId: sub.Id));
     await serviceProvider.GetRequiredService<ReferralService>().RewardIfEligibleAsync(userId, "iap", ct);
-    return Results.Ok(new { subscriptionId = sub.Id, isActive = sub.Status == SubscriptionStatuses.Active, expiresAtUtc = sub.ExpiresAtUtc });
+    return Results.Ok(new
+    {
+        subscriptionId = sub.Id,
+        isActive = sub.Status == SubscriptionStatuses.Active,
+        expiresAtUtc = sub.ExpiresAtUtc,
+        // 客户端凭这两个字段向 IAP Kit 发送 finishPurchase（华为订阅要求确认发货）
+        purchaseToken = verifiedPurchaseToken,
+        purchaseOrderId = verifiedPurchaseOrderId
+    });
 }).RequireAuthorization();
 
 // 华为订阅服务端通知（AGC「订阅消息通知」回调地址）：续订 / 过期 / 取消。匿名端点——信任来自
@@ -2702,11 +2720,16 @@ app.MapPost("/api/iap/purchase/verify", async (VerifyIapPurchaseRequest body, Cl
 app.MapPost("/api/iap/webhook/huawei", async (HttpContext ctx, JsonElement body, IServiceProvider serviceProvider) =>
 {
     string? token = null;
+    string? purchaseOrderId = null;
     string productId = "";
     if (body.ValueKind == JsonValueKind.Object)
     {
         if (body.TryGetProperty("purchaseToken", out var t) && t.ValueKind == JsonValueKind.String)
             token = t.GetString();
+        if (body.TryGetProperty("purchaseOrderId", out var po) && po.ValueKind == JsonValueKind.String)
+            purchaseOrderId = po.GetString();
+        else if (body.TryGetProperty("orderId", out var oi) && oi.ValueKind == JsonValueKind.String)
+            purchaseOrderId = oi.GetString();
         if (body.TryGetProperty("productId", out var p) && p.ValueKind == JsonValueKind.String)
             productId = p.GetString() ?? "";
         else if (body.TryGetProperty("subscriptionId", out var sid) && sid.ValueKind == JsonValueKind.String)
@@ -2719,7 +2742,8 @@ app.MapPost("/api/iap/webhook/huawei", async (HttpContext ctx, JsonElement body,
     HuaweiVerifiedTransaction verified;
     try
     {
-        verified = await validator.VerifyAsync(token, productId, ctx.RequestAborted);
+        verified = await validator.VerifyOrderAsync(
+            token, purchaseOrderId ?? string.Empty, productId, expectedKind: 0, ctx.RequestAborted);
     }
     catch (IapReceiptInvalidException ex)
     {
@@ -4199,7 +4223,8 @@ public sealed record VerifyIapPurchaseRequest(
     string ProductId,
     string SignedTransaction = "",
     string ReceiptFormat = "jws",
-    string? PurchaseToken = null
+    string? PurchaseToken = null,
+    string? PurchaseOrderId = null
 );
 
 public partial class Program;
