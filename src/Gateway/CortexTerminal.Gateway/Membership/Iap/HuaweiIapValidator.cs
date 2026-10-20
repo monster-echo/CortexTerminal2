@@ -197,6 +197,8 @@ public sealed class HuaweiIapValidator : IHuaweiIapValidator
         request.Content = new StringContent(bodyJson, Encoding.UTF8, "application/json");
         using var response = await _http.SendAsync(request, ct);
         var json = await response.Content.ReadAsStringAsync(ct);
+        _logger.LogInformation("Huawei IAP {Path} -> HTTP {Status} body: {Body}", path,
+            (int)response.StatusCode, json);
         if (!response.IsSuccessStatusCode)
             throw new IapReceiptInvalidException($"Huawei IAP verification service returned HTTP {(int)response.StatusCode}.");
         try
