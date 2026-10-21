@@ -224,9 +224,12 @@ jobs:
       - name: Guard bundled worker
         run: |
           # 护栏：worker 必须真的进了构建产物且版本与下载的 release 一致。
+          # bundle 里的资产权限被 CMake install 归一成 644（App 复制到 ~/.corterm
+          # 时会自行 chmod +x），所以这里只查存在性，探版本前临时补 +x。
           BIN="src/Flutter/worker_ui/build/linux/x64/release/bundle/data/flutter_assets/assets/bin/corterm"
-          test -x "$BIN" || { echo "::error::bundled worker missing from build output"; exit 1; }
+          test -f "$BIN" || { echo "::error::bundled worker missing from build output"; exit 1; }
           test -f "$(dirname "$BIN")/appsettings.json" || { echo "::error::appsettings.json missing next to worker"; exit 1; }
+          chmod +x "$BIN"
           prefix="${WORKER_TAG#worker-v}"
           ver=$("$BIN" --version | head -n1)
           case "$ver" in
