@@ -93,9 +93,9 @@ BEGIN
             VALUE "CompanyName", "Corterm" "\0"
             VALUE "FileDescription", "云枢终端 — Worker 桌面控制面板" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "worker_ui" "\0"
+            VALUE "InternalName", "Corterm" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 Corterm. All rights reserved." "\0"
-            VALUE "OriginalFilename", "worker_ui.exe" "\0"
+            VALUE "OriginalFilename", "Corterm.exe" "\0"
             VALUE "ProductName", "云枢终端" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END

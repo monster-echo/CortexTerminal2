@@ -53,8 +53,9 @@ Future<BinaryPaths?> resolveBinaryPaths() async {
 /// App 与 worker 一体：`~/.corterm` 里没有 worker 就装内置的；装过但不支持
 /// `--json`（worker <0.5.16，install.ps1 / 手动安装的遗留）就用内置的修掉。
 /// 幂等，每次启动跑一遍都安全。
-Future<void> ensureWorkerInstalled() async {
-  await ensureWorkerInstalledFrom(
+/// 返回本次是否安装/修复过二进制（调用方据此重启运行中的旧镜像进程）。
+Future<bool> ensureWorkerInstalled() {
+  return ensureWorkerInstalledFrom(
     homeDir: _homeDir(),
     exePath: Platform.resolvedExecutable,
     isWindows: Platform.isWindows,
@@ -63,13 +64,14 @@ Future<void> ensureWorkerInstalled() async {
 }
 
 /// 安装/修复入口，参数仅供测试注入（[ensureWorkerInstalled] 从当前进程取值）。
-Future<void> ensureWorkerInstalledFrom({
+/// 返回是否替换过二进制。
+Future<bool> ensureWorkerInstalledFrom({
   required String? homeDir,
   required String exePath,
   required bool isWindows,
   required bool isMacOS,
 }) async {
-  if (homeDir == null) return;
+  if (homeDir == null) return false;
   final installDir = p.join(homeDir, '.corterm');
   final cortermName = isWindows ? 'corterm.exe' : 'corterm';
 
@@ -77,18 +79,29 @@ Future<void> ensureWorkerInstalledFrom({
   if (installedCorterm.existsSync()) {
     // 没有内置二进制（开发环境）就无从修起，直接用现有安装。
     if (bundledAssetPathFor(cortermName, exePath: exePath, isMacOS: isMacOS) == null) {
-      return;
+      return false;
     }
-    if (await _supportsJson(installedCorterm.path)) return;
+    if (await _supportsJson(installedCorterm.path)) return false;
     // 旧版：落到下面用内置 worker 覆盖修复。
   }
-  await _installBundledWorker(installDir, exePath: exePath, isWindows: isWindows, isMacOS: isMacOS);
+  return _installBundledWorker(
+    installDir,
+    exePath: exePath,
+    isWindows: isWindows,
+    isMacOS: isMacOS,
+  );
 }
 
 /// `status --help` 输出里 `--json` 选项（System.CommandLine 只显示首个别名，即裸
 /// `json`）所在的行。探测用行首匹配：误报（把旧版判成支持）会让 App 继续用坏
 /// 二进制，必须紧；漏报（把新版判成不支持）只是白修一次，无害。
 final jsonOptionPattern = RegExp(r'^\s*json\b', multiLine: true);
+
+/// `update --help` 输出里 `--no-service-restart` 选项所在行。桌面 App 托管
+/// worker 子进程时更新完由 App 重启；但旧 worker（≤0.5.23）不认识该选项会
+/// 直接报错退出 —— 更新前必须探测，没有就不传（legacy 路径仍走 CLI 内部的
+/// launchctl 重启，App 侧 restart() 的迁移逻辑会收敛回托管模式）。
+final noRestartOptionPattern = RegExp(r'^\s*no-service-restart\b', multiLine: true);
 
 /// 探测 CLI 是否支持 `--json`（App 的调用契约，worker ≥0.5.16）。
 /// `status --help` 是纯解析调用——不执行命令逻辑、无网络副作用，新旧版本行为一致。
@@ -109,16 +122,35 @@ Future<bool> _probeJson(String cortermPath) async {
   }
 }
 
+/// 探测 CLI 是否支持 `update --no-service-restart`（worker ≥0.5.24）。
+/// `update --help` 是纯解析调用；结果按路径缓存，理由同 [_supportsJson]。
+final _noRestartProbeCache = <String, bool>{};
+
+Future<bool> supportsNoServiceRestart(String cortermPath) async {
+  return _noRestartProbeCache[cortermPath] ??= await _probeNoServiceRestart(cortermPath);
+}
+
+Future<bool> _probeNoServiceRestart(String cortermPath) async {
+  try {
+    final r = await Process.run(cortermPath, ['update', '--help']);
+    return r.exitCode == 0 && noRestartOptionPattern.hasMatch(r.stdout as String? ?? '');
+  } catch (_) {
+    return false;
+  }
+}
+
 /// 把 App 内置的 corterm/appsettings.json 装到 [installDir]（幂等）。
 /// appsettings.json 是用户的网关配置，只补缺不覆盖；二进制总是补齐/替换。
-Future<void> _installBundledWorker(String installDir,
+/// 返回是否写入了二进制。
+Future<bool> _installBundledWorker(String installDir,
     {required String exePath, required bool isWindows, required bool isMacOS}) async {
   final cortermName = isWindows ? 'corterm.exe' : 'corterm';
 
   if (bundledAssetPathFor(cortermName, exePath: exePath, isMacOS: isMacOS) == null) {
-    return; // 没内置二进制，交给安装/设置
+    return false; // 没内置二进制，交给安装/设置
   }
 
+  var installed = false;
   try {
     Directory(installDir).createSync(recursive: true);
     for (final name in [cortermName, 'appsettings.json']) {
@@ -127,6 +159,7 @@ Future<void> _installBundledWorker(String installDir,
       final dest = File(p.join(installDir, name));
       if (name == 'appsettings.json' && dest.existsSync()) continue;
       _replaceFile(File(src), dest, isWindows: isWindows);
+      if (name == cortermName) installed = true;
     }
   } catch (_) {
     // 装失败不阻塞，resolveBinaryPaths 还有 PATH 兜底
@@ -140,6 +173,7 @@ Future<void> _installBundledWorker(String installDir,
       // 服务未安装（全新机器）等场景重启失败不阻塞；下次登录计划任务自然用新二进制。
     }
   }
+  return installed;
 }
 
 /// 覆盖目标文件。Windows 对正在运行的 exe 持有镜像锁：删不掉、但可以改名。

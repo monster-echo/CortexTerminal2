@@ -28,10 +28,17 @@ class CortermService {
   }
 
   /// 流式更新阶段（check → download → extract → install → restart → done / error）。
-  Stream<UpdateProgress> update() {
+  /// [noServiceRestart]：macOS App 托管 worker 时传 true（先经
+  /// supportsNoServiceRestart 探测），更新完由 WorkerProcessController 重启，
+  /// CLI 不再走 launchctl（会拉起第二实例）。
+  Stream<UpdateProgress> update({bool noServiceRestart = false}) {
     return _runStream(
       cortermPath,
-      ['update', '--json'],
+      [
+        'update',
+        '--json',
+        if (noServiceRestart) '--no-service-restart',
+      ],
       UpdateProgress.fromJson,
       (s) => s.isError,
     );

@@ -7,6 +7,12 @@ import 'package:path/path.dart' as p;
 /// （worker-ui-release.yml 的 flutter build 带）。
 const appVersion = String.fromEnvironment('UI_VERSION', defaultValue: '0.0.0');
 
+/// Microsoft Store packages are updated by the Store.
+const isStoreBuild = bool.fromEnvironment('STORE_BUILD', defaultValue: false);
+const isWindowsStoreBuild =
+    isStoreBuild &&
+    bool.fromEnvironment('WINDOWS_STORE_BUILD', defaultValue: false);
+
 /// UI 自更新检查结果。
 class UiUpdateCheck {
   const UiUpdateCheck({
@@ -46,7 +52,7 @@ class SelfUpdater {
   }
 
   static HttpClient _client() {
-    final c = HttpClient() ..autoUncompress = true;
+    final c = HttpClient()..autoUncompress = true;
     c.userAgent = 'Corterm-UI/$appVersion';
     return c;
   }
@@ -54,6 +60,7 @@ class SelfUpdater {
   /// 查最新 `ui-v*` release。多个 release 里取最高 semver（对齐 C# 侧：
   /// GitHub /releases 列表不保证按版本排序）。
   static Future<UiUpdateCheck> check() async {
+    if (isStoreBuild) throw UnsupportedError('商店版本由 Microsoft Store 管理更新');
     final assetName = _assetName;
     final latest = await _latestVersion();
     final url =
@@ -103,11 +110,15 @@ class SelfUpdater {
   }
 
   static Future<String> _latestViaApi() async {
-    final req = await _client().getUrl(Uri.parse('https://api.github.com/repos/$_repo/releases'));
+    final req = await _client().getUrl(
+      Uri.parse('https://api.github.com/repos/$_repo/releases'),
+    );
     final resp = await req.close();
     final body = await resp.transform(utf8.decoder).join();
     if (resp.statusCode != 200) {
-      throw HttpException('获取 releases 失败：${resp.statusCode}（匿名配额 60 次/h/IP 可能已超）');
+      throw HttpException(
+        '获取 releases 失败：${resp.statusCode}（匿名配额 60 次/h/IP 可能已超）',
+      );
     }
     final releases = jsonDecode(body) as List;
     String? best;
@@ -134,13 +145,18 @@ class SelfUpdater {
   /// 从 URL 或 HTML 文本里抓最高语义的 `ui-v<semver>`（首个匹配即可：
   /// redirect Location 与 tag 页标题都只含目标版本）。
   static String? _tagFromText(String text) {
-    final m = RegExp(RegExp.escape(_tagPrefix) + r'(\d+(?:\.\d+)+)').firstMatch(text);
+    final m = RegExp(
+      RegExp.escape(_tagPrefix) + r'(\d+(?:\.\d+)+)',
+    ).firstMatch(text);
     return m?.group(1);
   }
 
   /// 下载并应用更新。成功路径**不返回**：安装包启动后直接 exit(0)。
   /// [onProgress] 收到 (已接收字节, 总字节|null)。
-  static Future<void> apply({void Function(int received, int? total)? onProgress}) async {
+  static Future<void> apply({
+    void Function(int received, int? total)? onProgress,
+  }) async {
+    if (isStoreBuild) throw UnsupportedError('商店版本由 Microsoft Store 管理更新');
     final latest = await check();
     if (!latest.updateAvailable) {
       throw StateError('已是最新版本（v${latest.currentVersion}），无需更新');
@@ -153,7 +169,10 @@ class SelfUpdater {
     }
   }
 
-  static Future<File> _download(String url, void Function(int, int?)? onProgress) async {
+  static Future<File> _download(
+    String url,
+    void Function(int, int?)? onProgress,
+  ) async {
     final req = await _client().getUrl(Uri.parse(url));
     final resp = await req.close();
     if (resp.statusCode != 200) {
@@ -183,13 +202,24 @@ class SelfUpdater {
     if (Directory(mnt).existsSync()) {
       await _run('hdiutil', ['detach', mnt, '-force']);
     }
-    await _run('hdiutil', ['attach', dmg.path, '-nobrowse', '-readonly', '-mountpoint', mnt]);
+    await _run('hdiutil', [
+      'attach',
+      dmg.path,
+      '-nobrowse',
+      '-readonly',
+      '-mountpoint',
+      mnt,
+    ]);
     try {
       final entries = Directory(mnt).listSync();
-      final app = entries.firstWhere(
-        (e) => e is Directory && e.path.endsWith('.app'),
-        orElse: () => throw StateError('DMG 内没有 .app：${entries.map((e) => e.path)}'),
-      ) as Directory;
+      final app =
+          entries.firstWhere(
+                (e) => e is Directory && e.path.endsWith('.app'),
+                orElse: () => throw StateError(
+                  'DMG 内没有 .app：${entries.map((e) => e.path)}',
+                ),
+              )
+              as Directory;
 
       // ditto 保留权限/元数据，覆盖运行中的 .app 是安全且推荐的方式。
       await _run('ditto', [app.path, _macosAppBundle()]);
@@ -200,7 +230,7 @@ class SelfUpdater {
     exit(0);
   }
 
-  /// 当前 .app 包路径：<...>/Worker UI.app/Contents/MacOS/worker_ui → 上两级。
+  /// 当前 .app 包路径：<...>/Corterm.app/Contents/MacOS/Corterm → 上两级。
   static String _macosAppBundle() {
     final exeDir = p.dirname(Platform.resolvedExecutable);
     return p.normalize(p.join(exeDir, '..', '..'));
@@ -215,7 +245,7 @@ class SelfUpdater {
       '/CLOSEAPPLICATIONS',
       '/RESTARTAPPLICATIONS',
     ]);
-    // 安装器已启动；等它读到启动状态即可退出，释放 worker_ui.exe 的镜像锁。
+    // 安装器已启动；等它读到启动状态即可退出，释放 Corterm.exe 的镜像锁。
     await proc.stdout.drain<void>();
     exit(0);
   }
@@ -223,8 +253,14 @@ class SelfUpdater {
   static Future<void> _run(String executable, List<String> args) async {
     final r = await Process.run(executable, args);
     if (r.exitCode != 0) {
-      throw ProcessException(executable, args,
-          '${r.stderr}'.trim().isEmpty ? '$executable 退出码 ${r.exitCode}' : '${r.stderr}'.trim(), r.exitCode);
+      throw ProcessException(
+        executable,
+        args,
+        '${r.stderr}'.trim().isEmpty
+            ? '$executable 退出码 ${r.exitCode}'
+            : '${r.stderr}'.trim(),
+        r.exitCode,
+      );
     }
   }
 }
@@ -250,7 +286,9 @@ class Version implements Comparable<Version> {
 
   @override
   int compareTo(Version other) {
-    final n = parts.length > other.parts.length ? parts.length : other.parts.length;
+    final n = parts.length > other.parts.length
+        ? parts.length
+        : other.parts.length;
     for (var i = 0; i < n; i++) {
       final a = i < parts.length ? parts[i] : 0;
       final b = i < other.parts.length ? other.parts[i] : 0;

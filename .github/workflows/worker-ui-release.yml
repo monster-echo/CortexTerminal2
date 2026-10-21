@@ -29,12 +29,21 @@ jobs:
       - name: Download worker binaries (osx-arm64)
         run: |
           # v0.5.21 起 cortap 退役（hooks 注入取代），UI 不再捆绑 cortap。
-          latest=worker-v0.5.21
+          # 动态取最新 worker release：硬编码版本曾让发布的 UI 内置落后 3 个
+          # 版本的 worker，协议失配不可用（ui-v* tag 全部 4 个 job 同此逻辑）。
+          latest=$(gh api "repos/$GITHUB_REPOSITORY/releases" --paginate --jq '
+            [.[].tag_name
+              | select(test("^worker-v[0-9]+\\.[0-9]+\\.[0-9]+$"))
+              | {tag: ., parts: (ltrimstr("worker-v") | split(".") | map(tonumber))}]
+            | sort_by(.parts) | last | .tag')
+          test -n "$latest" || { echo "::error::no worker-v* release found"; exit 1; }
           echo "bundling worker release: $latest"
+          echo "WORKER_TAG=$latest" >> "$GITHUB_ENV"
           mkdir -p /tmp/worker src/Flutter/worker_ui/assets/bin
           gh release download "$latest" --pattern 'corterm-osx-arm64.tar.gz' --dir /tmp/worker
           tar -xzf /tmp/worker/corterm-osx-arm64.tar.gz -C /tmp/worker
           cp /tmp/worker/corterm /tmp/worker/appsettings.json src/Flutter/worker_ui/assets/bin/
+          test -s src/Flutter/worker_ui/assets/bin/corterm
         env:
           GH_TOKEN: ${{ github.token }}
 
@@ -52,12 +61,33 @@ jobs:
           # --build-name 同时写进 macOS CFBundleShortVersionString 和 Windows exe 版本资源
           flutter build macos --release --dart-define=UI_VERSION="$UI_VERSION" --build-name="$UI_VERSION"
 
+      - name: Guard bundled worker
+        run: |
+          # 护栏：worker 必须真的进了 .app 且版本与下载的 release 一致
+          # （ui-v0.1.0 曾因资产声明漏 .exe 发过没有 worker 的包）。
+          APP=src/Flutter/worker_ui/build/macos/Build/Products/Release/Corterm.app
+          BIN=""
+          for c in \
+            "$APP/Contents/Resources/flutter_assets/assets/bin/corterm" \
+            "$APP/Contents/Frameworks/App.framework/Versions/A/Resources/flutter_assets/assets/bin/corterm"; do
+            if [ -f "$c" ]; then BIN="$c"; break; fi
+          done
+          test -n "$BIN" || { echo "::error::bundled worker missing from Corterm.app"; exit 1; }
+          test -f "$(dirname "$BIN")/appsettings.json" || { echo "::error::appsettings.json missing next to worker"; exit 1; }
+          prefix="${WORKER_TAG#worker-v}"
+          ver=$("$BIN" --version | head -n1)
+          case "$ver" in
+            "$prefix"|"$prefix"-*|"$prefix"+*) ;;
+            *) echo "::error::bundled worker version '$ver' does not match $WORKER_TAG"; exit 1 ;;
+          esac
+          echo "bundled worker OK: $ver"
+
       - name: Package .dmg
         run: |
           # 标准 macOS 拖拽安装包：.app + /Applications 快捷方式
           # 固定文件名（不带版本号）：self_updater.dart 通过 releases/latest/download 直达
           mkdir -p /tmp/dmg-root
-          cp -R src/Flutter/worker_ui/build/macos/Build/Products/Release/worker_ui.app /tmp/dmg-root/
+          cp -R src/Flutter/worker_ui/build/macos/Build/Products/Release/Corterm.app /tmp/dmg-root/
           ln -s /Applications /tmp/dmg-root/Applications
           hdiutil create -volname "云枢终端" -srcfolder /tmp/dmg-root -ov \
             -format UDZO /tmp/corterm-ui-macos.dmg
@@ -85,8 +115,15 @@ jobs:
         shell: bash
         run: |
           # v0.5.21 起 cortap 退役（hooks 注入取代），UI 不再捆绑 cortap。
-          latest=worker-v0.5.21
+          # 动态取最新 worker release（同 build-macos，防硬编码版本落后）。
+          latest=$(gh api "repos/$GITHUB_REPOSITORY/releases" --paginate --jq '
+            [.[].tag_name
+              | select(test("^worker-v[0-9]+\\.[0-9]+\\.[0-9]+$"))
+              | {tag: ., parts: (ltrimstr("worker-v") | split(".") | map(tonumber))}]
+            | sort_by(.parts) | last | .tag')
+          test -n "$latest" || { echo "::error::no worker-v* release found"; exit 1; }
           echo "bundling worker release: $latest"
+          echo "WORKER_TAG=$latest" >> "$GITHUB_ENV"
           mkdir -p /tmp/worker src/Flutter/worker_ui/assets/bin
           gh release download "$latest" --pattern 'corterm-win-x64.zip' --dir /tmp/worker
           cd /tmp/worker && unzip -o corterm-win-x64.zip -d win && cd -
@@ -94,6 +131,7 @@ jobs:
           # assets/bin 声明为目录资产，repo 里提交的 mac 二进制会被一起打进 Windows
           # 包（白胖 40MB 死重）——拷入 .exe 后清掉 Unix 名的旧文件。
           rm -f src/Flutter/worker_ui/assets/bin/corterm
+          test -s src/Flutter/worker_ui/assets/bin/corterm.exe
         env:
           GH_TOKEN: ${{ github.token }}
 
@@ -109,6 +147,21 @@ jobs:
         run: |
           flutter pub get
           flutter build windows --release --dart-define=UI_VERSION="$UI_VERSION" --build-name="$UI_VERSION"
+
+      - name: Guard bundled worker
+        shell: bash
+        run: |
+          # 护栏：worker 必须真的进了构建产物且版本与下载的 release 一致。
+          BIN="src/Flutter/worker_ui/build/windows/x64/runner/Release/Data/flutter_assets/assets/bin/corterm.exe"
+          test -f "$BIN" || { echo "::error::bundled worker missing from build output"; exit 1; }
+          test -f "$(dirname "$BIN")/appsettings.json" || { echo "::error::appsettings.json missing next to worker"; exit 1; }
+          prefix="${WORKER_TAG#worker-v}"
+          ver=$("$BIN" --version | head -n1)
+          case "$ver" in
+            "$prefix"|"$prefix"-*|"$prefix"+*) ;;
+            *) echo "::error::bundled worker version '$ver' does not match $WORKER_TAG"; exit 1 ;;
+          esac
+          echo "bundled worker OK: $ver"
 
       - name: Install Inno Setup
         run: choco install innosetup --no-progress -y
@@ -145,12 +198,20 @@ jobs:
       - name: Download worker binaries (linux-x64)
         run: |
           # v0.5.21 起 cortap 退役（hooks 注入取代），UI 不再捆绑 cortap。
-          latest=worker-v0.5.21
+          # 动态取最新 worker release（同 build-macos，防硬编码版本落后）。
+          latest=$(gh api "repos/$GITHUB_REPOSITORY/releases" --paginate --jq '
+            [.[].tag_name
+              | select(test("^worker-v[0-9]+\\.[0-9]+\\.[0-9]+$"))
+              | {tag: ., parts: (ltrimstr("worker-v") | split(".") | map(tonumber))}]
+            | sort_by(.parts) | last | .tag')
+          test -n "$latest" || { echo "::error::no worker-v* release found"; exit 1; }
           echo "bundling worker release: $latest"
+          echo "WORKER_TAG=$latest" >> "$GITHUB_ENV"
           mkdir -p /tmp/worker src/Flutter/worker_ui/assets/bin
           gh release download "$latest" --pattern 'corterm-linux-x64.tar.gz' --dir /tmp/worker
           tar -xzf /tmp/worker/corterm-linux-x64.tar.gz -C /tmp/worker
           cp /tmp/worker/corterm /tmp/worker/appsettings.json src/Flutter/worker_ui/assets/bin/
+          test -s src/Flutter/worker_ui/assets/bin/corterm
         env:
           GH_TOKEN: ${{ github.token }}
 
@@ -159,6 +220,20 @@ jobs:
         run: |
           flutter pub get
           flutter build linux --release
+
+      - name: Guard bundled worker
+        run: |
+          # 护栏：worker 必须真的进了构建产物且版本与下载的 release 一致。
+          BIN="src/Flutter/worker_ui/build/linux/x64/release/bundle/data/flutter_assets/assets/bin/corterm"
+          test -x "$BIN" || { echo "::error::bundled worker missing from build output"; exit 1; }
+          test -f "$(dirname "$BIN")/appsettings.json" || { echo "::error::appsettings.json missing next to worker"; exit 1; }
+          prefix="${WORKER_TAG#worker-v}"
+          ver=$("$BIN" --version | head -n1)
+          case "$ver" in
+            "$prefix"|"$prefix"-*|"$prefix"+*) ;;
+            *) echo "::error::bundled worker version '$ver' does not match $WORKER_TAG"; exit 1 ;;
+          esac
+          echo "bundled worker OK: $ver"
 
       - name: Package
         run: |

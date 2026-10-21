@@ -48,3 +48,5 @@ src/Flutter/**/.flutter-plugins-dependencies
 .test/
 # Emulator smoke-test screenshots and temp signing artifacts
 .shots/
+# Windows Store MSIX build artifacts
+src/Flutter/worker_ui/artifacts/

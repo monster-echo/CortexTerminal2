@@ -1,0 +1,89 @@
+name: Worker UI Microsoft Store MSIX
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Four-part MSIX version, for example 0.2.1.0
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build-msix:
+    if: ${{ vars.MS_STORE_IDENTITY_NAME != '' && vars.MS_STORE_PUBLISHER != '' && vars.MS_STORE_PUBLISHER_DISPLAY_NAME != '' }}
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: Validate Store identity and version
+        shell: pwsh
+        env:
+          MSIX_VERSION: ${{ inputs.version }}
+          STORE_IDENTITY: ${{ vars.MS_STORE_IDENTITY_NAME }}
+          STORE_PUBLISHER: ${{ vars.MS_STORE_PUBLISHER }}
+          STORE_PUBLISHER_NAME: ${{ vars.MS_STORE_PUBLISHER_DISPLAY_NAME }}
+        run: |
+          if ($env:MSIX_VERSION -notmatch '^\d+\.\d+\.\d+\.\d+$') { throw 'MSIX version must have four numeric parts.' }
+          if ([string]::IsNullOrWhiteSpace($env:STORE_IDENTITY) -or [string]::IsNullOrWhiteSpace($env:STORE_PUBLISHER) -or [string]::IsNullOrWhiteSpace($env:STORE_PUBLISHER_NAME)) { throw 'Set Store identity variables from Partner Center before running this workflow.' }
+      - name: Download worker binary
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # 动态取最新 worker release（同 worker-ui-release.yml，防硬编码版本落后）。
+          latest=$(gh api "repos/$GITHUB_REPOSITORY/releases" --paginate --jq '
+            [.[].tag_name
+              | select(test("^worker-v[0-9]+\\.[0-9]+\\.[0-9]+$"))
+              | {tag: ., parts: (ltrimstr("worker-v") | split(".") | map(tonumber))}]
+            | sort_by(.parts) | last | .tag')
+          test -n "$latest" || { echo "::error::no worker-v* release found"; exit 1; }
+          echo "bundling worker release: $latest"
+          echo "WORKER_TAG=$latest" >> "$GITHUB_ENV"
+          mkdir -p /tmp/worker src/Flutter/worker_ui/assets/bin
+          gh release download "$latest" --pattern 'corterm-win-x64.zip' --dir /tmp/worker
+          unzip -o /tmp/worker/corterm-win-x64.zip -d /tmp/worker/win
+          cp /tmp/worker/win/corterm.exe /tmp/worker/win/appsettings.json src/Flutter/worker_ui/assets/bin/
+          rm -f src/Flutter/worker_ui/assets/bin/corterm
+          test -s src/Flutter/worker_ui/assets/bin/corterm.exe
+      - name: Build Windows app
+        shell: pwsh
+        working-directory: src/Flutter/worker_ui
+        env:
+          UI_VERSION: ${{ inputs.version }}
+        run: |
+          flutter pub get
+          flutter test
+          flutter build windows --release --dart-define="UI_VERSION=$env:UI_VERSION" --dart-define=STORE_BUILD=true --dart-define=WINDOWS_STORE_BUILD=true --build-name="$env:UI_VERSION"
+      - name: Guard bundled worker
+        shell: bash
+        run: |
+          # 护栏：worker 必须真的进了构建产物且版本与下载的 release 一致。
+          BIN="src/Flutter/worker_ui/build/windows/x64/runner/Release/Data/flutter_assets/assets/bin/corterm.exe"
+          test -f "$BIN" || { echo "::error::bundled worker missing from build output"; exit 1; }
+          prefix="${WORKER_TAG#worker-v}"
+          ver=$("$BIN" --version | head -n1)
+          case "$ver" in
+            "$prefix"|"$prefix"-*|"$prefix"+*) ;;
+            *) echo "::error::bundled worker version '$ver' does not match $WORKER_TAG"; exit 1 ;;
+          esac
+          echo "bundled worker OK: $ver"
+      - name: Build Store MSIX
+        shell: pwsh
+        working-directory: src/Flutter/worker_ui
+        env:
+          VERSION: ${{ inputs.version }}
+          STORE_IDENTITY: ${{ vars.MS_STORE_IDENTITY_NAME }}
+          STORE_PUBLISHER: ${{ vars.MS_STORE_PUBLISHER }}
+          STORE_PUBLISHER_NAME: ${{ vars.MS_STORE_PUBLISHER_DISPLAY_NAME }}
+        run: >-
+          dart run msix:create --store --install-certificate false --sign-msix false --version $env:VERSION --identity-name $env:STORE_IDENTITY --publisher $env:STORE_PUBLISHER --publisher-display-name $env:STORE_PUBLISHER_NAME --display-name "Corterm" --output-path "${{ github.workspace }}\artifacts" --output-name "corterm-ui-store-$env:VERSION.msix"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: corterm-ui-store-msix
+          path: artifacts/corterm-ui-store-*.msix
+          if-no-files-found: error

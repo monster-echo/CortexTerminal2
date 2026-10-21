@@ -1,12 +1,15 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+import '../core/binary_locator.dart';
 import '../core/corterm_service.dart';
 import '../core/app_scope.dart';
 import '../core/models.dart';
 import '../core/self_updater.dart';
+import '../core/worker_process_controller.dart';
 import '../l10n/app_strings.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_bar.dart';
@@ -45,9 +48,11 @@ class _UpdateScreenState extends State<UpdateScreen> {
   int? _uiDownloaded;
   int? _uiTotal;
 
-  bool get _uiAvailable => _uiCheck?.updateAvailable ?? false;
+  bool get _uiAvailable =>
+      !isStoreBuild && (_uiCheck?.updateAvailable ?? false);
   bool get _workerAvailable => _workerCheck?.updateAvailable ?? false;
-  bool get _anyAvailable => _uiAvailable || _workerAvailable;
+  bool get _anyAvailable =>
+      _uiAvailable || (!isWindowsStoreBuild && _workerAvailable);
 
   @override
   void didChangeDependencies() {
@@ -67,23 +72,23 @@ class _UpdateScreenState extends State<UpdateScreen> {
     // 开发构建（未注入 UI_VERSION）没有可比版本，跳过 UI 自查，
     // 只查服务版本——省一次无意义的 GitHub API 调用。
     final futures = <Future<dynamic>>[
-      if (appVersion != '0.0.0') SelfUpdater.check(),
-      _service.updateCheck(),
+      if (appVersion != '0.0.0' && !isStoreBuild) SelfUpdater.check(),
+      if (!isWindowsStoreBuild) _service.updateCheck(),
     ];
     final labels = <String>[
-      if (appVersion != '0.0.0') '应用',
-      '服务',
+      if (appVersion != '0.0.0' && !isStoreBuild) '应用',
+      if (!isWindowsStoreBuild) '服务',
     ];
     try {
       final results = await Future.wait<dynamic>(futures);
       if (!mounted) return;
       setState(() {
         var i = 0;
-        if (appVersion != '0.0.0') {
+        if (appVersion != '0.0.0' && !isStoreBuild) {
           _uiCheck = results[i] as UiUpdateCheck;
           i++;
         }
-        _workerCheck = results[i] as UpdateCheck;
+        if (!isWindowsStoreBuild) _workerCheck = results[i] as UpdateCheck;
         _checking = false;
       });
     } catch (e) {
@@ -104,19 +109,34 @@ class _UpdateScreenState extends State<UpdateScreen> {
       _stages.clear();
     });
 
-    if (_workerAvailable) {
+    if (!isWindowsStoreBuild && _workerAvailable) {
       try {
-        await for (final stage in _service.update()) {
+        // macOS：worker 由本 App 托管，CLI 不做服务重启（会走 launchctl 装回
+        // LaunchAgent 拉起第二实例）；旧 worker 不认识该选项，探测后再传。
+        final noServiceRestart =
+            Platform.isMacOS && await supportsNoServiceRestart(_service.cortermPath);
+        var workerUpdated = false;
+        await for (final stage in _service.update(noServiceRestart: noServiceRestart)) {
           if (!mounted) return;
           setState(() {
-            _stages.add(_Stage(stage.stage, isError: stage.isError, bytes: stage.bytes));
+            _stages.add(
+              _Stage(stage.stage, isError: stage.isError, bytes: stage.bytes),
+            );
             if (stage.isError) _error = stage.message ?? 'update failed';
           });
           if (stage.isError) {
             setState(() => _updating = false);
             return;
           }
-          if (stage.isDone) break;
+          if (stage.isDone) {
+            workerUpdated = true;
+            break;
+          }
+        }
+        // 重启托管的 worker 子进程换上新二进制。
+        if (workerUpdated && noServiceRestart) {
+          setState(() => _stages.add(_Stage('restart')));
+          await WorkerProcessController.instance.restart();
         }
       } catch (e) {
         if (!mounted) return;
@@ -189,7 +209,8 @@ class _UpdateScreenState extends State<UpdateScreen> {
   Widget build(BuildContext context) {
     final t = AppStrings.t;
     final scheme = ShadTheme.of(context).colorScheme;
-    final checked = _workerCheck != null || _uiCheck != null;
+    final checked =
+        _workerCheck != null || _uiCheck != null || isWindowsStoreBuild;
     // 未打版本号的本地构建（UI_VERSION 缺省 0.0.0）不参与更新比较。
     final devBuild = appVersion == '0.0.0';
     String withLatest(String current, String? latest) =>
@@ -210,10 +231,29 @@ class _UpdateScreenState extends State<UpdateScreen> {
           padding: const EdgeInsets.all(16),
           children: [
             if (_checking)
-              const Center(child: Padding(padding: EdgeInsets.all(24), child: SmallSpinner()))
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(24),
+                  child: SmallSpinner(),
+                ),
+              )
             else ...[
               ErrorBanner(message: _error),
-              if (checked) ...[
+              if (isWindowsStoreBuild)
+                AppGroupCard(
+                  children: [
+                    AppRow(
+                      label: t(context, 'update.uiCurrent'),
+                      value: 'v$appVersion',
+                    ),
+                    const Divider(height: 1),
+                    AppRow(
+                      label: t(context, 'update.uiCurrent'),
+                      value: t(context, 'update.storeManaged'),
+                    ),
+                  ],
+                ),
+              if (checked && !isWindowsStoreBuild) ...[
                 // 每行「当前 → 最新」，不再单独设「最新版本」行。
                 AppGroupCard(
                   children: [
@@ -237,56 +277,66 @@ class _UpdateScreenState extends State<UpdateScreen> {
                 ),
                 const SizedBox(height: 16),
               ],
-          if (checked && _anyAvailable && !_updating) ...[
-            const SizedBox(height: 8),
-            Text(
-              t(context, 'update.allNote'),
-              style: TextStyle(color: scheme.mutedForeground, fontSize: 13),
-            ),
-            const SizedBox(height: 12),
-            PrimaryButton(
-              label: t(context, 'update.allTrigger'),
-              onPressed: _updateAll,
-              icon: LucideIcons.download,
-              expanded: true,
-            ),
-          ],
-          if (checked && !_anyAvailable && !_updating)
-            Padding(
-              padding: const EdgeInsets.only(top: 12),
-              child: Text(
-                t(context, 'update.upToDate'),
-                style: TextStyle(color: scheme.tertiary, fontWeight: FontWeight.w600),
-              ),
-            ),
-          if (_updating) ...[
-            const SizedBox(height: 16),
-            ShadProgress(
-              value: _uiTotal != null && _uiTotal! > 0 && _uiDownloaded != null
-                  ? _uiDownloaded! / _uiTotal!
-                  : null,
-              minHeight: 4,
-            ),
-            const SizedBox(height: 16),
-            AppGroupCard(
-              children: [
-                for (var i = 0; i < _stages.length; i++) ...[
-                  if (i > 0) const Divider(height: 1),
-                  Builder(
-                    builder: (context) {
-                      final s = _stages[i];
-                      return AppRow(
-                        icon: s.isError ? LucideIcons.circleX : LucideIcons.circleCheck,
-                        iconColor: s.isError ? scheme.destructive : scheme.tertiary,
-                        label: _stageLabel(context, s.label),
-                        trailing: s.bytes != null && s.bytes! > 0 ? Text('${s.bytes} B') : null,
-                      );
-                    },
-                  ),
-                ],
+              if (checked && _anyAvailable && !_updating && !isStoreBuild) ...[
+                const SizedBox(height: 8),
+                Text(
+                  t(context, 'update.allNote'),
+                  style: TextStyle(color: scheme.mutedForeground, fontSize: 13),
+                ),
+                const SizedBox(height: 12),
+                PrimaryButton(
+                  label: t(context, 'update.allTrigger'),
+                  onPressed: _updateAll,
+                  icon: LucideIcons.download,
+                  expanded: true,
+                ),
               ],
-            ),
-          ],
+              if (checked && !_anyAvailable && !_updating && !isStoreBuild)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Text(
+                    t(context, 'update.upToDate'),
+                    style: TextStyle(
+                      color: scheme.tertiary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              if (_updating) ...[
+                const SizedBox(height: 16),
+                ShadProgress(
+                  value:
+                      _uiTotal != null && _uiTotal! > 0 && _uiDownloaded != null
+                      ? _uiDownloaded! / _uiTotal!
+                      : null,
+                  minHeight: 4,
+                ),
+                const SizedBox(height: 16),
+                AppGroupCard(
+                  children: [
+                    for (var i = 0; i < _stages.length; i++) ...[
+                      if (i > 0) const Divider(height: 1),
+                      Builder(
+                        builder: (context) {
+                          final s = _stages[i];
+                          return AppRow(
+                            icon: s.isError
+                                ? LucideIcons.circleX
+                                : LucideIcons.circleCheck,
+                            iconColor: s.isError
+                                ? scheme.destructive
+                                : scheme.tertiary,
+                            label: _stageLabel(context, s.label),
+                            trailing: s.bytes != null && s.bytes! > 0
+                                ? Text('${s.bytes} B')
+                                : null,
+                          );
+                        },
+                      ),
+                    ],
+                  ],
+                ),
+              ],
             ],
           ],
         ),

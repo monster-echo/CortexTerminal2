@@ -17,18 +17,25 @@
 
 应用通过 `Process` 调用本机 `corterm` 二进制，解析其 `--json` 输出。**不加** daemon 控制 API、**不走** gateway。二进制解析顺序：
 
-1. 设置里手动指定的路径
-2. `$CORTERM_HOME` / `$CORTEX_TERMINAL_HOME`
-3. 默认 `~/.corterm/corterm`（GUI 启动不继承 shell PATH，这是最可靠来源）
-4. PATH 查找（`which`/`where`，尽力而为）
+1. `$CORTERM_HOME` / `$CORTEX_TERMINAL_HOME`
+2. 默认 `~/.corterm/corterm`（内置 worker 自动装到这，GUI 启动不继承 shell PATH，这是最可靠来源）
+3. PATH 查找（`which`/`where`，尽力而为）
 
-> corterm 需带 `--json` 支持（≥ 0.5.14）。旧版本会显示错误 banner —— 在「设置」里把路径指到新版二进制即可。
+> corterm 需带 `--json` 支持（≥ 0.5.16）。旧版本会被内置 worker 自动覆盖修复。
 
-## 开发
+## worker 托管（谁拉起守护进程）
+
+- **macOS**：App 直接托管 worker 子进程（`core/worker_process_controller.dart`）。裸调用 `corterm`（无参数）= 前台守护进程，App 监控退出、封顶退避重启、日志落 `~/.corterm/corterm.log`。启动时一次性迁移旧 LaunchAgent（unload + 删 plist）。**托盘退出 = 停止远程访问**；开机自启 App 时随之拉起 worker。
+- **Windows**：计划任务（`corterm start` → schtasks），托盘退出不影响。
+- **Linux**：systemd user 服务（`corterm start` → systemctl --user），托盘退出不影响。
+- `corterm start/stop/restart` CLI 语义不变（无头 install.sh 用户不受影响）；App 在 macOS 上不再调用它们。`corterm update --no-service-restart` 供 App 托管模式使用（旧 worker 不认识该选项时自动探测降级）。
+
+## 本地开发
 
 ```bash
 flutter analyze
 flutter test
+tool/fetch_worker.sh         # 拉最新 worker release 进 assets/bin（需 gh；代理见文件头注释）
 flutter run -d macos        # 本机只有 macOS 桌面可验证
 ```
 
@@ -40,7 +47,9 @@ flutter run -d macos        # 本机只有 macOS 桌面可验证
 lib/
   theme/      # CLAUDE.md 设计 token → Material 主题（dark + light）
   l10n/       # zh/en 极简文案
-  core/       # binary_locator / corterm_service / models / settings
+  core/       # binary_locator / corterm_service / worker_process_controller / models / settings
   screens/    # dashboard(概览面板) / auth / sessions / session_detail / doctor / update / agent_tools / settings / about
   widgets/    # app_bar / list_group / error_banner / primary_button / section_header / states
+tool/
+  fetch_worker.sh  # 本地拉最新 worker release 进 assets/bin
 ```

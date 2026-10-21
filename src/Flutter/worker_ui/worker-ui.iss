@@ -4,7 +4,7 @@
 
 #define MyAppName "云枢终端"
 #define MyAppPublisher "Corterm"
-#define MyAppExeName "worker_ui.exe"
+#define MyAppExeName "Corterm.exe"
 #define MyAppId "{{30fbe01a-84c0-4955-aef2-fdf189343856}"
 #ifndef MyAppVersion
   #define MyAppVersion "0.1.0"

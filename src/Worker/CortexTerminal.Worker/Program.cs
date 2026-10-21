@@ -98,10 +98,15 @@ static Dictionary<string, JsonElement>? DecodeJwtPayload(string token)
 // ── Helper: run OS service command (start/stop/restart) ──
 static (bool Ok, string Message, string? Error) RunServiceCommand(string action)
 {
-    var isOsx = RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
+    if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+    {
+        return RunMacServiceCommand(
+            action,
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                "Library/LaunchAgents/com.corterm.worker.plist"));
+    }
+
     var isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
-    var homeDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-    var plistPath = Path.Combine(homeDir, "Library/LaunchAgents/com.corterm.worker.plist");
 
     string program, args;
     if (isWindows)
@@ -118,17 +123,6 @@ static (bool Ok, string Message, string? Error) RunServiceCommand(string action)
             "start" => "/run /tn \"Corterm Worker\"",
             "stop" => "/IM corterm.exe /F",
             "restart" => "/c \"taskkill /IM corterm.exe /F & schtasks /run /tn \\\"Corterm Worker\\\"\"",
-            _ => ""
-        };
-    }
-    else if (isOsx)
-    {
-        program = "launchctl";
-        args = action switch
-        {
-            "start" => $"load \"{plistPath}\"",
-            "stop" => $"unload \"{plistPath}\"",
-            "restart" => $"unload \"{plistPath}\" && launchctl load \"{plistPath}\"",
             _ => ""
         };
     }
@@ -154,6 +148,181 @@ static (bool Ok, string Message, string? Error) RunServiceCommand(string action)
         return (false, "", $"Failed to {action} worker (exit code {proc.ExitCode}).{(!string.IsNullOrEmpty(stderr) ? $"\n  {stderr.Trim()}" : "")}");
     }
     return (true, $"Worker {action}ed.", null);
+}
+
+// ── Helper: macOS LaunchAgent service actions ──
+// install.sh（curl 安装路径）会渲染并安装 LaunchAgent，但 DMG app-only 安装没有它，
+// 所以 start/restart 必须自给自足：plist 缺失就按当前可执行文件路径写一份。
+// launchctl load/unload 失败时 exit code 仍为 0（"Load failed" 只在 stderr），
+// 退出码不可信 —— 每个动作完成后用 `launchctl list <label>` 的注册状态做判定。
+static (bool Ok, string Message, string? Error) RunMacServiceCommand(string action, string plistPath)
+{
+    switch (action)
+    {
+        case "start":
+        case "restart":
+            var ensureError = EnsureMacLaunchAgent(plistPath);
+            if (ensureError is not null) return (false, "", ensureError);
+
+            // plist 指向已被移动/删除的二进制时 launchd 以 EX_CONFIG(78) 循环崩溃，
+            // 而 launchctl load 照样返回 0 —— 先把这个状态拦下来。
+            var configured = ReadMacLaunchAgentProgram(plistPath);
+            if (!string.IsNullOrEmpty(configured) && !File.Exists(configured))
+            {
+                return (false, "",
+                    $"LaunchAgent plist ({plistPath}) points to a missing binary: {configured}.\n  Delete the plist and run '{action}' again.");
+            }
+
+            if (action == "restart") RunLaunchCtl($"unload \"{plistPath}\""); // 未加载时 unload 报错无害，继续
+            RunLaunchCtl($"load \"{plistPath}\"");
+            return MacJobRegistered()
+                ? (true, $"Worker {action}ed.", null)
+                : (false, "", $"Failed to {action} worker: job is not registered with launchd after load.");
+        case "stop":
+            RunLaunchCtl($"unload \"{plistPath}\"");
+            return !MacJobRegistered()
+                ? (true, "Worker stopped.", null)
+                : (false, "", "Failed to stop worker: job is still registered with launchd after unload.");
+        default:
+            return (false, "", $"Unknown action: {action}");
+    }
+}
+
+// 渲染并安装 LaunchAgent plist。幂等：已存在则不动 —— 保留 install.sh/手工定制
+// （如 HOME 在外置盘的机器上加的 StartOnMount）。
+static string? EnsureMacLaunchAgent(string plistPath)
+{
+    if (File.Exists(plistPath)) return null;
+
+    var exePath = Environment.ProcessPath;
+    if (string.IsNullOrEmpty(exePath))
+    {
+        return "Cannot determine worker executable path for the LaunchAgent.";
+    }
+
+    var homeDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+    var logPath = Path.Combine(Path.GetDirectoryName(exePath)!, "corterm.log");
+    var plist =
+        $""""
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+            <key>Label</key>
+            <string>com.corterm.worker</string>
+            <key>ProgramArguments</key>
+            <array>
+                <string>{System.Security.SecurityElement.Escape(exePath)}</string>
+            </array>
+            <key>WorkingDirectory</key>
+            <string>{System.Security.SecurityElement.Escape(homeDir)}</string>
+            <key>RunAtLoad</key>
+            <true/>
+            <key>KeepAlive</key>
+            <true/>
+            <key>StandardOutPath</key>
+            <string>{System.Security.SecurityElement.Escape(logPath)}</string>
+            <key>StandardErrorPath</key>
+            <string>{System.Security.SecurityElement.Escape(logPath)}</string>
+            <key>EnvironmentVariables</key>
+            <dict>
+                <key>DOTNET_SYSTEM_NET_DISABLEIPV6</key>
+                <string>1</string>
+            </dict>
+        </dict>
+        </plist>
+        """";
+
+    try
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(plistPath)!);
+        File.WriteAllText(plistPath, plist);
+        return null;
+    }
+    catch (Exception ex)
+    {
+        return $"Failed to install LaunchAgent plist at {plistPath}: {ex.Message}";
+    }
+}
+
+// plist 里 ProgramArguments[0]（launchd 要拉起的二进制路径），解析失败返回 null。
+static string? ReadMacLaunchAgentProgram(string plistPath)
+{
+    using var proc = Process.Start(new ProcessStartInfo("plutil",
+        $"-extract ProgramArguments.0 raw \"{plistPath}\"")
+    {
+        UseShellExecute = false,
+        RedirectStandardOutput = true,
+        RedirectStandardError = true,
+    });
+    if (proc is null) return null;
+    var output = proc.StandardOutput.ReadToEnd();
+    proc.StandardError.ReadToEnd();
+    proc.WaitForExit();
+    return proc.ExitCode == 0 ? output.Trim() : null;
+}
+
+// com.corterm.worker 是否已注册进当前用户的 launchd 域。
+static bool MacJobRegistered()
+{
+    using var proc = Process.Start(new ProcessStartInfo("launchctl", "list com.corterm.worker")
+    {
+        UseShellExecute = false,
+        RedirectStandardOutput = true,
+        RedirectStandardError = true,
+    });
+    if (proc is null) return false;
+    proc.StandardOutput.ReadToEnd();
+    proc.StandardError.ReadToEnd();
+    proc.WaitForExit();
+    return proc.ExitCode == 0;
+}
+
+static void RunLaunchCtl(string args)
+{
+    using var proc = Process.Start(new ProcessStartInfo("launchctl", args)
+    {
+        UseShellExecute = false,
+        RedirectStandardOutput = true,
+        RedirectStandardError = true,
+    });
+    if (proc is null) return;
+    proc.StandardOutput.ReadToEnd();
+    proc.StandardError.ReadToEnd();
+    proc.WaitForExit();
+}
+
+// 守护进程 = 裸调用（命令行恰为 `…/corterm`，无参数）。status/doctor/update 等
+// 瞬态 CLI 同名，pgrep -x 会误匹配（包括本进程自己），必须按 argv 形状过滤。
+// 返回 (pid, detail)；无守护进程返回 null。
+static (int pid, string detail)? MacDaemonAlive()
+{
+    using var proc = Process.Start(new ProcessStartInfo("ps", "-ww -axo pid=,command=")
+    {
+        UseShellExecute = false,
+        RedirectStandardOutput = true,
+        RedirectStandardError = true,
+    });
+    if (proc is null) return null;
+    var output = proc.StandardOutput.ReadToEnd();
+    proc.StandardError.ReadToEnd();
+    proc.WaitForExit();
+
+    foreach (var line in output.Split('\n'))
+    {
+        var trimmed = line.Trim();
+        if (trimmed.Length == 0) continue;
+        var spaceIndex = trimmed.IndexOf(' ');
+        if (spaceIndex <= 0) continue;
+        if (!int.TryParse(trimmed[..spaceIndex], out var pid)) continue;
+        if (pid == Environment.ProcessId) continue;
+        var command = trimmed[(spaceIndex + 1)..].TrimEnd();
+        if (command.EndsWith("/corterm", StringComparison.Ordinal))
+        {
+            return (pid, $"pid {pid} ({command})");
+        }
+    }
+    return null;
 }
 
 // ── Helper: run a service action command, rendering JSON or human output ──
@@ -496,6 +665,47 @@ doctorCommand.SetAction(async (ParseResult parseResult, CancellationToken cancel
         checks.Add(("PTY support", false, ex.Message));
     }
 
+    // Check 7: daemon liveness — what `start` toggles. The daemon is the bare
+    // invocation (`…/corterm`, no CLI args); transient CLI calls (status/doctor/
+    // update — including this very process) share the process name, so match on
+    // argv shape instead of `pgrep -x`. Valid for both launchd-hosted
+    // (LaunchAgent) and desktop-app-hosted (child process) daemons.
+    if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+    {
+        var daemon = MacDaemonAlive();
+        checks.Add(daemon is null
+            ? ("Worker service", false, "worker process not running — launch the app or run 'corterm start'")
+            : ("Worker service", true, daemon.Value.detail));
+    }
+    else if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+    {
+        using var schtasks = Process.Start(new ProcessStartInfo("schtasks", "/query /tn \"Corterm Worker\"")
+        {
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+        });
+        var installed = false;
+        if (schtasks is not null)
+        {
+            schtasks.StandardOutput.ReadToEnd();
+            schtasks.StandardError.ReadToEnd();
+            schtasks.WaitForExit();
+            installed = schtasks.ExitCode == 0;
+        }
+        checks.Add(installed
+            ? ("Worker service", true, "scheduled task 'Corterm Worker'")
+            : ("Worker service", false, "scheduled task 'Corterm Worker' not installed — re-run install.ps1"));
+    }
+    else
+    {
+        var unitPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            ".config/systemd/user/corterm-worker.service");
+        checks.Add(File.Exists(unitPath)
+            ? ("Worker service", true, unitPath)
+            : ("Worker service", false, "systemd user unit not installed — re-run the install script"));
+    }
+
     var failed = checks.Count(c => !c.Ok);
 
     if (json)
@@ -703,10 +913,16 @@ var updateJson = CreateJsonOption();
 updateCommand.Add(updateJson);
 var checkOnly = new Option<bool>("check", "--check") { Description = "Only check for the latest version without downloading" };
 updateCommand.Add(checkOnly);
+var noServiceRestart = new Option<bool>("no-service-restart", "--no-service-restart")
+{
+    Description = "Skip restarting the worker service after updating (the caller restarts it)"
+};
+updateCommand.Add(noServiceRestart);
 updateCommand.SetAction(async (ParseResult parseResult, CancellationToken cancellationToken) =>
 {
     var json = parseResult.GetValue(updateJson);
     var check = parseResult.GetValue(checkOnly);
+    var skipServiceRestart = parseResult.GetValue(noServiceRestart);
 
     // Human text is suppressed in JSON mode so stdout carries only machine-readable JSON.
     var say = (string msg) => { if (!json) Console.WriteLine(msg); };
@@ -888,9 +1104,18 @@ updateCommand.SetAction(async (ParseResult parseResult, CancellationToken cancel
             }
         }
 
-        say($"  Updated to {latestVersion}. Restarting worker ...");
+        say($"  Updated to {latestVersion}.");
         if (json) Console.Out.WriteLine(CliJson.UpdateStage("install", version: latestVersion).ToJsonString());
 
+        // 调用方托管 worker 进程时（桌面 App 子进程模式）由调用方重启，
+        // 这里不能再走 launchctl——否则 EnsureMacLaunchAgent 会拉起第二个实例。
+        if (skipServiceRestart)
+        {
+            if (json) Console.Out.WriteLine(CliJson.UpdateStage("done", version: latestVersion).ToJsonString());
+            return 0;
+        }
+
+        say("  Restarting worker ...");
         var svcResult = RunServiceCommand("restart");
         if (!svcResult.Ok)
         {

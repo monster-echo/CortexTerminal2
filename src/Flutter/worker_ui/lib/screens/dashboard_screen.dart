@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -6,6 +8,7 @@ import 'package:window_manager/window_manager.dart';
 import '../core/app_scope.dart';
 import '../core/models.dart';
 import '../core/self_updater.dart';
+import '../core/worker_process_controller.dart';
 import '../l10n/app_strings.dart';
 import '../theme/app_theme.dart';
 import '../widgets/error_banner.dart';
@@ -80,11 +83,20 @@ class _DashboardScreenState extends State<DashboardScreen> with WindowListener {
     _reload();
   }
 
-  /// 服务离线时的一键恢复：corterm restart → 重拉状态。
+  /// 服务离线时的一键恢复：重启 worker → 重拉状态。
+  /// macOS：worker 是本 App 托管的子进程，直接重启子进程（CLI 的 restart
+  /// 会走 launchctl，把 LaunchAgent 又装回来）；其他平台走系统服务。
   Future<void> _restartService() async {
     setState(() => _restarting = true);
     try {
-      await AppScope.of(context).service.service('restart');
+      if (Platform.isMacOS) {
+        await WorkerProcessController.instance.restart();
+      } else {
+        final result = await AppScope.of(context).service.service('restart');
+        if (!result.ok) {
+          throw Exception(result.error ?? result.message);
+        }
+      }
       if (!mounted) return;
       showAppToast(context, AppStrings.t(context, 'panel.restarted'));
     } catch (e) {
