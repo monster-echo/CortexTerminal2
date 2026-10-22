@@ -157,10 +157,13 @@ public sealed class PunchTransferService : IDisposable
         using var request = new HttpRequestMessage(
             HttpMethod.Post, $"{_gatewayBaseUrl}/api/p2p/workers/{Uri.EscapeDataString(workerId)}/punch")
         {
+            // 网关端点是 [FromBody] minimal API（Accepts: application/json）；
+            // 缺 Content-Type 会被 Consumes 匹配过滤掉端点候选，落到 /api 兜底返回裸 404。
             Content = new ByteArrayContent(System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(
                 new PunchRegisterBody(PunchRoleWorker, endpoint),
                 CortexTerminal.Worker.Auth.WorkerJsonContext.Default.PunchRegisterBody)),
         };
+        request.Content!.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
         request.Headers.TryAddWithoutValidation("X-Corterm-Worker-Relay-Token", token);
         using var response = await http.SendAsync(request, ct);
         var payload = await response.Content.ReadAsByteArrayAsync(ct);
@@ -279,6 +282,7 @@ public sealed class PunchTransferService : IDisposable
             {
                 Content = new ByteArrayContent(body),
             };
+            request.Content!.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
             request.Headers.TryAddWithoutValidation("X-Corterm-Transfer-Token", token);
             using var response = await http.SendAsync(request, window.Token);
             var payload = await response.Content.ReadAsByteArrayAsync(window.Token);
