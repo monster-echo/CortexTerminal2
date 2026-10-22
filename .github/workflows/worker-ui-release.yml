@@ -148,7 +148,11 @@ jobs:
           UI_VERSION: ${{ steps.ver.outputs.version }}
         run: |
           flutter pub get
-          flutter build windows --release --dart-define=UI_VERSION="$UI_VERSION" --build-name="$UI_VERSION"
+          if ([string]::IsNullOrWhiteSpace($env:UI_VERSION)) { throw "Missing UI_VERSION" }
+          flutter build windows --release --dart-define="UI_VERSION=$env:UI_VERSION" --build-name="$env:UI_VERSION"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $actualVersion = (Get-Item build/windows/x64/runner/Release/Corterm.exe).VersionInfo.ProductVersion
+          if ($actualVersion -notlike "${env:UI_VERSION}*") { throw "Unexpected executable version: $actualVersion" }
 
       - name: Guard bundled worker
         shell: bash

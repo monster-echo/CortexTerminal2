@@ -52,6 +52,14 @@ while IFS= read -r -d '' framework; do
 done < <(find "$app" -depth -type d -name '*.framework' -print0)
 codesign --force --timestamp --options runtime --keychain "$keychain" --sign "$identity" "$app"
 codesign --verify --deep --strict --verbose=2 "$app"
+# Staple the application itself before packaging it into the final DMG.
+app_archive="$RUNNER_TEMP/corterm-notary-app.zip"
+ditto -c -k --keepParent "$app" "$app_archive"
+xcrun notarytool submit "$app_archive" --key "$api_key" --key-id "$API_KEY_ID" --issuer "$API_ISSUER_ID" --wait --output-format json > "$RUNNER_TEMP/notary-app-result.json"
+python3 -c 'import json,sys; r=json.load(open(sys.argv[1])); print("App notarization:",r["status"],r["id"]); sys.exit(0 if r["status"]=="Accepted" else 1)' "$RUNNER_TEMP/notary-app-result.json"
+xcrun stapler staple "$app"
+xcrun stapler validate "$app"
+spctl --assess --type execute --verbose=2 "$app"
 ln -s /Applications "$(dirname "$app")/Applications"
 hdiutil create -volname '云枢终端' -srcfolder "$(dirname "$app")" -ov -format UDZO "$dmg"
 codesign --timestamp --keychain "$keychain" --sign "$identity" "$dmg"
