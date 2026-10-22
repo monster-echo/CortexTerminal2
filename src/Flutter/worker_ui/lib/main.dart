@@ -35,9 +35,9 @@ Future<void> main() async {
 // ── 窗口：关闭 → 隐藏到托盘 ──
 Future<void> _initWindow() async {
   await windowManager.ensureInitialized();
-  // Tailscale 式窄面板窗口：固定窄宽，主窗口即状态面板。
+  // 紧凑桌面工具窗口；窄窗口仍可滚动浏览。
   final options = WindowOptions(
-    size: const Size(380, 640),
+    size: const Size(560, 720),
     minimumSize: const Size(360, 520),
     center: true,
     title: AppStrings.of(Settings.instance.locale, 'appTitle'),

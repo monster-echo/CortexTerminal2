@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -14,9 +15,8 @@ import '../theme/app_theme.dart';
 import '../widgets/error_banner.dart';
 import '../widgets/list_group.dart';
 import '../widgets/states.dart';
-/// 概览面板（Tailscale 式单列）：
-/// hero 连接状态 → 我的计算机 → 此设备 → 功能入口。
-/// 版本/PID 等运维指标不再是首屏主角，收进「此设备」与子页。
+
+/// 紧凑桌面面板：连接与账号 → 折叠设备列表 → 本机信息 → 工具。
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
@@ -31,16 +31,31 @@ class _DashboardScreenState extends State<DashboardScreen> with WindowListener {
   String? _error;
   bool _loading = true;
   bool _restarting = false;
+  Timer? _pollTimer;
+  bool _computersExpanded = false;
 
   @override
   void initState() {
     super.initState();
     windowManager.addListener(this);
+    // 状态是异步收敛的（装 worker → spawn → 连网关），仅靠窗口聚焦刷新会有
+    // "实际在线但面板还挂着旧快照"的间隙：30s 轮询兜底（同托盘刷新节奏），
+    // 控制器生命周期变化（启动中/退避重启）即时触发。
+    WorkerProcessController.instance.runState.addListener(_onRunStateChanged);
+    _pollTimer = Timer.periodic(const Duration(seconds: 30), (_) => _reload());
+  }
+
+  void _onRunStateChanged() {
+    if (mounted) _reload();
   }
 
   @override
   void dispose() {
     windowManager.removeListener(this);
+    _pollTimer?.cancel();
+    WorkerProcessController.instance.runState.removeListener(
+      _onRunStateChanged,
+    );
     super.dispose();
   }
 
@@ -112,16 +127,26 @@ class _DashboardScreenState extends State<DashboardScreen> with WindowListener {
     final status = _status;
     return SafeArea(
       child: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         children: [
           if (_loading)
-            const Center(child: Padding(padding: EdgeInsets.all(40), child: SmallSpinner()))
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(40),
+                child: SmallSpinner(),
+              ),
+            )
           else ...[
             ErrorBanner(message: _error),
             if (status != null)
               Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  const SizedBox(height: 8),
+                  _sectionLabel(
+                    context,
+                    AppStrings.t(context, 'panel.connection'),
+                  ),
                   const SizedBox(height: 8),
                   _hero(context, status),
                   if (status.authenticated && status.workers.isNotEmpty) ...[
@@ -164,7 +189,10 @@ class _DashboardScreenState extends State<DashboardScreen> with WindowListener {
             SizedBox(
               width: 12,
               height: 12,
-              child: CircularProgressIndicator(strokeWidth: 2, color: scheme.background),
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: scheme.background,
+              ),
             ),
             const SizedBox(width: 6),
           ],
@@ -182,131 +210,148 @@ class _DashboardScreenState extends State<DashboardScreen> with WindowListener {
         .where((w) => w.workerId == s.workerId)
         .any((w) => w.isOnline);
     final connected = s.authenticated && selfOnline;
-    final serviceOffline = s.authenticated && !selfOnline;
+    // 已登录但网关侧还没看到本机在线：若控制器正在拉起/退避重启，是暂态，
+    // 展示「启动中」而不是「服务离线」（避免首启窗口期误报故障）。
+    final starting =
+        s.authenticated &&
+        !selfOnline &&
+        WorkerProcessController.instance.runState.value !=
+            WorkerRunState.stopped;
+    final serviceOffline = s.authenticated && !selfOnline && !starting;
     final title = connected
         ? 'panel.connected'
         : serviceOffline
-            ? 'panel.serviceOffline'
-            : 'panel.disconnected';
+        ? 'panel.serviceOffline'
+        : starting
+        ? 'panel.starting'
+        : 'panel.disconnected';
     final hint = connected
         ? 'panel.connectedHint'
         : serviceOffline
-            ? 'panel.serviceOfflineHint'
-            : 'panel.disconnectedHint';
-    // 离线用警示黄（状态色，与品牌色分开）；未连接才是灰。
+        ? 'panel.serviceOfflineHint'
+        : starting
+        ? 'panel.startingHint'
+        : 'panel.disconnectedHint';
+    // 离线用警示黄（状态色，与品牌色分开）；未连接才是灰；启动中是中性过渡。
     final color = connected
         ? scheme.tertiary
         : serviceOffline
-            ? scheme.warning
-            : scheme.mutedForeground;
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: scheme.card,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: scheme.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 状态行：圆点 + 标题 + 行尾操作（重启/登录），一行说完状态与动作。
-          Row(
+        ? scheme.warning
+        : starting
+        ? scheme.secondary
+        : scheme.mutedForeground;
+    return AppGroupCard(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
             children: [
               Container(
-                width: 10,
-                height: 10,
+                width: 8,
+                height: 8,
                 decoration: BoxDecoration(color: color, shape: BoxShape.circle),
               ),
-              const SizedBox(width: 8),
-              Text(
-                t(context, title),
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: scheme.foreground),
-              ),
-              const Spacer(),
-              if (serviceOffline)
-                _inverseButton(
-                  context,
-                  label: t(context, 'panel.restartService'),
-                  busy: _restarting,
-                  onPressed: _restarting ? null : _restartService,
-                ),
-              if (!s.authenticated)
-                _inverseButton(
-                  context,
-                  label: t(context, 'panel.loginConnect'),
-                  onPressed: () => _go(context, '/auth'),
-                ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            t(context, hint),
-            style: TextStyle(fontSize: 13, color: scheme.mutedForeground),
-          ),
-          if (s.authenticated && s.user != null) ...[
-            const SizedBox(height: 12),
-            // 账号行：avatar + 用户名，点击进认证页（登出 / 切换账号）。
-            InkWell(
-              borderRadius: BorderRadius.circular(8),
-              onTap: () => _go(context, '/auth'),
-              child: Row(
-                children: [
-                  Container(
-                    width: 22,
-                    height: 22,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: scheme.primary.withValues(alpha: 0.15),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Text(
-                      s.user!.characters.first.toUpperCase(),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      t(context, title),
                       style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: scheme.primary,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: scheme.foreground,
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      s.user!,
-                      style: TextStyle(fontSize: 13, color: scheme.mutedForeground),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    const SizedBox(height: 4),
+                    Text(
+                      t(context, hint),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: scheme.mutedForeground,
+                      ),
                     ),
-                  ),
-                  Icon(LucideIcons.chevronRight, size: 14, color: scheme.mutedForeground),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+              if (serviceOffline || !s.authenticated) ...[
+                const SizedBox(width: 12),
+                _inverseButton(
+                  context,
+                  label: t(
+                    context,
+                    serviceOffline ? 'panel.restartService' : 'auth.login',
+                  ),
+                  busy: _restarting,
+                  onPressed: _restarting
+                      ? null
+                      : serviceOffline
+                      ? _restartService
+                      : () => _go(context, '/auth'),
+                ),
+              ],
+            ],
+          ),
+        ),
+        if (s.authenticated) ...[
+          const Divider(height: 1),
+          _compactRow(
+            context,
+            icon: LucideIcons.user,
+            label: s.user ?? t(context, 'panel.account'),
+            value: t(context, 'panel.manageAccount'),
+            onTap: () => _go(context, '/auth'),
+            chevron: true,
+          ),
         ],
-      ),
+      ],
     );
   }
 
   // ── 我的计算机：账号下其他在线设备 ──
   Widget _computersSection(BuildContext context, Status s) {
     final t = AppStrings.t;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    final workers = [...s.workers]
+      ..sort((a, b) {
+        if (a.workerId == s.workerId) return -1;
+        if (b.workerId == s.workerId) return 1;
+        return (b.isOnline ? 1 : 0).compareTo(a.isOnline ? 1 : 0);
+      });
+    final summary = t(context, 'panel.computersSummary')
+        .replaceAll('{total}', '${workers.length}')
+        .replaceAll('{online}', '${workers.where((w) => w.isOnline).length}');
+    return AppGroupCard(
       children: [
-        _sectionLabel(context, t(context, 'panel.computers')),
-        const SizedBox(height: 8),
-        AppGroupCard(
-          children: [
-            for (var i = 0; i < s.workers.length; i++) ...[
-              if (i > 0) const Divider(height: 1),
-              AppRow(
-                leadingWidget: _statusDot(context, s.workers[i].isOnline),
-                label: s.workers[i].displayName,
-                value: t(context, s.workers[i].isOnline ? 'panel.online' : 'panel.offline'),
-              ),
-            ],
-          ],
+        _compactRow(
+          context,
+          icon: LucideIcons.monitor,
+          label: t(context, 'panel.computers'),
+          value: summary,
+          trailing: Icon(
+            _computersExpanded
+                ? LucideIcons.chevronDown
+                : LucideIcons.chevronRight,
+            size: 16,
+            color: ShadTheme.of(context).colorScheme.mutedForeground,
+          ),
+          onTap: () => setState(() => _computersExpanded = !_computersExpanded),
         ),
+        if (_computersExpanded)
+          for (final worker in workers) ...[
+            const Divider(height: 1),
+            _compactRow(
+              context,
+              leading: _statusDot(context, worker.isOnline),
+              label: worker.displayName,
+              value: worker.workerId == s.workerId
+                  ? '${t(context, 'panel.thisDevice')} · ${t(context, worker.isOnline ? 'panel.online' : 'panel.offline')}'
+                  : t(
+                      context,
+                      worker.isOnline ? 'panel.online' : 'panel.offline',
+                    ),
+            ),
+          ],
       ],
     );
   }
@@ -321,72 +366,194 @@ class _DashboardScreenState extends State<DashboardScreen> with WindowListener {
         const SizedBox(height: 8),
         AppGroupCard(
           children: [
-            AppRow(label: t(context, 'panel.deviceId'), value: s.workerId),
-            const Divider(height: 1),
-            AppRow(
+            _compactRow(
+              context,
               label: t(context, 'panel.serviceVersion'),
               value: s.version,
-              chevron: s.updateAvailable,
-              trailing: s.updateAvailable ? _updateBadge(context) : null,
-              onTap: s.updateAvailable ? () => _go(context, '/update') : null,
+              trailing: TextButton(
+                onPressed: () => _go(context, '/update'),
+                child: Text(
+                  t(
+                    context,
+                    s.updateAvailable ? 'panel.upgrade' : 'nav.update',
+                  ),
+                ),
+              ),
+            ),
+            if (s.updateAvailable)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    s.latestWorkerVersion == null
+                        ? t(context, 'panel.updateAvailable')
+                        : '${t(context, 'panel.updateAvailable')} · ${s.latestWorkerVersion}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: ShadTheme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                ),
+              ),
+            const Divider(height: 1),
+            _compactRow(
+              context,
+              label: t(context, 'panel.gateway'),
+              value: s.gateway,
             ),
             const Divider(height: 1),
-            AppRow(label: t(context, 'panel.gateway'), value: s.gateway),
+            _compactRow(
+              context,
+              label: t(context, 'panel.uptime'),
+              value: s.uptime,
+            ),
             const Divider(height: 1),
-            AppRow(label: t(context, 'panel.uptime'), value: s.uptime),
+            _compactRow(
+              context,
+              label: t(context, 'panel.deviceId'),
+              value: s.workerId,
+            ),
           ],
         ),
       ],
     );
   }
 
-  // ── 功能入口：Agent 工具 / 诊断 / 设置 / 关于 ──
   Widget _entriesSection(BuildContext context, Status s) {
     final t = AppStrings.t;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        _sectionLabel(context, t(context, 'panel.tools')),
+        const SizedBox(height: 8),
         AppGroupCard(
           children: [
-            AppRow(
+            _compactRow(
+              context,
               icon: LucideIcons.cpu,
               label: t(context, 'nav.agentTools'),
               chevron: true,
               onTap: () => _go(context, '/agent-tools'),
             ),
             const Divider(height: 1),
-            AppRow(
-              icon: LucideIcons.download,
-              label: t(context, 'nav.update'),
-              chevron: true,
-              trailing: s.updateAvailable ? _updateBadge(context) : null,
-              onTap: () => _go(context, '/update'),
-            ),
-            const Divider(height: 1),
-            AppRow(
+            _compactRow(
+              context,
               icon: LucideIcons.shieldCheck,
-              label: t(context, 'nav.doctor'),
+              label: t(context, 'doctor.title'),
               chevron: true,
               onTap: () => _go(context, '/doctor'),
             ),
             const Divider(height: 1),
-            AppRow(
+            _compactRow(
+              context,
               icon: LucideIcons.settings,
               label: t(context, 'nav.settings'),
               chevron: true,
               onTap: () => _go(context, '/settings'),
             ),
-            const Divider(height: 1),
-            AppRow(
-              icon: LucideIcons.info,
-              label: t(context, 'about.title'),
-              value: 'v$appVersion',
-              chevron: true,
-              onTap: () => _go(context, '/about'),
-            ),
           ],
         ),
+        const SizedBox(height: 8),
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton(
+            onPressed: () => _go(context, '/about'),
+            child: Text(
+              '${t(context, 'about.title')} · v$appVersion',
+              style: TextStyle(
+                fontSize: 12,
+                color: ShadTheme.of(context).colorScheme.mutedForeground,
+              ),
+            ),
+          ),
+        ),
       ],
+    );
+  }
+
+  /// 桌面键值行；窄窗口和大字体时自动改为两行，操作始终保留空间。
+  Widget _compactRow(
+    BuildContext context, {
+    required String label,
+    String? value,
+    IconData? icon,
+    Widget? leading,
+    Widget? trailing,
+    bool chevron = false,
+    VoidCallback? onTap,
+  }) {
+    final scheme = ShadTheme.of(context).colorScheme;
+    return Material(
+      type: MaterialType.transparency,
+      child: InkWell(
+        onTap: onTap,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 48),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              children: [
+                if (leading != null || icon != null) ...[
+                  SizedBox(
+                    width: 20,
+                    child: Center(
+                      child:
+                          leading ??
+                          Icon(icon, size: 18, color: scheme.mutedForeground),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                ],
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final title = Text(
+                        label,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: scheme.foreground,
+                        ),
+                      );
+                      if (value == null) return title;
+                      final detail = Text(
+                        value,
+                        softWrap: true,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: scheme.mutedForeground,
+                        ),
+                      );
+                      if (constraints.maxWidth < 340 ||
+                          MediaQuery.textScalerOf(context).scale(13) > 18) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [title, const SizedBox(height: 4), detail],
+                        );
+                      }
+                      return Row(
+                        children: [
+                          SizedBox(width: 104, child: title),
+                          Expanded(child: detail),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+                if (trailing != null || chevron) ...[
+                  const SizedBox(width: 8),
+                  trailing ??
+                      Icon(
+                        LucideIcons.chevronRight,
+                        size: 16,
+                        color: scheme.mutedForeground,
+                      ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -412,22 +579,6 @@ class _DashboardScreenState extends State<DashboardScreen> with WindowListener {
       decoration: BoxDecoration(
         color: online ? scheme.tertiary : scheme.mutedForeground,
         shape: BoxShape.circle,
-      ),
-    );
-  }
-
-  Widget _updateBadge(BuildContext context) {
-    final t = AppStrings.t;
-    final scheme = ShadTheme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: scheme.primary.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        t(context, 'panel.updateAvailable'),
-        style: TextStyle(fontSize: 11, color: scheme.primary),
       ),
     );
   }

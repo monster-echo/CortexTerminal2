@@ -19,6 +19,8 @@ class AppStrings {
       // 面板 hero：连接状态是唯一主角
       'panel.connected': '已连接',
       'panel.connectedHint': '手机上的云枢终端可以访问这台电脑',
+      'panel.starting': '启动中',
+      'panel.startingHint': '本机服务正在启动并连接网关，稍候自动就绪',
       'panel.disconnected': '未连接',
       'panel.disconnectedHint': '登录后，手机上的云枢终端即可访问这台电脑',
       'panel.loginConnect': '登录并连接',
@@ -26,6 +28,11 @@ class AppStrings {
       'panel.serviceOfflineHint': '本机服务与网关的连接已中断，重启后恢复',
       'panel.restartService': '重启服务',
       'panel.restarted': '服务已重启',
+      'panel.connection': '连接状态',
+      'panel.manageAccount': '管理账号',
+      'panel.tools': '工具',
+      'panel.upgrade': '升级',
+      'panel.computersSummary': '{total} 台 · {online} 台在线',
       'panel.account': '账号',
       'panel.computers': '我的计算机',
       'panel.thisDevice': '此设备',
@@ -120,6 +127,9 @@ class AppStrings {
       'panel.connected': 'Connected',
       'panel.connectedHint':
           'This computer is reachable from the Corterm app on your phone',
+      'panel.starting': 'Starting',
+      'panel.startingHint':
+          'The service on this computer is starting and connecting to the gateway',
       'panel.disconnected': 'Not connected',
       'panel.disconnectedHint':
           'Log in to make this computer reachable from your phone',
@@ -129,6 +139,11 @@ class AppStrings {
           'The connection to the gateway dropped. Restart the service to recover',
       'panel.restartService': 'Restart service',
       'panel.restarted': 'Service restarted',
+      'panel.connection': 'Connection',
+      'panel.manageAccount': 'Manage account',
+      'panel.tools': 'Tools',
+      'panel.upgrade': 'Upgrade',
+      'panel.computersSummary': '{total} devices · {online} online',
       'panel.account': 'Account',
       'panel.computers': 'My computers',
       'panel.thisDevice': 'This device',

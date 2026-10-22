@@ -237,6 +237,34 @@ void main() {
     await _waitForLog(home, 'spawned pid', timeout: const Duration(seconds: 5));
   });
 
+  test('runState transitions: running → backingOff → running → stopped', () async {
+    if (!Platform.isMacOS) return;
+    final home = _tempHome();
+    final daemon = _daemonScript(home);
+    final controller = WorkerProcessController(
+      homeDirOverride: home.path,
+      daemonLister: () async => '',
+      binaryPathResolver: () async => BinaryPaths(corterm: daemon.path),
+    );
+    addTearDown(controller.stop);
+
+    expect(controller.runState.value, WorkerRunState.stopped);
+    await controller.start();
+    expect(controller.runState.value, WorkerRunState.running);
+
+    // 杀掉 → backingOff（退避中）→ 重启后回 running。
+    final log = await _waitForLog(home, 'spawned pid');
+    final pid =
+        int.parse(RegExp(r'spawned pid (\d+)').firstMatch(log)!.group(1)!);
+    Process.killPid(pid, ProcessSignal.sigkill);
+    await _waitForLog(home, RegExp('spawned pid (?!$pid)'));
+    expect(controller.runState.value, WorkerRunState.running);
+
+    controller.stop();
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    expect(controller.runState.value, WorkerRunState.stopped);
+  });
+
   test('supportsNoServiceRestart probes update --help and caches', () async {
     if (Platform.isWindows) return; // fake script uses /bin/sh
     final dir = Directory.systemTemp.createTempSync('wpc-probe');

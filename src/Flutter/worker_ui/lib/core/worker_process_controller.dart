@@ -10,6 +10,21 @@ import 'binary_locator.dart';
 /// [WorkerProcessController] spawn 前解析 corterm 二进制的函数签名。
 typedef BinaryPathResolver = Future<BinaryPaths?> Function();
 
+/// worker 托管生命周期，供 UI 展示（如 dashboard 的「启动中」态）。
+enum WorkerRunState {
+  /// 未托管（其他平台 / 尚未 start / 已 stop）。
+  stopped,
+
+  /// 正在拉起（spawn / 迁移 / 杀旧拉新）。
+  starting,
+
+  /// 守护进程在跑（自己 spawn 的或采纳的）。
+  running,
+
+  /// 守护进程退出，退避等待重启。
+  backingOff,
+}
+
 /// macOS：App 直接托管 worker 子进程 —— 裸调用 `corterm`（无参数）就是前台
 /// 守护进程，替代 LaunchAgent + launchctl（见 Program.cs RunMacServiceCommand 的
 /// 脆弱性注释）。托盘常驻 + 开机启动（launch_at_startup）保证可用性；
@@ -58,6 +73,9 @@ class WorkerProcessController {
   Timer? _adoptPollTimer;
   IOSink? _logSink;
 
+  /// 当前托管状态（UI 可监听）。
+  final runState = ValueNotifier<WorkerRunState>(WorkerRunState.stopped);
+
   String? get _home => homeDirOverride ?? homeDirOf(Platform.environment, isWindows: false);
 
   /// 拉起守护进程（幂等）。[forceRestartRunning]：已发现运行中的守护进程时
@@ -67,8 +85,10 @@ class WorkerProcessController {
     if (!Platform.isMacOS) return;
     try {
       if (_child != null) return;
+      runState.value = WorkerRunState.starting;
       if (!await migrateLegacyLaunchAgent()) {
         _log('LaunchAgent plist 删不掉；KeepAlive 会重复拉起，跳过 spawn 防双实例');
+        runState.value = WorkerRunState.stopped;
         return;
       }
       final pid = await findDaemonPid();
@@ -79,6 +99,7 @@ class WorkerProcessController {
           // 否则就是"采纳后失管"，复活旧架构的永久离线。
           _adoptedPid = pid;
           _startAdoptPolling(pid);
+          runState.value = WorkerRunState.running;
           _log('daemon already running (pid $pid)，采纳并纳入监控');
           return;
         }
@@ -88,6 +109,7 @@ class WorkerProcessController {
     } catch (e) {
       // 启动是 best-effort（同旧 _ensureWorkerService 惯例）：失败不阻塞 UI，
       // dashboard 会从 status 拉不到而展示离线；记录日志供诊断。
+      runState.value = WorkerRunState.stopped;
       _log('start 失败: $e');
     }
   }
@@ -145,6 +167,7 @@ class WorkerProcessController {
     _restartTimer = null;
     _adoptPollTimer?.cancel();
     _adoptPollTimer = null;
+    runState.value = WorkerRunState.stopped;
     final child = _child;
     if (child != null) {
       _child = null;
@@ -195,11 +218,15 @@ class WorkerProcessController {
     final resolve = binaryPathResolver ?? resolveBinaryPaths;
     final paths = await resolve();
     if (paths == null) {
+      runState.value = WorkerRunState.stopped;
       _log('找不到 corterm 二进制，跳过 spawn');
       return;
     }
     final home = _home;
-    if (home == null) return;
+    if (home == null) {
+      runState.value = WorkerRunState.stopped;
+      return;
+    }
 
     final logFile = File(p.join(home, '.corterm', _logName));
     _rotateLogIfNeeded(logFile);
@@ -219,6 +246,7 @@ class WorkerProcessController {
     _adoptPollTimer = null;
     _stopRequested = false;
     _spawnedAt = spawnedAt;
+    runState.value = WorkerRunState.running;
     // stdout/stderr 必须从 spawn 起持续泵走，否则 worker 写满管道会阻塞。
     _logSink!.writeln('[$spawnedAt] spawned pid ${proc.pid}');
     proc.stdout.listen(_logSink!.add);
@@ -235,7 +263,11 @@ class WorkerProcessController {
         : DateTime.now().difference(_spawnedAt!);
     if (stableFor > const Duration(seconds: 60)) _backoffSeconds = 1;
     _log('worker 退出（code $code），${_backoffSeconds}s 后重启');
-    if (_stopRequested) return;
+    if (_stopRequested) {
+      runState.value = WorkerRunState.stopped;
+      return;
+    }
+    runState.value = WorkerRunState.backingOff;
     _restartTimer?.cancel();
     _restartTimer = Timer(Duration(seconds: _backoffSeconds), () async {
       _backoffSeconds = min(_backoffSeconds * 2, 30);

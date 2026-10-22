@@ -91,7 +91,7 @@ jobs:
           API_ISSUER_ID: ${{ secrets.CORTEX_APPSTORE_ISSUER_ID }}
         run: |
           mkdir -p "$RUNNER_TEMP/staging"
-          ditto src/Flutter/worker_ui/build/macos/Build/Products/Release/worker_ui.app "$RUNNER_TEMP/staging/Corterm.app"
+          ditto src/Flutter/worker_ui/build/macos/Build/Products/Release/Corterm.app "$RUNNER_TEMP/staging/Corterm.app"
           bash src/Flutter/worker_ui/tool/sign_macos_release.sh "$RUNNER_TEMP/staging/Corterm.app" /tmp/corterm-ui-macos.dmg
 
       - uses: actions/upload-artifact@v4
