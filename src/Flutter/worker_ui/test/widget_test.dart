@@ -10,17 +10,19 @@ import 'package:worker_ui/theme/app_theme.dart';
 
 /// Fake service：不跑真实进程，只喂内存数据。
 class _FakeService extends CortermService {
-  _FakeService() : super(cortermPath: '/tmp/fake-corterm');
+  _FakeService({this.user = 'alice'}) : super(cortermPath: '/tmp/fake-corterm');
+
+  final String user;
 
   @override
-  Future<Status> status() async => const Status(
+  Future<Status> status() async => Status(
     version: '0.5.14',
     pid: 123,
     uptime: '1d 2h',
     gateway: 'https://corterm.rwecho.top',
     workerId: 'worker-host',
     authenticated: true,
-    user: 'alice',
+    user: user,
     authExpiry: 'expires in 1d',
     gatewayVersion: '1.2.3',
     latestWorkerVersion: '0.5.15',
@@ -67,6 +69,27 @@ void main() {
       expect(find.text('0.5.14'), findsWidgets);
     },
   );
+
+  testWidgets('long account keeps manage action at row end and hides gateway', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ShadApp(
+        theme: shadLightTheme(),
+        home: AppScope(
+          service: _FakeService(user: 'hw_17701565543'),
+          child: const Scaffold(body: DashboardScreen()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final account = tester.getRect(find.text('hw_17701565543'));
+    final action = tester.getRect(find.text('Manage account'));
+    expect(action.left, greaterThan(account.left));
+    expect(find.text('https://corterm.rwecho.top'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('dashboard remains usable at minimum window width', (
     tester,
