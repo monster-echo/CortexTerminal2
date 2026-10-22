@@ -1,0 +1,59 @@
+name: Deploy Landing Page to GitHub Pages
+on:
+  push:
+    branches: [main]
+    paths: ['landing/**', '.github/workflows/gh-pages.yml']
+  release:
+    types: [published]
+  workflow_run:
+    workflows: [Worker UI Release]
+    types: [completed]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: false
+jobs:
+  deploy:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Resolve latest stable desktop release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" > "$RUNNER_TEMP/releases.json"
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          const releases = JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP + '/releases.json', 'utf8'));
+          const release = releases.filter(r => /^ui-v\d+\.\d+\.\d+$/.test(r.tag_name) && !r.draft && !r.prerelease)
+            .sort((a,b) => {
+              const av = a.tag_name.slice(4).split('.').map(Number), bv = b.tag_name.slice(4).split('.').map(Number);
+              for(let i=0;i<3;i++) if(av[i] !== bv[i]) return bv[i]-av[i];
+              return 0;
+            })[0];
+          if (!release) throw new Error('No stable desktop release');
+          const names = ['corterm-ui-macos.dmg', 'corterm-ui-windows-setup.exe', 'worker-ui-linux.tar.gz'];
+          for (const name of names) if (!release.assets.some(a => a.name === name)) throw new Error('Missing asset: ' + name);
+          fs.writeFileSync('landing/release.json', JSON.stringify({tag_name:release.tag_name,html_url:release.html_url,assets:release.assets.map(({name,browser_download_url})=>({name,browser_download_url}))},null,2));
+          let html = fs.readFileSync('landing/index.html','utf8');
+          html = html.replaceAll('ui-v0.3.1',release.tag_name).replaceAll('v0.3.1',release.tag_name.slice(3));
+          fs.writeFileSync('landing/index.html',html);
+          console.log('Deploying desktop version:',release.tag_name);
+          JS
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: landing
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
