@@ -303,8 +303,10 @@ class WorkerProcessController {
       paths.corterm,
       const [],
       workingDirectory: home, // 与 launchd plist 的 WorkingDirectory 一致
-      environment: const {
+      environment: {
         'CORTERM_LIFECYCLE_OWNER': 'desktop',
+        // FSEvents can block while watching homes on external macOS volumes.
+        if (Platform.isMacOS) 'DOTNET_USE_POLLING_FILE_WATCHER': '1',
       },
     );
     _child = proc;

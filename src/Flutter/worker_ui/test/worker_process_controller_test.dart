@@ -11,6 +11,7 @@ const _fakeDaemon =
     '#!/bin/sh\n'
     'trap \'exit 0\' TERM\n'
     'echo started\n'
+    'echo owner=\$CORTERM_LIFECYCLE_OWNER polling=\$DOTNET_USE_POLLING_FILE_WATCHER\n'
     'while :; do sleep 1; done\n';
 
 Directory _tempHome() {
@@ -101,6 +102,8 @@ void main() {
 
     final log = await _waitForLog(home, 'spawned pid');
     expect(log, contains('[20'));
+    final environmentLog = await _waitForLog(home, 'owner=desktop polling=1');
+    expect(environmentLog, contains('owner=desktop polling=1'));
   });
 
   test('findDaemonPid matches bare invocation only', () async {
