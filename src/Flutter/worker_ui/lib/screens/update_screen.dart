@@ -1,10 +1,8 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
-import '../core/binary_locator.dart';
 import '../core/corterm_service.dart';
 import '../core/app_scope.dart';
 import '../core/models.dart';
@@ -111,12 +109,12 @@ class _UpdateScreenState extends State<UpdateScreen> {
 
     if (!isWindowsStoreBuild && _workerAvailable) {
       try {
-        // macOS：worker 由本 App 托管，CLI 不做服务重启（会走 launchctl 装回
-        // LaunchAgent 拉起第二实例）；旧 worker 不认识该选项，探测后再传。
-        final noServiceRestart =
-            Platform.isMacOS && await supportsNoServiceRestart(_service.cortermPath);
+        // 桌面 App 统一负责重启，禁止更新器调用独立 CLI 的启动任务。
+        const noServiceRestart = true;
         var workerUpdated = false;
-        await for (final stage in _service.update(noServiceRestart: noServiceRestart)) {
+        await for (final stage in _service.update(
+          noServiceRestart: noServiceRestart,
+        )) {
           if (!mounted) return;
           setState(() {
             _stages.add(

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
@@ -32,14 +33,14 @@ enum WorkerRunState {
 ///
 /// 守护进程唯一特征是 argv 为空：`ps` 扫描里命令行以 `/corterm` 结尾。
 /// status/doctor/update 等瞬态 CLI 同名但带参数，不会被误匹配。
-/// Windows（计划任务）/ Linux（systemd --user）仍走系统服务，本控制器全部 no-op。
+/// Windows / Linux 同样由桌面 App 托管，不依赖独立 CLI 的启动任务。
 class WorkerProcessController {
   WorkerProcessController._()
-      : homeDirOverride = null,
-        daemonLister = null,
-        processRunner = null,
-        binaryPathResolver = null,
-        adoptPollInterval = const Duration(seconds: 30);
+    : homeDirOverride = null,
+      daemonLister = null,
+      processRunner = null,
+      binaryPathResolver = null,
+      adoptPollInterval = const Duration(seconds: 30);
 
   static final instance = WorkerProcessController._();
 
@@ -57,7 +58,8 @@ class WorkerProcessController {
 
   final String? homeDirOverride;
   final Future<String> Function()? daemonLister;
-  final Future<ProcessResult> Function(String executable, List<String> args)? processRunner;
+  final Future<ProcessResult> Function(String executable, List<String> args)?
+  processRunner;
   final BinaryPathResolver? binaryPathResolver;
 
   /// 采纳进程的存活轮询周期。外部 pid 拿不到退出事件，只能轮询；
@@ -76,18 +78,21 @@ class WorkerProcessController {
   /// 当前托管状态（UI 可监听）。
   final runState = ValueNotifier<WorkerRunState>(WorkerRunState.stopped);
 
-  String? get _home => homeDirOverride ?? homeDirOf(Platform.environment, isWindows: false);
+  String? get _home =>
+      homeDirOverride ??
+      homeDirOf(Platform.environment, isWindows: Platform.isWindows);
 
   /// 拉起守护进程（幂等）。[forceRestartRunning]：已发现运行中的守护进程时
   /// 杀掉重拉 —— [ensureWorkerInstalled] 刚修复/替换过二进制时传 true，
   /// 否则旧镜像进程会一直占用到下次重启。
   Future<void> start({bool forceRestartRunning = false}) async {
-    if (!Platform.isMacOS) return;
+    if (!(Platform.isMacOS || Platform.isWindows || Platform.isLinux)) return;
     try {
       if (_child != null) return;
+      _stopRequested = false;
       runState.value = WorkerRunState.starting;
-      if (!await migrateLegacyLaunchAgent()) {
-        _log('LaunchAgent plist 删不掉；KeepAlive 会重复拉起，跳过 spawn 防双实例');
+      if (!await _migrateLegacyService()) {
+        _log('旧启动任务无法停用，跳过 spawn 防止重复运行');
         runState.value = WorkerRunState.stopped;
         return;
       }
@@ -114,6 +119,38 @@ class WorkerProcessController {
     }
   }
 
+  /// Choosing the desktop launcher transfers lifecycle ownership from the CLI service.
+  /// Keep the old task definition so a CLI installation can re-enable its own mode.
+  Future<bool> _migrateLegacyService() async {
+    if (Platform.isWindows) {
+      final query = await Process.run('schtasks', [
+        '/Query',
+        '/TN',
+        'Corterm Worker',
+      ]);
+      if (query.exitCode != 0) return true;
+      final disabled = await Process.run('schtasks', [
+        '/Change',
+        '/TN',
+        'Corterm Worker',
+        '/Disable',
+      ]);
+      if (disabled.exitCode != 0) {
+        _log('Cannot disable legacy worker task: ${disabled.stderr}');
+        return false;
+      }
+      await Process.run('schtasks', ['/End', '/TN', 'Corterm Worker']);
+      final legacyPid = await findDaemonPid();
+      if (legacyPid != null) await _killPidBestEffort(legacyPid);
+      return true;
+    }
+    if (Platform.isLinux) {
+      await _run('systemctl', ['--user', 'disable', '--now', 'corterm-worker']);
+      return true;
+    }
+    return migrateLegacyLaunchAgent();
+  }
+
   /// 一次性迁移：旧的 LaunchAgent 托管模式 → App 托管。plist 存在则
   /// unload + remove + 删除，并轮询旧进程消失（unload 后 launchd 收割有延迟）。
   /// 返回 false（plist 删不掉）时调用方不得 spawn，否则 launchd KeepAlive
@@ -122,7 +159,9 @@ class WorkerProcessController {
     if (!Platform.isMacOS) return true;
     final home = _home;
     if (home == null) return true;
-    final plist = File(p.join(home, 'Library', 'LaunchAgents', '$_label.plist'));
+    final plist = File(
+      p.join(home, 'Library', 'LaunchAgents', '$_label.plist'),
+    );
     if (!plist.existsSync()) return true;
 
     await _run('launchctl', ['unload', plist.path]);
@@ -144,6 +183,7 @@ class WorkerProcessController {
 
   /// 运行中的守护进程 pid（argv 为空的 corterm），没有则 null。
   Future<int?> findDaemonPid() async {
+    if (Platform.isWindows) return _findWindowsDaemonPid();
     final output = await _listProcesses();
     for (final line in output.split('\n')) {
       final trimmed = line.trim();
@@ -158,10 +198,45 @@ class WorkerProcessController {
     return null;
   }
 
+  Future<int?> _findWindowsDaemonPid({int? onlyPid}) async {
+    final paths = await (binaryPathResolver ?? resolveBinaryPaths)();
+    if (paths == null) return null;
+    final result = await Process.run('powershell.exe', [
+      '-NoProfile',
+      '-NonInteractive',
+      '-Command',
+      "Get-CimInstance Win32_Process -Filter \"Name='corterm.exe'\" | Select-Object ProcessId,ExecutablePath,CommandLine | ConvertTo-Json -Compress",
+    ]);
+    if (result.exitCode != 0) {
+      throw StateError('Cannot inspect worker processes: ${result.stderr}');
+    }
+    final output = result.stdout.toString().trim();
+    if (output.isEmpty) return null;
+    final decoded = jsonDecode(output);
+    final rows = decoded is List ? decoded : [decoded];
+    final expected = paths.corterm.toLowerCase();
+    for (final row in rows) {
+      final id = row['ProcessId'] as int;
+      if (onlyPid != null && id != onlyPid) continue;
+      final executable = (row['ExecutablePath'] as String? ?? '').toLowerCase();
+      final command = (row['CommandLine'] as String? ?? '')
+          .trim()
+          .replaceAll('"', '')
+          .toLowerCase();
+      // Match the exact worker path and a bare invocation, never the desktop GUI
+      // (also named Corterm.exe) or transient login/status/update commands.
+      if ((executable == expected || executable == '$expected.bak') &&
+          (command == expected || command == executable)) {
+        return id;
+      }
+    }
+    return null;
+  }
+
   /// 停止托管并杀掉守护进程。只接托盘退出 —— 绝不能挂到全局 exit 钩子上：
   /// SelfUpdater 更新 UI 自身时也会 exit，worker 必须存活。
   Future<void> stop() async {
-    if (!Platform.isMacOS) return;
+    if (!(Platform.isMacOS || Platform.isWindows || Platform.isLinux)) return;
     _stopRequested = true;
     _restartTimer?.cancel();
     _restartTimer = null;
@@ -191,7 +266,7 @@ class WorkerProcessController {
   /// 重启（worker 更新完成后由调用方触发）。start() 内部会重跑 LaunchAgent
   /// 迁移 —— legacy 路径的 update 若重建了 plist，这里收敛回 App 托管。
   Future<void> restart() async {
-    if (!Platform.isMacOS) return;
+    if (!(Platform.isMacOS || Platform.isWindows || Platform.isLinux)) return;
     await stop();
     await start();
   }
@@ -228,6 +303,7 @@ class WorkerProcessController {
       return;
     }
 
+    Directory(p.join(home, '.corterm')).createSync(recursive: true);
     final logFile = File(p.join(home, '.corterm', _logName));
     _rotateLogIfNeeded(logFile);
     await _logSink?.flush();
@@ -281,6 +357,10 @@ class WorkerProcessController {
   /// 杀外部 pid：先复核它仍是守护进程（防 pid 复用误杀），TERM → 3s → KILL。
   Future<void> _killPidBestEffort(int pid) async {
     if (!await _pidIsDaemon(pid)) return;
+    if (Platform.isWindows) {
+      await _run('taskkill', ['/PID', '$pid', '/F']);
+      return;
+    }
     await _run('kill', ['-TERM', '$pid']);
     final deadline = DateTime.now().add(const Duration(seconds: 3));
     while (DateTime.now().isBefore(deadline)) {
@@ -291,6 +371,9 @@ class WorkerProcessController {
   }
 
   Future<bool> _pidIsDaemon(int pid) async {
+    if (Platform.isWindows) {
+      return await _findWindowsDaemonPid(onlyPid: pid) != null;
+    }
     final r = await _run('ps', ['-p', '$pid', '-o', 'command=']);
     return r.trimRight().endsWith('/corterm');
   }

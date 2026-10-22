@@ -7,6 +7,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import '../core/corterm_service.dart';
 import '../core/app_scope.dart';
 import '../core/models.dart';
+import '../core/worker_process_controller.dart';
 import '../l10n/app_strings.dart';
 import '../theme/app_theme.dart';
 import '../widgets/error_banner.dart';
@@ -87,6 +88,7 @@ class _AuthScreenState extends State<AuthScreen> {
           if (stage.isError) _loginMessage = stage.message ?? 'auth failed';
           if (stage.isSuccess) _loginMessage = 'success';
         });
+        if (stage.isSuccess) await WorkerProcessController.instance.restart();
         if (stage.isError || stage.isSuccess) break;
       }
       if (!mounted) return;
@@ -124,6 +126,7 @@ class _AuthScreenState extends State<AuthScreen> {
     setState(() => _error = null);
     try {
       await _service.logout();
+      await WorkerProcessController.instance.restart();
       if (!mounted) return;
       setState(() => _loginMessage = AppStrings.t(context, 'auth.loggedOut'));
       await _loadStatus();
@@ -138,6 +141,7 @@ class _AuthScreenState extends State<AuthScreen> {
     setState(() => _error = null);
     try {
       await _service.logout();
+      await WorkerProcessController.instance.restart();
       if (!mounted) return;
       setState(() {
         _authenticated = false;
@@ -160,7 +164,12 @@ class _AuthScreenState extends State<AuthScreen> {
           ErrorBanner(message: _error),
           const SizedBox(height: 8),
           if (_loading)
-            const Center(child: Padding(padding: EdgeInsets.all(24), child: SmallSpinner()))
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: SmallSpinner(),
+              ),
+            )
           else if (_authenticated == true)
             _buildAuthenticated(context)
           else
@@ -263,7 +272,10 @@ class _AuthScreenState extends State<AuthScreen> {
             style: TextStyle(fontSize: 13, color: scheme.mutedForeground),
           ),
           const SizedBox(height: 20),
-          Text(t(context, 'auth.enterCode'), style: TextStyle(color: scheme.mutedForeground, fontSize: 12)),
+          Text(
+            t(context, 'auth.enterCode'),
+            style: TextStyle(color: scheme.mutedForeground, fontSize: 12),
+          ),
           const SizedBox(height: 6),
           // 设备码 chip：给无法扫码的场景手动输入用。
           Container(
@@ -284,12 +296,24 @@ class _AuthScreenState extends State<AuthScreen> {
           ),
           const SizedBox(height: 16),
           if (!_loggingIn && _loginMessage == null)
-            Text(t(context, 'auth.waiting'), style: TextStyle(color: scheme.mutedForeground, fontSize: 13))
+            Text(
+              t(context, 'auth.waiting'),
+              style: TextStyle(color: scheme.mutedForeground, fontSize: 13),
+            )
           else if (_loginMessage == 'success')
-            Text(t(context, 'auth.success'), style: TextStyle(color: scheme.tertiary, fontWeight: FontWeight.w600))
+            Text(
+              t(context, 'auth.success'),
+              style: TextStyle(
+                color: scheme.tertiary,
+                fontWeight: FontWeight.w600,
+              ),
+            )
           else if (_loginMessage != null && _loginMessage != 'success')
-            Text('${t(context, 'auth.failed')}: $_loginMessage',
-                style: TextStyle(color: scheme.destructive), textAlign: TextAlign.center),
+            Text(
+              '${t(context, 'auth.failed')}: $_loginMessage',
+              style: TextStyle(color: scheme.destructive),
+              textAlign: TextAlign.center,
+            ),
         ],
       ],
     );

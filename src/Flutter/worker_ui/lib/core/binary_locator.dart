@@ -1,4 +1,7 @@
 import 'dart:io';
+import 'dart:convert';
+
+import 'self_updater.dart' show versionCompare;
 
 import 'package:path/path.dart' as p;
 
@@ -25,7 +28,8 @@ Future<BinaryPaths?> resolveBinaryPaths() async {
 
   final candidates = <String>[];
   final envHome =
-      Platform.environment['CORTERM_HOME'] ?? Platform.environment['CORTEX_TERMINAL_HOME'];
+      Platform.environment['CORTERM_HOME'] ??
+      Platform.environment['CORTEX_TERMINAL_HOME'];
   if (envHome != null && envHome.isNotEmpty) {
     candidates.add(p.join(envHome, cortermName));
   }
@@ -54,8 +58,9 @@ Future<BinaryPaths?> resolveBinaryPaths() async {
 /// `--json`（worker <0.5.16，install.ps1 / 手动安装的遗留）就用内置的修掉。
 /// 幂等，每次启动跑一遍都安全。
 /// 返回本次是否安装/修复过二进制（调用方据此重启运行中的旧镜像进程）。
-Future<bool> ensureWorkerInstalled() {
+Future<bool> ensureWorkerInstalled({bool syncBundledWorker = false}) {
   return ensureWorkerInstalledFrom(
+    syncBundledWorker: syncBundledWorker,
     homeDir: _homeDir(),
     exePath: Platform.resolvedExecutable,
     isWindows: Platform.isWindows,
@@ -66,6 +71,7 @@ Future<bool> ensureWorkerInstalled() {
 /// 安装/修复入口，参数仅供测试注入（[ensureWorkerInstalled] 从当前进程取值）。
 /// 返回是否替换过二进制。
 Future<bool> ensureWorkerInstalledFrom({
+  bool syncBundledWorker = false,
   required String? homeDir,
   required String exePath,
   required bool isWindows,
@@ -78,10 +84,25 @@ Future<bool> ensureWorkerInstalledFrom({
   final installedCorterm = File(p.join(installDir, cortermName));
   if (installedCorterm.existsSync()) {
     // 没有内置二进制（开发环境）就无从修起，直接用现有安装。
-    if (bundledAssetPathFor(cortermName, exePath: exePath, isMacOS: isMacOS) == null) {
+    if (bundledAssetPathFor(cortermName, exePath: exePath, isMacOS: isMacOS) ==
+        null) {
       return false;
     }
-    if (await _supportsJson(installedCorterm.path)) return false;
+    if (await _supportsJson(installedCorterm.path)) {
+      if (!syncBundledWorker) return false;
+      final bundled = bundledAssetPathFor(
+        cortermName,
+        exePath: exePath,
+        isMacOS: isMacOS,
+      )!;
+      final currentVersion = await _workerVersion(installedCorterm.path);
+      final bundledVersion = await _workerVersion(bundled);
+      if (currentVersion == null ||
+          bundledVersion == null ||
+          versionCompare(bundledVersion, currentVersion) <= 0) {
+        return false;
+      }
+    }
     // 旧版：落到下面用内置 worker 覆盖修复。
   }
   return _installBundledWorker(
@@ -90,6 +111,24 @@ Future<bool> ensureWorkerInstalledFrom({
     isWindows: isWindows,
     isMacOS: isMacOS,
   );
+}
+
+/// Inspect trusted worker binaries without leaving a stalled version probe running.
+Future<String?> _workerVersion(String executable) async {
+  Process? process;
+  try {
+    process = await Process.start(executable, ['--version']);
+    final output = process.stdout.transform(utf8.decoder).join();
+    final errors = process.stderr.drain<void>();
+    final code = await process.exitCode.timeout(const Duration(seconds: 5));
+    final text = await output;
+    await errors;
+    if (code != 0) return null;
+    return RegExp(r'\d+\.\d+\.\d+').firstMatch(text)?.group(0);
+  } catch (_) {
+    process?.kill();
+    return null;
+  }
 }
 
 /// `status --help` 输出里 `--json` 选项（System.CommandLine 只显示首个别名，即裸
@@ -101,7 +140,10 @@ final jsonOptionPattern = RegExp(r'^\s*json\b', multiLine: true);
 /// worker 子进程时更新完由 App 重启；但旧 worker（≤0.5.23）不认识该选项会
 /// 直接报错退出 —— 更新前必须探测，没有就不传（legacy 路径仍走 CLI 内部的
 /// launchctl 重启，App 侧 restart() 的迁移逻辑会收敛回托管模式）。
-final noRestartOptionPattern = RegExp(r'^\s*no-service-restart\b', multiLine: true);
+final noRestartOptionPattern = RegExp(
+  r'^\s*no-service-restart\b',
+  multiLine: true,
+);
 
 /// 探测 CLI 是否支持 `--json`（App 的调用契约，worker ≥0.5.16）。
 /// `status --help` 是纯解析调用——不执行命令逻辑、无网络副作用，新旧版本行为一致。
@@ -116,7 +158,8 @@ Future<bool> _supportsJson(String cortermPath) async {
 Future<bool> _probeJson(String cortermPath) async {
   try {
     final r = await Process.run(cortermPath, ['status', '--help']);
-    return r.exitCode == 0 && jsonOptionPattern.hasMatch(r.stdout as String? ?? '');
+    return r.exitCode == 0 &&
+        jsonOptionPattern.hasMatch(r.stdout as String? ?? '');
   } catch (_) {
     return false;
   }
@@ -127,13 +170,16 @@ Future<bool> _probeJson(String cortermPath) async {
 final _noRestartProbeCache = <String, bool>{};
 
 Future<bool> supportsNoServiceRestart(String cortermPath) async {
-  return _noRestartProbeCache[cortermPath] ??= await _probeNoServiceRestart(cortermPath);
+  return _noRestartProbeCache[cortermPath] ??= await _probeNoServiceRestart(
+    cortermPath,
+  );
 }
 
 Future<bool> _probeNoServiceRestart(String cortermPath) async {
   try {
     final r = await Process.run(cortermPath, ['update', '--help']);
-    return r.exitCode == 0 && noRestartOptionPattern.hasMatch(r.stdout as String? ?? '');
+    return r.exitCode == 0 &&
+        noRestartOptionPattern.hasMatch(r.stdout as String? ?? '');
   } catch (_) {
     return false;
   }
@@ -142,11 +188,16 @@ Future<bool> _probeNoServiceRestart(String cortermPath) async {
 /// 把 App 内置的 corterm/appsettings.json 装到 [installDir]（幂等）。
 /// appsettings.json 是用户的网关配置，只补缺不覆盖；二进制总是补齐/替换。
 /// 返回是否写入了二进制。
-Future<bool> _installBundledWorker(String installDir,
-    {required String exePath, required bool isWindows, required bool isMacOS}) async {
+Future<bool> _installBundledWorker(
+  String installDir, {
+  required String exePath,
+  required bool isWindows,
+  required bool isMacOS,
+}) async {
   final cortermName = isWindows ? 'corterm.exe' : 'corterm';
 
-  if (bundledAssetPathFor(cortermName, exePath: exePath, isMacOS: isMacOS) == null) {
+  if (bundledAssetPathFor(cortermName, exePath: exePath, isMacOS: isMacOS) ==
+      null) {
     return false; // 没内置二进制，交给安装/设置
   }
 
@@ -165,14 +216,6 @@ Future<bool> _installBundledWorker(String installDir,
     // 装失败不阻塞，resolveBinaryPaths 还有 PATH 兜底
   }
 
-  // Windows 上守护进程（计划任务）还挂着改名后的旧镜像跑，重启让新二进制生效。
-  if (isWindows) {
-    try {
-      await Process.run(p.join(installDir, cortermName), ['restart', '--json']);
-    } catch (_) {
-      // 服务未安装（全新机器）等场景重启失败不阻塞；下次登录计划任务自然用新二进制。
-    }
-  }
   return installed;
 }
 
@@ -206,20 +249,35 @@ String? homeDirOf(Map<String, String> env, {required bool isWindows}) {
   return (home != null && home.isNotEmpty) ? home : null;
 }
 
-String? _homeDir() => homeDirOf(Platform.environment, isWindows: Platform.isWindows);
+String? _homeDir() =>
+    homeDirOf(Platform.environment, isWindows: Platform.isWindows);
 
 /// [exePath] 所在 App 的 flutter_assets 内置资产路径（发布/调试都成立）。
 /// macOS 的 flutter_assets 在 .app 内部两个已知位置之一；Windows/Linux 就在
 /// 可执行文件旁边的 `data/flutter_assets/`。
-String? bundledAssetPathFor(String name,
-    {required String exePath, required bool isMacOS}) {
+String? bundledAssetPathFor(
+  String name, {
+  required String exePath,
+  required bool isMacOS,
+}) {
   final exeDir = p.dirname(exePath);
   final rel = p.join('assets', 'bin', name);
   final candidates = isMacOS
       ? [
           p.normalize(p.join(exeDir, '..', 'Resources', 'flutter_assets', rel)),
-          p.normalize(p.join(exeDir, '..', 'Frameworks', 'App.framework', 'Versions', 'A',
-              'Resources', 'flutter_assets', rel)),
+          p.normalize(
+            p.join(
+              exeDir,
+              '..',
+              'Frameworks',
+              'App.framework',
+              'Versions',
+              'A',
+              'Resources',
+              'flutter_assets',
+              rel,
+            ),
+          ),
         ]
       : [p.join(exeDir, 'data', 'flutter_assets', rel)];
   for (final candidate in candidates) {
@@ -233,10 +291,9 @@ Future<String?> _which(String name) async {
   try {
     final result = await Process.run(cmd, [name]);
     if (result.exitCode != 0) return null;
-    final first = (result.stdout as String? ?? '').split('\n').firstWhere(
-          (l) => l.trim().isNotEmpty,
-          orElse: () => '',
-        );
+    final first = (result.stdout as String? ?? '')
+        .split('\n')
+        .firstWhere((l) => l.trim().isNotEmpty, orElse: () => '');
     return first.trim().isEmpty ? null : first.trim();
   } catch (_) {
     return null;

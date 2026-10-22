@@ -19,9 +19,7 @@ Future<void> main() async {
   await Settings.instance.load();
 
   // App 与 worker 一体：没有 worker 就装内置的，避免「请安装 worker」。
-  await ensureWorkerInstalled();
-  // 启动 UI 即确保 worker 服务在跑（best-effort，不阻塞启动）。
-  await _ensureWorkerService();
+  await _ensureWorkerProcess();
 
   _initLaunchAtStartup(); // 先 setup，托盘菜单里的开机启动复选框才能读/切
   await _initWindow();
@@ -59,24 +57,13 @@ class _AppWindowListener extends WindowListener {
 }
 
 // ── 服务：启动 UI 即确保 worker 守护进程在跑（best-effort）──
-// macOS：App 直接托管 worker 子进程（替代 LaunchAgent + launchctl）；
-// Windows/Linux 仍走系统服务（计划任务 / systemd --user）。
-Future<void> _ensureWorkerService() async {
-  if (Platform.isMacOS) {
-    final repaired = await ensureWorkerInstalled();
-    await WorkerProcessController.instance.start(forceRestartRunning: repaired);
-    return;
-  }
-  try {
-    final paths = await resolveBinaryPaths();
-    if (paths == null) return;
-    await Process.run(paths.corterm, ['start', '--json']);
-  } catch (_) {
-    // 服务未安装 / 已运行等场景都忽略，不阻塞 UI。
-  }
+// 所有桌面平台均由 App 托管，不调用独立 CLI 的系统服务。
+Future<void> _ensureWorkerProcess() async {
+  final repaired = await ensureWorkerInstalled(syncBundledWorker: true);
+  await WorkerProcessController.instance.start(forceRestartRunning: repaired);
 }
 
-/// 托盘退出：先停托管的 worker（macOS），再退出进程。
+/// 托盘退出：先停托管的 worker，再退出进程。
 /// stop() 只接这里 —— 绝不能挂到全局 exit 钩子：SelfUpdater 更新 UI 时也会
 /// exit(0)，worker 必须存活，更新后由 OS/安装器把应用拉回来。
 Future<void> _quit() async {
