@@ -520,20 +520,20 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
             return;
         }
 
-        _logger.LogInformation("Received upgrade command: target={TargetVersion}, url={DownloadUrl}", command.TargetVersion, command.DownloadUrl);
-
-        if (!DoesDownloadUrlMatchLocalPlatform(command.DownloadUrl))
-        {
-            _logger.LogError(
-                "Upgrade rejected: download URL platform does not match local platform. Local: {LocalOS}/{LocalArch}, URL: {DownloadUrl}.",
-                RuntimeInformation.OSDescription,
-                RuntimeInformation.ProcessArchitecture,
-                command.DownloadUrl);
-            return;
-        }
-
         try
         {
+            _logger.LogInformation("Received upgrade command: target={TargetVersion}, url={DownloadUrl}", command.TargetVersion, command.DownloadUrl);
+
+            if (!DoesDownloadUrlMatchLocalPlatform(command.DownloadUrl))
+            {
+                _logger.LogError(
+                    "Upgrade rejected: download URL platform does not match local platform. Local: {LocalOS}/{LocalArch}, URL: {DownloadUrl}.",
+                    RuntimeInformation.OSDescription,
+                    RuntimeInformation.ProcessArchitecture,
+                    command.DownloadUrl);
+                return;
+            }
+
             var isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
             string tmpFile;
 
@@ -600,14 +600,24 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
                     File.Move(stagingPath, currentBinary, overwrite: true);
                 }
 
-                _logger.LogInformation("Binary replaced. Restarting via OS service manager ...");
+                if (string.Equals(Environment.GetEnvironmentVariable("CORTERM_LIFECYCLE_OWNER"), "desktop", StringComparison.OrdinalIgnoreCase))
+                {
+                    _logger.LogInformation("Binary replaced. Exiting so the desktop app can restart the worker.");
+                    Environment.Exit(0);
+                    return;
+                }
 
+                _logger.LogInformation("Binary replaced. Restarting via OS service manager ...");
                 RestartViaServiceManager();
             }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Upgrade failed.");
+        }
+        finally
+        {
+            _upgradeLock.Release();
         }
     }
 
@@ -620,7 +630,7 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         if (isWindows)
         {
             program = "cmd";
-            args = "/c \"taskkill /IM corterm.exe /F & schtasks /run /tn \\\"Corterm Worker\\\"\"";
+            args = $"/c \"taskkill /PID {Environment.ProcessId} /F & schtasks /run /tn \\\"Corterm Worker\\\"\"";
         }
         else if (isOsx)
         {

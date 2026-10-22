@@ -303,6 +303,9 @@ class WorkerProcessController {
       paths.corterm,
       const [],
       workingDirectory: home, // 与 launchd plist 的 WorkingDirectory 一致
+      environment: const {
+        'CORTERM_LIFECYCLE_OWNER': 'desktop',
+      },
     );
     _child = proc;
     _adoptedPid = null;

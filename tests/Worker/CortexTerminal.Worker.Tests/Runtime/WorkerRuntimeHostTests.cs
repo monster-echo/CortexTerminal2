@@ -277,6 +277,12 @@ public sealed class WorkerRuntimeHostTests
         // Should not throw, but should silently reject (no binary download attempted)
         await gateway.RaiseUpgradeWorkerAsync(new UpgradeWorkerCommand("99.0.0", wrongUrl));
 
+        // A rejected upgrade must not permanently lock out subsequent attempts.
+        var upgradeLock = (SemaphoreSlim)typeof(WorkerRuntimeHost)
+            .GetField("_upgradeLock", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)!
+            .GetValue(null)!;
+        upgradeLock.CurrentCount.Should().Be(1);
+
         // Worker should still be running (not exited)
         host.ActiveSessionCount.Should().Be(0);
     }

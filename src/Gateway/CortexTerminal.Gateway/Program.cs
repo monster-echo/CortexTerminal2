@@ -3251,8 +3251,7 @@ app.MapPost("/api/me/workers/{workerId}/upgrade", async (string workerId, Claims
     }
 
     var assetName = WorkerReleaseAsset.GetAssetName(workerRecord.OperatingSystem, workerRecord.Architecture);
-    var githubProxy = builder.Configuration["GitHub:Proxy"] ?? "https://proxy.0x2a.top";
-    var downloadUrl = $"{githubProxy}/https://github.com/{githubRepo}/releases/latest/download/{assetName}";
+    var downloadUrl = $"https://github.com/{githubRepo}/releases/download/worker-v{latestVersion}/{assetName}";
 
     try
     {
