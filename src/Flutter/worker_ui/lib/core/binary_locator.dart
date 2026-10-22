@@ -223,6 +223,24 @@ Future<bool> _installBundledWorker(
 /// 先把旧文件挪成 `.bak`（运行中的旧进程继续用改名后的镜像），再写入新文件
 /// ——`corterm update` 自更新用的同一招。`.bak` 在旧进程退出前删不掉，尽力清理。
 void _replaceFile(File src, File dest, {required bool isWindows}) {
+  if (!isWindows) {
+    // Never overwrite a mapped executable's inode. macOS can retain its old
+    // code-signature cache; Linux rejects writes to a running executable.
+    final staged = File(
+      '${dest.path}.staging-${DateTime.now().microsecondsSinceEpoch}',
+    );
+    try {
+      staged.writeAsBytesSync(src.readAsBytesSync(), flush: true);
+      final chmod = Process.runSync('chmod', ['+x', staged.path]);
+      if (chmod.exitCode != 0) {
+        throw FileSystemException('Cannot make worker executable', staged.path);
+      }
+      staged.renameSync(dest.path);
+    } finally {
+      if (staged.existsSync()) staged.deleteSync();
+    }
+    return;
+  }
   if (dest.existsSync() && isWindows) {
     final bak = File('${dest.path}.bak');
     if (bak.existsSync()) bak.deleteSync();
@@ -234,9 +252,6 @@ void _replaceFile(File src, File dest, {required bool isWindows}) {
     }
   }
   dest.writeAsBytesSync(src.readAsBytesSync(), flush: true);
-  if (!isWindows) {
-    Process.runSync('chmod', ['+x', dest.path]);
-  }
 }
 
 /// home 目录：Windows 没有 `HOME` 环境变量，用 `USERPROFILE`；其余平台 `HOME`。

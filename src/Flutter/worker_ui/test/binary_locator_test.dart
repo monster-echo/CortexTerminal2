@@ -36,31 +36,28 @@ void main() {
     expect(homeDirOf({'USERPROFILE': ''}, isWindows: true), isNull);
   });
 
-  test(
-    'bundledAssetPathFor resolves the data/flutter_assets shape on Windows/Linux',
-    () {
-      // Windows/Linux 的 flutter assets 在可执行文件旁的 data/flutter_assets/ 下。
-      final dir = Directory.systemTemp.createTempSync('bundled_asset_test');
-      addTearDown(() => dir.deleteSync(recursive: true));
-      final asset = File(
-        p.join(
-          dir.path,
-          'data',
-          'flutter_assets',
-          'assets',
-          'bin',
-          'corterm.exe',
-        ),
-      )..createSync(recursive: true);
-
-      final resolved = bundledAssetPathFor(
+  test('bundledAssetPathFor resolves the data/flutter_assets shape on Windows/Linux', () {
+    // Windows/Linux 的 flutter assets 在可执行文件旁的 data/flutter_assets/ 下。
+    final dir = Directory.systemTemp.createTempSync('bundled_asset_test');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final asset = File(
+      p.join(
+        dir.path,
+        'data',
+        'flutter_assets',
+        'assets',
+        'bin',
         'corterm.exe',
-        exePath: p.join(dir.path, 'worker_ui.exe'),
-        isMacOS: false,
-      );
-      expect(resolved, asset.path);
-    },
-  );
+      ),
+    )..createSync(recursive: true);
+
+    final resolved = bundledAssetPathFor(
+      'corterm.exe',
+      exePath: p.join(dir.path, 'worker_ui.exe'),
+      isMacOS: false,
+    );
+    expect(resolved, asset.path);
+  });
 
   test('bundledAssetPathFor resolves the .app shapes on macOS', () {
     final dir = Directory.systemTemp.createTempSync('bundled_asset_test');
@@ -178,6 +175,11 @@ void main() {
         );
         bundled.writeAsStringSync('#!/bin/sh\necho "$bundledVersion"\n');
         Process.runSync('chmod', ['+x', bundled.path]);
+        final originalAlias = File(p.join(home.path, 'previous-worker'));
+        Process.runSync('ln', [
+          p.join(home.path, '.corterm', 'corterm'),
+          originalAlias.path,
+        ]);
         final config = File(p.join(home.path, '.corterm', 'appsettings.json'));
         config.writeAsStringSync('{"preserved":true}');
         final changed = await ensureWorkerInstalledFrom(
@@ -189,6 +191,11 @@ void main() {
         );
         expect(changed, bundledVersion == '0.5.25');
         expect(config.readAsStringSync(), '{"preserved":true}');
+        expect(
+          originalAlias.readAsStringSync(),
+          contains('0.5.16'),
+          reason: 'The mapped original worker inode must remain unchanged',
+        );
         expect(
           File(p.join(home.path, '.corterm', 'corterm')).readAsStringSync(),
           contains(bundledVersion == '0.5.25' ? '0.5.25' : '0.5.16'),
