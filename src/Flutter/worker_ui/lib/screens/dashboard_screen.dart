@@ -296,14 +296,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WindowListener {
         ),
         if (s.authenticated) ...[
           const Divider(height: 1),
-          _compactRow(
-            context,
-            icon: LucideIcons.user,
-            label: s.user ?? t(context, 'panel.account'),
-            value: t(context, 'panel.manageAccount'),
-            onTap: () => _go(context, '/auth'),
-            chevron: true,
-          ),
+          _accountRow(context, s.user ?? t(context, 'panel.account')),
         ],
       ],
     );
@@ -399,12 +392,6 @@ class _DashboardScreenState extends State<DashboardScreen> with WindowListener {
             const Divider(height: 1),
             _compactRow(
               context,
-              label: t(context, 'panel.gateway'),
-              value: s.gateway,
-            ),
-            const Divider(height: 1),
-            _compactRow(
-              context,
               label: t(context, 'panel.uptime'),
               value: s.uptime,
             ),
@@ -469,6 +456,56 @@ class _DashboardScreenState extends State<DashboardScreen> with WindowListener {
           ),
         ),
       ],
+    );
+  }
+
+  /// 桌面键值行；窄窗口和大字体时自动改为两行，操作始终保留空间。
+  Widget _accountRow(BuildContext context, String account) {
+    final scheme = ShadTheme.of(context).colorScheme;
+    return Material(
+      type: MaterialType.transparency,
+      child: InkWell(
+        onTap: () => _go(context, '/auth'),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 56),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 20,
+                  child: Icon(
+                    LucideIcons.user,
+                    size: 18,
+                    color: scheme.mutedForeground,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    account,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 13, color: scheme.foreground),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  AppStrings.t(context, 'panel.manageAccount'),
+                  textAlign: TextAlign.end,
+                  style: TextStyle(fontSize: 12, color: scheme.mutedForeground),
+                ),
+                const SizedBox(width: 8),
+                Icon(
+                  LucideIcons.chevronRight,
+                  size: 16,
+                  color: scheme.mutedForeground,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 

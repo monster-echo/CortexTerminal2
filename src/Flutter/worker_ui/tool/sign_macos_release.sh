@@ -15,7 +15,7 @@ cleanup() {
 }
 trap cleanup EXIT
 umask 077
-printf '%s' "$SIGNING_P12" | base64 --decode > "$p12"
+python3 -c 'import base64,sys; sys.stdout.buffer.write(base64.b64decode(sys.stdin.buffer.read()))' <<< "$SIGNING_P12" > "$p12"
 printf '%s' "$API_PRIVATE_KEY" > "$api_key"
 keychain_password="$(openssl rand -hex 24)"
 echo "Preparing signing keychain"

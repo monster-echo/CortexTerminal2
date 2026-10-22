@@ -266,8 +266,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           tag="${GITHUB_REF#refs/tags/}"
+          shasum -a 256 /tmp/artifacts/worker-ui-macos/corterm-ui-macos.dmg \
+            > /tmp/artifacts/worker-ui-macos/corterm-ui-macos.dmg.sha256
           gh release create "$tag" \
             /tmp/artifacts/worker-ui-macos/corterm-ui-macos.dmg \
+            /tmp/artifacts/worker-ui-macos/corterm-ui-macos.dmg.sha256 \
             /tmp/artifacts/worker-ui-windows/*.exe \
             /tmp/artifacts/worker-ui-linux/worker-ui-linux.tar.gz \
             --title "云枢终端 UI $tag" \
