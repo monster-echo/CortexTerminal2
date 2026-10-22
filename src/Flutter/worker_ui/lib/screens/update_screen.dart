@@ -107,7 +107,7 @@ class _UpdateScreenState extends State<UpdateScreen> {
       _stages.clear();
     });
 
-    if (!isWindowsStoreBuild && _workerAvailable) {
+    if (!isWindowsStoreBuild && _workerAvailable && !_uiAvailable) {
       try {
         // 桌面 App 统一负责重启，禁止更新器调用独立 CLI 的启动任务。
         const noServiceRestart = true;

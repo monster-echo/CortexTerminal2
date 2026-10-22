@@ -42,7 +42,7 @@ class SelfUpdater {
   static const _tagPrefix = 'ui-v';
 
   static String get _githubProxy =>
-      Platform.environment['CORTERM_GITHUB_PROXY'] ?? 'https://proxy.0x2a.top';
+      Platform.environment['CORTERM_GITHUB_PROXY'] ?? '';
 
   /// 与 worker release 对齐的固定资产名（`releases/latest/download/<资产名>` 可直达）。
   static String get _assetName {
@@ -64,7 +64,7 @@ class SelfUpdater {
     final assetName = _assetName;
     final latest = await _latestVersion();
     final url =
-        '$_githubProxy/https://github.com/$_repo/releases/download/$_tagPrefix$latest/$assetName';
+        'https://github.com/$_repo/releases/download/$_tagPrefix$latest/$assetName';
     return UiUpdateCheck(
       currentVersion: appVersion,
       latestVersion: latest,
@@ -173,26 +173,46 @@ class SelfUpdater {
     String url,
     void Function(int, int?)? onProgress,
   ) async {
-    final req = await _client().getUrl(Uri.parse(url));
-    final resp = await req.close();
-    if (resp.statusCode != 200) {
-      throw HttpException('下载失败：${resp.statusCode} $url');
-    }
-    final tmp = p.join(Directory.systemTemp.path, _assetName);
-    final sink = File(tmp).openWrite();
-    var received = 0;
-    final total = resp.contentLength > 0 ? resp.contentLength : null;
     try {
-      await for (final chunk in resp) {
-        received += chunk.length;
-        onProgress?.call(received, total);
-        sink.add(chunk);
-      }
-      await sink.flush();
-    } finally {
-      await sink.close();
+      return await _downloadFrom(url, onProgress);
+    } catch (_) {
+      if (_githubProxy.isEmpty) rethrow;
+      return _downloadFrom(
+        '${_githubProxy.replaceFirst(RegExp(r'/$'), '')}/$url',
+        onProgress,
+      );
     }
-    return File(tmp);
+  }
+
+  static Future<File> _downloadFrom(
+    String url,
+    void Function(int, int?)? onProgress,
+  ) async {
+    final client = _client()..connectionTimeout = const Duration(seconds: 15);
+    try {
+      final req = await client.getUrl(Uri.parse(url));
+      final resp = await req.close().timeout(const Duration(seconds: 30));
+      if (resp.statusCode != 200) {
+        throw HttpException('下载失败：${resp.statusCode}', uri: Uri.parse(url));
+      }
+      final tmp = p.join(Directory.systemTemp.path, _assetName);
+      final sink = File(tmp).openWrite();
+      var received = 0;
+      final total = resp.contentLength > 0 ? resp.contentLength : null;
+      try {
+        await for (final chunk in resp) {
+          received += chunk.length;
+          onProgress?.call(received, total);
+          sink.add(chunk);
+        }
+        await sink.flush();
+      } finally {
+        await sink.close();
+      }
+      return File(tmp);
+    } finally {
+      client.close(force: true);
+    }
   }
 
   /// macOS：挂载 DMG → `ditto` 覆盖当前 .app → 卸载 → `open` 重启。

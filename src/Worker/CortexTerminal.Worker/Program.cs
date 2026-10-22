@@ -939,7 +939,7 @@ updateCommand.SetAction(async (ParseResult parseResult, CancellationToken cancel
     var ridOs = isOsx ? "osx" : isWindows ? "win" : "linux";
     var ext = isWindows ? "zip" : "tar.gz";
     var assetName = $"corterm-{ridOs}-{arch}.{ext}";
-    var githubProxy = Environment.GetEnvironmentVariable("CORTERM_GITHUB_PROXY") ?? "https://proxy.0x2a.top";
+    var githubProxy = Environment.GetEnvironmentVariable("CORTERM_GITHUB_PROXY")?.TrimEnd('/') ?? "";
 
     using var http = new HttpClient(new SocketsHttpHandler { Proxy = HttpClient.DefaultProxy, UseProxy = true });
     http.DefaultRequestHeaders.UserAgent.Add(new System.Net.Http.Headers.ProductInfoHeaderValue("Corterm", version));
@@ -1008,7 +1008,7 @@ updateCommand.SetAction(async (ParseResult parseResult, CancellationToken cancel
     if (check)
     {
         var updateAvailable = latestVersion != version;
-        var checkDownloadUrl = $"{githubProxy}/https://github.com/{githubRepo}/releases/latest/download/{assetName}";
+        var checkDownloadUrl = $"https://github.com/{githubRepo}/releases/download/worker-v{latestVersion}/{assetName}";
         if (json)
         {
             Console.Out.WriteLine(CliJson.UpdateCheck(version, latestVersion, updateAvailable, assetName, checkDownloadUrl).ToJsonString());
@@ -1028,7 +1028,7 @@ updateCommand.SetAction(async (ParseResult parseResult, CancellationToken cancel
     if (json) Console.Out.WriteLine(CliJson.UpdateStage("check", version: latestVersion).ToJsonString());
 
     // Download
-    var downloadUrl = $"{githubProxy}/https://github.com/{githubRepo}/releases/latest/download/{assetName}";
+    var downloadUrl = $"https://github.com/{githubRepo}/releases/download/worker-v{latestVersion}/{assetName}";
     var tmpDir = Path.Combine(Path.GetTempPath(), $"corterm-update-{Guid.NewGuid():N}");
     Directory.CreateDirectory(tmpDir);
     var tmpFile = Path.Combine(tmpDir, isWindows ? "corterm.zip" : "corterm.tar.gz");
@@ -1037,7 +1037,16 @@ updateCommand.SetAction(async (ParseResult parseResult, CancellationToken cancel
     {
         say($"  Downloading {assetName}...");
         if (json) Console.Out.WriteLine(CliJson.UpdateStage("download", bytes: 0, message: assetName).ToJsonString());
-        var data = await http.GetByteArrayAsync(downloadUrl, cancellationToken);
+        byte[] data;
+        try
+        {
+            data = await http.GetByteArrayAsync(downloadUrl, cancellationToken);
+        }
+        catch (HttpRequestException) when (!string.IsNullOrWhiteSpace(githubProxy))
+        {
+            // Only use an explicitly configured download proxy, after direct access fails.
+            data = await http.GetByteArrayAsync($"{githubProxy}/{downloadUrl}", cancellationToken);
+        }
         await File.WriteAllBytesAsync(tmpFile, data, cancellationToken);
         say($"  Download complete ({data.Length} bytes).");
         if (json) Console.Out.WriteLine(CliJson.UpdateStage("download", bytes: data.Length, message: assetName).ToJsonString());
