@@ -82,15 +82,17 @@ jobs:
           esac
           echo "bundled worker OK: $ver"
 
-      - name: Package .dmg
+      - name: Sign and notarize macOS package
+        env:
+          SIGNING_P12: ${{ secrets.CORTERM_DEVELOPER_ID_P12_BASE64 }}
+          SIGNING_PASSWORD: ${{ secrets.CORTERM_DEVELOPER_ID_P12_PASSWORD }}
+          API_PRIVATE_KEY: ${{ secrets.CORTEX_APPSTORE_API_PRIVATE_KEY }}
+          API_KEY_ID: ${{ secrets.CORTEX_APPSTORE_API_KEY_ID }}
+          API_ISSUER_ID: ${{ secrets.CORTEX_APPSTORE_ISSUER_ID }}
         run: |
-          # 标准 macOS 拖拽安装包：.app + /Applications 快捷方式
-          # 固定文件名（不带版本号）：self_updater.dart 通过 releases/latest/download 直达
-          mkdir -p /tmp/dmg-root
-          cp -R src/Flutter/worker_ui/build/macos/Build/Products/Release/Corterm.app /tmp/dmg-root/
-          ln -s /Applications /tmp/dmg-root/Applications
-          hdiutil create -volname "云枢终端" -srcfolder /tmp/dmg-root -ov \
-            -format UDZO /tmp/corterm-ui-macos.dmg
+          mkdir -p "$RUNNER_TEMP/staging"
+          ditto src/Flutter/worker_ui/build/macos/Build/Products/Release/worker_ui.app "$RUNNER_TEMP/staging/Corterm.app"
+          bash src/Flutter/worker_ui/tool/sign_macos_release.sh "$RUNNER_TEMP/staging/Corterm.app" /tmp/corterm-ui-macos.dmg
 
       - uses: actions/upload-artifact@v4
         with:
