@@ -22,7 +22,7 @@ security create-keychain -p "$keychain_password" "$keychain"
 security unlock-keychain -p "$keychain_password" "$keychain"
 security set-keychain-settings -lut 21600 "$keychain"
 security import "$p12" -P "$SIGNING_PASSWORD" -k "$keychain" -T /usr/bin/codesign >/dev/null
-security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$keychain" >/dev/null
+security set-key-partition-list -S apple-tool:,apple:,codesign: -k "$keychain_password" "$keychain" >/dev/null
 identity="$(security find-identity -v -p codesigning "$keychain" | sed -n '/Developer ID Application:/s/.*"\(.*\)"/\1/p' | head -n 1)"
 test -n "$identity" || { echo 'No valid Developer ID Application identity'; exit 1; }
 cat > "$entitlements" <<'PLIST'
