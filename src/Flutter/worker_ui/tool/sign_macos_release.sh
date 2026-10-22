@@ -52,6 +52,8 @@ while IFS= read -r -d '' framework; do
 done < <(find "$app" -depth -type d -name '*.framework' -print0)
 codesign --force --timestamp --options runtime --keychain "$keychain" --sign "$identity" "$app"
 codesign --verify --deep --strict --verbose=2 "$app"
+# Version/signature checks alone do not exercise hardened-runtime library loading.
+python3 "$(dirname "$0")/verify_macos_pty.py" "$app"
 # Staple the application itself before packaging it into the final DMG.
 app_archive="$RUNNER_TEMP/corterm-notary-app.zip"
 ditto -c -k --keepParent "$app" "$app_archive"
