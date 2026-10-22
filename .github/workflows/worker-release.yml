@@ -45,6 +45,45 @@ jobs:
         with:
           dotnet-version: '10.0.202'
 
+      - name: Restore packages (macOS)
+        if: runner.os == 'macOS'
+        run: dotnet restore src/Worker/CortexTerminal.Worker/CortexTerminal.Worker.csproj --runtime ${{ matrix.rid }}
+
+      # libporta_pty.dylib（Porta.Pty）会被打进单文件包、运行时解压到 ~/.net/corterm/。
+      # 桌面 App 把 corterm 主程序签成 hardened runtime，解压出的 dylib 必须同 Team ID 签名，
+      # 否则 macOS library validation 拒载 → PTY 不可用 → 无法创建 session。
+      # 在 publish 之前对 NuGet 缓存里的 dylib 签名，嵌入包后签名原样保留。
+      - name: Sign embedded native libraries with Developer ID (macOS)
+        if: runner.os == 'macOS'
+        env:
+          SIGNING_P12: ${{ secrets.CORTERM_DEVELOPER_ID_P12_BASE64 }}
+          SIGNING_PASSWORD: ${{ secrets.CORTERM_DEVELOPER_ID_P12_PASSWORD }}
+        run: |
+          set -euo pipefail
+          keychain="$RUNNER_TEMP/worker-signing.keychain-db"
+          p12="$RUNNER_TEMP/worker-signing.p12"
+          cleanup() {
+            security delete-keychain "$keychain" >/dev/null 2>&1 || true
+            rm -f "$p12"
+          }
+          trap cleanup EXIT
+          umask 077
+          python3 -c 'import base64,sys; sys.stdout.buffer.write(base64.b64decode(sys.stdin.buffer.read()))' <<< "$SIGNING_P12" > "$p12"
+          keychain_password="$(openssl rand -hex 24)"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security import "$p12" -P "$SIGNING_PASSWORD" -k "$keychain" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -k "$keychain_password" "$keychain" >/dev/null
+          identity="$(security find-identity -v -p codesigning "$keychain" | sed -n '/Developer ID Application:/s/.*"\(.*\)"/\1/p' | head -n 1)"
+          test -n "$identity" || { echo 'No valid Developer ID Application identity'; exit 1; }
+          signed=0
+          while IFS= read -r -d '' dylib; do
+            codesign --force --timestamp --options runtime --keychain "$keychain" --sign "$identity" "$dylib"
+            signed=$((signed+1))
+          done < <(find "$HOME/.nuget/packages/porta.pty" -name 'libporta_pty.dylib' -print0)
+          echo "Signed $signed libporta_pty.dylib copy(ies) with: $identity"
+          test "$signed" -gt 0
+
       - name: Publish Worker
         run: |
           dotnet publish src/Worker/CortexTerminal.Worker/CortexTerminal.Worker.csproj `
