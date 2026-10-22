@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:worker_ui/core/binary_locator.dart';
@@ -6,7 +7,8 @@ import 'package:worker_ui/core/corterm_service.dart';
 import 'package:worker_ui/core/worker_process_controller.dart';
 
 /// 常驻型 fake daemon：TERM 优雅退出、输出一行 started、循环睡眠。
-const _fakeDaemon = '#!/bin/sh\n'
+const _fakeDaemon =
+    '#!/bin/sh\n'
     'trap \'exit 0\' TERM\n'
     'echo started\n'
     'while :; do sleep 1; done\n';
@@ -37,8 +39,11 @@ String _readLog(Directory home) {
 }
 
 /// 等到日志出现 [marker]（spawn/退出写日志是异步的）。
-Future<String> _waitForLog(Directory home, Pattern marker,
-    {Duration timeout = const Duration(seconds: 5)}) async {
+Future<String> _waitForLog(
+  Directory home,
+  Pattern marker, {
+  Duration timeout = const Duration(seconds: 5),
+}) async {
   final deadline = DateTime.now().add(timeout);
   while (DateTime.now().isBefore(deadline)) {
     final log = _readLog(home);
@@ -49,6 +54,38 @@ Future<String> _waitForLog(Directory home, Pattern marker,
 }
 
 void main() {
+  test('Windows probe excludes desktop UI and transient CLI processes', () {
+    const path = r'C:\Users\echo\.corterm\corterm.exe';
+    final output = jsonEncode([
+      {
+        'ProcessId': 10,
+        'ExecutablePath': r'C:\Programs\Corterm.exe',
+        'CommandLine': r'"C:\Programs\Corterm.exe"',
+      },
+      {
+        'ProcessId': 20,
+        'ExecutablePath': path,
+        'CommandLine': '"$path" status --json',
+      },
+      {'ProcessId': 30, 'ExecutablePath': path, 'CommandLine': '"$path"'},
+    ]);
+    expect(windowsWorkerDaemonPidFromJson(output, executablePath: path), 30);
+    expect(
+      windowsWorkerDaemonPidFromJson(output, executablePath: path, onlyPid: 10),
+      isNull,
+    );
+    expect(
+      windowsWorkerDaemonPidFromJson(output, executablePath: path, onlyPid: 20),
+      isNull,
+    );
+    final renamed = jsonEncode({
+      'ProcessId': 40,
+      'ExecutablePath': '$path.bak',
+      'CommandLine': '"$path"',
+    });
+    expect(windowsWorkerDaemonPidFromJson(renamed, executablePath: path), 40);
+  });
+
   test('start spawns daemon and writes log header', () async {
     if (!Platform.isMacOS) return; // fake script + ps 探测是 macOS 路径
     final home = _tempHome();
@@ -67,7 +104,8 @@ void main() {
   });
 
   test('findDaemonPid matches bare invocation only', () async {
-    const ps = '  123 /Applications/Corterm.app/Contents/MacOS/Corterm\n'
+    const ps =
+        '  123 /Applications/Corterm.app/Contents/MacOS/Corterm\n'
         '  456 /Users/x/.corterm/corterm\n'
         '  789 /Users/x/.corterm/corterm status --json\n'
         '  101 /Users/x/.corterm/corterm\n';
@@ -100,8 +138,7 @@ void main() {
 
     // 模拟崩溃：外部 SIGKILL → 1s 退避后应重拉。
     Process.killPid(int.parse(firstPid), ProcessSignal.sigkill);
-    final log =
-        await _waitForLog(home, RegExp('spawned pid (?!$firstPid)'));
+    final log = await _waitForLog(home, RegExp('spawned pid (?!$firstPid)'));
     expect(RegExp('spawned pid').allMatches(log).length, 2);
   });
 
@@ -132,8 +169,7 @@ void main() {
     addTearDown(orphan.kill);
     final controller = WorkerProcessController(
       homeDirOverride: home.path,
-      daemonLister: () async =>
-          '${orphan.pid} ${daemon.path}\n',
+      daemonLister: () async => '${orphan.pid} ${daemon.path}\n',
       binaryPathResolver: () async => BinaryPaths(corterm: daemon.path),
     );
 
@@ -151,7 +187,9 @@ void main() {
     if (!Platform.isMacOS) return;
     final home = _tempHome();
     final daemon = _daemonScript(home);
-    final plist = File('${home.path}/Library/LaunchAgents/com.corterm.worker.plist');
+    final plist = File(
+      '${home.path}/Library/LaunchAgents/com.corterm.worker.plist',
+    );
     plist.parent.createSync(recursive: true);
     plist.writeAsStringSync('<plist/>');
     final launchctlCalls = <List<String>>[];
@@ -169,8 +207,13 @@ void main() {
     await controller.start();
 
     expect(plist.existsSync(), isFalse);
-    expect(launchctlCalls,
-        containsAll([['unload', plist.path], ['remove', 'com.corterm.worker']]));
+    expect(
+      launchctlCalls,
+      containsAll([
+        ['unload', plist.path],
+        ['remove', 'com.corterm.worker'],
+      ]),
+    );
     await _waitForLog(home, 'spawned pid');
   });
 
@@ -180,7 +223,9 @@ void main() {
     final daemon = _daemonScript(home);
     final agentsDir = Directory('${home.path}/Library/LaunchAgents');
     agentsDir.createSync(recursive: true);
-    File('${agentsDir.path}/com.corterm.worker.plist').writeAsStringSync('<plist/>');
+    File(
+      '${agentsDir.path}/com.corterm.worker.plist',
+    ).writeAsStringSync('<plist/>');
     Process.runSync('chmod', ['555', agentsDir.path]);
     addTearDown(() => Process.runSync('chmod', ['755', agentsDir.path]));
     final controller = WorkerProcessController(
@@ -237,33 +282,37 @@ void main() {
     await _waitForLog(home, 'spawned pid', timeout: const Duration(seconds: 5));
   });
 
-  test('runState transitions: running → backingOff → running → stopped', () async {
-    if (!Platform.isMacOS) return;
-    final home = _tempHome();
-    final daemon = _daemonScript(home);
-    final controller = WorkerProcessController(
-      homeDirOverride: home.path,
-      daemonLister: () async => '',
-      binaryPathResolver: () async => BinaryPaths(corterm: daemon.path),
-    );
-    addTearDown(controller.stop);
+  test(
+    'runState transitions: running → backingOff → running → stopped',
+    () async {
+      if (!Platform.isMacOS) return;
+      final home = _tempHome();
+      final daemon = _daemonScript(home);
+      final controller = WorkerProcessController(
+        homeDirOverride: home.path,
+        daemonLister: () async => '',
+        binaryPathResolver: () async => BinaryPaths(corterm: daemon.path),
+      );
+      addTearDown(controller.stop);
 
-    expect(controller.runState.value, WorkerRunState.stopped);
-    await controller.start();
-    expect(controller.runState.value, WorkerRunState.running);
+      expect(controller.runState.value, WorkerRunState.stopped);
+      await controller.start();
+      expect(controller.runState.value, WorkerRunState.running);
 
-    // 杀掉 → backingOff（退避中）→ 重启后回 running。
-    final log = await _waitForLog(home, 'spawned pid');
-    final pid =
-        int.parse(RegExp(r'spawned pid (\d+)').firstMatch(log)!.group(1)!);
-    Process.killPid(pid, ProcessSignal.sigkill);
-    await _waitForLog(home, RegExp('spawned pid (?!$pid)'));
-    expect(controller.runState.value, WorkerRunState.running);
+      // 杀掉 → backingOff（退避中）→ 重启后回 running。
+      final log = await _waitForLog(home, 'spawned pid');
+      final pid = int.parse(
+        RegExp(r'spawned pid (\d+)').firstMatch(log)!.group(1)!,
+      );
+      Process.killPid(pid, ProcessSignal.sigkill);
+      await _waitForLog(home, RegExp('spawned pid (?!$pid)'));
+      expect(controller.runState.value, WorkerRunState.running);
 
-    controller.stop();
-    await Future<void>.delayed(const Duration(milliseconds: 300));
-    expect(controller.runState.value, WorkerRunState.stopped);
-  });
+      controller.stop();
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      expect(controller.runState.value, WorkerRunState.stopped);
+    },
+  );
 
   test('supportsNoServiceRestart probes update --help and caches', () async {
     if (Platform.isWindows) return; // fake script uses /bin/sh
@@ -302,6 +351,9 @@ void main() {
     expect(argsFile.readAsStringSync(), contains('--no-service-restart'));
 
     await svc.update().toList();
-    expect(argsFile.readAsStringSync(), isNot(contains('--no-service-restart')));
+    expect(
+      argsFile.readAsStringSync(),
+      isNot(contains('--no-service-restart')),
+    );
   });
 }

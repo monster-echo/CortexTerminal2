@@ -183,7 +183,9 @@ class WorkerProcessController {
 
   /// 运行中的守护进程 pid（argv 为空的 corterm），没有则 null。
   Future<int?> findDaemonPid() async {
-    if (Platform.isWindows) return _findWindowsDaemonPid();
+    if (Platform.isWindows && daemonLister == null) {
+      return _findWindowsDaemonPid();
+    }
     final output = await _listProcesses();
     for (final line in output.split('\n')) {
       final trimmed = line.trim();
@@ -212,25 +214,11 @@ class WorkerProcessController {
     }
     final output = result.stdout.toString().trim();
     if (output.isEmpty) return null;
-    final decoded = jsonDecode(output);
-    final rows = decoded is List ? decoded : [decoded];
-    final expected = paths.corterm.toLowerCase();
-    for (final row in rows) {
-      final id = row['ProcessId'] as int;
-      if (onlyPid != null && id != onlyPid) continue;
-      final executable = (row['ExecutablePath'] as String? ?? '').toLowerCase();
-      final command = (row['CommandLine'] as String? ?? '')
-          .trim()
-          .replaceAll('"', '')
-          .toLowerCase();
-      // Match the exact worker path and a bare invocation, never the desktop GUI
-      // (also named Corterm.exe) or transient login/status/update commands.
-      if ((executable == expected || executable == '$expected.bak') &&
-          (command == expected || command == executable)) {
-        return id;
-      }
-    }
-    return null;
+    return windowsWorkerDaemonPidFromJson(
+      output,
+      executablePath: paths.corterm,
+      onlyPid: onlyPid,
+    );
   }
 
   /// 停止托管并杀掉守护进程。只接托盘退出 —— 绝不能挂到全局 exit 钩子上：
@@ -414,4 +402,33 @@ class WorkerProcessController {
   void _log(String message) {
     debugPrint('[WorkerProcessController] $message');
   }
+}
+
+/// Match only bare workers at the resolved worker path, excluding the desktop GUI
+/// and short-lived CLI calls even though they share the same executable name.
+@visibleForTesting
+int? windowsWorkerDaemonPidFromJson(
+  String output, {
+  required String executablePath,
+  int? onlyPid,
+}) {
+  final decoded = jsonDecode(output);
+  final rows = decoded is List ? decoded : [decoded];
+  final expected = executablePath.toLowerCase();
+  for (final row in rows) {
+    final id = row['ProcessId'] as int;
+    if (onlyPid != null && id != onlyPid) continue;
+    final executable = (row['ExecutablePath'] as String? ?? '').toLowerCase();
+    final command = (row['CommandLine'] as String? ?? '')
+        .trim()
+        .replaceAll('"', '')
+        .toLowerCase();
+    // Match the exact worker path and a bare invocation, never the desktop GUI
+    // (also named Corterm.exe) or transient login/status/update commands.
+    if ((executable == expected || executable == '$expected.bak') &&
+        (command == expected || command == executable)) {
+      return id;
+    }
+  }
+  return null;
 }
