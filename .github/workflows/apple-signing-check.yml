@@ -19,36 +19,81 @@ jobs:
           API_KEY_ID: ${{ secrets.CORTEX_APPSTORE_API_KEY_ID }}
           API_ISSUER_ID: ${{ secrets.CORTEX_APPSTORE_ISSUER_ID }}
         run: |
-          set -euo pipefail
-          keychain="$RUNNER_TEMP/signing-check.keychain-db"
-          certificate="$RUNNER_TEMP/signing-check.p12"
-          keychain_password="$(openssl rand -hex 24)"
-          cleanup() {
-            security delete-keychain "$keychain" >/dev/null 2>&1 || true
-            rm -f "$certificate"
-          }
-          trap cleanup EXIT
-          test -n "$CERTIFICATE_BASE64" && test -n "$CERTIFICATE_PASSWORD"
-          printf '%s' "$CERTIFICATE_BASE64" | base64 --decode > "$certificate"
-          security create-keychain -p "$keychain_password" "$keychain"
-          security unlock-keychain -p "$keychain_password" "$keychain"
-          security import "$certificate" -P "$CERTIFICATE_PASSWORD" -k "$keychain" -T /usr/bin/codesign >/dev/null
-          security find-identity -v -p codesigning "$keychain" > "$RUNNER_TEMP/identities.txt"
-          cat "$RUNNER_TEMP/identities.txt"
-          {
-            echo '## Existing Apple signing credentials'
-            echo 'P12 imported successfully.'
-            if grep -q 'Developer ID Application:' "$RUNNER_TEMP/identities.txt"; then
-              echo '- Developer ID Application identity with private key: available'
-            else
-              echo '- Developer ID Application identity with private key: MISSING (required for direct macOS distribution)'
-            fi
-            if grep -q 'Apple Distribution:\|3rd Party Mac Developer Application:' "$RUNNER_TEMP/identities.txt"; then
-              echo '- Distribution signing identity: available; profile/platform suitability still requires validation'
-            fi
-            if test -n "$API_PRIVATE_KEY" && test -n "$API_KEY_ID" && test -n "$API_ISSUER_ID"; then
-              echo '- App Store Connect API secret fields: present (authentication not yet validated)'
-            else
-              echo '- App Store Connect API secret fields: incomplete'
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
+          python3 - <<'PYTHON'
+          import base64
+          import binascii
+          import os
+          import pathlib
+          import plistlib
+          import secrets
+          import subprocess
+
+          root = pathlib.Path(os.environ['RUNNER_TEMP'])
+          keychain = root / 'signing-check.keychain-db'
+          certificate = root / 'signing-check.p12'
+          report = []
+          def note(message):
+              print(message, flush=True)
+              report.append('- ' + message)
+          def run(args):
+              return subprocess.run(args, capture_output=True, text=True)
+          try:
+              raw = os.environ.get('CERTIFICATE_BASE64', '')
+              password = os.environ.get('CERTIFICATE_PASSWORD', '')
+              if not raw:
+                  raise RuntimeError('P12 secret is absent or empty')
+              try:
+                  payload = base64.b64decode(''.join(raw.split()), validate=True)
+              except binascii.Error:
+                  raise RuntimeError('P12 secret is not valid base64') from None
+              certificate.write_bytes(payload)
+              certificate.chmod(0o600)
+              note('P12 base64 decoding: passed')
+              parsed = run(['/usr/bin/openssl', 'asn1parse', '-inform', 'DER', '-in', str(certificate)])
+              if parsed.returncode:
+                  raise RuntimeError('Decoded data is not valid DER; check uploaded P12 encoding')
+              note('Decoded DER structure: passed')
+              kc_password = secrets.token_hex(24)
+              for args in [
+                  ['security', 'create-keychain', '-p', kc_password, str(keychain)],
+                  ['security', 'unlock-keychain', '-p', kc_password, str(keychain)],
+              ]:
+                  if run(args).returncode:
+                      raise RuntimeError('Cannot prepare temporary keychain')
+              candidates = [('configured password', password)]
+              if password.strip() != password:
+                  candidates.append(('configured password with outer whitespace removed', password.strip()))
+              if password:
+                  candidates.append(('empty password', ''))
+              imported = False
+              for label, candidate in candidates:
+                  result = run(['security', 'import', str(certificate), '-P', candidate,
+                                '-k', str(keychain), '-T', '/usr/bin/codesign'])
+                  if result.returncode == 0:
+                      note('P12 import succeeded using ' + label)
+                      imported = True
+                      break
+                  if 'MAC verification failed' in result.stderr:
+                      note('P12 import using ' + label + ': MAC verification failed')
+                  else:
+                      note('P12 import using ' + label + ': failed (exit ' + str(result.returncode) + ')')
+              if not imported:
+                  raise RuntimeError('P12 cannot be imported with configured or empty password; certificate type remains unknown')
+              identities = run(['security', 'find-identity', '-v', '-p', 'codesigning', str(keychain)])
+              if identities.returncode:
+                  raise RuntimeError('Cannot inspect signing identities')
+              # Certificate identity names are public metadata; no key material is printed.
+              note(identities.stdout.strip())
+              available = 'Developer ID Application:' in identities.stdout
+              note('Valid Developer ID Application identity with private key: ' + ('available' if available else 'not found'))
+              for name in ['API_PRIVATE_KEY', 'API_KEY_ID', 'API_ISSUER_ID']:
+                  note(name + ': ' + ('present' if os.environ.get(name) else 'missing'))
+          except RuntimeError as error:
+              note(str(error))
+              raise SystemExit(1)
+          finally:
+              with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+                  summary.write('## Existing Apple signing credentials\n' + '\n'.join(report) + '\n')
+              run(['security', 'delete-keychain', str(keychain)])
+              certificate.unlink(missing_ok=True)
+          PYTHON
