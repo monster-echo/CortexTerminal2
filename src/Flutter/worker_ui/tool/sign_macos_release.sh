@@ -18,10 +18,14 @@ umask 077
 printf '%s' "$SIGNING_P12" | base64 --decode > "$p12"
 printf '%s' "$API_PRIVATE_KEY" > "$api_key"
 keychain_password="$(openssl rand -hex 24)"
+echo "Preparing signing keychain"
 security create-keychain -p "$keychain_password" "$keychain"
 security unlock-keychain -p "$keychain_password" "$keychain"
 security set-keychain-settings -lut 21600 "$keychain"
-security import "$p12" -P "$SIGNING_PASSWORD" -k "$keychain" -T /usr/bin/codesign >/dev/null
+security list-keychains -d user -s "$keychain" "$HOME/Library/Keychains/login.keychain-db" /Library/Keychains/System.keychain
+echo "Importing signing identity"
+security import "$p12" -P "$SIGNING_PASSWORD" -k "$keychain" -T /usr/bin/codesign
+echo "Configuring private key access"
 security set-key-partition-list -S apple-tool:,apple:,codesign: -k "$keychain_password" "$keychain" >/dev/null
 identity="$(security find-identity -v -p codesigning "$keychain" | sed -n '/Developer ID Application:/s/.*"\(.*\)"/\1/p' | head -n 1)"
 test -n "$identity" || { echo 'No valid Developer ID Application identity'; exit 1; }
