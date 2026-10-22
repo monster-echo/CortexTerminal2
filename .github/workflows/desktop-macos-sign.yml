@@ -1,0 +1,44 @@
+name: Sign and notarize desktop macOS release
+on:
+  push:
+    branches: [codex/apple-signing-check]
+    paths:
+      - .github/workflows/desktop-macos-sign.yml
+      - src/Flutter/worker_ui/tool/sign_macos_release.sh
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing UI release to sign
+        required: true
+        default: ui-v0.3.0
+permissions:
+  contents: read
+jobs:
+  sign:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag || 'ui-v0.3.0' }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/input" "$RUNNER_TEMP/staging"
+          gh release download "$RELEASE_TAG" --pattern corterm-ui-macos.dmg --dir "$RUNNER_TEMP/input"
+          hdiutil attach "$RUNNER_TEMP/input/corterm-ui-macos.dmg" -readonly -nobrowse -mountpoint "$RUNNER_TEMP/mounted"
+          ditto "$RUNNER_TEMP/mounted/Corterm.app" "$RUNNER_TEMP/staging/Corterm.app"
+          hdiutil detach "$RUNNER_TEMP/mounted"
+      - name: Sign, notarize and verify
+        env:
+          SIGNING_P12: ${{ secrets.CORTERM_DEVELOPER_ID_P12_BASE64 }}
+          SIGNING_PASSWORD: ${{ secrets.CORTERM_DEVELOPER_ID_P12_PASSWORD }}
+          API_PRIVATE_KEY: ${{ secrets.CORTEX_APPSTORE_API_PRIVATE_KEY }}
+          API_KEY_ID: ${{ secrets.CORTEX_APPSTORE_API_KEY_ID }}
+          API_ISSUER_ID: ${{ secrets.CORTEX_APPSTORE_ISSUER_ID }}
+        run: bash src/Flutter/worker_ui/tool/sign_macos_release.sh "$RUNNER_TEMP/staging/Corterm.app" "$RUNNER_TEMP/corterm-ui-macos.dmg"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: signed-notarized-macos
+          path: ${{ runner.temp }}/corterm-ui-macos.dmg
+          if-no-files-found: error
