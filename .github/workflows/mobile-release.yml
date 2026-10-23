@@ -4,6 +4,12 @@ on:
   push:
     tags: ['mobile-v*']
   workflow_dispatch:
+    inputs:
+      platform:
+        description: Platform to publish (use a single platform when retrying an upload)
+        type: choice
+        options: [all, android, ios]
+        default: all
 
 permissions:
   contents: read
@@ -37,6 +43,7 @@ jobs:
           PY
 
   android:
+    if: github.event_name != 'workflow_dispatch' || inputs.platform != 'ios'
     name: Android build and Play internal upload
     needs: version
     runs-on: ubuntu-latest
@@ -78,8 +85,10 @@ jobs:
         run: |
           flutter pub get
           flutter test --no-pub
-          flutter build appbundle --release --no-pub --build-name "$VERSION" --build-number "$BUILD"
-          flutter build apk --release --no-pub --build-name "$VERSION" --build-number "$BUILD"
+          # Release must regenerate plugin registration after flutter test.
+          # --no-pub would leave dev-only integration_test in the Java registrant.
+          flutter build appbundle --release --build-name "$VERSION" --build-number "$BUILD"
+          flutter build apk --release --build-name "$VERSION" --build-number "$BUILD"
       - name: Upload Android artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -106,6 +115,7 @@ jobs:
           PY
 
   ios:
+    if: github.event_name != 'workflow_dispatch' || inputs.platform != 'android'
     name: iOS build and TestFlight upload
     needs: version
     runs-on: macos-latest
@@ -182,7 +192,7 @@ jobs:
         working-directory: src/Flutter/corterm_mobile
         run: |
           flutter pub get
-          flutter build ipa --release --no-pub --build-name "$VERSION" --build-number "$BUILD" --export-options-plist="$RUNNER_TEMP/ExportOptions.plist"
+          flutter build ipa --release --build-name "$VERSION" --build-number "$BUILD" --export-options-plist="$RUNNER_TEMP/ExportOptions.plist"
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
