@@ -171,14 +171,12 @@ jobs:
             "https://connect-api.cloud.huawei.com/api/oauth2/v1/token" \
             -H "Content-Type: application/json" \
             -d "{\"grant_type\":\"client_credentials\",\"client_id\":\"${{ secrets.AGC_CLIENT_ID }}\",\"client_secret\":\"${{ secrets.AGC_CLIENT_SECRET }}\"}")
-          echo "::group::Token response"
-          echo "$RESPONSE" | jq .
-          echo "::endgroup::"
           TOKEN=$(echo "$RESPONSE" | jq -r '.access_token')
           if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
             echo "::error::Failed to get access token: $RESPONSE"
             exit 1
           fi
+          echo "::add-mask::$TOKEN"
           echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
 
       - name: Get Upload URL
