@@ -127,6 +127,79 @@ void _goLive(FakeSocket socket) {
 }
 
 void main() {
+  test('latency acknowledgements do not hide missing initial output; output clears warning', () {
+    fakeAsync((async) {
+      final sockets = <FakeSocket>[];
+      final controller = SessionController(FakeRepo(), ({required sessionId, sinceSeq = 0}) async {
+        final socket = FakeSocket(sessionId);
+        sockets.add(socket);
+        return socket;
+      }, _FakeSnapshotStore());
+      controller.open('startup');
+      async.flushMicrotasks();
+      sockets.single.emit(const LiveFrame());
+      async.flushMicrotasks();
+      async.elapse(const Duration(seconds: 10));
+      sockets.single.emit(LatencyAckFrame(probeId: 'p1', clientTime: 0));
+      async.flushMicrotasks();
+      async.elapse(const Duration(seconds: 3));
+      expect(controller.state.entries['startup']!.startupDelayed, isTrue);
+      sockets.single.emit(OutputFrame(bytes: [65], stream: 'stdout'));
+      async.flushMicrotasks();
+      expect(controller.state.entries['startup']!.hasReceivedOutput, isTrue);
+      expect(controller.state.entries['startup']!.startupDelayed, isFalse);
+      for (var i = 0; i < 6; i++) {
+        async.elapse(const Duration(seconds: 10));
+        sockets.single.emit(PongFrame(timestamp: 0));
+        async.flushMicrotasks();
+      }
+      expect(controller.state.entries['startup']!.startupDelayed, isFalse);
+      controller.dispose();
+    });
+  });
+
+  test('reconnect keeps the same session and an old close cannot remove the new socket', () {
+    fakeAsync((async) {
+      final sockets = <FakeSocket>[];
+      final controller = SessionController(FakeRepo(), ({required sessionId, sinceSeq = 0}) async {
+        final socket = FakeSocket(sessionId);
+        sockets.add(socket);
+        return socket;
+      }, _FakeSnapshotStore());
+      controller.open('same-session');
+      async.flushMicrotasks();
+      _goLive(sockets.single);
+      async.flushMicrotasks();
+      controller.reconnect('same-session');
+      async.flushMicrotasks();
+      expect(sockets.length, 2);
+      expect(sockets.first.forceClosed, isTrue);
+      expect(sockets.last.sessionId, 'same-session');
+      _goLive(sockets.last);
+      async.flushMicrotasks();
+      expect(controller.state.entries['same-session']!.connState, TerminalConnState.live);
+      expect(sockets.last.sentProbes, contains('p0'));
+      controller.dispose();
+    });
+  });
+
+  test('stalled replay shows a warning even when no latency probe has started', () {
+    fakeAsync((async) {
+      late FakeSocket socket;
+      final controller = SessionController(FakeRepo(), ({required sessionId, sinceSeq = 0}) async {
+        socket = FakeSocket(sessionId);
+        return socket;
+      }, _FakeSnapshotStore());
+      controller.open('replaying');
+      async.flushMicrotasks();
+      socket.emit(const ReplayingFrame());
+      async.flushMicrotasks();
+      async.elapse(const Duration(seconds: 13));
+      expect(controller.state.entries['replaying']!.startupDelayed, isTrue);
+      controller.dispose();
+    });
+  });
+
   test('attach 成功后进入 live，静默超时触发 forceClose + 自动重连', () {
     fakeAsync((async) {
       final created = <FakeSocket>[];

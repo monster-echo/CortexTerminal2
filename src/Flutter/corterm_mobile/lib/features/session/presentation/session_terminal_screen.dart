@@ -18,6 +18,7 @@ import '../../workspaces/data/workspace_providers.dart';
 import '../session_controller.dart';
 import '../session_state.dart';
 import 'terminal_keyboard_toolbar.dart';
+import 'session_recovery_panel.dart';
 
 /// Session 全屏终端页（design/04）：
 ///
@@ -94,6 +95,23 @@ class _SessionTerminalScreenState extends ConsumerState<SessionTerminalScreen> {
     ),
   );
 
+  void _showDiagnostics() {
+    showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      builder: (context) => ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * .85,
+        ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: SessionRecoveryPanel(sessionId: widget.sessionId),
+        ),
+      ),
+    );
+  }
+
   void _showMoreMenu(SessionSummary? session) {
     final l10n = AppLocalizations.of(context)!;
     final workspaceId = session?.workspaceId ?? '';
@@ -167,6 +185,14 @@ class _SessionTerminalScreenState extends ConsumerState<SessionTerminalScreen> {
                         },
                       ),
                     ],
+                    Divider(height: 1, color: colors.divider),
+                    _MenuItem(
+                      label: l10n.terminalRunDiagnostics,
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        _showDiagnostics();
+                      },
+                    ),
                     Divider(height: 1, color: colors.divider),
                     _MenuItem(
                       label: l10n.forkSession,
@@ -371,8 +397,10 @@ class _SessionTerminalScreenState extends ConsumerState<SessionTerminalScreen> {
                           TerminalConnState.replaying => l10n.connConnecting,
                           TerminalConnState.live =>
                             entry!.rttMs != null
-                                ? '${entry.rttMs}ms'
-                                : l10n.connLive,
+                                ? '${entry.hasReceivedOutput ? l10n.terminalTransportLabel : l10n.terminalWaitingOutput} · ${entry.rttMs}ms'
+                                : entry.hasReceivedOutput
+                                ? l10n.connLive
+                                : l10n.terminalWaitingOutput,
                           TerminalConnState.reconnecting =>
                             l10n.connReconnecting,
                           TerminalConnState.workerOffline =>
@@ -380,7 +408,9 @@ class _SessionTerminalScreenState extends ConsumerState<SessionTerminalScreen> {
                           TerminalConnState.exited => l10n.statusExited,
                           TerminalConnState.error => l10n.sessionErrorBanner,
                         },
-                        statusColor: entry?.connState == TerminalConnState.live
+                        statusColor:
+                            entry?.connState == TerminalConnState.live &&
+                                entry!.hasReceivedOutput
                             ? colors.success
                             : _isDead(
                                 entry?.connState ?? TerminalConnState.idle,
@@ -396,6 +426,48 @@ class _SessionTerminalScreenState extends ConsumerState<SessionTerminalScreen> {
                         onSwitch: () => _showSessionSwitcher(),
                         onMore: () => _showMoreMenu(session),
                       ),
+                      if (entry != null &&
+                          entry.startupDelayed &&
+                          !_isDead(entry.connState))
+                        Material(
+                          color: colors.warning.withValues(alpha: .12),
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Semantics(
+                                  liveRegion: true,
+                                  child: Text(
+                                    l10n.terminalStartupSlow,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(l10n.terminalStartupHint),
+                                Wrap(
+                                  spacing: 12,
+                                  children: [
+                                    TextButton(
+                                      onPressed: _showDiagnostics,
+                                      child: Text(l10n.terminalRunDiagnostics),
+                                    ),
+                                    TextButton(
+                                      onPressed: () => ref
+                                          .read(
+                                            sessionControllerProvider.notifier,
+                                          )
+                                          .reconnect(widget.sessionId),
+                                      child: Text(l10n.reconnectAction),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       Expanded(
                         child: entry == null
                             ? Center(
@@ -672,7 +744,7 @@ class _DisconnectedCard extends StatelessWidget {
             if (entry.errorMessage != null) ...[
               const SizedBox(height: 4),
               Text(
-                entry.errorMessage!,
+                entry.errorMessage == 'session-not-running' ? l10n.terminalSessionGone : entry.errorMessage!,
                 style: TextStyle(fontSize: 12, color: colors.danger),
               ),
             ],

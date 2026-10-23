@@ -48,6 +48,10 @@ class SessionTerminalState {
   final Terminal terminal;
   TerminalConnState connState;
 
+  /// Output readiness is independent of connection latency and idle time.
+  bool hasReceivedOutput = false;
+  bool startupDelayed = false;
+
   String? errorMessage;
   int? rttMs;
   String? exitReason;

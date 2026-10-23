@@ -104,7 +104,7 @@ void main() {
       expect(uri.queryParameters['token'], 'jwt');
       expect(uri.queryParameters['sessionId'], 's1');
       // 能力协商：声明 displaced，gateway 才会向本连接发挤占帧。
-      expect(uri.queryParameters['caps'], 'displaced');
+      expect(uri.queryParameters['caps'], 'displaced,resume-only');
     });
 
     test('buildUri keeps explicit port', () {

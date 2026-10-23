@@ -31,7 +31,8 @@ public sealed record CloseSessionRequest(
 
 [MessagePackObject]
 public sealed record ReattachSessionRequest(
-    [property: Key(0)] string SessionId);
+    [property: Key(0)] string SessionId,
+    [property: Key(1)] bool ResumeOnly = false);
 
 /// <summary>
 /// Incremental reattach: the client declares the newest scrollback sequence
@@ -42,7 +43,8 @@ public sealed record ReattachSessionRequest(
 [MessagePackObject]
 public sealed record ReattachSessionSinceRequest(
     [property: Key(0)] string SessionId,
-    [property: Key(1)] long SinceSeq);
+    [property: Key(1)] long SinceSeq,
+    [property: Key(2)] bool ResumeOnly = false);
 
 [MessagePackObject]
 public sealed record ReattachSessionResult(

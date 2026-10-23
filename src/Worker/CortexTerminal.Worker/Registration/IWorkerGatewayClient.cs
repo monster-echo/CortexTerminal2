@@ -14,6 +14,8 @@ public interface IWorkerGatewayClient : IAsyncDisposable
     IDisposable OnResizeSession(Func<ResizePtyRequest, Task> handler);
     IDisposable OnCloseSession(Func<CloseSessionRequest, Task> handler);
     IDisposable OnUpgradeWorker(Func<UpgradeWorkerCommand, Task> handler);
+    IDisposable OnDiagnoseSession(Func<string, Task<SessionDiagnosticReport>> handler)
+        => default(CancellationTokenRegistration);
     IDisposable OnRequestScrollback(Func<string, IReadOnlyList<TerminalChunk>> handler);
     IDisposable OnRequestScrollbackSince(Func<string, long, ScrollbackDelta> handler);
     IDisposable OnReconnected(Func<string?, Task> handler);

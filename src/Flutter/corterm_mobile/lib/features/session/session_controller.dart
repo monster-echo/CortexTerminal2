@@ -61,15 +61,14 @@ class SessionState {
     bool? altArmed,
     OscNotice? oscNotice,
     bool clearOscNotice = false,
-  }) =>
-      SessionState(
-        currentSessionId: currentSessionId ?? this.currentSessionId,
-        openedSessionIds: openedSessionIds ?? this.openedSessionIds,
-        entries: entries ?? this.entries,
-        ctrlArmed: ctrlArmed ?? this.ctrlArmed,
-        altArmed: altArmed ?? this.altArmed,
-        oscNotice: clearOscNotice ? null : (oscNotice ?? this.oscNotice),
-      );
+  }) => SessionState(
+    currentSessionId: currentSessionId ?? this.currentSessionId,
+    openedSessionIds: openedSessionIds ?? this.openedSessionIds,
+    entries: entries ?? this.entries,
+    ctrlArmed: ctrlArmed ?? this.ctrlArmed,
+    altArmed: altArmed ?? this.altArmed,
+    oscNotice: clearOscNotice ? null : (oscNotice ?? this.oscNotice),
+  );
 }
 
 /// Workspace 控制器：
@@ -79,10 +78,16 @@ class SessionState {
 /// - 断线自动退避重连，成功后重放快照并重建 buffer（§56/§57）
 class SessionController extends StateNotifier<SessionState> {
   SessionController(this._repo, this._socketFactory, this._prefs)
-      : super(const SessionState());
+    : super(const SessionState());
 
   static const maxAttached = 4;
-  static const _backoff = [Duration(seconds: 1), Duration(seconds: 2), Duration(seconds: 5), Duration(seconds: 10), Duration(seconds: 30)];
+  static const _backoff = [
+    Duration(seconds: 1),
+    Duration(seconds: 2),
+    Duration(seconds: 5),
+    Duration(seconds: 10),
+    Duration(seconds: 30),
+  ];
 
   /// 半开连接判定窗口：探测周期 10s，连续 3 个周期未收到任何服务端帧即判死。
   static const _probeInterval = Duration(seconds: 10);
@@ -99,11 +104,50 @@ class SessionController extends StateNotifier<SessionState> {
   static const _streamMaxChars = 256 * 1024;
 
   /// 输出游标持久化键（对齐 ArkTS TerminalCache.loadLastSeq 的按 session 游标）。
-  int _lastSeq(String sessionId) =>
-      _prefs.terminalSeq(sessionId);
+  int _lastSeq(String sessionId) => _prefs.terminalSeq(sessionId);
 
   Future<void> _setLastSeq(String sessionId, int seq) =>
       _prefs.setTerminalSeq(sessionId, seq);
+
+  final _startupTimers = <String, Timer>{};
+
+  void _watchStartup(String sessionId) {
+    _startupTimers.remove(sessionId)?.cancel();
+    _startupTimers[sessionId] = Timer(const Duration(seconds: 12), () {
+      if (!mounted) return;
+      final entry = state.entries[sessionId];
+      if (entry == null ||
+          ![
+            TerminalConnState.connecting,
+            TerminalConnState.replaying,
+            TerminalConnState.live,
+          ].contains(entry.connState)) {
+        return;
+      }
+      if (entry.hasReceivedOutput &&
+          entry.connState == TerminalConnState.live) {
+        return;
+      }
+      entry.startupDelayed = true;
+      state = state.copyWith(entries: Map.of(state.entries));
+    });
+  }
+
+  /// Reattach the same session without ending its shell or creating a replacement.
+  Future<void> reconnect(String sessionId) async {
+    _timers.remove(sessionId)?.cancel();
+    _sockets.remove(sessionId)?.forceClose();
+    _stopProbe(sessionId);
+    await _attach(sessionId);
+  }
+
+  void _finishStartup(String sessionId, SessionTerminalState entry) {
+    if (!entry.hasReceivedOutput || entry.connState != TerminalConnState.live) {
+      return;
+    }
+    _startupTimers.remove(sessionId)?.cancel();
+    entry.startupDelayed = false;
+  }
 
   final _streamBuf = <String, StringBuffer>{};
   final _streamFlushTimers = <String, Timer>{};
@@ -130,8 +174,10 @@ class SessionController extends StateNotifier<SessionState> {
   /// 3s 防抖落盘（对齐 ArkTS 的 3s 静默快照节奏）。
   void _scheduleStreamFlush(String sessionId) {
     _streamFlushTimers.remove(sessionId)?.cancel();
-    _streamFlushTimers[sessionId] =
-        Timer(const Duration(seconds: 3), () => _flushStream(sessionId));
+    _streamFlushTimers[sessionId] = Timer(
+      const Duration(seconds: 3),
+      () => _flushStream(sessionId),
+    );
   }
 
   void _flushStream(String sessionId) {
@@ -180,7 +226,10 @@ class SessionController extends StateNotifier<SessionState> {
       if (workerId != null) {
         state.entries[sessionId]?.workerId = workerId;
       }
-      state = state.copyWith(currentSessionId: sessionId, openedSessionIds: opened);
+      state = state.copyWith(
+        currentSessionId: sessionId,
+        openedSessionIds: opened,
+      );
     }
     unawaited(_repo.rememberCurrent(sessionId));
     _enforceAttachCap();
@@ -197,12 +246,14 @@ class SessionController extends StateNotifier<SessionState> {
     final stream = _prefs.terminalStreamCache(sessionId);
     if (stream != null && stream.isNotEmpty) {
       entry.terminal.write(stream);
+      entry.hasReceivedOutput = true;
       _streamBuf[sessionId] = StringBuffer(stream);
       return;
     }
     final snapshot = _prefs.terminalSnapshot(sessionId);
-    if (snapshot == null || snapshot.isEmpty) return;
+    if (snapshot == null || snapshot.trim().isEmpty) return;
     entry.terminal.write(snapshot);
+    entry.hasReceivedOutput = true;
     _streamBuf[sessionId] = StringBuffer(snapshot);
   }
 
@@ -238,7 +289,10 @@ class SessionController extends StateNotifier<SessionState> {
   /// 新建 shell（CreateSessionRequest.Cwd，PTY 直接以该目录启动）。
   /// 新会话空屏、无历史；成功后自动 open 并切换。
   /// cwd / worker 缺失时直接抛出——不允许静默回退，UI 负责把错误展示给用户。
-  Future<String> forkSession(String sessionId, {required String sourceName}) async {
+  Future<String> forkSession(
+    String sessionId, {
+    required String sourceName,
+  }) async {
     final entry = state.entries[sessionId];
     if (entry == null) {
       throw StateError('session $sessionId is not open');
@@ -321,8 +375,8 @@ class SessionController extends StateNotifier<SessionState> {
         final message = args.length <= 1
             ? (args.firstOrNull ?? '')
             : (int.tryParse(args.first) != null
-                ? args.skip(1).join(';')
-                : args.join(';'));
+                  ? args.skip(1).join(';')
+                  : args.join(';'));
         if (message.isEmpty) return;
         state = state.copyWith(
           oscNotice: OscNotice(kind: OscNoticeKind.notify, message: message),
@@ -382,12 +436,14 @@ class SessionController extends StateNotifier<SessionState> {
       if (s == null) return;
       // 占位名形态：空名 / `session_2e1a4f5b…`（下划线） / `session 2e1a4f5b`（空格）。
       // 对齐网关的默认命名，用户手动改过的名字不会命中。
-      final placeholder = s.name.isEmpty ||
-          RegExp(r'^session[_\s-]?[0-9a-f]{4,}$', caseSensitive: false)
-              .hasMatch(s.name);
+      final placeholder =
+          s.name.isEmpty ||
+          RegExp(
+            r'^session[_\s-]?[0-9a-f]{4,}$',
+            caseSensitive: false,
+          ).hasMatch(s.name);
       if (!placeholder) return;
-      final name =
-          title.length > 24 ? title.substring(0, 24) : title;
+      final name = title.length > 24 ? title.substring(0, 24) : title;
       await _repo.rename(sessionId: sessionId, name: name);
       state = state.copyWith(); // 触发 AppBar 刷新
     } catch (_) {
@@ -400,12 +456,16 @@ class SessionController extends StateNotifier<SessionState> {
     if (entry == null) return;
     if (_sockets.containsKey(sessionId)) return; // 已附着/连接中
     entry.connState = TerminalConnState.connecting;
+    _watchStartup(sessionId);
     entry.errorMessage = null;
     state = state.copyWith(entries: Map.of(state.entries));
 
     final TerminalSocket socket;
     try {
-      socket = await _socketFactory(sessionId: sessionId, sinceSeq: _lastSeq(sessionId));
+      socket = await _socketFactory(
+        sessionId: sessionId,
+        sinceSeq: _lastSeq(sessionId),
+      );
     } catch (e) {
       if (!state.entries.containsKey(sessionId)) return;
       // 已确认 worker 离线时保持 workerOffline 标识（不回退为普通重连文案）。
@@ -434,7 +494,7 @@ class SessionController extends StateNotifier<SessionState> {
       onError: (Object e) {
         debugPrint('ws($sessionId) stream error: $e');
       },
-      onDone: () => _onSocketDone(sessionId),
+      onDone: () => _onSocketDone(sessionId, socket),
     );
   }
 
@@ -449,14 +509,17 @@ class SessionController extends StateNotifier<SessionState> {
         // 游标清零（下次重连重新协商）。
         _streamReset(sessionId);
         await _setLastSeq(sessionId, 0);
-        final fresh = SessionTerminalState(
-          terminal: _newTerminal(sessionId),
-          epoch: entry.epoch + 1,
-          connState: TerminalConnState.replaying,
-          rttMs: entry.rttMs,
-          remoteTitle: entry.remoteTitle,
-          workerId: entry.workerId,
-        );
+        final fresh =
+            SessionTerminalState(
+                terminal: _newTerminal(sessionId),
+                epoch: entry.epoch + 1,
+                connState: TerminalConnState.replaying,
+                rttMs: entry.rttMs,
+                remoteTitle: entry.remoteTitle,
+                workerId: entry.workerId,
+              )
+              ..hasReceivedOutput = entry.hasReceivedOutput
+              ..startupDelayed = entry.startupDelayed;
         state = state.copyWith(
           entries: Map.of(state.entries)..[sessionId] = fresh,
         );
@@ -474,11 +537,13 @@ class SessionController extends StateNotifier<SessionState> {
         // 游标推进并持久化：下次重连只请求此后的增量。
         await _setLastSeq(sessionId, frame.lastSeq);
         entry.connState = TerminalConnState.live;
+        _finishStartup(sessionId, entry);
         _sendPendingResize(sessionId, entry);
         _startProbe(sessionId);
         state = state.copyWith(entries: Map.of(state.entries));
       case LiveFrame():
         entry.connState = TerminalConnState.live;
+        _finishStartup(sessionId, entry);
         _sendPendingResize(sessionId, entry);
         _startProbe(sessionId);
         state = state.copyWith(entries: Map.of(state.entries));
@@ -514,14 +579,19 @@ class SessionController extends StateNotifier<SessionState> {
           case 'forbidden':
           case 'reattach-failed':
           case 'session-start-failed':
+          case 'session-not-running':
             _timers.remove(sessionId)?.cancel();
             _stopProbe(sessionId);
             entry.connState = TerminalConnState.error;
-            entry.errorMessage = frame.message ?? frame.code;
+            entry.errorMessage = frame.code == 'session-not-running'
+                ? frame.code
+                : frame.message ?? frame.code;
             state = state.copyWith(entries: Map.of(state.entries));
           default:
             // invalid-frame 等协议错误：保留连接，仅记录。
-            debugPrint('ws($sessionId) error frame: ${frame.code} ${frame.message}');
+            debugPrint(
+              'ws($sessionId) error frame: ${frame.code} ${frame.message}',
+            );
         }
       case DisplacedFrame():
         // 同 session 被第二客户端挤掉：终态，不自动重连（重连会与另一端互踢）。
@@ -545,11 +615,21 @@ class SessionController extends StateNotifier<SessionState> {
       entry.replayBuffer.clear();
     }
     entry.connState = TerminalConnState.live;
+    _finishStartup(sessionId, entry);
     state = state.copyWith(entries: Map.of(state.entries));
   }
 
   void _writeNormalized(
-      String sessionId, SessionTerminalState entry, List<int> bytes) {
+    String sessionId,
+    SessionTerminalState entry,
+    List<int> bytes,
+  ) {
+    if (bytes.isNotEmpty) {
+      final changed = !entry.hasReceivedOutput || entry.startupDelayed;
+      entry.hasReceivedOutput = true;
+      _finishStartup(sessionId, entry);
+      if (changed) state = state.copyWith(entries: Map.of(state.entries));
+    }
     var text = utf8.decode(bytes, allowMalformed: true);
     // 裸 \n → \r\n（PTY 不开 ONLCR 时防楼梯；跨 chunk 的 \r\n 依赖 lastCodeUnit）。
     if (text.contains('\n')) {
@@ -562,12 +642,16 @@ class SessionController extends StateNotifier<SessionState> {
       }
       text = sb.toString();
     }
-    entry.lastCodeUnit = text.isEmpty ? entry.lastCodeUnit : text.codeUnits.last;
+    entry.lastCodeUnit = text.isEmpty
+        ? entry.lastCodeUnit
+        : text.codeUnits.last;
     entry.terminal.write(text);
     _streamAppend(sessionId, text);
   }
 
-  void _onSocketDone(String sessionId) {
+  void _onSocketDone(String sessionId, TerminalSocket source) {
+    if (_sockets[sessionId] != source) return;
+    _startupTimers.remove(sessionId)?.cancel();
     // dispose 后仍可能有异步 onDone 送达（broadcast 流的延迟投递）。
     if (!mounted) return;
     final socket = _sockets.remove(sessionId);
@@ -604,8 +688,9 @@ class SessionController extends StateNotifier<SessionState> {
   void _scheduleReconnect(String sessionId, int attempt) {
     _timers.remove(sessionId)?.cancel();
     // worker-offline 帧路径不携带次数，用累计值保证退避增长。
-    final effective =
-        attempt > 0 ? attempt : (_reconnectAttempts[sessionId] ?? 0) + 1;
+    final effective = attempt > 0
+        ? attempt
+        : (_reconnectAttempts[sessionId] ?? 0) + 1;
     _reconnectAttempts[sessionId] = effective;
     final delay = _backoff[effective.clamp(0, _backoff.length - 1)];
     _timers[sessionId] = Timer(delay, () async {
@@ -705,7 +790,10 @@ class SessionController extends StateNotifier<SessionState> {
 
   void _sendPendingResize(String sessionId, SessionTerminalState entry) {
     if (entry.pendingColumns != null && entry.pendingRows != null) {
-      _sockets[sessionId]?.resize(columns: entry.pendingColumns!, rows: entry.pendingRows!);
+      _sockets[sessionId]?.resize(
+        columns: entry.pendingColumns!,
+        rows: entry.pendingRows!,
+      );
       entry
         ..pendingColumns = null
         ..pendingRows = null;
@@ -786,6 +874,7 @@ class SessionController extends StateNotifier<SessionState> {
 
   /// 明确关闭某个 session 的终端（terminate / 删除后调用）。
   Future<void> closeTerminal(String sessionId) async {
+    _startupTimers.remove(sessionId)?.cancel();
     _streamFlushTimers.remove(sessionId)?.cancel();
     _flushStream(sessionId);
     _captureSnapshot(sessionId); // 关闭前留一份 scrollback 快照（按 Worker 键）。
@@ -802,13 +891,20 @@ class SessionController extends StateNotifier<SessionState> {
     if (current == sessionId) {
       current = opened.isNotEmpty ? opened.last : null;
     }
-    state = state.copyWith(currentSessionId: current, openedSessionIds: opened, entries: entries);
+    state = state.copyWith(
+      currentSessionId: current,
+      openedSessionIds: opened,
+      entries: entries,
+    );
     await _repo.rememberCurrent(current);
   }
 
   @override
   void dispose() {
     _flushAllStreams();
+    for (final timer in _startupTimers.values) {
+      timer.cancel();
+    }
     for (final t in _timers.values) {
       t.cancel();
     }
@@ -824,9 +920,9 @@ class SessionController extends StateNotifier<SessionState> {
 
 final sessionControllerProvider =
     StateNotifierProvider<SessionController, SessionState>((ref) {
-  return SessionController(
-    ref.watch(sessionRepositoryProvider),
-    ref.watch(terminalSocketFactoryProvider),
-    ref.watch(appPreferencesProvider),
-  );
-});
+      return SessionController(
+        ref.watch(sessionRepositoryProvider),
+        ref.watch(terminalSocketFactoryProvider),
+        ref.watch(appPreferencesProvider),
+      );
+    });

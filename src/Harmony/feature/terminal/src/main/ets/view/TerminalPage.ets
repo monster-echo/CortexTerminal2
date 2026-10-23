@@ -157,6 +157,15 @@ export struct TerminalPage {
   }
   @State connectionError: string = ''
   @State latencyMs: number = -1
+  @State hasReceivedOutput: boolean = false
+  @State startupDelayed: boolean = false
+  @State diagnosticExpanded: boolean = false
+  @State diagnosticBusy: boolean = false
+  @State diagnosticText: string = ''
+  @State diagnosticDirectory: string = ''
+  @State diagnosticMacGuide: boolean = false
+  @State diagnosticGuideAvailable: boolean = true
+  private startupTimer: number = -1
   @State lastPingTime: number = 0
   @State ctrlActive: boolean = false
   @State altActive: boolean = false
@@ -240,6 +249,7 @@ export struct TerminalPage {
     }
     this.initialFitDone = true
     this.replay.flushWhenReady()
+    this.finishStartupIfReady()
   }
 
   aboutToAppear() {
@@ -263,6 +273,7 @@ export struct TerminalPage {
     this.replaySinceSeq = TerminalCache.getInstance().loadLastSeq(this.sessionId)
     this.wireReplayPipeline()
     this.replay.setDeltaBase(this.replaySinceSeq)
+    this.hasReceivedOutput = this.replaySinceSeq > 0
     this.stateManager.onStateChanged = (state: TerminalState) => {
       this.currentState = state
     }
@@ -279,6 +290,7 @@ export struct TerminalPage {
     AppStorage.setOrCreate('terminalPageActive', false)
     this.applyStatusBar(this.terminalColorMode !== 'light')
     this.pageVisible = false
+    this.cancelStartupTimer()
     if (this.exitTimer !== -1) {
       clearTimeout(this.exitTimer)
       this.exitTimer = -1
@@ -400,7 +412,7 @@ export struct TerminalPage {
             .height(7)
             .fill(this.getStatusDotColor())
 
-          Text(this.latencyMs >= 0 ? `${this.latencyMs}ms` : this.getStatusLabel())
+          Text(this.terminalLive && !this.hasReceivedOutput ? I18n.get('terminal.recovery.waiting') : (this.terminalLive && this.latencyMs >= 0 ? `${I18n.get('terminal.recovery.latency')} ${this.latencyMs}ms` : this.getStatusLabel()))
             .fontSize(12)
             .fontColor(this.getStatusTextColor())
             .margin({ left: 6 })
@@ -426,6 +438,39 @@ export struct TerminalPage {
       .height(52)
       .padding({ left: 8, right: 8 })
       .alignItems(VerticalAlign.Center)
+
+      if (this.startupDelayed || this.diagnosticExpanded) {
+        Scroll() {
+          Column({ space: 8 }) {
+            Text(I18n.get('terminal.recovery.slow')).fontSize(14).fontWeight(FontWeight.Medium).fontColor(this.chrome().onSurface)
+            Text(I18n.get('terminal.recovery.hint')).fontSize(12).fontColor(this.chrome().onSurfaceVariant)
+            if (this.diagnosticText.length > 0) {
+              Text(this.diagnosticText).fontSize(13).fontColor(this.chrome().onSurface)
+            }
+            if (this.diagnosticDirectory.length > 0) {
+              Text(this.diagnosticDirectory).fontSize(12).fontColor(this.chrome().onSurfaceVariant).copyOption(CopyOptions.LocalDevice)
+            }
+            Row({ space: 12 }) {
+              Button(this.diagnosticBusy ? I18n.get('terminal.recovery.checking') : I18n.get('terminal.recovery.check'))
+                .enabled(!this.diagnosticBusy).fontSize(12).onClick(() => { this.diagnoseSession() })
+              Button(I18n.get('terminal.recovery.reconnect')).fontSize(12).onClick(() => { this.retryConnection() })
+              Button(I18n.get('terminal.recovery.hide')).fontSize(12).onClick(() => {
+                this.diagnosticExpanded = false
+                this.startupDelayed = false
+              })
+            }
+            Text(I18n.get('terminal.recovery.reconnect_help')).fontSize(12).fontColor(this.chrome().onSurfaceVariant)
+            if (this.diagnosticExpanded && this.diagnosticGuideAvailable) {
+              Button(I18n.get('terminal.recovery.permission_guide')).fontSize(12).onClick(() => {
+                this.diagnosticMacGuide = !this.diagnosticMacGuide
+              })
+            }
+            if (this.diagnosticMacGuide) {
+              Text(I18n.get('terminal.recovery.mac_steps')).fontSize(12).fontColor(this.chrome().onSurfaceVariant)
+            }
+          }.width('100%').alignItems(HorizontalAlign.Start).padding(12)
+        }.width('100%').constraintSize({ maxHeight: 240 }).align(Alignment.TopStart).backgroundColor(this.chrome().surfaceHigh)
+      }
 
       if (this.currentState === TerminalState.Error && this.connectionError.length > 0) {
         Row() {
@@ -631,6 +676,7 @@ export struct TerminalPage {
   private async connectSession() {
     this.connectionError = ''
     this.terminalLive = false
+    this.watchStartup()
     this.stateManager.setState(TerminalState.Connecting)
 
     this.connectTimer = setTimeout(() => {
@@ -676,10 +722,12 @@ export struct TerminalPage {
 
     switch (frame.type) {
       case 'output':
+        this.markTerminalOutput(frame.payload)
         this.replay.onOutput(frame.payload)
         break
 
       case 'replay':
+        this.markTerminalOutput(frame.payload)
         // Buffer replay chunks without rendering; flushed in one write on
         // replayCompleted so the screen doesn't visibly redraw top-to-bottom.
         this.replay.onReplayChunk(frame.payload)
@@ -711,6 +759,7 @@ export struct TerminalPage {
         break
 
       case 'replayDelta':
+        this.markTerminalOutput(frame.payload)
         this.replay.onDeltaChunk(frame.payload)
         break
 
@@ -721,6 +770,7 @@ export struct TerminalPage {
       case 'live':
         this.connectionError = ''
         this.terminalLive = true
+        this.finishStartupIfReady()
         this.stateManager.setState(TerminalState.Live)
         this.fitAndResizeIfReady()
         break
@@ -740,6 +790,7 @@ export struct TerminalPage {
         break
 
       case 'expired':
+        this.cancelStartupTimer()
         this.connectionError = frame.reason || I18n.get('terminal.status.expired')
         TerminalCache.getInstance().clear(this.sessionId)
         // Grab the final buffer now — the page auto-navigates in 2s and the
@@ -750,6 +801,7 @@ export struct TerminalPage {
         break
 
       case 'exited':
+        this.cancelStartupTimer()
         this.connectionError = frame.reason || I18n.get('terminal.error.process_exited')
         TerminalCache.getInstance().clear(this.sessionId)
         this.captureSnapshot()
@@ -766,6 +818,8 @@ export struct TerminalPage {
           // Bridge-level failure (JS syntax error, webview gone) — surface it,
           // don't leave an unhandled rejection silently swallowing the batch.
           console.error('Failed to write terminal batch: ' + e.message)
+          this.startupDelayed = true
+          this.diagnosticText = I18n.get('terminal.recovery.paint_failed')
         })
     } catch (e) {
       throw new Error('Failed to write terminal batch: ' + (e as Error).message)
@@ -1056,6 +1110,64 @@ export struct TerminalPage {
     }
   }
 
+  private cancelStartupTimer() {
+    if (this.startupTimer !== -1) clearTimeout(this.startupTimer)
+    this.startupTimer = -1
+  }
+
+  private watchStartup() {
+    this.cancelStartupTimer()
+    this.startupTimer = setTimeout(() => {
+      this.startupTimer = -1
+      if (!this.pageVisible || !this.stateManager.isActive()) return
+      if (!this.hasReceivedOutput || !this.terminalLive || !this.initialFitDone) this.startupDelayed = true
+    }, 12000) as number
+  }
+
+  private finishStartupIfReady() {
+    if (this.hasReceivedOutput && this.terminalLive && this.initialFitDone) {
+      this.cancelStartupTimer()
+      this.startupDelayed = false
+    }
+  }
+
+  private markTerminalOutput(payload: string) {
+    if (payload.length === 0) return
+    this.hasReceivedOutput = true
+    this.finishStartupIfReady()
+    if (this.diagnosticExpanded) {
+      this.diagnosticText = I18n.get('terminal.recovery.ready')
+      this.diagnosticMacGuide = false
+    }
+  }
+
+  private async diagnoseSession() {
+    if (this.diagnosticBusy) return
+    this.diagnosticExpanded = true
+    this.diagnosticBusy = true
+    this.diagnosticText = I18n.get('terminal.recovery.checking')
+    try {
+      const report = await ApiService.diagnoseSession(this.sessionId)
+      if (!this.pageVisible) return
+      this.diagnosticDirectory = report.directory
+      this.diagnosticGuideAvailable = report.platform === 'macos' || report.platform === 'unknown'
+      this.diagnosticMacGuide = report.platform === 'macos' && !report.hasOutput && (report.directoryAccess === 'permission-denied' || report.directoryAccess === 'timed-out')
+      let key = 'terminal.recovery.unknown'
+      if (report.hasOutput) key = 'terminal.recovery.ready'
+      else if (report.state === 'worker-offline') key = 'terminal.recovery.offline'
+      else if (report.state === 'unknown-session') key = 'terminal.recovery.gone'
+      else if (report.state === 'diagnostics-unavailable' || report.state === 'diagnostic-timeout' || report.state === 'diagnostic-busy') key = 'terminal.recovery.unavailable'
+      else if (report.directoryAccess === 'permission-denied') key = 'terminal.recovery.denied'
+      else if (report.directoryAccess === 'timed-out') key = 'terminal.recovery.timeout'
+      else if (report.directoryAccess === 'unavailable') key = 'terminal.recovery.directory_unavailable'
+      this.diagnosticText = I18n.get(key)
+    } catch (_) {
+      if (this.pageVisible) this.diagnosticText = I18n.get('terminal.recovery.unavailable')
+    } finally {
+      if (this.pageVisible) this.diagnosticBusy = false
+    }
+  }
+
   private retryConnection() {
     this.transport.disconnect()
     this.connectSession()
@@ -1297,6 +1409,7 @@ export struct TerminalPage {
   private getStatusDotColor(): ResourceColor {
     switch (this.currentState) {
       case TerminalState.Live:
+        if (!this.hasReceivedOutput) return $r('app.color.terminal_warning')
         if (this.latencyMs > 300) return $r('app.color.terminal_error')
         if (this.latencyMs > 100) return $r('app.color.terminal_warning')
         return $r('app.color.terminal_success')
@@ -1374,6 +1487,10 @@ export struct TerminalPage {
   /** 二级入口（端口转发 / 文件浏览）统一放进 AppBar 的溢出菜单。 */
   private buildOverflowMenu(): PageMenuItem[] {
     const items: PageMenuItem[] = []
+    const diagnostic = new PageMenuItem()
+    diagnostic.value = I18n.get('terminal.recovery.check')
+    diagnostic.action = () => { this.diagnoseSession() }
+    items.push(diagnostic)
 
     const tunnels = new PageMenuItem()
     tunnels.value = I18n.get('tunnel.title')

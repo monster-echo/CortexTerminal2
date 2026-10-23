@@ -2055,6 +2055,32 @@ app.MapGet("/api/me/stats", async (ClaimsPrincipal user, ISessionCoordinator ses
     });
 }).RequireAuthorization();
 
+// Read-only, owned-session diagnostics. A timeout is not evidence of a permission denial.
+app.MapGet("/api/me/sessions/{sessionId}/diagnostics", async (
+    string sessionId, ClaimsPrincipal user, ISessionCoordinator sessions,
+    IWorkerRegistry workers, IWorkerCommandDispatcher dispatcher, CancellationToken cancellationToken) =>
+{
+    if (!sessions.TryGetSession(sessionId, out var session) || session.UserId != GetUserId(user))
+        return Results.NotFound();
+    if (!workers.TryGetWorker(session.WorkerId, out var worker))
+        return Results.Ok(new SessionDiagnosticReport("worker-offline", false, null, "not-checked", null, "unknown", 0));
+    using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+    timeout.CancelAfter(TimeSpan.FromSeconds(6));
+    try
+    {
+        var report = await dispatcher.DiagnoseSessionAsync(worker.ConnectionId, sessionId, timeout.Token).WaitAsync(timeout.Token);
+        return Results.Ok(report);
+    }
+    catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+    {
+        return Results.Ok(new SessionDiagnosticReport("diagnostic-timeout", false, null, "not-checked", null, "unknown", 0));
+    }
+    catch (Exception ex) when (ex is HubException or NotSupportedException)
+    {
+        return Results.Ok(new SessionDiagnosticReport("diagnostics-unavailable", false, null, "not-checked", null, "unknown", 0));
+    }
+}).RequireAuthorization();
+
 app.MapGet("/api/me/sessions/{sessionId}", async (string sessionId, ClaimsPrincipal user, ISessionCoordinator sessions, IWorkerRegistry workers) =>
 {
     if (!sessions.TryGetSession(sessionId, out var session))

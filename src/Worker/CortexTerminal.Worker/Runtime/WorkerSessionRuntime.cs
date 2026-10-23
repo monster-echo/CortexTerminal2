@@ -33,12 +33,17 @@ public sealed class WorkerSessionRuntime : IAsyncDisposable
         _agentIntegration = agentIntegration;
     }
 
+    private long _outputBytes;
+    public DateTimeOffset StartedAtUtc { get; } = DateTimeOffset.UtcNow;
+    public string? Directory { get; private set; }
+    public bool HasOutput => Interlocked.Read(ref _outputBytes) > 0;
     public string SessionId { get; }
     public IWorkerGatewayClient GatewayClient { get; }
     public event Func<string, Task>? Terminated;
 
     public async Task StartAsync(int columns, int rows, string? cwd, CancellationToken cancellationToken)
     {
+        Directory = string.IsNullOrEmpty(cwd) ? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) : cwd;
         var env = new Dictionary<string, string>();
         // Claude Code hooks are merged into ~/.claude/settings.json (non-invasive, no PATH
         // shims). The reporter script exec'd by those hooks is a subprocess of claude, so it
@@ -94,6 +99,7 @@ public sealed class WorkerSessionRuntime : IAsyncDisposable
         {
             await foreach (var chunk in chunks)
             {
+                Interlocked.Add(ref _outputBytes, chunk.Payload.Length);
                 await forward(chunk, CancellationToken.None);
             }
         }

@@ -26,6 +26,7 @@ export class TransportFrame {
  * Hub method parameter: ReattachSessionIncremental
  */
 export class ReattachSessionSinceParams {
+  resumeOnly: boolean = true
   sessionId: string = ''
   sinceSeq: number = 0
 }
@@ -34,6 +35,7 @@ export class ReattachSessionSinceParams {
  * Hub method parameter: ReattachSession
  */
 export class ReattachSessionParams {
+  resumeOnly: boolean = true
   sessionId: string = ''
 }
 

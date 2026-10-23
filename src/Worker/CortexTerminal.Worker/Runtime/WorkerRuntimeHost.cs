@@ -37,6 +37,9 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
     private readonly TimeSpan _reconnectInterval;
     private CancellationTokenSource? _reconnectCts;
     private CancellationTokenSource? _metricsCts;
+    private CancellationTokenSource? _startupHealthCts;
+    private Task? _startupHealthTask;
+    private readonly SemaphoreSlim _diagnosticSlots = new(2, 2);
 
     private static readonly TimeSpan DefaultReconnectInterval = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan DefaultMetricsInterval = TimeSpan.FromSeconds(5);
@@ -94,6 +97,26 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         _agentIntegration = agentIntegration;
     }
 
+    public async Task<SessionDiagnosticReport> DiagnoseSessionAsync(string sessionId)
+    {
+        var platform = OperatingSystem.IsMacOS() ? "macos" : OperatingSystem.IsWindows() ? "windows" : "linux";
+        if (!_sessions.TryGetValue(sessionId, out var runtime))
+            return new("unknown-session", false, null, "not-checked", null, platform, 0);
+        var waiting = (long)Math.Max(0, (DateTimeOffset.UtcNow - runtime.StartedAtUtc).TotalSeconds);
+        if (runtime.HasOutput)
+            return new("ready", true, runtime.Directory, "not-checked", null, platform, waiting);
+        if (!_diagnosticSlots.Wait(0))
+            return new("diagnostic-busy", false, runtime.Directory, "not-checked", null, platform, waiting);
+        try
+        {
+            var check = await Diagnostics.DirectoryAccessProbe.CheckAsync(runtime.Directory ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+            // Output may have resumed while the directory check was running.
+            return new(runtime.HasOutput ? "ready" : "waiting-for-output", runtime.HasOutput,
+                runtime.Directory, check.State, check.Detail, platform, waiting);
+        }
+        finally { _diagnosticSlots.Release(); }
+    }
+
     public int ActiveSessionCount => _sessions.Count;
 
     public IReadOnlyList<TerminalChunk>? GetSessionScrollback(string sessionId)
@@ -112,6 +135,7 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         _subscriptions.Add(_gatewayClient.OnResizeSession(HandleResizeSessionAsync));
         _subscriptions.Add(_gatewayClient.OnCloseSession(HandleCloseSessionAsync));
         _subscriptions.Add(_gatewayClient.OnUpgradeWorker(HandleUpgradeWorkerAsync));
+        _subscriptions.Add(_gatewayClient.OnDiagnoseSession(DiagnoseSessionAsync));
         _subscriptions.Add(_gatewayClient.OnRequestScrollback(HandleRequestScrollbackAsync));
         _subscriptions.Add(_gatewayClient.OnRequestScrollbackSince(HandleRequestScrollbackSince));
         _subscriptions.Add(_gatewayClient.OnListFiles((rootDir, path) => Task.FromResult(_workspaceFiles.ListFiles(rootDir, path))));
@@ -144,6 +168,11 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
             return Task.CompletedTask;
         }));
 
+        if (Environment.GetEnvironmentVariable("CORTERM_LIFECYCLE_OWNER") == "desktop" && _startupHealthCts is null)
+        {
+            _startupHealthCts = new CancellationTokenSource();
+            _startupHealthTask = Diagnostics.SessionStartupHealthWriter.RunAsync(() => _sessions.Values.ToArray(), _startupHealthCts.Token);
+        }
         _logger.LogInformation("Worker {WorkerId} is starting.", _workerId);
         try
         {
@@ -279,6 +308,8 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         _logger.LogInformation("Worker {WorkerId} is stopping.", _workerId);
         _reconnectCts?.Cancel();
         _metricsCts?.Cancel();
+        _startupHealthCts?.Cancel();
+        if (_startupHealthTask is not null) await _startupHealthTask;
         foreach (var subscription in _subscriptions)
         {
             subscription.Dispose();

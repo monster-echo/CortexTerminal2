@@ -10,6 +10,22 @@ namespace CortexTerminal.Gateway.Tests.Sessions;
 
 public sealed class ReattachSessionCoordinatorTests
 {
+    [Theory]
+    [InlineData(SessionAttachmentState.Expired)]
+    [InlineData(SessionAttachmentState.Exited)]
+    public async Task ResumeOnly_DoesNotRestartAnEndedShell(SessionAttachmentState attachmentState)
+    {
+        var coordinator = CreateCoordinator();
+        var created = await coordinator.CreateSessionAsync("user-1", new CreateSessionRequest("shell", 80, 24), null, CancellationToken.None);
+        var id = created.Response!.SessionId;
+        var records = GetSessions(coordinator);
+        records[id] = records[id] with { AttachmentState = attachmentState };
+        var result = await coordinator.ReattachSessionAsync("user-1", new ReattachSessionRequest(id, ResumeOnly: true), "new-client", DateTimeOffset.UtcNow, CancellationToken.None);
+        result.IsSuccess.Should().BeFalse();
+        result.ErrorCode.Should().Be("session-not-running");
+        records[id].AttachmentState.Should().Be(attachmentState);
+    }
+
     [Fact]
     public async Task ReattachSessionAsync_AfterDetachWithinLease_ForSameUser_ReturnsSuccess()
     {

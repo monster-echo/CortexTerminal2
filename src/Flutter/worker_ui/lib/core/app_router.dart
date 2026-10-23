@@ -42,7 +42,7 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/doctor',
       // 诊断页自带 AppBar（重新运行按钮在导航栏 actions 里）。
-      builder: (context, _) => const DoctorScreen(),
+      builder: (context, state) => DoctorScreen(directory: state.uri.queryParameters['directory']),
     ),
     GoRoute(
       path: '/update',
