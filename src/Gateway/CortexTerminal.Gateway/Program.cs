@@ -3800,7 +3800,9 @@ app.MapPost("/api/transfers/{transferId}/punch", (
         return Results.BadRequest(new { error = ex.Message });
     }
     return Results.Ok(new { ready = result.Ready, peerEndpoint = result.Peer?.Endpoint, expiresAtUtc = result.ExpiresAtUtc });
-}).RequireAuthorization();
+// Both participants authenticate using the validated, transfer-scoped signed token
+// above. Workers do not send a user JWT; requiring one rejects their registration.
+}).AllowAnonymous();
 
 // ---- P2P 打洞中介 · worker 常驻锚点（worker online 即续约注册，传输前零等待）----
 // worker 角色：X-Corterm-Worker-Relay-Token（AudienceWorkerRelay, sub=workerId）证明
