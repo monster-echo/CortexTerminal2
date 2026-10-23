@@ -592,6 +592,30 @@ class _CortermSidebarState extends ConsumerState<CortermSidebar> {
             ),
             Divider(color: c.divider),
             Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              // design/01 §4：侧边栏底部「+ 新建」直接进入新建 Session（与头像同一区域）。
+              child: SizedBox(
+                height: 36,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(10),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    context.push('/sessions/new');
+                  },
+                  child: Row(
+                    children: [
+                      Icon(Icons.add, size: 20, color: c.textPrimary),
+                      const SizedBox(width: 10),
+                      Text(
+                        l10n.newSession,
+                        style: TextStyle(fontSize: 14, color: c.textPrimary),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
               child: Consumer(
                 builder: (context, ref, _) {

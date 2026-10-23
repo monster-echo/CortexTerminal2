@@ -164,6 +164,28 @@ void main() {
     expect(find.text('电脑'), findsOneWidget);
   });
 
+  testWidgets('侧边栏底部「新建会话」入口直达新建 Session（design/01 §4）', (tester) async {
+    final key = GlobalKey<ScaffoldState>();
+    await tester.pumpWidget(
+      _harness(
+        workspaces: [_ws('ws1', 'CortexTerminal2', 'w1')],
+        workers: [_worker('w1', 'Mac mini')],
+        sessions: [_session('s1', '终端 1', 'ws1')],
+        child: Scaffold(
+          key: key,
+          drawer: const CortermSidebar(),
+          body: const SizedBox.shrink(),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    key.currentState!.openDrawer();
+    await tester.pumpAndSettle();
+
+    expect(find.text('新建会话'), findsOneWidget);
+  });
+
   testWidgets('搜索：未输入显示最近会话，输入后按分组过滤（design/03）', (tester) async {
     await tester.pumpWidget(
       _harness(
