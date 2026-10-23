@@ -1,3 +1,4 @@
+using CortexTerminal.Worker.Auth;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.WebSockets;
@@ -78,10 +79,11 @@ public sealed class LocalTransferListener : BackgroundService
                     transferId, token, ctx.Request.Body, ctx.RequestAborted);
                 if (outcome.Success)
                 {
-                    return Results.Json(new { success = true });
+                    return Results.Json(new TransferSuccessBody(true), WorkerJsonContext.Default.TransferSuccessBody);
                 }
                 return Results.Json(
-                    new { error = outcome.Code ?? "transfer_failed", message = outcome.Message },
+                    new TransferErrorBody(outcome.Code ?? "transfer_failed", outcome.Message),
+                    WorkerJsonContext.Default.TransferErrorBody,
                     statusCode: outcome.Status);
             });
 
@@ -95,7 +97,8 @@ public sealed class LocalTransferListener : BackgroundService
                     ctx.Response.ContentType = "application/json";
                     await ctx.Response.WriteAsync(
                         System.Text.Json.JsonSerializer.Serialize(
-                            new { error = outcome.Code ?? "transfer_failed", message = outcome.Message }));
+                            new TransferErrorBody(outcome.Code ?? "transfer_failed", outcome.Message),
+                            WorkerJsonContext.Default.TransferErrorBody));
                     return;
                 }
 

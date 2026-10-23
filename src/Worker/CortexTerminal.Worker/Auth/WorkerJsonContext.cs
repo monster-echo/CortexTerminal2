@@ -11,5 +11,10 @@ namespace CortexTerminal.Worker.Auth;
 [JsonSerializable(typeof(DeviceFlowPollRequest))]
 [JsonSerializable(typeof(RefreshTokenResponse))]
 [JsonSerializable(typeof(JsonElement))]
+[JsonSerializable(typeof(TransferErrorBody))]
+[JsonSerializable(typeof(TransferSuccessBody))]
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 internal sealed partial class WorkerJsonContext : JsonSerializerContext;
+
+internal sealed record TransferErrorBody(string? Error, string? Message);
+internal sealed record TransferSuccessBody(bool Success);

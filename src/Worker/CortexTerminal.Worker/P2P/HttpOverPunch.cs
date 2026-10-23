@@ -97,8 +97,10 @@ public static class PunchHttp
     private static async Task WriteJsonResponseAsync(
         Stream stream, int status, string? code, string? message, CancellationToken ct, string? body = null)
     {
-        body ??= System.Text.Json.JsonSerializer.Serialize(new { error = code, message });
-        await WriteResponseHeadAsync(stream, status, Reason(status), "application/json", body.Length, extraHeaders: null, ct);
+        body ??= System.Text.Json.JsonSerializer.Serialize(
+            new CortexTerminal.Worker.Auth.TransferErrorBody(code, message),
+            CortexTerminal.Worker.Auth.WorkerJsonContext.Default.TransferErrorBody);
+        await WriteResponseHeadAsync(stream, status, Reason(status), "application/json", Encoding.UTF8.GetByteCount(body), extraHeaders: null, ct);
         var bytes = Encoding.UTF8.GetBytes(body);
         await stream.WriteAsync(bytes, ct);
         await stream.FlushAsync(ct);
