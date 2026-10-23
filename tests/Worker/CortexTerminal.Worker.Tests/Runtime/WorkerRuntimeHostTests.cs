@@ -185,9 +185,10 @@ public sealed class WorkerRuntimeHostTests
         var startCountBefore = gateway.StartCallCount;
 
         // Now make StartAsync always fail for reconnect attempts
-        gateway.StartAsyncResult = () => false;
+        var attempted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        gateway.StartAsyncResult = () => { attempted.TrySetResult(); return false; };
         await gateway.RaiseClosedAsync();
-        await Task.Delay(300); // let the loop attempt a few times
+        await attempted.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         await host.StopAsync(CancellationToken.None);
         var startCountAtStop = gateway.StartCallCount;

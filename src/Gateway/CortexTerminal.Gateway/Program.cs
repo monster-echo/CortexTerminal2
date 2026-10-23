@@ -2065,7 +2065,7 @@ app.MapGet("/api/me/sessions/{sessionId}/diagnostics", async (
     if (!workers.TryGetWorker(session.WorkerId, out var worker))
         return Results.Ok(new SessionDiagnosticReport("worker-offline", false, null, "not-checked", null, "unknown", 0));
     using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-    timeout.CancelAfter(TimeSpan.FromSeconds(6));
+    timeout.CancelAfter(TimeSpan.FromSeconds(12));
     try
     {
         var report = await dispatcher.DiagnoseSessionAsync(worker.ConnectionId, sessionId, timeout.Token).WaitAsync(timeout.Token);

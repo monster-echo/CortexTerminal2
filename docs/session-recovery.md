@@ -24,7 +24,7 @@ Desktop reads a fresh local warning feed (no terminal contents or credentials), 
 ## API and protocol
 
 - `GET /api/me/sessions/{id}/diagnostics`: authentication and ownership checked before contacting the Worker; other users receive 404. Current Worker connection is resolved on every call.
-- Worker `DiagnoseSession` SignalR request returns `SessionDiagnosticReport`, including state, output flag, directory access result, platform, and elapsed seconds. At most two directory probes run concurrently. Each probe has a 3-second bound; gateway has a 6-second bound.
+- Worker `DiagnoseSession` SignalR request returns `SessionDiagnosticReport`, including state, output flag, directory access result, platform, and elapsed seconds. At most two directory probes run concurrently. Each probe has a 3-second bound on POSIX and an 8-second bound on Windows (including PowerShell cold start); gateway has a 12-second bound.
 - Directory access failures do not claim a specific privacy setting. No TCC database is queried or changed.
 - Flutter native WebSocket advertises `resume-only`; HarmonyOS SignalR reattach requests set `ResumeOnly=true`. The coordinator rejects expired/exited shells with `session-not-running` before changing their attachment state. A display reconnect therefore cannot silently replace an ended shell.
 - Existing clients retain legacy reattach behavior through the optional flag's default value.

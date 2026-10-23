@@ -59,7 +59,7 @@ public static class DirectoryAccessProbe
             var output = process.StandardOutput.ReadToEndAsync();
             var error = process.StandardError.ReadToEndAsync();
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            timeout.CancelAfter(TimeSpan.FromSeconds(3));
+            timeout.CancelAfter(TimeSpan.FromSeconds(OperatingSystem.IsWindows() ? 8 : 3));
             try { await process.WaitForExitAsync(timeout.Token); }
             catch (OperationCanceledException)
             {

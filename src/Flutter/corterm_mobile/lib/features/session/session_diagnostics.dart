@@ -38,6 +38,6 @@ class SessionDiagnostics {
             .getMap(
               '/api/me/sessions/${Uri.encodeComponent(sessionId)}/diagnostics',
             )
-            .timeout(const Duration(seconds: 10)),
+            .timeout(const Duration(seconds: 15)),
       );
 }
