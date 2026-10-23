@@ -11,11 +11,13 @@ namespace CortexTerminal.Relay.Workers;
 /// <summary>一次隧道调用（访客请求）在 Worker 连接上的挂起状态。</summary>
 public sealed class TunnelCall
 {
-    public TunnelCall(string id)
+    public TunnelCall(string id, CancellationToken cancellationToken = default)
     {
         Id = id;
+        CancellationToken = cancellationToken;
     }
 
+    public CancellationToken CancellationToken { get; }
     public string Id { get; }
     public TaskCompletionSource<TunnelResponseHeadFrame> Head { get; } =
         new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -56,9 +58,9 @@ public sealed class WorkerRelayConnection
     public async Task<TunnelCall> CallAsync(
         TunnelRequestFrame request, Stream? requestBody, CancellationToken ct)
     {
-        var call = new TunnelCall(request.Id);
+        var call = new TunnelCall(request.Id, ct);
         _calls[request.Id] = call;
-        _outgoing.Writer.TryWrite(JsonSerializer.SerializeToUtf8Bytes(request, RelayJson.Default));
+        await _outgoing.Writer.WriteAsync(JsonSerializer.SerializeToUtf8Bytes(request, RelayJson.Default), ct);
 
         if (requestBody is not null && requestBody.CanRead)
         {
@@ -66,11 +68,11 @@ public sealed class WorkerRelayConnection
             int read;
             while ((read = await requestBody.ReadAsync(buffer, ct)) > 0)
             {
-                _outgoing.Writer.TryWrite(EncodeDataFrame(request.Id, buffer.AsSpan(0, read)));
+                await _outgoing.Writer.WriteAsync(EncodeDataFrame(request.Id, buffer.AsSpan(0, read)), ct);
             }
             var end = JsonSerializer.SerializeToUtf8Bytes(
                 new TunnelRequestBodyEndFrame { Id = request.Id }, RelayJson.Default);
-            _outgoing.Writer.TryWrite(end);
+            await _outgoing.Writer.WriteAsync(end, ct);
         }
         return call;
     }
@@ -107,7 +109,9 @@ public sealed class WorkerRelayConnection
         {
             while (reader.TryRead(out var bytes))
             {
-                await _socket.SendAsync(bytes, WebSocketMessageType.Text, endOfMessage: true, ct);
+                var messageType = bytes.Length > 0 && bytes[0] == RelayProtocol.DataFrameMarker
+                    ? WebSocketMessageType.Binary : WebSocketMessageType.Text;
+                await _socket.SendAsync(bytes, messageType, endOfMessage: true, ct);
             }
         }
     }
@@ -130,7 +134,7 @@ public sealed class WorkerRelayConnection
             else
             {
                 Console.Error.WriteLine($"[wsdbg {WorkerId}] data {frame.Value.Data.Length}B");
-                HandleDataFrame(frame.Value.Data);
+                await HandleDataFrameAsync(frame.Value.Data, ct);
             }
         }
     }
@@ -167,7 +171,7 @@ public sealed class WorkerRelayConnection
         }
     }
 
-    private void HandleDataFrame(byte[] data)
+    private async Task HandleDataFrameAsync(byte[] data, CancellationToken ct)
     {
         // [0x02][4B idLen 大端][id][payload]
         if (data.Length < 1 + RelayProtocol.RequestIdLengthBytes || data[0] != RelayProtocol.DataFrameMarker)
@@ -184,7 +188,15 @@ public sealed class WorkerRelayConnection
         var payload = payloadStart == data.Length
             ? Array.Empty<byte>()
             : data[payloadStart..];
-        call.ResponseBody.Writer.TryWrite(payload);
+        try
+        {
+            await call.ResponseBody.Writer.WriteAsync(payload, call.CancellationToken);
+        }
+        catch (OperationCanceledException) when (call.CancellationToken.IsCancellationRequested)
+        {
+            _calls.TryRemove(id, out _);
+            FailCall(call, "request canceled");
+        }
     }
 
     private static byte[] EncodeDataFrame(string requestId, ReadOnlySpan<byte> payload)
