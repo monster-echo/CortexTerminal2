@@ -7,7 +7,8 @@ import 'package:worker_ui/core/corterm_service.dart';
 /// 二进制不存在时自动跳过 —— 这是本地验证用的集成测试，不是 CI 常规用例。
 void main() {
   test('real corterm status/doctor parse correctly', () async {
-    const base = '/tmp/corterm-test';
+    final base =
+        Platform.environment['CORTERM_TEST_BINARY_DIR'] ?? '/tmp/corterm-test';
     if (!File('$base/corterm').existsSync()) {
       markTestSkipped('published binary not present at $base');
       return;
@@ -20,7 +21,11 @@ void main() {
     expect(status.gateway, isNotEmpty);
     expect(status.workers, isA<List<dynamic>>());
 
-    final doctor = await svc.doctor();
+    final doctor = await svc.doctor(directory: Directory.current.path);
     expect(doctor.checks, isNotEmpty);
+    final directory = doctor.checks.singleWhere(
+      (check) => check.name == 'Working directory access',
+    );
+    expect(directory.ok, isTrue);
   });
 }
