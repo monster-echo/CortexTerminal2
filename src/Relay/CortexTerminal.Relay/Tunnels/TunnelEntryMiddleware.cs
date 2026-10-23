@@ -140,94 +140,103 @@ public sealed class TunnelEntryMiddleware(RequestDelegate next, ILogger<TunnelEn
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted);
         cts.CancelAfter(TimeSpan.FromSeconds(opts.ForwardTimeoutSeconds));
 
-        TunnelCall call;
         try
         {
-            call = await worker.CallAsync(request, context.Request.Body, cts.Token);
-        }
-        catch (OperationCanceledException)
-        {
-            await WriteErrorAsync(context, StatusCodes.Status504GatewayTimeout, "Upstream did not respond in time.");
-            return;
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Tunnel forward failed for tunnel {TunnelKey}.", key);
-            await WriteErrorAsync(context, StatusCodes.Status502BadGateway, "Tunnel forward failed: " + ex.Message);
-            return;
-        }
-
-        TunnelResponseHeadFrame head;
-        try
-        {
-            // 响应头与 end 帧同时等：worker 在发出头之前就带错误结束（端口不可达、
-            // 等待端口就绪超时等）时，立刻给访客明确的 502，而不是干等 ForwardTimeout。
-            var headAwaited = call.Head.Task.WaitAsync(cts.Token);
-            var finished = await Task.WhenAny(headAwaited, call.End.Task);
-            // WaitAsync wraps the head task, so its continuation can lag behind
-            // End even when the head arrived first. Inspect the original task
-            // before treating End as a response with no headers.
-            if (finished != headAwaited && !call.Head.Task.IsCompleted)
+            TunnelCall call;
+            try
             {
-                var earlyEnd = call.End.Task.Result;
-                await WriteWaitingPageAsync(context,
-                    earlyEnd.Error is not null
-                        ? $"The service on port {route.Port} is not reachable on the worker right now."
-                        : "The tunnel closed before a response was produced.");
+                call = await worker.CallAsync(request, context.Request.Body, cts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                await WriteErrorAsync(context, StatusCodes.Status504GatewayTimeout, "Upstream did not respond in time.");
+                return;
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Tunnel forward failed for tunnel {TunnelKey}.", key);
+                await WriteErrorAsync(context, StatusCodes.Status502BadGateway, "Tunnel forward failed: " + ex.Message);
                 return;
             }
 
-            head = await headAwaited;
-        }
-        catch (OperationCanceledException)
-        {
-            await WriteErrorAsync(context, StatusCodes.Status504GatewayTimeout, "Upstream did not respond in time.");
-            return;
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Tunnel forward failed for tunnel {TunnelKey}.", key);
-            await WriteErrorAsync(context, StatusCodes.Status502BadGateway, "Tunnel forward failed: " + ex.Message);
-            return;
-        }
-
-        if (head.Status == StatusCodes.Status101SwitchingProtocols)
-        {
-            // WebSocket 升级无法在二次反代上重建（当前版本限制）
-            await WriteErrorAsync(context, StatusCodes.Status501NotImplemented,
-                "WebSocket upgrade through tunnels is not supported yet.");
-            return;
-        }
-
-        context.Response.StatusCode = head.Status;
-        foreach (var (name, values) in head.Headers)
-        {
-            if (HopByHopHeaders.Contains(name)) continue;
-            context.Response.Headers.Append(name, values);
-        }
-
-        // 响应体流式对拷：Worker 数据帧 → 响应流
-        var bodyReader = call.ResponseBody.Reader;
-        try
-        {
-            while (await bodyReader.WaitToReadAsync(cts.Token))
+            TunnelResponseHeadFrame head;
+            try
             {
-                while (bodyReader.TryRead(out var chunk))
+                // 响应头与 end 帧同时等：worker 在发出头之前就带错误结束（端口不可达、
+                // 等待端口就绪超时等）时，立刻给访客明确的 502，而不是干等 ForwardTimeout。
+                var headAwaited = call.Head.Task.WaitAsync(cts.Token);
+                var finished = await Task.WhenAny(headAwaited, call.End.Task);
+                // WaitAsync wraps the head task, so its continuation can lag behind
+                // End even when the head arrived first. Inspect the original task
+                // before treating End as a response with no headers.
+                if (finished != headAwaited && !call.Head.Task.IsCompleted)
                 {
-                    await context.Response.Body.WriteAsync(chunk, cts.Token);
+                    var earlyEnd = call.End.Task.Result;
+                    await WriteWaitingPageAsync(context,
+                        earlyEnd.Error is not null
+                            ? $"The service on port {route.Port} is not reachable on the worker right now."
+                            : "The tunnel closed before a response was produced.");
+                    return;
+                }
+
+                head = await headAwaited;
+            }
+            catch (OperationCanceledException)
+            {
+                await WriteErrorAsync(context, StatusCodes.Status504GatewayTimeout, "Upstream did not respond in time.");
+                return;
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Tunnel forward failed for tunnel {TunnelKey}.", key);
+                await WriteErrorAsync(context, StatusCodes.Status502BadGateway, "Tunnel forward failed: " + ex.Message);
+                return;
+            }
+
+            if (head.Status == StatusCodes.Status101SwitchingProtocols)
+            {
+                // WebSocket 升级无法在二次反代上重建（当前版本限制）
+                await WriteErrorAsync(context, StatusCodes.Status501NotImplemented,
+                    "WebSocket upgrade through tunnels is not supported yet.");
+                return;
+            }
+
+            context.Response.StatusCode = head.Status;
+            foreach (var (name, values) in head.Headers)
+            {
+                if (HopByHopHeaders.Contains(name)) continue;
+                context.Response.Headers.Append(name, values);
+            }
+
+            // 响应体流式对拷：Worker 数据帧 → 响应流
+            var bodyReader = call.ResponseBody.Reader;
+            try
+            {
+                while (await bodyReader.WaitToReadAsync(cts.Token))
+                {
+                    while (bodyReader.TryRead(out var chunk))
+                    {
+                        await context.Response.Body.WriteAsync(chunk, cts.Token);
+                    }
+                }
+
+                var end = await call.End.Task.WaitAsync(cts.Token);
+                if (end.Error is not null)
+                {
+                    // 头已发出：截断连接，客户端按 Content-Length 检测失败
+                    context.Abort();
                 }
             }
-
-            var end = await call.End.Task.WaitAsync(cts.Token);
-            if (end.Error is not null)
+            catch (OperationCanceledException) when (!context.Response.HasStarted)
             {
-                // 头已发出：截断连接，客户端按 Content-Length 检测失败
-                context.Abort();
+                await WriteErrorAsync(context, StatusCodes.Status504GatewayTimeout, "Upstream did not respond in time.");
             }
         }
-        catch (OperationCanceledException) when (!context.Response.HasStarted)
+        finally
         {
-            await WriteErrorAsync(context, StatusCodes.Status504GatewayTimeout, "Upstream did not respond in time.");
+            // Disposing a linked CTS does not cancel it. Always release a
+            // pending channel write when the response reader exits or aborts.
+            await cts.CancelAsync();
         }
     }
 
