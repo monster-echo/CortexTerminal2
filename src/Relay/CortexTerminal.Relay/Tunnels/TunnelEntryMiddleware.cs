@@ -164,7 +164,10 @@ public sealed class TunnelEntryMiddleware(RequestDelegate next, ILogger<TunnelEn
             // 等待端口就绪超时等）时，立刻给访客明确的 502，而不是干等 ForwardTimeout。
             var headAwaited = call.Head.Task.WaitAsync(cts.Token);
             var finished = await Task.WhenAny(headAwaited, call.End.Task);
-            if (finished != headAwaited)
+            // WaitAsync wraps the head task, so its continuation can lag behind
+            // End even when the head arrived first. Inspect the original task
+            // before treating End as a response with no headers.
+            if (finished != headAwaited && !call.Head.Task.IsCompleted)
             {
                 var earlyEnd = call.End.Task.Result;
                 await WriteWaitingPageAsync(context,
