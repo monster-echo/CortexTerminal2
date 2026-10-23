@@ -158,7 +158,7 @@ public sealed class TunnelEntryMiddleware(RequestDelegate next, ILogger<TunnelEn
                 await WriteErrorAsync(context, StatusCodes.Status502BadGateway, "Tunnel forward failed: " + ex.Message);
                 return;
             }
-    
+
             TunnelResponseHeadFrame head;
             try
             {
@@ -178,7 +178,7 @@ public sealed class TunnelEntryMiddleware(RequestDelegate next, ILogger<TunnelEn
                             : "The tunnel closed before a response was produced.");
                     return;
                 }
-    
+
                 head = await headAwaited;
             }
             catch (OperationCanceledException)
@@ -192,7 +192,7 @@ public sealed class TunnelEntryMiddleware(RequestDelegate next, ILogger<TunnelEn
                 await WriteErrorAsync(context, StatusCodes.Status502BadGateway, "Tunnel forward failed: " + ex.Message);
                 return;
             }
-    
+
             if (head.Status == StatusCodes.Status101SwitchingProtocols)
             {
                 // WebSocket 升级无法在二次反代上重建（当前版本限制）
@@ -200,14 +200,14 @@ public sealed class TunnelEntryMiddleware(RequestDelegate next, ILogger<TunnelEn
                     "WebSocket upgrade through tunnels is not supported yet.");
                 return;
             }
-    
+
             context.Response.StatusCode = head.Status;
             foreach (var (name, values) in head.Headers)
             {
                 if (HopByHopHeaders.Contains(name)) continue;
                 context.Response.Headers.Append(name, values);
             }
-    
+
             // 响应体流式对拷：Worker 数据帧 → 响应流
             var bodyReader = call.ResponseBody.Reader;
             try
@@ -219,7 +219,7 @@ public sealed class TunnelEntryMiddleware(RequestDelegate next, ILogger<TunnelEn
                         await context.Response.Body.WriteAsync(chunk, cts.Token);
                     }
                 }
-    
+
                 var end = await call.End.Task.WaitAsync(cts.Token);
                 if (end.Error is not null)
                 {
