@@ -9,6 +9,16 @@ class AppStrings {
 
   static const Map<String, Map<String, String>> _tables = {
     'zh': {
+      'doctor.waitingTitle': "有终端尚未产生输出",
+      'doctor.checkAction': "检查启动状态",
+      'doctor.macGuide':
+          "终端长时间空白时，可检查实际工作目录的访问状态。若系统拒绝访问，请在“隐私与安全性 → 文件与文件夹”中允许所需目录；仍被阻止时，可在“完全磁盘访问权限”中添加并开启云枢终端（Corterm.app）。权限只能由你在系统设置中确认。返回此页会自动重新检查；若系统要求重新打开 App，请先保存其他终端中的任务。",
+      'doctor.openPermissions': "打开系统权限设置",
+      'doctor.recheck': "重新检查",
+      'doctor.timeout': '检查超时。请检查系统提示与磁盘状态，再重新检查。',
+      'doctor.directory': "排查的工作目录",
+      'doctor.directoryHint': "只检查访问状态，不会重启或关闭终端",
+      'doctor.settingsFailed': "无法自动打开设置，请手动打开“系统设置 → 隐私与安全性”。",
       'appTitle': '云枢终端',
       'nav.overview': '概览',
       'nav.doctor': '诊断',
@@ -117,6 +127,19 @@ class AppStrings {
       'settings.launchAtStartupError': '设置开机启动失败（macOS 下需要把应用放进 /Applications）',
     },
     'en': {
+      'doctor.waitingTitle': "A terminal is still waiting for output",
+      'doctor.checkAction': "Check startup",
+      'doctor.macGuide':
+          "If a terminal stays blank, check access to its working directory. If macOS denies access, allow the required folders under Privacy & Security → Files & Folders. If access is still blocked, add and enable Corterm.app under Full Disk Access. Only you can approve this in System Settings. Returning here checks again automatically. Save work in other terminals before reopening the app if macOS requires it.",
+      'doctor.openPermissions': "Open privacy settings",
+      'doctor.recheck': "Check again",
+      'doctor.timeout':
+          'The check timed out. Check system prompts and disk availability, then try again.',
+      'doctor.directory': "Working directory to check",
+      'doctor.directoryHint':
+          "Checks access without restarting or closing terminals",
+      'doctor.settingsFailed':
+          "Open System Settings → Privacy & Security manually.",
       'appTitle': 'Corterm',
       'nav.overview': 'Overview',
       'nav.doctor': 'Diagnostics',
@@ -128,8 +151,7 @@ class AppStrings {
       'panel.connectedHint':
           'This computer is reachable from the Corterm app on your phone',
       'panel.starting': 'Starting',
-      'panel.startingHint':
-          'Connecting this computer for remote access',
+      'panel.startingHint': 'Connecting this computer for remote access',
       'panel.disconnected': 'Not connected',
       'panel.disconnectedHint':
           'Log in to make this computer reachable from your phone',

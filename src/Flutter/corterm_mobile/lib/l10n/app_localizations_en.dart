@@ -1201,4 +1201,70 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get computerOfflineWaiting =>
       'Computer offline. Waiting for it to reconnect…';
+
+  @override
+  String get terminalWaitingOutput => 'Waiting for terminal output';
+
+  @override
+  String get terminalStartupSlow =>
+      'The terminal is taking longer to get ready';
+
+  @override
+  String get terminalStartupHint =>
+      'Connection latency does not indicate terminal readiness. Check the remote session and working directory without interrupting running tasks.';
+
+  @override
+  String get terminalRunDiagnostics => 'Diagnose terminal';
+
+  @override
+  String get terminalReconnectHelp =>
+      'Reconnecting restores the display and output. It does not restart the shell or end running tasks.';
+
+  @override
+  String get terminalDiagnosticReady =>
+      'The remote terminal has produced output. Reconnect to retrieve it if the display is still blank.';
+
+  @override
+  String get terminalDirectoryDenied =>
+      'The remote system denied access to the working directory.';
+
+  @override
+  String get terminalDirectoryTimeout =>
+      'Working directory access timed out. System authorization or the disk may still be pending; the cause is not confirmed.';
+
+  @override
+  String get terminalDirectoryUnavailable =>
+      'The working directory is unavailable. Check its location and disk connection on the remote computer.';
+
+  @override
+  String get terminalDiagnosticUnavailable =>
+      'Remote diagnostics are unavailable. Check the computer connection and update the phone app, desktop app, and server.';
+
+  @override
+  String get terminalRemoteMacSteps =>
+      'On the remote Mac, open System Settings → Privacy & Security and check the required folder permissions under Files & Folders. If macOS still blocks the directory, add and enable Corterm.app under Full Disk Access. Return here to recheck. If macOS requires reopening the app, save work in other terminals first.';
+
+  @override
+  String get terminalChecking => 'Checking the remote terminal…';
+
+  @override
+  String get terminalRecheck => 'Check again';
+
+  @override
+  String get terminalTransportLabel => 'Connection latency';
+
+  @override
+  String get terminalStartupUnknown =>
+      'The terminal has not produced output yet. The cause is unconfirmed. Check shell startup configuration, permissions, and system prompts on the computer.';
+
+  @override
+  String get terminalWorkerOffline =>
+      'The computer is offline. Check again after it reconnects.';
+
+  @override
+  String get terminalSessionGone =>
+      'The remote session no longer exists. Return to the session list to check its status.';
+
+  @override
+  String get terminalPermissionGuide => 'Remote Mac permission instructions';
 }

@@ -2329,6 +2329,114 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Computer offline. Waiting for it to reconnect…'**
   String get computerOfflineWaiting;
+
+  /// No description provided for @terminalWaitingOutput.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for terminal output'**
+  String get terminalWaitingOutput;
+
+  /// No description provided for @terminalStartupSlow.
+  ///
+  /// In en, this message translates to:
+  /// **'The terminal is taking longer to get ready'**
+  String get terminalStartupSlow;
+
+  /// No description provided for @terminalStartupHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection latency does not indicate terminal readiness. Check the remote session and working directory without interrupting running tasks.'**
+  String get terminalStartupHint;
+
+  /// No description provided for @terminalRunDiagnostics.
+  ///
+  /// In en, this message translates to:
+  /// **'Diagnose terminal'**
+  String get terminalRunDiagnostics;
+
+  /// No description provided for @terminalReconnectHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Reconnecting restores the display and output. It does not restart the shell or end running tasks.'**
+  String get terminalReconnectHelp;
+
+  /// No description provided for @terminalDiagnosticReady.
+  ///
+  /// In en, this message translates to:
+  /// **'The remote terminal has produced output. Reconnect to retrieve it if the display is still blank.'**
+  String get terminalDiagnosticReady;
+
+  /// No description provided for @terminalDirectoryDenied.
+  ///
+  /// In en, this message translates to:
+  /// **'The remote system denied access to the working directory.'**
+  String get terminalDirectoryDenied;
+
+  /// No description provided for @terminalDirectoryTimeout.
+  ///
+  /// In en, this message translates to:
+  /// **'Working directory access timed out. System authorization or the disk may still be pending; the cause is not confirmed.'**
+  String get terminalDirectoryTimeout;
+
+  /// No description provided for @terminalDirectoryUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'The working directory is unavailable. Check its location and disk connection on the remote computer.'**
+  String get terminalDirectoryUnavailable;
+
+  /// No description provided for @terminalDiagnosticUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Remote diagnostics are unavailable. Check the computer connection and update the phone app, desktop app, and server.'**
+  String get terminalDiagnosticUnavailable;
+
+  /// No description provided for @terminalRemoteMacSteps.
+  ///
+  /// In en, this message translates to:
+  /// **'On the remote Mac, open System Settings → Privacy & Security and check the required folder permissions under Files & Folders. If macOS still blocks the directory, add and enable Corterm.app under Full Disk Access. Return here to recheck. If macOS requires reopening the app, save work in other terminals first.'**
+  String get terminalRemoteMacSteps;
+
+  /// No description provided for @terminalChecking.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking the remote terminal…'**
+  String get terminalChecking;
+
+  /// No description provided for @terminalRecheck.
+  ///
+  /// In en, this message translates to:
+  /// **'Check again'**
+  String get terminalRecheck;
+
+  /// No description provided for @terminalTransportLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection latency'**
+  String get terminalTransportLabel;
+
+  /// No description provided for @terminalStartupUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'The terminal has not produced output yet. The cause is unconfirmed. Check shell startup configuration, permissions, and system prompts on the computer.'**
+  String get terminalStartupUnknown;
+
+  /// No description provided for @terminalWorkerOffline.
+  ///
+  /// In en, this message translates to:
+  /// **'The computer is offline. Check again after it reconnects.'**
+  String get terminalWorkerOffline;
+
+  /// No description provided for @terminalSessionGone.
+  ///
+  /// In en, this message translates to:
+  /// **'The remote session no longer exists. Return to the session list to check its status.'**
+  String get terminalSessionGone;
+
+  /// No description provided for @terminalPermissionGuide.
+  ///
+  /// In en, this message translates to:
+  /// **'Remote Mac permission instructions'**
+  String get terminalPermissionGuide;
 }
 
 class _AppLocalizationsDelegate

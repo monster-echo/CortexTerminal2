@@ -5,6 +5,8 @@ namespace CortexTerminal.Gateway.Workers;
 
 public interface IWorkerCommandDispatcher
 {
+    Task<SessionDiagnosticReport> DiagnoseSessionAsync(string workerConnectionId, string sessionId, CancellationToken cancellationToken)
+        => Task.FromException<SessionDiagnosticReport>(new NotSupportedException("session-diagnostics-unsupported"));
     Task StartSessionAsync(string workerConnectionId, StartSessionCommand command, CancellationToken cancellationToken);
     Task WriteInputAsync(string workerConnectionId, WriteInputFrame frame, CancellationToken cancellationToken);
     Task ProbeLatencyAsync(string workerConnectionId, LatencyProbeFrame frame, CancellationToken cancellationToken);

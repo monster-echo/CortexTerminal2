@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:window_manager/window_manager.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../core/corterm_service.dart';
@@ -13,13 +16,50 @@ import '../widgets/list_group.dart';
 /// 诊断页：进入即自动运行，清单本身就是结论（✓/✗ + 一行说明）。
 /// 唯一操作「重新运行」收在导航栏右侧，不与结果争夺注意力。
 class DoctorScreen extends StatefulWidget {
-  const DoctorScreen({super.key});
+  const DoctorScreen({super.key, this.directory});
+  final String? directory;
 
   @override
   State<DoctorScreen> createState() => _DoctorScreenState();
 }
 
-class _DoctorScreenState extends State<DoctorScreen> {
+class _DoctorScreenState extends State<DoctorScreen> with WindowListener {
+  final _directory = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _directory.text = widget.directory ?? '';
+    windowManager.addListener(this);
+  }
+
+  @override
+  void dispose() {
+    windowManager.removeListener(this);
+    _directory.dispose();
+    super.dispose();
+  }
+
+  @override
+  void onWindowFocus() {
+    if (_started && !_running) _run();
+  }
+
+  Future<void> _openPermissions() async {
+    try {
+      final result = await Process.run('/usr/bin/open', [
+        'x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles',
+      ]);
+      if (result.exitCode != 0) {
+        throw const FileSystemException('settings-unavailable');
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _error = AppStrings.t(context, 'doctor.settingsFailed'));
+      }
+    }
+  }
+
   late CortermService _service;
   bool _started = false;
   DoctorResult? _result;
@@ -37,12 +77,13 @@ class _DoctorScreenState extends State<DoctorScreen> {
   }
 
   Future<void> _run() async {
+    if (_running) return;
     setState(() {
       _running = true;
       _error = null;
     });
     try {
-      final r = await _service.doctor();
+      final r = await _service.doctor(directory: _directory.text);
       if (!mounted) return;
       setState(() {
         _result = r;
@@ -51,7 +92,9 @@ class _DoctorScreenState extends State<DoctorScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = e.toString();
+        _error = e.toString() == 'diagnostic-timeout'
+            ? AppStrings.t(context, 'doctor.timeout')
+            : e.toString();
         _running = false;
       });
     }
@@ -77,8 +120,44 @@ class _DoctorScreenState extends State<DoctorScreen> {
           padding: const EdgeInsets.all(16),
           children: [
             ErrorBanner(message: _error),
+            if (Platform.isMacOS) ...[
+              Text(
+                t(context, 'doctor.macGuide'),
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton(
+                    onPressed: _openPermissions,
+                    child: Text(t(context, 'doctor.openPermissions')),
+                  ),
+                  TextButton(
+                    onPressed: _running ? null : _run,
+                    child: Text(t(context, 'doctor.recheck')),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+            ],
+            TextField(
+              controller: _directory,
+              decoration: InputDecoration(
+                labelText: t(context, 'doctor.directory'),
+                helperText: t(context, 'doctor.directoryHint'),
+              ),
+              onSubmitted: (_) => _run(),
+            ),
+            const SizedBox(height: 16),
             if (_running)
-              const Center(child: Padding(padding: EdgeInsets.all(24), child: _RunningIndicator()))
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(24),
+                  child: _RunningIndicator(),
+                ),
+              )
             else if (_result != null)
               AppGroupCard(
                 children: [
@@ -88,8 +167,12 @@ class _DoctorScreenState extends State<DoctorScreen> {
                       builder: (context) {
                         final c = _result!.checks[i];
                         return AppRow(
-                          icon: c.ok ? LucideIcons.circleCheck : LucideIcons.circleX,
-                          iconColor: c.ok ? scheme.tertiary : scheme.destructive,
+                          icon: c.ok
+                              ? LucideIcons.circleCheck
+                              : LucideIcons.circleX,
+                          iconColor: c.ok
+                              ? scheme.tertiary
+                              : scheme.destructive,
                           label: c.name,
                           value: c.detail,
                         );

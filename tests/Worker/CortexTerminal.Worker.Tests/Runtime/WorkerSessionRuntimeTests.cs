@@ -12,6 +12,21 @@ namespace CortexTerminal.Worker.Tests.Runtime;
 public sealed class WorkerSessionRuntimeTests
 {
     [Fact]
+    public async Task ReadinessRequiresActualOutput_NotOnlyPtyCreation()
+    {
+        var process = new ControlledPtyProcess();
+        var gateway = new FakeWorkerGatewayClient();
+        await using var runtime = new WorkerSessionRuntime("sess-ready", new ControlledPtyHost(process), gateway, NullLogger<WorkerSessionRuntime>.Instance, 1024);
+        runtime.HasOutput.Should().BeFalse();
+        await runtime.StartAsync(80, 24, Path.GetTempPath(), CancellationToken.None);
+        runtime.Directory.Should().Be(Path.GetTempPath());
+        runtime.HasOutput.Should().BeFalse();
+        await process.EmitStdoutAsync([65]);
+        await gateway.WaitForStdoutAsync("sess-ready");
+        runtime.HasOutput.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task StartAsync_PumpsStdoutStderrAndExitToGateway()
     {
         var process = new ControlledPtyProcess();

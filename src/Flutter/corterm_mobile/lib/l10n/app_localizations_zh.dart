@@ -1175,4 +1175,61 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get computerOfflineWaiting => '电脑已离线，等待其上线…';
+
+  @override
+  String get terminalWaitingOutput => '等待终端输出';
+
+  @override
+  String get terminalStartupSlow => '终端准备时间较长';
+
+  @override
+  String get terminalStartupHint => '连接延迟不代表终端已就绪。可以检查远端会话和工作目录；不会中断正在运行的任务。';
+
+  @override
+  String get terminalRunDiagnostics => '诊断终端';
+
+  @override
+  String get terminalReconnectHelp => '重新连接只恢复画面和输出，不会重启终端或结束任务。';
+
+  @override
+  String get terminalDiagnosticReady => '远端已产生输出。如果画面仍为空，请重新连接以拉取输出。';
+
+  @override
+  String get terminalDirectoryDenied => '远端无法访问工作目录，系统明确拒绝了访问。';
+
+  @override
+  String get terminalDirectoryTimeout => '工作目录访问超时，可能仍在等待系统授权或磁盘响应，尚不能确定原因。';
+
+  @override
+  String get terminalDirectoryUnavailable => '工作目录当前不可用，请在远端电脑检查目录是否存在及磁盘是否连接。';
+
+  @override
+  String get terminalDiagnosticUnavailable =>
+      '暂时无法获得远端诊断结果。请检查电脑端连接，并确认手机、电脑端与服务端均已更新。';
+
+  @override
+  String get terminalRemoteMacSteps =>
+      '需要在远端 Mac 操作：系统设置 → 隐私与安全性，检查“文件与文件夹”中所需目录的访问权限；若目录仍被系统阻止，再在“完全磁盘访问权限”中添加并开启云枢终端（Corterm.app）。授权后返回此处重新检查；若 macOS 要求退出并重新打开 App，请先保存其他终端中的任务。';
+
+  @override
+  String get terminalChecking => '正在检查远端终端…';
+
+  @override
+  String get terminalRecheck => '重新检查';
+
+  @override
+  String get terminalTransportLabel => '连接延迟';
+
+  @override
+  String get terminalStartupUnknown =>
+      '尚未收到远端终端输出，原因未确认。可在电脑端检查 shell 启动配置、权限及系统提示。';
+
+  @override
+  String get terminalWorkerOffline => '远端电脑已离线。电脑恢复连接后再检查。';
+
+  @override
+  String get terminalSessionGone => '远端已找不到这个会话。请返回会话列表检查状态。';
+
+  @override
+  String get terminalPermissionGuide => '远端 Mac 权限操作说明';
 }

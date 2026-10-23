@@ -594,6 +594,8 @@ statusCommand.SetAction((ParseResult parseResult) =>
 var doctorCommand = new Command("doctor", "Diagnose connectivity and configuration issues");
 var doctorJson = CreateJsonOption();
 doctorCommand.Add(doctorJson);
+var doctorDirectory = new Option<string?>("--directory") { Description = "Check access to a terminal working directory without changing the session" };
+doctorCommand.Add(doctorDirectory);
 doctorCommand.SetAction(async (ParseResult parseResult, CancellationToken cancellationToken) =>
 {
     var json = parseResult.GetValue(doctorJson);
@@ -663,6 +665,13 @@ doctorCommand.SetAction(async (ParseResult parseResult, CancellationToken cancel
     catch (Exception ex)
     {
         checks.Add(("PTY support", false, ex.Message));
+    }
+
+    var requestedDirectory = parseResult.GetValue(doctorDirectory);
+    if (!string.IsNullOrWhiteSpace(requestedDirectory))
+    {
+        var access = await CortexTerminal.Worker.Diagnostics.DirectoryAccessProbe.CheckAsync(requestedDirectory, cancellationToken);
+        checks.Add(("Working directory access", access.State == "accessible", $"{access.State}: {requestedDirectory}"));
     }
 
     // Check 7: daemon liveness — what `start` toggles. The daemon is the bare

@@ -19,6 +19,21 @@ public sealed class WorkerRuntimeHostTests
     private static FakeHostApplicationLifetime NewLifetime() => new();
 
     [Fact]
+    public async Task DiagnoseSession_IsReadOnly_AndDistinguishesMissingAndWaiting()
+    {
+        var gateway = new FakeWorkerGatewayClient();
+        await using var host = new WorkerRuntimeHost("worker-1", gateway, new QueuePtyHost(new ControlledPtyProcess()), NullLoggerFactory.Instance, NewLifetime(), TestRelay.NewRelayLink(), TestRelay.NewRelayTransfers(), TestRelay.NewListener());
+        await host.StartAsync(CancellationToken.None);
+        (await host.DiagnoseSessionAsync("missing")).State.Should().Be("unknown-session");
+        await gateway.RaiseStartSessionAsync(new StartSessionCommand("waiting", 80, 24, 1024, Path.GetTempPath()));
+        var result = await host.DiagnoseSessionAsync("waiting");
+        result.State.Should().Be("waiting-for-output");
+        result.DirectoryAccess.Should().Be("accessible");
+        result.HasOutput.Should().BeFalse();
+        host.ActiveSessionCount.Should().Be(1);
+    }
+
+    [Fact]
     public async Task StartAsync_RegistersWorkerAndRoutesInboundCommands()
     {
         var process = new ControlledPtyProcess();
@@ -170,9 +185,10 @@ public sealed class WorkerRuntimeHostTests
         var startCountBefore = gateway.StartCallCount;
 
         // Now make StartAsync always fail for reconnect attempts
-        gateway.StartAsyncResult = () => false;
+        var attempted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        gateway.StartAsyncResult = () => { attempted.TrySetResult(); return false; };
         await gateway.RaiseClosedAsync();
-        await Task.Delay(300); // let the loop attempt a few times
+        await attempted.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         await host.StopAsync(CancellationToken.None);
         var startCountAtStop = gateway.StartCallCount;

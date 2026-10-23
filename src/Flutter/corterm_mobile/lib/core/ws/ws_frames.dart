@@ -221,7 +221,7 @@ class WsFrames {
       queryParameters: {
         'token': token,
         'sessionId': sessionId,
-        'caps': 'displaced',
+        'caps': 'displaced,resume-only',
         if (sinceSeq > 0) 'since': '$sinceSeq',
       },
     );

@@ -15,6 +15,14 @@ export interface FeedbackUploadResult {
   imageUrl: string
 }
 
+export class SessionDiagnosticInfo {
+  state: string = 'diagnostics-unavailable'
+  hasOutput: boolean = false
+  directoryAccess: string = 'not-checked'
+  directory: string = ''
+  platform: string = 'unknown'
+}
+
 export class ApiService {
   private static isRefreshing: boolean = false
 
@@ -27,6 +35,17 @@ export class ApiService {
   }
 
   // ── Session APIs ──────────────────────────────────────────────────
+
+  static async diagnoseSession(sessionId: string): Promise<SessionDiagnosticInfo> {
+    const raw = await ApiService.get(`/api/me/sessions/${encodeURIComponent(sessionId)}/diagnostics`) as Record<string, Object>
+    const result = new SessionDiagnosticInfo()
+    result.state = (raw['state'] as string) || 'diagnostics-unavailable'
+    result.hasOutput = raw['hasOutput'] === true
+    result.directoryAccess = (raw['directoryAccess'] as string) || 'not-checked'
+    result.directory = (raw['directory'] as string) || ''
+    result.platform = (raw['platform'] as string) || 'unknown'
+    return result
+  }
 
   static async listSessions(): Promise<SessionInfo[]> {
     const response = await ApiService.get('/api/me/sessions') as Object[]

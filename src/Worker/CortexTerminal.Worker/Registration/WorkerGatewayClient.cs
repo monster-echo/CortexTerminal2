@@ -45,6 +45,9 @@ public sealed class WorkerGatewayClient : IWorkerGatewayClient
     public IDisposable OnUpgradeWorker(Func<UpgradeWorkerCommand, Task> handler)
         => _connection.On<UpgradeWorkerCommand>("UpgradeWorker", handler);
 
+    public IDisposable OnDiagnoseSession(Func<string, Task<SessionDiagnosticReport>> handler)
+        => _connection.On<string, SessionDiagnosticReport>("DiagnoseSession", handler);
+
     public IDisposable OnRequestScrollback(Func<string, IReadOnlyList<TerminalChunk>> handler)
         => _connection.On<string, IReadOnlyList<TerminalChunk>>("RequestScrollback", handler);
 

@@ -7,18 +7,29 @@ import 'models.dart';
 /// 封装对 corterm 的进程调用。全部走 `--json`，解析 stdout。
 /// 失败即抛 [CortermException]，由 UI 层展示错误 banner —— 不吞错误。
 class CortermService {
-  CortermService({required this.cortermPath});
+  CortermService({
+    required this.cortermPath,
+    this.diagnosticTimeout = const Duration(seconds: 20),
+  });
 
   final String cortermPath;
+  final Duration diagnosticTimeout;
 
   Future<Status> status() async {
     final r = await _run(cortermPath, ['status', '--json']);
     return Status.fromJson(_decodeMap(r));
   }
 
-  Future<DoctorResult> doctor() async {
+  Future<DoctorResult> doctor({String? directory}) async {
     // doctor 失败时 exit code=1 但 stdout 仍是 JSON（failedCount>0），照常解析。
-    final r = await _run(cortermPath, ['doctor', '--json']);
+    final r = await _run(cortermPath, [
+      'doctor',
+      '--json',
+      if (directory != null && directory.trim().isNotEmpty) ...[
+        '--directory',
+        directory.trim(),
+      ],
+    ], timeout: diagnosticTimeout);
     return DoctorResult.fromJson(_decodeMap(r));
   }
 
@@ -34,11 +45,7 @@ class CortermService {
   Stream<UpdateProgress> update({bool noServiceRestart = false}) {
     return _runStream(
       cortermPath,
-      [
-        'update',
-        '--json',
-        if (noServiceRestart) '--no-service-restart',
-      ],
+      ['update', '--json', if (noServiceRestart) '--no-service-restart'],
       UpdateProgress.fromJson,
       (s) => s.isError,
     );
@@ -66,8 +73,27 @@ class CortermService {
 
   // ── 内部实现 ──
 
-  Future<_RunResult> _run(String executable, List<String> args) async {
+  Future<_RunResult> _run(
+    String executable,
+    List<String> args, {
+    Duration? timeout,
+  }) async {
     try {
+      if (timeout != null) {
+        final process = await Process.start(executable, args);
+        final output = process.stdout.transform(utf8.decoder).join();
+        final error = process.stderr.transform(utf8.decoder).join();
+        try {
+          return await (() async => _RunResult(
+            await output,
+            await error,
+            await process.exitCode,
+          ))().timeout(timeout);
+        } on TimeoutException {
+          process.kill(ProcessSignal.sigkill);
+          throw CortermException('diagnostic-timeout');
+        }
+      }
       final result = await Process.run(executable, args);
       return _RunResult(
         result.stdout as String? ?? '',
@@ -93,7 +119,9 @@ class CortermService {
     }
 
     var sawError = false;
-    final lines = proc.stdout.transform(utf8.decoder).transform(const LineSplitter());
+    final lines = proc.stdout
+        .transform(utf8.decoder)
+        .transform(const LineSplitter());
     try {
       await for (final line in lines) {
         if (line.trim().isEmpty) continue;
@@ -110,7 +138,9 @@ class CortermService {
     final exit = await proc.exitCode;
     if (exit != 0 && !sawError) {
       final stderr = await proc.stderr.transform(utf8.decoder).join();
-      throw CortermException('$executable ${args.join(' ')} 退出码 $exit\nstderr: $stderr');
+      throw CortermException(
+        '$executable ${args.join(' ')} 退出码 $exit\nstderr: $stderr',
+      );
     }
   }
 

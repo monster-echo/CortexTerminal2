@@ -59,7 +59,8 @@ public sealed class TerminalWebSocketHandler
     /// Main loop: read frames from the WebSocket and dispatch them.
     /// Also wires up output forwarding so the TerminalHub can push data to this WS connection.
     /// [capabilities] 是客户端在连接 query（?caps=a,b）里声明的可选能力集，
-    /// 当前仅 displaced：声明者被同 session 新连接挤掉时会收到 displaced 帧再关闭；
+    /// displaced：声明者被同 session 新连接挤掉时会收到 displaced 帧再关闭；
+    /// resume-only：已结束的 shell 不自动重启，返回 session-not-running；
     /// 未声明者维持旧行为（连接被静默关闭），保证旧客户端兼容。
     /// [sinceSeq] 是客户端缓存的输出游标（?since=N，N>0 走增量重放；
     /// Worker 不支持或游标越界时回退全量重放，旧客户端不带 since 行为不变）。
@@ -115,7 +116,7 @@ public sealed class TerminalWebSocketHandler
             // Reattach the session (same logic as TerminalHub.ReattachSession)
             var reattachResult = await _sessions.ReattachSessionAsync(
                 userId,
-                new ReattachSessionRequest(sessionId),
+                new ReattachSessionRequest(sessionId, capabilities.Split(',').Contains("resume-only")),
                 connectionId,
                 _timeProvider.GetUtcNow(),
                 cancellationToken);

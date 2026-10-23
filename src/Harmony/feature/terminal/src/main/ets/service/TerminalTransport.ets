@@ -334,6 +334,8 @@ export class TerminalTransport {
 
   private translateErrorCode(code: string): string {
     switch (code) {
+      case 'session-not-running':
+        return I18n.get('terminal.recovery.gone')
       case 'session-not-found':
         return I18n.get('terminal.error.session_not_found')
       case 'session-expired':

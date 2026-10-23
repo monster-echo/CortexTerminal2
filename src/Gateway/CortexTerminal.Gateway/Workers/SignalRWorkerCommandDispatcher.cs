@@ -7,6 +7,9 @@ namespace CortexTerminal.Gateway.Workers;
 
 public sealed class SignalRWorkerCommandDispatcher(IHubContext<WorkerHub> hubContext) : IWorkerCommandDispatcher
 {
+    public Task<SessionDiagnosticReport> DiagnoseSessionAsync(string workerConnectionId, string sessionId, CancellationToken cancellationToken)
+        => hubContext.Clients.Client(workerConnectionId).InvokeAsync<SessionDiagnosticReport>("DiagnoseSession", sessionId, cancellationToken);
+
     public Task StartSessionAsync(string workerConnectionId, StartSessionCommand command, CancellationToken cancellationToken)
         => hubContext.Clients.Client(workerConnectionId).SendAsync("StartSession", command, cancellationToken);
 

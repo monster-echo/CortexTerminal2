@@ -295,6 +295,7 @@ public sealed class PostgresSessionCoordinator : ISessionCoordinator
             else if (session.AttachmentState is SessionAttachmentState.Expired
                      or SessionAttachmentState.Exited)
             {
+                if (request.ResumeOnly) return ReattachSessionResult.Failure("session-not-running");
                 // Session outlives the terminal (and worker restarts): Expired/Exited
                 // only means the shell is gone — the session container stays attachable.
                 // The hub starts a fresh shell for the same session id (Windows-Terminal

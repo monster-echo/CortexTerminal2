@@ -7,6 +7,7 @@ import 'package:window_manager/window_manager.dart';
 
 import '../core/app_scope.dart';
 import '../core/models.dart';
+import '../core/session_startup_health.dart';
 import '../core/self_updater.dart';
 import '../core/worker_process_controller.dart';
 import '../l10n/app_strings.dart';
@@ -27,6 +28,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WindowListener {
   // 持有数据而非 Future：刷新时旧内容保持显示，新数据回来后原地替换，
   // 不会像 FutureBuilder 换 future 那样整页闪 spinner。
   Status? _status;
+  List<StartupWarning> _startupWarnings = const [];
+  Timer? _startupHealthTimer;
   String? _error;
   bool _loading = true;
   bool _restarting = false;
@@ -37,6 +40,11 @@ class _DashboardScreenState extends State<DashboardScreen> with WindowListener {
   void initState() {
     super.initState();
     windowManager.addListener(this);
+    _reloadStartupHealth();
+    _startupHealthTimer = Timer.periodic(
+      const Duration(seconds: 3),
+      (_) => _reloadStartupHealth(),
+    );
     // 状态是异步收敛的（装 worker → spawn → 连网关），仅靠窗口聚焦刷新会有
     // "实际在线但面板还挂着旧快照"的间隙：30s 轮询兜底（同托盘刷新节奏），
     // 控制器生命周期变化（启动中/退避重启）即时触发。
@@ -52,6 +60,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WindowListener {
   void dispose() {
     windowManager.removeListener(this);
     _pollTimer?.cancel();
+    _startupHealthTimer?.cancel();
     WorkerProcessController.instance.runState.removeListener(
       _onRunStateChanged,
     );
@@ -70,6 +79,16 @@ class _DashboardScreenState extends State<DashboardScreen> with WindowListener {
   @override
   void onWindowFocus() {
     _reload();
+  }
+
+  Future<void> _reloadStartupHealth() async {
+    final warnings = await readSessionStartupWarnings();
+    if (!mounted) return;
+    if (warnings.map((e) => e.sessionId).join(',') ==
+        _startupWarnings.map((e) => e.sessionId).join(',')) {
+      return;
+    }
+    setState(() => _startupWarnings = warnings);
   }
 
   Future<void> _reload() async {
@@ -129,6 +148,23 @@ class _DashboardScreenState extends State<DashboardScreen> with WindowListener {
             )
           else ...[
             ErrorBanner(message: _error),
+            if (_startupWarnings.isNotEmpty)
+              AppGroupCard(
+                children: [
+                  AppRow(
+                    icon: LucideIcons.info,
+                    label: AppStrings.t(context, 'doctor.waitingTitle'),
+                    value: AppStrings.t(context, 'doctor.checkAction'),
+                    onTap: () {
+                      final directory = _startupWarnings.first.directory;
+                      _go(
+                        context,
+                        '/doctor${directory == null ? '' : '?directory=${Uri.encodeComponent(directory)}'}',
+                      );
+                    },
+                  ),
+                ],
+              ),
             if (status != null)
               Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,

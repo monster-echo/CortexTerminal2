@@ -199,7 +199,7 @@ public sealed class TerminalHub(
 
         var result = await sessions.ReattachSessionAsync(
             Context.UserIdentifier ?? "unknown",
-            new ReattachSessionRequest(request.SessionId),
+            new ReattachSessionRequest(request.SessionId, request.ResumeOnly),
             Context.ConnectionId,
             timeProvider.GetUtcNow(),
             cancellationToken);
