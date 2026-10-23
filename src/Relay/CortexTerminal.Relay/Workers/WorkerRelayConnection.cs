@@ -11,11 +11,13 @@ namespace CortexTerminal.Relay.Workers;
 /// <summary>一次隧道调用（访客请求）在 Worker 连接上的挂起状态。</summary>
 public sealed class TunnelCall
 {
-    public TunnelCall(string id)
+    public TunnelCall(string id, CancellationToken cancellationToken = default)
     {
         Id = id;
+        CancellationToken = cancellationToken;
     }
 
+    public CancellationToken CancellationToken { get; }
     public string Id { get; }
     public TaskCompletionSource<TunnelResponseHeadFrame> Head { get; } =
         new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -56,7 +58,7 @@ public sealed class WorkerRelayConnection
     public async Task<TunnelCall> CallAsync(
         TunnelRequestFrame request, Stream? requestBody, CancellationToken ct)
     {
-        var call = new TunnelCall(request.Id);
+        var call = new TunnelCall(request.Id, ct);
         _calls[request.Id] = call;
         await _outgoing.Writer.WriteAsync(JsonSerializer.SerializeToUtf8Bytes(request, RelayJson.Default), ct);
 
@@ -186,7 +188,15 @@ public sealed class WorkerRelayConnection
         var payload = payloadStart == data.Length
             ? Array.Empty<byte>()
             : data[payloadStart..];
-        await call.ResponseBody.Writer.WriteAsync(payload, ct);
+        try
+        {
+            await call.ResponseBody.Writer.WriteAsync(payload, call.CancellationToken);
+        }
+        catch (OperationCanceledException) when (call.CancellationToken.IsCancellationRequested)
+        {
+            _calls.TryRemove(id, out _);
+            FailCall(call, "request canceled");
+        }
     }
 
     private static byte[] EncodeDataFrame(string requestId, ReadOnlySpan<byte> payload)
