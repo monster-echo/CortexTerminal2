@@ -1,0 +1,213 @@
+name: Mobile Release
+
+on:
+  push:
+    tags: ['mobile-v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-release
+  cancel-in-progress: false
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      build: ${{ steps.version.outputs.build }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: version
+        run: |
+          python3 - <<'PY'
+          import os, re
+          from pathlib import Path
+          match = re.search(r'^version:\s*([0-9.]+)\+(\d+)\s*$', Path('src/Flutter/corterm_mobile/pubspec.yaml').read_text(), re.M)
+          if not match:
+              raise SystemExit('Missing version/build in mobile pubspec')
+          version, build = match.groups()
+          ref = os.environ['GITHUB_REF_NAME']
+          if ref.startswith('mobile-v') and ref != 'mobile-v' + version:
+              raise SystemExit('Release tag does not match mobile pubspec')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f'version={version}\nbuild={build}\n')
+          PY
+
+  android:
+    name: Android build and Play internal upload
+    needs: version
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      BUILD: ${{ needs.version.outputs.build }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Configure release signing
+        env:
+          KEYSTORE: ${{ secrets.CORTEX_ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.CORTEX_ANDROID_KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.CORTEX_ANDROID_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.CORTEX_ANDROID_KEY_ALIAS }}
+        run: |
+          python3 - <<'PY'
+          import os, base64
+          from pathlib import Path
+          os.umask(0o077)
+          root = Path('src/Flutter/corterm_mobile/android')
+          (root / 'release.jks').write_bytes(base64.b64decode(os.environ['KEYSTORE']))
+          (root / 'key.properties').write_text('\n'.join([
+              'storeFile=' + str((root / 'release.jks').resolve()),
+              'storePassword=' + os.environ['STORE_PASSWORD'],
+              'keyPassword=' + os.environ['KEY_PASSWORD'],
+              'keyAlias=' + os.environ['KEY_ALIAS']]))
+          PY
+      - name: Test and build signed Android artifacts
+        working-directory: src/Flutter/corterm_mobile
+        run: |
+          flutter pub get
+          flutter test --no-pub
+          flutter build appbundle --release --no-pub --build-name "$VERSION" --build-number "$BUILD"
+          flutter build apk --release --no-pub --build-name "$VERSION" --build-number "$BUILD"
+      - name: Upload Android artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-android-${{ env.VERSION }}
+          path: |
+            src/Flutter/corterm_mobile/build/app/outputs/bundle/release/app-release.aab
+            src/Flutter/corterm_mobile/build/app/outputs/flutter-apk/app-release.apk
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Upload and verify Google Play internal release
+        env:
+          GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.CORTEX_GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          python -m pip install google-api-python-client google-auth
+          python tools/release/publish_mobile.py android --aab src/Flutter/corterm_mobile/build/app/outputs/bundle/release/app-release.aab --version "$VERSION"
+      - name: Remove signing material
+        if: always()
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          for name in ['release.jks', 'key.properties']:
+              (Path('src/Flutter/corterm_mobile/android') / name).unlink(missing_ok=True)
+          PY
+
+  ios:
+    name: iOS build and TestFlight upload
+    needs: version
+    runs-on: macos-latest
+    timeout-minutes: 60
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      BUILD: ${{ needs.version.outputs.build }}
+      SIGNING_PASSWORD: ${{ secrets.CORTEX_CERTIFICATES_P12_PASSWORD }}
+      APPSTORE_KEY_ID: ${{ secrets.CORTEX_APPSTORE_API_KEY_ID }}
+      APPSTORE_ISSUER: ${{ secrets.CORTEX_APPSTORE_ISSUER_ID }}
+      APPSTORE_PRIVATE_KEY: ${{ secrets.CORTEX_APPSTORE_API_PRIVATE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Configure iOS signing
+        env:
+          SIGNING_P12: ${{ secrets.CORTEX_CERTIFICATES_P12_BASE64 }}
+          PROFILE: ${{ secrets.CORTEX_IOS_PROVISIONING_PROFILE_BASE64 }}
+          PROFILE_NAME: ${{ secrets.CORTEX_APPLE_PROVISIONING_PROFILE_NAME }}
+          SIGNING_IDENTITY: ${{ secrets.CORTEX_APPLE_SIGNING_IDENTITY }}
+        run: |
+          set -euo pipefail
+          umask 077
+          export KEYCHAIN_PASSWORD="$(openssl rand -hex 24)"
+          echo "::add-mask::$KEYCHAIN_PASSWORD"
+          echo "KEYCHAIN_PASSWORD=$KEYCHAIN_PASSWORD" >> "$GITHUB_ENV"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$RUNNER_TEMP/mobile-signing.keychain-db"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$RUNNER_TEMP/mobile-signing.keychain-db"
+          security set-keychain-settings -lut 21600 "$RUNNER_TEMP/mobile-signing.keychain-db"
+          security list-keychains -d user -s "$RUNNER_TEMP/mobile-signing.keychain-db" "$HOME/Library/Keychains/login.keychain-db"
+          python3 - <<'PY'
+          import os, base64, plistlib
+          from pathlib import Path
+          stage = Path(os.environ['RUNNER_TEMP'])
+          (stage / 'distribution.p12').write_bytes(base64.b64decode(os.environ['SIGNING_P12']))
+          profile = stage / 'distribution.mobileprovision'
+          profile.write_bytes(base64.b64decode(os.environ['PROFILE']))
+          import subprocess
+          info = plistlib.loads(subprocess.check_output(['security', 'cms', '-D', '-i', str(profile)]))
+          required = ['aps-environment', 'com.apple.developer.applesignin']
+          if any(key not in info['Entitlements'] for key in required):
+              raise SystemExit('Distribution profile is missing required app capabilities')
+          for directory in ['~/Library/MobileDevice/Provisioning Profiles', '~/Library/Developer/Xcode/UserData/Provisioning Profiles']:
+              target = Path(directory).expanduser()
+              target.mkdir(parents=True, exist_ok=True)
+              (target / (info['UUID'] + '.mobileprovision')).write_bytes(profile.read_bytes())
+          options = {'method': 'app-store-connect', 'teamID': info['TeamIdentifier'][0],
+                     'signingStyle': 'manual', 'signingCertificate': os.environ['SIGNING_IDENTITY'],
+                     'provisioningProfiles': {'top.rwecho.cortexterminal': os.environ['PROFILE_NAME']},
+                     'uploadSymbols': True}
+          (stage / 'ExportOptions.plist').write_bytes(plistlib.dumps(options))
+          project = Path('src/Flutter/corterm_mobile/ios/Runner.xcodeproj/project.pbxproj')
+          text = project.read_text()
+          start = text.index('97C147071CF9000F007C117D /* Release */ = {')
+          end = text.index('name = Release;', start)
+          settings = ('buildSettings = {\nCODE_SIGN_STYLE = Manual;\nCODE_SIGN_IDENTITY = "' +
+                      os.environ['SIGNING_IDENTITY'] + '";\nPROVISIONING_PROFILE_SPECIFIER = "' +
+                      os.environ['PROFILE_NAME'] + '";')
+          project.write_text(text[:start] + text[start:end].replace('buildSettings = {', settings) + text[end:])
+          keys = Path('~/.appstoreconnect/private_keys').expanduser()
+          keys.mkdir(parents=True, exist_ok=True)
+          (keys / ('AuthKey_' + os.environ['APPSTORE_KEY_ID'] + '.p8')).write_text(os.environ['APPSTORE_PRIVATE_KEY'].replace('\\n', '\n'))
+          PY
+          # Re-encode a valid older PKCS12 into the format accepted by macOS Security.
+          OPENSSL="$(brew --prefix openssl@3)/bin/openssl"
+          "$OPENSSL" pkcs12 -in "$RUNNER_TEMP/distribution.p12" -passin env:SIGNING_PASSWORD -nodes -out "$RUNNER_TEMP/signing.pem"
+          "$OPENSSL" pkcs12 -export -legacy -in "$RUNNER_TEMP/signing.pem" -out "$RUNNER_TEMP/compatible.p12" -passout env:SIGNING_PASSWORD
+          security import "$RUNNER_TEMP/compatible.p12" -P "$SIGNING_PASSWORD" -k "$RUNNER_TEMP/mobile-signing.keychain-db" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$RUNNER_TEMP/mobile-signing.keychain-db" >/dev/null
+      - name: Build signed IPA
+        working-directory: src/Flutter/corterm_mobile
+        run: |
+          flutter pub get
+          flutter build ipa --release --no-pub --build-name "$VERSION" --build-number "$BUILD" --export-options-plist="$RUNNER_TEMP/ExportOptions.plist"
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-ios-${{ env.VERSION }}
+          path: src/Flutter/corterm_mobile/build/ios/ipa/*.ipa
+      - name: Upload to TestFlight
+        run: |
+          IPA=$(find src/Flutter/corterm_mobile/build/ios/ipa -name '*.ipa' -print -quit)
+          test -n "$IPA"
+          xcrun altool --upload-app --type ios --file "$IPA" --apiKey "$APPSTORE_KEY_ID" --apiIssuer "$APPSTORE_ISSUER" --output-format json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify Apple processing
+        run: |
+          python -m pip install 'PyJWT[crypto]'
+          python tools/release/publish_mobile.py ios --build "$BUILD"
+      - name: Remove signing material
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/mobile-signing.keychain-db" || true
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          for name in ['distribution.p12', 'distribution.mobileprovision', 'signing.pem', 'compatible.p12']:
+              (Path(os.environ['RUNNER_TEMP']) / name).unlink(missing_ok=True)
+          (Path('~/.appstoreconnect/private_keys').expanduser() / ('AuthKey_' + os.environ['APPSTORE_KEY_ID'] + '.p8')).unlink(missing_ok=True)
+          PY
