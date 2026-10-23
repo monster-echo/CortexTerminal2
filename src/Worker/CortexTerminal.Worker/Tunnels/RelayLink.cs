@@ -26,8 +26,6 @@ public sealed class RelayLink(string workerId, ILogger<RelayLink> logger, TimeSp
     private string _relayUrl = string.Empty;
 
     private readonly ConcurrentDictionary<string, InflightTunnelRequest> _inflight = new(StringComparer.Ordinal);
-    private readonly Channel<OutgoingFrame> _outgoing = Channel.CreateBounded<OutgoingFrame>(
-        new BoundedChannelOptions(1024) { SingleReader = true, SingleWriter = false });
 
     /// <summary>是否已连入 Relay（隧道数据面可用）。</summary>
     public bool IsConnected => _socket is { State: WebSocketState.Open };
@@ -139,7 +137,9 @@ public sealed class RelayLink(string workerId, ILogger<RelayLink> logger, TimeSp
 
     private async Task RunConnectionAsync(WebSocket socket, CancellationToken ct)
     {
-        var sendTask = SendLoopAsync(socket, ct);
+        var outgoing = Channel.CreateBounded<OutgoingFrame>(
+            new BoundedChannelOptions(1024) { SingleReader = true, SingleWriter = false });
+        var sendTask = SendLoopAsync(socket, outgoing, ct);
         try
         {
             var buffer = new byte[RelayProtocol.DataChunkSize];
@@ -152,7 +152,7 @@ public sealed class RelayLink(string workerId, ILogger<RelayLink> logger, TimeSp
                 }
                 if (frame.Value.MessageType == WebSocketMessageType.Text)
                 {
-                    HandleControlFrame(frame.Value.Data);
+                    HandleControlFrame(frame.Value.Data, outgoing);
                 }
                 else
                 {
@@ -162,7 +162,7 @@ public sealed class RelayLink(string workerId, ILogger<RelayLink> logger, TimeSp
         }
         finally
         {
-            _outgoing.Writer.TryComplete();
+            outgoing.Writer.TryComplete();
             foreach (var request in _inflight.Values)
             {
                 request.RequestBodyWriter.TryComplete();
@@ -177,9 +177,9 @@ public sealed class RelayLink(string workerId, ILogger<RelayLink> logger, TimeSp
         }
     }
 
-    private async Task SendLoopAsync(WebSocket socket, CancellationToken ct)
+    private async Task SendLoopAsync(WebSocket socket, Channel<OutgoingFrame> outgoing, CancellationToken ct)
     {
-        var reader = _outgoing.Reader;
+        var reader = outgoing.Reader;
         while (await reader.WaitToReadAsync(ct))
         {
             while (reader.TryRead(out var frame))
@@ -189,7 +189,7 @@ public sealed class RelayLink(string workerId, ILogger<RelayLink> logger, TimeSp
         }
     }
 
-    private void HandleControlFrame(byte[] utf8Json)
+    private void HandleControlFrame(byte[] utf8Json, Channel<OutgoingFrame> outgoing)
     {
         string? type;
         try
@@ -207,7 +207,7 @@ public sealed class RelayLink(string workerId, ILogger<RelayLink> logger, TimeSp
             var request = TryDeserialize<TunnelRequestFrame>(utf8Json);
             if (request is not null)
             {
-                _ = ExecuteTunnelRequestAsync(request);
+                _ = ExecuteTunnelRequestAsync(request, outgoing);
             }
         }
         else if (type == RelayProtocol.TunnelRequestBodyEndType)
@@ -291,7 +291,7 @@ public sealed class RelayLink(string workerId, ILogger<RelayLink> logger, TimeSp
         => host is "127.0.0.1" or "[::1]" or "::1";
 
     /// <summary>反代一次访客请求到 remoteAddress:remotePort：请求体经管道流式供给，响应分帧回流。</summary>
-    private async Task ExecuteTunnelRequestAsync(TunnelRequestFrame request)
+    private async Task ExecuteTunnelRequestAsync(TunnelRequestFrame request, Channel<OutgoingFrame> outgoing)
     {
         var inflight = new InflightTunnelRequest();
         _inflight[request.Id] = inflight;
@@ -305,7 +305,7 @@ public sealed class RelayLink(string workerId, ILogger<RelayLink> logger, TimeSp
                 var timeoutEnd = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(
                     new TunnelEndFrame { Id = request.Id, Error = $"localhost:{request.Port} not listening after waiting {_waitPortTimeout.TotalSeconds:0}s" },
                     RelayJson.Default);
-                _outgoing.Writer.TryWrite(new OutgoingFrame(timeoutEnd, WebSocketMessageType.Text));
+                outgoing.Writer.TryWrite(new OutgoingFrame(timeoutEnd, WebSocketMessageType.Text));
                 return;
             }
 
@@ -339,7 +339,7 @@ public sealed class RelayLink(string workerId, ILogger<RelayLink> logger, TimeSp
                 Status = (int)response.StatusCode,
                 Headers = CollectHeaders(response),
             };
-            _outgoing.Writer.TryWrite(new OutgoingFrame(
+            outgoing.Writer.TryWrite(new OutgoingFrame(
                 System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(head, RelayJson.Default), WebSocketMessageType.Text));
 
             var buffer = new byte[RelayProtocol.DataChunkSize];
@@ -348,11 +348,11 @@ public sealed class RelayLink(string workerId, ILogger<RelayLink> logger, TimeSp
                 int read;
                 while ((read = await stream.ReadAsync(buffer, inflight.Lifetime.Token)) > 0)
                 {
-                    _outgoing.Writer.TryWrite(new OutgoingFrame(EncodeDataFrame(request.Id, buffer.AsSpan(0, read)), WebSocketMessageType.Binary));
+                    await outgoing.Writer.WriteAsync(new OutgoingFrame(EncodeDataFrame(request.Id, buffer.AsSpan(0, read)), WebSocketMessageType.Binary), inflight.Lifetime.Token);
                 }
             }
 
-            _outgoing.Writer.TryWrite(new OutgoingFrame(
+            outgoing.Writer.TryWrite(new OutgoingFrame(
                 System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(
                     new TunnelEndFrame { Id = request.Id }, RelayJson.Default), WebSocketMessageType.Text));
         }
@@ -362,7 +362,7 @@ public sealed class RelayLink(string workerId, ILogger<RelayLink> logger, TimeSp
             var end = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(
                 new TunnelEndFrame { Id = request.Id, Error = $"localhost:{request.Port} unreachable: {ex.Message}" },
                 RelayJson.Default);
-            _outgoing.Writer.TryWrite(new OutgoingFrame(end, WebSocketMessageType.Text));
+            outgoing.Writer.TryWrite(new OutgoingFrame(end, WebSocketMessageType.Text));
         }
         finally
         {
