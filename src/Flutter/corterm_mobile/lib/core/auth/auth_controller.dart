@@ -16,14 +16,17 @@ class AuthState {
 
 /// 认证全局状态：启动时从 secure storage 恢复；登录成功写入；登出清除。
 class AuthController extends StateNotifier<AuthState> {
-  AuthController(this._store)
-    : super(const AuthState(status: AuthStatus.loading));
+  AuthController(
+    this._store, {
+    this.restoreTimeout = const Duration(seconds: 8),
+  }) : super(const AuthState(status: AuthStatus.loading));
 
   final TokenStore _store;
+  final Duration restoreTimeout;
 
   Future<void> restore() async {
     try {
-      await _store.load();
+      await _store.load().timeout(restoreTimeout);
     } catch (error) {
       // A Keychain failure must not prevent runApp from mounting the UI. This
       // can happen in Simulator builds when the signing environment is stale.
