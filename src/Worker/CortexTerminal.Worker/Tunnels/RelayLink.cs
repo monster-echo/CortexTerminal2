@@ -138,7 +138,7 @@ public sealed class RelayLink(string workerId, ILogger<RelayLink> logger, TimeSp
     private async Task RunConnectionAsync(WebSocket socket, CancellationToken ct)
     {
         var outgoing = Channel.CreateBounded<OutgoingFrame>(
-            new BoundedChannelOptions(1024) { SingleReader = true, SingleWriter = false });
+            new BoundedChannelOptions(8) { SingleReader = true, SingleWriter = false });
         var sendTask = SendLoopAsync(socket, outgoing, ct);
         try
         {
@@ -305,7 +305,7 @@ public sealed class RelayLink(string workerId, ILogger<RelayLink> logger, TimeSp
                 var timeoutEnd = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(
                     new TunnelEndFrame { Id = request.Id, Error = $"localhost:{request.Port} not listening after waiting {_waitPortTimeout.TotalSeconds:0}s" },
                     RelayJson.Default);
-                outgoing.Writer.TryWrite(new OutgoingFrame(timeoutEnd, WebSocketMessageType.Text));
+                await outgoing.Writer.WriteAsync(new OutgoingFrame(timeoutEnd, WebSocketMessageType.Text), inflight.Lifetime.Token);
                 return;
             }
 
@@ -339,8 +339,8 @@ public sealed class RelayLink(string workerId, ILogger<RelayLink> logger, TimeSp
                 Status = (int)response.StatusCode,
                 Headers = CollectHeaders(response),
             };
-            outgoing.Writer.TryWrite(new OutgoingFrame(
-                System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(head, RelayJson.Default), WebSocketMessageType.Text));
+            await outgoing.Writer.WriteAsync(new OutgoingFrame(
+                System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(head, RelayJson.Default), WebSocketMessageType.Text), inflight.Lifetime.Token);
 
             var buffer = new byte[RelayProtocol.DataChunkSize];
             await using (var stream = await response.Content.ReadAsStreamAsync(inflight.Lifetime.Token))
@@ -352,9 +352,9 @@ public sealed class RelayLink(string workerId, ILogger<RelayLink> logger, TimeSp
                 }
             }
 
-            outgoing.Writer.TryWrite(new OutgoingFrame(
+            await outgoing.Writer.WriteAsync(new OutgoingFrame(
                 System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(
-                    new TunnelEndFrame { Id = request.Id }, RelayJson.Default), WebSocketMessageType.Text));
+                    new TunnelEndFrame { Id = request.Id }, RelayJson.Default), WebSocketMessageType.Text), inflight.Lifetime.Token);
         }
         catch (Exception ex)
         {
