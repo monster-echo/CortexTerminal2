@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'token_store.dart';
@@ -15,17 +16,36 @@ class AuthState {
 
 /// 认证全局状态：启动时从 secure storage 恢复；登录成功写入；登出清除。
 class AuthController extends StateNotifier<AuthState> {
-  AuthController(this._store) : super(const AuthState(status: AuthStatus.loading));
+  AuthController(
+    this._store, {
+    this.restoreTimeout = const Duration(seconds: 8),
+  }) : super(const AuthState(status: AuthStatus.loading));
 
   final TokenStore _store;
+  final Duration restoreTimeout;
 
   Future<void> restore() async {
-    await _store.load();
+    try {
+      await _store.load().timeout(restoreTimeout);
+    } catch (error) {
+      // A Keychain failure must not prevent runApp from mounting the UI. This
+      // can happen in Simulator builds when the signing environment is stale.
+      // Treat the user as signed out; login can then report any write failure
+      // through the existing login error path.
+      debugPrint(
+        'Unable to restore authentication from secure storage: $error',
+      );
+      state = const AuthState(status: AuthStatus.unauthenticated);
+      return;
+    }
     if (_store.token == null || _store.token!.isEmpty) {
       state = const AuthState(status: AuthStatus.unauthenticated);
       return;
     }
-    state = AuthState(status: AuthStatus.authenticated, username: _store.username);
+    state = AuthState(
+      status: AuthStatus.authenticated,
+      username: _store.username,
+    );
   }
 
   /// OAuth 回调只携带 token：从 JWT `sub` 解出用户名（MAUI AuthService 同款）。
@@ -41,7 +61,10 @@ class AuthController extends StateNotifier<AuthState> {
     await loggedIn(token: token, username: username);
   }
 
-  Future<void> loggedIn({required String token, required String username}) async {
+  Future<void> loggedIn({
+    required String token,
+    required String username,
+  }) async {
     await _store.save(token: token, username: username);
     state = AuthState(status: AuthStatus.authenticated, username: username);
   }
