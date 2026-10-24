@@ -15,7 +15,13 @@ internal sealed class UnixPtyProcess : IPtyProcess
     {
         _connection = connection;
         _connection.ProcessExited += OnExited;
-        _exitObserver = Task.Run(ObserveExit);
+        // WaitForExit is a blocking lifetime loop. It must not occupy a
+        // shared pool worker needed by SignalR, PTY output and input callbacks.
+        _exitObserver = Task.Factory.StartNew(
+            ObserveExit,
+            CancellationToken.None,
+            TaskCreationOptions.LongRunning,
+            TaskScheduler.Default);
     }
 
     public async IAsyncEnumerable<byte[]> ReadStdoutAsync([EnumeratorCancellation] CancellationToken cancellationToken)
