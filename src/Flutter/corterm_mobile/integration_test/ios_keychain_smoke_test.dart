@@ -18,4 +18,27 @@ void main() {
     await storage.delete(key: key);
     expect(await storage.read(key: key), isNull);
   });
+
+  testWidgets('iOS Keychain survives repeated auth-value operations', (
+    tester,
+  ) async {
+    const storage = FlutterSecureStorage();
+    const key = 'corterm.ios.keychain.stress';
+
+    for (var iteration = 0; iteration < 25; iteration++) {
+      final value = 'stress-value-$iteration';
+      await storage.write(key: key, value: value);
+      expect(
+        await storage.read(key: key),
+        value,
+        reason: 'iteration $iteration',
+      );
+      await storage.delete(key: key);
+      expect(
+        await storage.read(key: key),
+        isNull,
+        reason: 'iteration $iteration',
+      );
+    }
+  });
 }

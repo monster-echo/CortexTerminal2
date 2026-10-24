@@ -62,4 +62,38 @@ void main() {
       expect(controller.state.status, AuthStatus.unauthenticated);
     },
   );
+
+  test('repeated Keychain failures never leave auth in loading state', () async {
+    final controller = AuthController(_FailingTokenStore());
+
+    // Exercise the startup recovery path repeatedly to catch notifier state or
+    // asynchronous error handling that only fails after multiple attempts.
+    for (var attempt = 0; attempt < 500; attempt++) {
+      await controller.restore();
+      expect(controller.state.status, AuthStatus.unauthenticated);
+    }
+  });
+
+  test(
+    'concurrent hung restores all recover within the configured timeout',
+    () async {
+      final controllers = List.generate(
+        100,
+        (_) => AuthController(
+          _HangingTokenStore(),
+          restoreTimeout: const Duration(milliseconds: 10),
+        ),
+      );
+
+      await Future.wait(controllers.map((controller) => controller.restore()));
+
+      expect(
+        controllers.map((controller) => controller.state.status),
+        everyElement(AuthStatus.unauthenticated),
+      );
+      for (final controller in controllers) {
+        controller.dispose();
+      }
+    },
+  );
 }

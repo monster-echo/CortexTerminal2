@@ -1,10 +1,9 @@
 name: iOS Simulator Smoke
 
 on:
-  push:
-    branches: [codex/ios-simulator-launch]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -13,6 +12,7 @@ jobs:
   ios-keychain:
     name: iOS Simulator Keychain & App Build
     runs-on: macos-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: src/Flutter/corterm_mobile
@@ -47,6 +47,11 @@ jobs:
           name: corterm-ios-simulator
           path: src/Flutter/corterm_mobile/corterm-ios-simulator.zip
           if-no-files-found: error
+
+      - name: Install and launch app in simulator
+        run: |
+          xcrun simctl install "${{ steps.simulator.outputs.device_id }}" build/ios/iphonesimulator/Runner.app
+          xcrun simctl launch "${{ steps.simulator.outputs.device_id }}" top.rwecho.cortexterminal
 
       - name: Verify iOS Keychain access
         run: flutter test integration_test/ios_keychain_smoke_test.dart -d "${{ steps.simulator.outputs.device_id }}"
