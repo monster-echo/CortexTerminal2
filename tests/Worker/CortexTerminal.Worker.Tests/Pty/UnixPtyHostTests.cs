@@ -49,6 +49,36 @@ public sealed class UnixPtyHostTests
     }
 
     [Fact]
+    public async Task ReadStdout_AfterChildExit_CompletesWithoutEio()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        var host = new UnixPtyHost();
+        var process = await host.StartAsync(120, 40, cts.Token);
+        var output = await LiveShellOutput.StartAsync(process, cts.Token);
+
+        try
+        {
+            await Task.Delay(100, cts.Token);
+            await SendCommandAsync(process, "exit", cts.Token);
+
+            var exitCode = await process.WaitForExitAsync(cts.Token);
+            exitCode.Should().Be(0);
+
+            await output.WaitForCompletionAsync(CancellationToken.None)
+                .WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        finally
+        {
+            await process.DisposeAsync();
+        }
+    }
+
+    [Fact]
     public async Task StartAsync_ExecutesEchoAndCatCommands()
     {
         if (OperatingSystem.IsWindows())

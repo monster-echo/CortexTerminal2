@@ -26,7 +26,7 @@ internal sealed class UnixPtyProcess : IPtyProcess
 
     public async IAsyncEnumerable<byte[]> ReadStdoutAsync([EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        await foreach (var chunk in ReadStreamAsync(_connection.ReaderStream, cancellationToken))
+        await foreach (var chunk in ReadStreamAsync(_connection.ReaderStream, _exitCode.Task, cancellationToken))
         {
             yield return chunk;
         }
@@ -126,12 +126,38 @@ internal sealed class UnixPtyProcess : IPtyProcess
 
     private static async IAsyncEnumerable<byte[]> ReadStreamAsync(
         Stream stream,
+        Task exitTask,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var buffer = new byte[4096];
         while (true)
         {
-            var count = await stream.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken);
+            int count;
+            try
+            {
+                count = await stream.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken);
+            }
+            catch (IOException) when (exitTask.IsCompleted)
+            {
+                // Linux PTY masters report EIO, not EOF, once the slave side is
+                // closed. A confirmed child exit makes that EIO the normal end of
+                // the stream; runtime I/O errors before exit are still thrown.
+                break;
+            }
+            catch (IOException)
+            {
+                // The reader can observe the PTY teardown before the exit observer
+                // does. Give the observer a short window to confirm the exit; if it
+                // does not, this is a real I/O failure and must propagate.
+                var completed = await Task.WhenAny(exitTask, Task.Delay(500, CancellationToken.None));
+                if (!ReferenceEquals(completed, exitTask))
+                {
+                    throw;
+                }
+
+                break;
+            }
+
             if (count == 0)
             {
                 yield break;
