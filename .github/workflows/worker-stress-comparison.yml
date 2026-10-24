@@ -1,0 +1,31 @@
+name: Worker isolated stress comparison
+on:
+  push:
+    branches: [codex/pty-observer-stress]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        variant: [baseline, dedicated-observer]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.202'
+      - name: Select baseline observer
+        if: matrix.variant == 'baseline'
+        run: git show HEAD^:src/Worker/CortexTerminal.Worker/Pty/UnixPtyProcess.cs > src/Worker/CortexTerminal.Worker/Pty/UnixPtyProcess.cs
+      - name: Worker tests
+        run: dotnet test tests/Worker/CortexTerminal.Worker.Tests/CortexTerminal.Worker.Tests.csproj --configuration Release
+      - name: Build isolated Linux worker
+        run: dotnet publish src/Worker/CortexTerminal.Worker/CortexTerminal.Worker.csproj -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o comparison
+      - uses: actions/upload-artifact@v4
+        with:
+          name: worker-stress-${{ matrix.variant }}
+          path: comparison/
+          retention-days: 7
