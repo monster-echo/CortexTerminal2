@@ -1,0 +1,54 @@
+name: v0.5.32 PTY EIO verification
+on:
+  push:
+    branches: [codex/v0532-pty-eio-verify]
+permissions:
+  contents: read
+jobs:
+  integration:
+    name: Unix PTY integration (${{ matrix.variant }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [baseline, candidate]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.202'
+      - name: Use v0.5.31 PTY observer for baseline
+        if: matrix.variant == 'baseline'
+        run: git show a3efa3835c4d7e215a6b4cacccfc6dbb32a444f0:src/Worker/CortexTerminal.Worker/Pty/UnixPtyProcess.cs > src/Worker/CortexTerminal.Worker/Pty/UnixPtyProcess.cs
+      - name: Run Unix PTY integration tests
+        continue-on-error: true
+        id: tests
+        run: |
+          set +e
+          dotnet test tests/Worker/CortexTerminal.Worker.Tests/CortexTerminal.Worker.Tests.csproj \
+            --configuration Release \
+            --filter "Category=Integration" \
+            --logger "console;verbosity=normal" \
+            --logger "trx;LogFileName=integration.trx" \
+            --results-directory "$RUNNER_TEMP/results"
+          code=$?
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          exit 0
+      - name: Summarize failures
+        if: always()
+        run: |
+          echo "test_exit_code=${{ steps.tests.outputs.exit_code }}"
+          find "$RUNNER_TEMP/results" -name '*.trx' -print
+          grep -RhoE 'testName="[^"]+"[^>]*outcome="Failed"' "$RUNNER_TEMP/results" || true
+          grep -RhoE 'EIO|Input/output error|IOException' "$RUNNER_TEMP/results" | sort | uniq -c || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pty-eio-${{ matrix.variant }}
+          path: ${{ runner.temp }}/results
+          retention-days: 7
+      - name: Mark job failed when integration tests failed
+        if: steps.tests.outputs.exit_code != '0'
+        run: exit 1
