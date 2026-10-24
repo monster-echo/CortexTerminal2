@@ -41,9 +41,12 @@ jobs:
       - name: Build simulator app
         run: flutter build ios --simulator --debug
 
+      - name: Package simulator app without flattening bundle
+        run: ditto -c -k --sequesterRsrc --keepParent build/ios/iphonesimulator/Runner.app corterm-ios-simulator.zip
+
       - name: Upload simulator app
         uses: actions/upload-artifact@v4
         with:
           name: corterm-ios-simulator
-          path: src/Flutter/corterm_mobile/build/ios/iphonesimulator/Runner.app
+          path: src/Flutter/corterm_mobile/corterm-ios-simulator.zip
           if-no-files-found: error
