@@ -296,18 +296,24 @@ public static class TransferEndpoints
         TunnelResponseHeadFrame head;
         try
         {
-            var headAwaited = call.Head.Task.WaitAsync(cts.Token);
-            var finished = await Task.WhenAny(headAwaited, call.End.Task);
-            if (finished != headAwaited)
+            // Compare the original frame tasks. Wrapping Head in WaitAsync creates a
+            // proxy task whose completion can lag behind End when a short response
+            // sends head/body/end back-to-back. In that race, the old comparison
+            // treated a valid response as an end-before-head failure.
+            await Task.WhenAny(call.Head.Task, call.End.Task).WaitAsync(cts.Token);
+            if (call.Head.Task.IsCompletedSuccessfully)
             {
-                var earlyEnd = call.End.Task.Result;
+                head = await call.Head.Task;
+            }
+            else
+            {
+                var earlyEnd = await call.End.Task.WaitAsync(cts.Token);
                 context.Response.StatusCode = StatusCodes.Status502BadGateway;
                 context.Response.ContentType = "application/json; charset=utf-8";
                 await context.Response.Body.WriteAsync(
                     Encoding.UTF8.GetBytes(earlyEnd.Error ?? "worker transfer failed"), cts.Token);
                 return false;
             }
-            head = await headAwaited;
             logger?.LogInformation("bridge {TransferId}: head received, status={Status}", transferId, head.Status);
         }
         catch (OperationCanceledException)
