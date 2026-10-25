@@ -44,7 +44,8 @@ public static class TransferEndpoints
         if (TryReadWorkerBridge(context, out var bridgeWorkerId, out var bridgePort))
         {
             var bridged = await BridgeViaWorkerSessionAsync(context, transferId, bridgeWorkerId, bridgePort,
-                "PUT", workerSessions, context.RequestAborted);
+                "PUT", workerSessions, context.RequestAborted,
+                TimeSpan.FromSeconds(opts.TransferTtlSeconds));
             if (!bridged && !context.Response.HasStarted)
             {
                 // The PUT body has already been streamed into the bridge. It cannot be
@@ -110,7 +111,8 @@ public static class TransferEndpoints
         {
             logger.LogInformation("bridge GET {TransferId}: begin, worker={WorkerId}", transferId, bridgeWorkerId);
             var bridged = await BridgeViaWorkerSessionAsync(context, transferId, bridgeWorkerId, bridgePort,
-                "GET", workerSessions, context.RequestAborted, logger);
+                "GET", workerSessions, context.RequestAborted,
+                TimeSpan.FromSeconds(opts.TransferTtlSeconds), logger);
             logger.LogInformation("bridge GET {TransferId}: end, bridged={Bridged}", transferId, bridged);
             if (bridged || context.Response.HasStarted)
             {
@@ -259,6 +261,7 @@ public static class TransferEndpoints
     private static async Task<bool> BridgeViaWorkerSessionAsync(
         HttpContext context, string transferId, string workerId, int listenPort,
         string method, WorkerRelayRegistry workerSessions, CancellationToken originalAborted,
+        TimeSpan transferTimeout,
         ILogger<Program>? logger = null)
     {
         var workerSession = workerSessions.Find(workerId);
@@ -284,7 +287,11 @@ public static class TransferEndpoints
         };
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted);
-        cts.CancelAfter(TimeSpan.FromSeconds(10));
+        // Transfers can legitimately take longer than a short request/handshake timeout,
+        // especially when many files share one persistent Worker relay connection. Keep
+        // the bridge alive for the configured transfer lifetime; client disconnects still
+        // cancel immediately through the linked request token.
+        cts.CancelAfter(transferTimeout);
 
         TunnelCall call;
         try
