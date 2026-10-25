@@ -126,14 +126,10 @@ public sealed class WorkerRelayConnection
 
             if (frame.Value.MessageType == WebSocketMessageType.Text)
             {
-                // TEMP DEBUG: transfer-over-worker-session diagnosis
-                var dbg = Encoding.UTF8.GetString(frame.Value.Data);
-                Console.Error.WriteLine($"[wsdbg {WorkerId}] ctrl {dbg.Substring(0, Math.Min(140, dbg.Length))}");
                 HandleControlFrame(frame.Value.Data);
             }
             else
             {
-                Console.Error.WriteLine($"[wsdbg {WorkerId}] data {frame.Value.Data.Length}B");
                 await HandleDataFrameAsync(frame.Value.Data, ct);
             }
         }
