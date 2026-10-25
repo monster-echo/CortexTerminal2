@@ -43,8 +43,19 @@ public static class TransferEndpoints
         // 经它反代到 worker 本机的 transfer 监听器——单次 RTT，无每传输拨号/配对窗口。
         if (TryReadWorkerBridge(context, out var bridgeWorkerId, out var bridgePort))
         {
-            await BridgeViaWorkerSessionAsync(context, transferId, bridgeWorkerId, bridgePort,
+            var bridged = await BridgeViaWorkerSessionAsync(context, transferId, bridgeWorkerId, bridgePort,
                 "PUT", workerSessions, context.RequestAborted);
+            if (!bridged && !context.Response.HasStarted)
+            {
+                // The PUT body has already been streamed into the bridge. It cannot be
+                // replayed through the legacy path, so never acknowledge an unconfirmed upload.
+                if (context.Response.StatusCode < StatusCodes.Status400BadRequest)
+                {
+                    context.Response.StatusCode = StatusCodes.Status502BadGateway;
+                }
+                context.Response.ContentType = "application/json; charset=utf-8";
+                await context.Response.WriteAsync("{\"error\":\"worker transfer failed\"}", context.RequestAborted);
+            }
             return Results.Empty;
         }
 
@@ -101,11 +112,11 @@ public static class TransferEndpoints
             var bridged = await BridgeViaWorkerSessionAsync(context, transferId, bridgeWorkerId, bridgePort,
                 "GET", workerSessions, context.RequestAborted, logger);
             logger.LogInformation("bridge GET {TransferId}: end, bridged={Bridged}", transferId, bridged);
-            if (bridged)
+            if (bridged || context.Response.HasStarted)
             {
                 return Results.Empty;
             }
-            // 桥接未成功（会话离线/超时）→ 落回旧配对路径
+            // Only fall back before writing a response; preserve bridge errors for the client.
         }
 
         var pair = registry.GetOrCreate(transferId, DateTimeOffset.UtcNow.AddSeconds(opts.TransferTtlSeconds));
