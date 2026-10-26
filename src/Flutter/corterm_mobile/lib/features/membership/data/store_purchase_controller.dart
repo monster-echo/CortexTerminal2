@@ -27,12 +27,14 @@ class StoreState {
     this.loading = true,
     this.busy = false,
     this.error,
+    this.errorPhase,
     this.products = const [],
     this.plans = const {},
   });
   final bool loading;
   final bool busy;
   final String? error;
+  final String? errorPhase;
   final List<ProductDetails> products;
   final Map<String, String> plans;
 }
@@ -93,6 +95,7 @@ class StorePurchaseController extends StateNotifier<StoreState> {
     bool? loading,
     bool? busy,
     String? error,
+    String? errorPhase,
     bool clearError = false,
     List<ProductDetails>? products,
     Map<String, String>? plans,
@@ -102,6 +105,11 @@ class StorePurchaseController extends StateNotifier<StoreState> {
       loading: loading ?? state.loading,
       busy: busy ?? state.busy,
       error: clearError ? error : error ?? state.error,
+      errorPhase: error != null
+          ? (errorPhase ?? 'purchase')
+          : clearError
+          ? null
+          : state.errorPhase,
       products: products ?? state.products,
       plans: plans ?? state.plans,
     );
@@ -134,12 +142,13 @@ class StorePurchaseController extends StateNotifier<StoreState> {
         loading: false,
         products: response.productDetails,
         plans: plans,
+        errorPhase: 'catalog',
         error: response.notFoundIDs.isEmpty
             ? null
             : 'Some products are unavailable: ${response.notFoundIDs.join(', ')}',
       );
     } catch (e) {
-      _set(loading: false, busy: false, error: '$e');
+      _set(loading: false, busy: false, error: '$e', errorPhase: 'catalog');
     }
   }
 

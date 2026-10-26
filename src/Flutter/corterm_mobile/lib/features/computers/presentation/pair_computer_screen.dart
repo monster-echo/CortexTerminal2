@@ -1,3 +1,5 @@
+import '../../../shared/layout/adaptive_page_scaffold.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -5,6 +7,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../../app/theme/corterm_theme.dart';
 import '../../../core/auth/auth_repository.dart';
+import '../../sessions/data/sessions_providers.dart';
 import '../../../shared/widgets/corterm_ui.dart';
 
 /// 新建电脑（design/02 §2）：扫码配对 + 或输入配对码。
@@ -25,6 +28,8 @@ class _PairComputerScreenState extends ConsumerState<PairComputerScreen> {
   bool _scanned = false;
   bool _confirmed = false;
   String? _error;
+  String _tr(String zh, String en) =>
+      Localizations.localeOf(context).languageCode == 'zh' ? zh : en;
 
   @override
   void dispose() {
@@ -41,10 +46,11 @@ class _PairComputerScreenState extends ConsumerState<PairComputerScreen> {
       RegExp(r'[^A-Z0-9]'),
       '',
     );
-    return cleaned.length >= 4 ? cleaned.substring(0, 8) : '';
+    return cleaned.length == 8 ? cleaned : '';
   }
 
   Future<void> _verify(String code) async {
+    if (_verifying || _confirmed) return;
     setState(() {
       _error = null;
       _verifying = true;
@@ -54,11 +60,17 @@ class _PairComputerScreenState extends ConsumerState<PairComputerScreen> {
           .read(authRepositoryProvider)
           .verifyActivationCode(userCode: code);
       if (!mounted) return;
+      ref.invalidate(workersProvider);
       setState(() => _confirmed = true);
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = e.toString().contains('invalid_code') ? '配对码无效' : '$e';
+        _error = e.toString().contains('invalid_code')
+            ? _tr(
+                '配对码无效或已过期，请在电脑端获取新的配对码。',
+                'The pairing code is invalid or expired. Get a new code on your computer.',
+              )
+            : '$e';
         _verifying = false;
       });
     }
@@ -67,7 +79,12 @@ class _PairComputerScreenState extends ConsumerState<PairComputerScreen> {
   Future<void> _onScanned(String raw) async {
     final code = _extractUserCode(raw);
     if (code.isEmpty) {
-      setState(() => _error = '无法识别二维码中的配对码');
+      setState(
+        () => _error = _tr(
+          '无法识别二维码中的配对码',
+          'No valid pairing code in this QR code',
+        ),
+      );
       return;
     }
     await _verify(code);
@@ -77,7 +94,7 @@ class _PairComputerScreenState extends ConsumerState<PairComputerScreen> {
   void _onCodeChanged(String raw) {
     final chars = raw.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
     final sb = StringBuffer();
-    for (var i = 0; i < chars.length && i < 9; i++) {
+    for (var i = 0; i < chars.length && i < 8; i++) {
       if (i == 4) sb.write('-');
       sb.writeCharCode(chars.codeUnitAt(i));
     }
@@ -88,25 +105,30 @@ class _PairComputerScreenState extends ConsumerState<PairComputerScreen> {
         selection: TextSelection.collapsed(offset: formatted.length),
       );
     }
-    if (_error != null) setState(() => _error = null);
+    setState(() => _error = null);
   }
 
   bool get _valid =>
-      RegExp(r'^[A-Z0-9]{4}-[A-Z0-9]{4,5}$').hasMatch(_code.text.trim());
+      RegExp(r'^[A-Z0-9]{4}-[A-Z0-9]{4}$').hasMatch(_code.text.trim());
 
   @override
   Widget build(BuildContext context) {
-    if (_confirmed) return _SuccessPage(onDone: () => context.go('/home'));
+    if (_confirmed) {
+      return _SuccessPage(
+        onDone: () =>
+            context.canPop() ? context.pop() : context.go('/computers'),
+      );
+    }
     return _manual ? _buildManualEntry() : _buildScanner();
   }
 
   Widget _buildScanner() {
-    return Scaffold(
+    return AdaptivePageScaffold(
       backgroundColor: colorsOf(context).scrim,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         foregroundColor: colorsOf(context).onScrim,
-        title: const Text('新建电脑'),
+        title: Text(_tr('连接电脑', 'Connect computer')),
         leading: context.canPop()
             ? BackButton(onPressed: () => context.pop())
             : CloseButton(onPressed: () => context.go('/home')),
@@ -138,62 +160,76 @@ class _PairComputerScreenState extends ConsumerState<PairComputerScreen> {
             ),
           ),
           SafeArea(
-            child: Column(
-              children: [
-                const Spacer(),
-                Container(
-                  width: 240,
-                  height: 240,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: colorsOf(context).onScrim, width: 2),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Text(
-                  '扫描电脑端 Corterm 显示的二维码',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: colorsOf(context).onScrim, height: 1.5),
-                ),
-                const Spacer(),
-                if (_error != null) ...[
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Text(
-                      _error!,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: colorsOf(context).danger),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                ],
-                if (_verifying)
-                  const Padding(
-                    padding: EdgeInsets.all(24),
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                else
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-                    child: SizedBox(
-                      width: double.infinity,
-                      height: 48,
-                      child: OutlinedButton(
-                        onPressed: () => setState(() => _manual = true),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: colorsOf(context).onScrim,
-                          side: BorderSide(
-                            color: colorsOf(context).onScrim.withValues(alpha: 0.4),
-                          ),
-                          shape: const RoundedRectangleBorder(
-                            borderRadius: BorderRadius.all(Radius.circular(24)),
-                          ),
-                        ),
-                        child: const Text('输入配对码'),
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  const SizedBox(height: 24),
+                  Container(
+                    width: 240,
+                    height: 240,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: colorsOf(context).onScrim,
+                        width: 2,
                       ),
                     ),
                   ),
-              ],
+                  const SizedBox(height: 24),
+                  Text(
+                    _tr(
+                      '扫描电脑端 Corterm 显示的二维码',
+                      'Scan the QR code shown in Corterm on your computer',
+                    ),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: colorsOf(context).onScrim,
+                      height: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  if (_error != null) ...[
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Text(
+                        _error!,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: colorsOf(context).danger),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  if (_verifying)
+                    const Padding(
+                      padding: EdgeInsets.all(24),
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  else
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                      child: SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: OutlinedButton(
+                          onPressed: () => setState(() => _manual = true),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: colorsOf(context).onScrim,
+                            side: BorderSide(
+                              color: colorsOf(context).onScrim
+                                  .withValues(alpha: 0.4),
+                            ),
+                            shape: const RoundedRectangleBorder(
+                              borderRadius: BorderRadius.all(
+                                Radius.circular(24),
+                              ),
+                            ),
+                          ),
+                          child: Text(_tr('输入配对码', 'Enter pairing code')),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         ],
@@ -203,14 +239,14 @@ class _PairComputerScreenState extends ConsumerState<PairComputerScreen> {
 
   Widget _buildManualEntry() {
     final c = colorsOf(context);
-    return Scaffold(
+    return AdaptivePageScaffold(
       backgroundColor: c.background,
       appBar: AppBar(
         backgroundColor: c.background,
         foregroundColor: c.textPrimary,
         elevation: 0,
         scrolledUnderElevation: 0,
-        title: const Text('新建电脑'),
+        title: Text(_tr('连接电脑', 'Connect computer')),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -221,16 +257,30 @@ class _PairComputerScreenState extends ConsumerState<PairComputerScreen> {
             children: [
               const SizedBox(height: 24),
               Text(
-                '在电脑端 Corterm 找到配对码，输入以完成配对。',
-                style: TextStyle(fontSize: 14, color: c.textSecondary, height: 1.5),
+                _tr(
+                  '在电脑端 Corterm 的登录页面获取配对码。配对码过期后，请在电脑端重新获取。',
+                  'Get a pairing code from the Corterm sign-in screen on your computer. If it expires, request a new code there.',
+                ),
+                style: TextStyle(
+                  fontSize: 14,
+                  color: c.textSecondary,
+                  height: 1.5,
+                ),
               ),
               const SizedBox(height: 24),
-              Text('配对码',
-                  style: TextStyle(fontSize: 14, color: c.textSecondary)),
+              Text(
+                _tr('配对码', 'Pairing code'),
+                style: TextStyle(fontSize: 14, color: c.textSecondary),
+              ),
               const SizedBox(height: 8),
               TextField(
                 controller: _code,
                 autofocus: true,
+                enabled: !_verifying,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) {
+                  if (_valid) _verify(_code.text.trim());
+                },
                 onChanged: _onCodeChanged,
                 style: TextStyle(
                   fontSize: 20,
@@ -242,8 +292,10 @@ class _PairComputerScreenState extends ConsumerState<PairComputerScreen> {
                   hintText: 'XXXX-XXXX',
                   filled: true,
                   fillColor: c.surface,
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                     borderSide: BorderSide(color: c.divider),
@@ -260,8 +312,10 @@ class _PairComputerScreenState extends ConsumerState<PairComputerScreen> {
               ],
               const SizedBox(height: 24),
               PrimaryButton(
-                label: _verifying ? '配对中…' : '配对',
-                onPressed: (!_verifying && _valid) ? () => _verify(_code.text.trim()) : null,
+                label: _verifying ? _tr('配对中…', 'Pairing…') : _tr('配对', 'Pair'),
+                onPressed: (!_verifying && _valid)
+                    ? () => _verify(_code.text.trim())
+                    : null,
               ),
               const SizedBox(height: 12),
               SizedBox(
@@ -276,7 +330,7 @@ class _PairComputerScreenState extends ConsumerState<PairComputerScreen> {
                       borderRadius: BorderRadius.all(Radius.circular(24)),
                     ),
                   ),
-                  child: const Text('扫二维码'),
+                  child: Text(_tr('扫二维码', 'Scan QR code')),
                 ),
               ),
             ],
@@ -296,7 +350,7 @@ class _SuccessPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = colorsOf(context);
-    return Scaffold(
+    return AdaptivePageScaffold(
       backgroundColor: c.background,
       body: Center(
         child: Padding(
@@ -309,7 +363,9 @@ class _SuccessPage extends StatelessWidget {
                 Icon(Icons.check_circle_outline, size: 56, color: c.success),
                 const SizedBox(height: 16),
                 Text(
-                  '配对成功',
+                  Localizations.localeOf(context).languageCode == 'zh'
+                      ? '配对成功'
+                      : 'Computer paired',
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
@@ -318,13 +374,23 @@ class _SuccessPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '电脑已进入电脑列表，可以继续创建工作区。',
+                  Localizations.localeOf(context).languageCode == 'zh'
+                      ? '电脑已进入电脑列表，可以继续创建工作区。'
+                      : 'Your computer is listed. You can now create a workspace.',
                   textAlign: TextAlign.center,
-                  style:
-                      TextStyle(fontSize: 14, color: c.textSecondary, height: 1.5),
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: c.textSecondary,
+                    height: 1.5,
+                  ),
                 ),
                 const SizedBox(height: 32),
-                PrimaryButton(label: '完成', onPressed: onDone),
+                PrimaryButton(
+                  label: Localizations.localeOf(context).languageCode == 'zh'
+                      ? '完成'
+                      : 'Done',
+                  onPressed: onDone,
+                ),
               ],
             ),
           ),

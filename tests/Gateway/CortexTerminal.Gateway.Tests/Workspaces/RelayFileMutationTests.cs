@@ -104,11 +104,37 @@ public sealed class RelayFileMutationTests
         ex.Message.Should().Be("no such file");
     }
 
+    [Fact]
+    public async Task TrashRestore_PassReceiptAndEnforceOwnership()
+    {
+        var (service, dispatcher, workspaces) = NewService();
+        var ws = await workspaces.CreateAsync("test-user", "worker-1", "proj", "/home/user/proj");
+        var receipt = Guid.NewGuid().ToString("N");
+        await service.TrashAsync("test-user", ws.Id, "a.txt", receipt, CancellationToken.None);
+        dispatcher.LastCall.Should().Be(("Trash", "/home/user/proj", "a.txt"));
+        dispatcher.LastContent.Should().Be(receipt);
+        await service.RestoreTrashAsync("test-user", ws.Id, receipt, CancellationToken.None);
+        dispatcher.LastCall.Should().Be(("RestoreTrash", "/home/user/proj", receipt));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.RestoreTrashAsync("another-user", ws.Id, receipt, CancellationToken.None));
+        await Assert.ThrowsAsync<WorkspaceFileServiceException>(() => service.TrashAsync("test-user", ws.Id, "a.txt", "bad", CancellationToken.None));
+    }
+
     private sealed class RecordingMutationDispatcher : NoOpWorkerCommandDispatcher
     {
         public (string Method, string RootPath, string Path) LastCall = ("", "", "");
         public string? LastContent;
         public string? LastNewName;
+        public override Task<FileOpResult> TrashAsync(string workerConnectionId, string rootDir, string relativePath, string trashId, CancellationToken cancellationToken)
+        {
+            LastCall = ("Trash", rootDir, relativePath);
+            LastContent = trashId;
+            return Task.FromResult(NextResult);
+        }
+        public override Task<FileOpResult> RestoreTrashAsync(string workerConnectionId, string rootDir, string trashId, CancellationToken cancellationToken)
+        {
+            LastCall = ("RestoreTrash", rootDir, trashId);
+            return Task.FromResult(NextResult);
+        }
         public FileOpResult NextResult = new(null);
 
         public override Task<FileOpResult> MkdirAsync(string workerConnectionId, string rootDir, string relativePath, CancellationToken cancellationToken)

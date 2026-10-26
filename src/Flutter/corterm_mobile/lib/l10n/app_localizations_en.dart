@@ -869,10 +869,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'What happened? What did you expect?';
 
   @override
+  String get feedbackMinimumLength => 'At least 10 characters';
+
+  @override
   String get feedbackContact => 'Contact (optional)';
 
   @override
-  String get feedbackContactPlaceholder => 'Email / Telegram / QQ';
+  String get feedbackContactPlaceholder => 'Email / Telegram';
 
   @override
   String feedbackAttachments(int cur, int max) {
@@ -1267,4 +1270,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get terminalPermissionGuide => 'Remote Mac permission instructions';
+
+  @override
+  String get showPassword => 'Show password';
+
+  @override
+  String get hidePassword => 'Hide password';
+
+  @override
+  String get phoneLoginHint =>
+      'Sign in with a text message code. No password needed.';
 }

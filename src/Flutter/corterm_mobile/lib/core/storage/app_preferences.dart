@@ -17,7 +17,8 @@ final workspaceMemoryPrefixProvider = Provider<String>((ref) {
 
 /// SharedPreferences 实例，main() 启动时 override 注入。
 final sharedPreferencesProvider = Provider<SharedPreferences>(
-  (ref) => throw UnimplementedError('Overridden in main() with the real instance'),
+  (ref) =>
+      throw UnimplementedError('Overridden in main() with the real instance'),
 );
 
 /// 终端 scrollback 快照存储（按 workerId 键）。
@@ -41,6 +42,11 @@ class AppPreferences implements TerminalSnapshotStore {
   AppPreferences(this._prefs);
 
   final SharedPreferences _prefs;
+
+  bool get directoryCollapsed =>
+      _prefs.getBool('ui.directory_collapsed') ?? false;
+  Future<void> setDirectoryCollapsed(bool value) =>
+      _prefs.setBool('ui.directory_collapsed', value);
 
   static const _kThemeMode = 'ui.theme_mode';
   static const _kTerminalThemeMode = 'terminal.theme_mode';
@@ -112,10 +118,10 @@ class AppPreferences implements TerminalSnapshotStore {
   /// 外观模式（System / Light / Dark）。design/07 起步为 Light，
   /// 现按产品要求恢复 Light/Dark/System 切换。
   ThemeMode get themeMode => switch (_prefs.getString(_kThemeMode)) {
-        'light' => ThemeMode.light,
-        'dark' => ThemeMode.dark,
-        _ => ThemeMode.system,
-      };
+    'light' => ThemeMode.light,
+    'dark' => ThemeMode.dark,
+    _ => ThemeMode.system,
+  };
 
   Future<void> setThemeMode(ThemeMode mode) =>
       _prefs.setString(_kThemeMode, mode.name);
@@ -182,7 +188,10 @@ class AppPreferences implements TerminalSnapshotStore {
   static const defaultFontSize = 13.0;
 
   double get terminalFontSize =>
-      (_prefs.getDouble(_kFontSize) ?? defaultFontSize).clamp(minFontSize, maxFontSize);
+      (_prefs.getDouble(_kFontSize) ?? defaultFontSize).clamp(
+        minFontSize,
+        maxFontSize,
+      );
 
   Future<void> setTerminalFontSize(double size) =>
       _prefs.setDouble(_kFontSize, size.clamp(minFontSize, maxFontSize));
@@ -243,7 +252,7 @@ final themeModeProvider = StateNotifierProvider<ThemeModeController, ThemeMode>(
 /// 终端主题选择：'followApp' 或主题档案 id。
 class TerminalThemeSelectionController extends StateNotifier<String> {
   TerminalThemeSelectionController(this._prefs)
-      : super(_prefs.terminalThemeSelection);
+    : super(_prefs.terminalThemeSelection);
 
   final AppPreferences _prefs;
 
@@ -255,30 +264,33 @@ class TerminalThemeSelectionController extends StateNotifier<String> {
 
 final terminalThemeSelectionProvider =
     StateNotifierProvider<TerminalThemeSelectionController, String>(
-  (ref) =>
-      TerminalThemeSelectionController(ref.watch(appPreferencesProvider)),
-);
+      (ref) =>
+          TerminalThemeSelectionController(ref.watch(appPreferencesProvider)),
+    );
 
 /// 自定义终端主题列表（已反序列化；非法 JSON 直接抛错暴露问题）。
 final customTerminalThemesProvider =
-    StateNotifierProvider<CustomTerminalThemesController, List<TerminalColorScheme>>(
-  (ref) => CustomTerminalThemesController(ref.watch(appPreferencesProvider)),
-);
+    StateNotifierProvider<
+      CustomTerminalThemesController,
+      List<TerminalColorScheme>
+    >(
+      (ref) =>
+          CustomTerminalThemesController(ref.watch(appPreferencesProvider)),
+    );
 
 class CustomTerminalThemesController
     extends StateNotifier<List<TerminalColorScheme>> {
   CustomTerminalThemesController(this._prefs)
-      : super([
-          for (final json in _prefs.customTerminalThemeJsons)
-            TerminalColorScheme.fromJson(
-              jsonDecode(json) as Map<String, Object>,
-            ),
-        ]);
+    : super([
+        for (final json in _prefs.customTerminalThemeJsons)
+          TerminalColorScheme.fromJson(jsonDecode(json) as Map<String, Object>),
+      ]);
 
   final AppPreferences _prefs;
 
-  Future<void> _persist() => _prefs.setCustomTerminalThemeJsons([
-        for (final s in state) jsonEncode(s.toJson()),
+  Future<void> _persist(List<TerminalColorScheme> themes) =>
+      _prefs.setCustomTerminalThemeJsons([
+        for (final s in themes) jsonEncode(s.toJson()),
       ]);
 
   /// 新增或按 id 覆盖保存，并使其生效（返回 id）。
@@ -288,17 +300,18 @@ class CustomTerminalThemesController
         if (s.id != scheme.id) s,
       scheme,
     ];
+    await _persist(next);
     state = next;
-    await _persist();
     return scheme.id;
   }
 
   Future<void> delete(String id) async {
-    state = [
+    final next = [
       for (final s in state)
         if (s.id != id) s,
     ];
-    await _persist();
+    await _persist(next);
+    state = next;
   }
 }
 
@@ -321,3 +334,51 @@ final localeProvider = StateNotifierProvider<LocaleController, String?>(
 final appPreferencesProvider = Provider<AppPreferences>(
   (ref) => AppPreferences(ref.watch(sharedPreferencesProvider)),
 );
+
+class DirectoryCollapsedController extends StateNotifier<bool> {
+  DirectoryCollapsedController(this._prefs) : super(_prefs.directoryCollapsed);
+  final AppPreferences _prefs;
+  Future<void> set(bool value) async {
+    await _prefs.setDirectoryCollapsed(value);
+    state = value;
+  }
+}
+
+final directoryCollapsedProvider =
+    StateNotifierProvider<DirectoryCollapsedController, bool>(
+      (ref) => DirectoryCollapsedController(ref.watch(appPreferencesProvider)),
+    );
+
+const terminalKeyDefaults = [
+  'esc',
+  'ctrl',
+  'alt',
+  'tab',
+  'shiftTab',
+  'left',
+  'up',
+  'down',
+  'right',
+  'paste',
+];
+
+class TerminalKeyLayoutController extends StateNotifier<List<String>> {
+  TerminalKeyLayoutController(this._prefs)
+    : super(_prefs.getStringList('terminal.key_layout') ?? terminalKeyDefaults);
+  final SharedPreferences _prefs;
+  Future<void> set(List<String> keys) async {
+    if (keys.isEmpty ||
+        keys.toSet().length != keys.length ||
+        keys.any((key) => !terminalKeyDefaults.contains(key))) {
+      throw ArgumentError('Invalid terminal key layout');
+    }
+    await _prefs.setStringList('terminal.key_layout', keys);
+    state = List.unmodifiable(keys);
+  }
+}
+
+final terminalKeyLayoutProvider =
+    StateNotifierProvider<TerminalKeyLayoutController, List<String>>(
+      (ref) =>
+          TerminalKeyLayoutController(ref.watch(sharedPreferencesProvider)),
+    );

@@ -4,9 +4,14 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 /// 官方品牌 logo（SVG 内嵌，flutter_svg 由 shadcn_ui 导出）。
 /// 仅登录页 OAuth 按钮使用；颜色固定品牌官方色，不随主题。
 class GithubMark extends StatelessWidget {
-  const GithubMark({super.key, this.size = 18});
+  const GithubMark({
+    super.key,
+    this.size = 18,
+    this.color = const Color(0xFF111111),
+  });
 
   final double size;
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
@@ -14,7 +19,7 @@ class GithubMark extends StatelessWidget {
       _githubSvg,
       width: size,
       height: size,
-      colorFilter: const ColorFilter.mode(Color(0xFF111111), BlendMode.srcIn), // = CortermColors.light.textPrimary
+      colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
     );
   }
 }

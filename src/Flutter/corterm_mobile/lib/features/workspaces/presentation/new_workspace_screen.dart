@@ -1,3 +1,4 @@
+import '../../../shared/layout/adaptive_page_scaffold.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -209,7 +210,7 @@ class _NewWorkspaceScreenState extends ConsumerState<NewWorkspaceScreen> {
       }
     }
 
-    return Scaffold(
+    return AdaptivePageScaffold(
       backgroundColor: colors.background,
       appBar: AppBar(
         backgroundColor: colors.background,
@@ -217,42 +218,37 @@ class _NewWorkspaceScreenState extends ConsumerState<NewWorkspaceScreen> {
         centerTitle: false,
         toolbarHeight: 52,
         title: Text(l10n.workspaceCreateTitle),
-        actions: [
-          IconButton(
-            tooltip: Localizations.localeOf(context).languageCode == 'zh'
-                ? '刷新电脑'
-                : 'Refresh computers',
-            icon: const Icon(Icons.refresh),
-            onPressed: () => ref.invalidate(workersProvider),
-          ),
-        ],
       ),
       body: SafeArea(
         top: false,
-        child: switch (workersAsync) {
-          AsyncLoading() => const Center(child: CircularProgressIndicator()),
-          AsyncError(:final error) => Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Text(
-                    '$error',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: colors.danger),
+        child: workersValue != null
+            ? _form(context, workersValue)
+            : switch (workersAsync) {
+                AsyncLoading() => const Center(
+                  child: CircularProgressIndicator(),
+                ),
+                AsyncError(:final error) => Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: Text(
+                          '$error',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: colors.danger),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextButton(
+                        onPressed: () => ref.invalidate(workersProvider),
+                        child: Text(l10n.retry),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 8),
-                TextButton(
-                  onPressed: () => ref.invalidate(workersProvider),
-                  child: Text(l10n.retry),
-                ),
-              ],
-            ),
-          ),
-          AsyncValue(:final value) => _form(context, value ?? const []),
-        },
+                AsyncValue(:final value) => _form(context, value ?? const []),
+              },
       ),
     );
   }
@@ -264,6 +260,21 @@ class _NewWorkspaceScreenState extends ConsumerState<NewWorkspaceScreen> {
     if (f == '.') return l10n.homeFolder;
     if (f.startsWith('./')) return '~/${f.substring(2)}';
     return f;
+  }
+
+  Future<void> _refreshWorkers() async {
+    if (_creating) return;
+    try {
+      ref.invalidate(workersProvider);
+      await ref.read(workersProvider.future);
+    } catch (e) {
+      if (!mounted) return;
+      setState(
+        () => _error = Localizations.localeOf(context).languageCode == 'zh'
+            ? '刷新电脑失败，请下拉重试。$e'
+            : 'Could not refresh computers. Pull down to retry. $e',
+      );
+    }
   }
 
   Widget _form(BuildContext context, List<WorkerSummary> workers) {
@@ -358,65 +369,69 @@ class _NewWorkspaceScreenState extends ConsumerState<NewWorkspaceScreen> {
     return Column(
       children: [
         Expanded(
-          child: ListView(
-            padding: const EdgeInsets.only(bottom: 16),
-            children: [
-              fieldLabel(l10n.computersTitle, first: true),
-              selectionRow(
-                title: worker?.displayName ?? l10n.selectComputerTitle,
-                subtitle: worker?.hostname,
-                icon: Icons.computer_outlined,
-                onTap: _pickWorker,
-              ),
-              fieldLabel(l10n.selectFolderTitle),
-              selectionRow(
-                title: _folderDisplay(l10n),
-                icon: Icons.folder_outlined,
-                onTap: worker == null ? null : _pickFolder,
-              ),
-              fieldLabel(l10n.workspaceNameLabel),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: TextField(
-                  controller: _nameController,
-                  onChanged: (_) => setState(() {
-                    _nameAutoFilled = false;
-                    _error = null;
-                    _duplicateName = false;
-                  }),
-                  decoration: InputDecoration(
-                    hintText: l10n.workspaceNameLabel,
-                    filled: true,
-                    fillColor: colors.surfaceElevated,
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 14,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: colors.divider),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: colors.divider),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: colors.accent),
-                    ),
-                  ),
+          child: RefreshIndicator(
+            onRefresh: _refreshWorkers,
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.only(bottom: 16),
+              children: [
+                fieldLabel(l10n.computersTitle, first: true),
+                selectionRow(
+                  title: worker?.displayName ?? l10n.selectComputerTitle,
+                  subtitle: worker?.hostname,
+                  icon: Icons.computer_outlined,
+                  onTap: _pickWorker,
                 ),
-              ),
-              if (_error != null)
+                fieldLabel(l10n.selectFolderTitle),
+                selectionRow(
+                  title: _folderDisplay(l10n),
+                  icon: Icons.folder_outlined,
+                  onTap: worker == null ? null : _pickFolder,
+                ),
+                fieldLabel(l10n.workspaceNameLabel),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                  child: Text(
-                    _error!,
-                    style: TextStyle(fontSize: 14, color: colors.danger),
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: TextField(
+                    controller: _nameController,
+                    onChanged: (_) => setState(() {
+                      _nameAutoFilled = false;
+                      _error = null;
+                      _duplicateName = false;
+                    }),
+                    decoration: InputDecoration(
+                      hintText: l10n.workspaceNameLabel,
+                      filled: true,
+                      fillColor: colors.surfaceElevated,
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 14,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: colors.divider),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: colors.divider),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: colors.accent),
+                      ),
+                    ),
                   ),
                 ),
-            ],
+                if (_error != null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                    child: Text(
+                      _error!,
+                      style: TextStyle(fontSize: 14, color: colors.danger),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
         Padding(

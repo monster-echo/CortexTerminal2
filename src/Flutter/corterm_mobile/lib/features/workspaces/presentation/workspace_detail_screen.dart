@@ -1,3 +1,5 @@
+import '../../../shared/layout/adaptive_sheet.dart';
+import '../../../shared/layout/adaptive_page_scaffold.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -9,7 +11,6 @@ import '../../sessions/data/session_repository.dart';
 import '../../../core/models/session.dart';
 import '../../../core/models/workspace.dart';
 import '../../../shared/utils/relative_time.dart';
-import '../../../shared/widgets/corterm_ui.dart';
 import '../../sessions/data/sessions_providers.dart';
 import '../data/workspace_providers.dart';
 
@@ -26,12 +27,57 @@ class WorkspaceDetailScreen extends ConsumerStatefulWidget {
 
 class _WorkspaceDetailScreenState extends ConsumerState<WorkspaceDetailScreen> {
   bool _revalidated = false;
+  bool _creatingSession = false;
+
+  Future<void> _createSession(Workspace workspace) async {
+    if (_creatingSession) return;
+    setState(() => _creatingSession = true);
+    try {
+      final session = await ref
+          .read(sessionRepositoryProvider)
+          .create(
+            columns: 80,
+            rows: 24,
+            workerId: workspace.workerId,
+            workspaceId: workspace.workspaceId,
+          );
+      if (!mounted) return;
+      ref.invalidate(sessionsProvider);
+      await context.push('/sessions/${session.sessionId}');
+      if (mounted) ref.invalidate(sessionsProvider);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$error')));
+      }
+    } finally {
+      if (mounted) setState(() => _creatingSession = false);
+    }
+  }
+
+  Future<void> _refresh() async {
+    ref.invalidate(workspacesProvider);
+    ref.invalidate(workersProvider);
+    ref.invalidate(sessionsProvider);
+    try {
+      await Future.wait([
+        ref.read(workspacesProvider.future),
+        ref.read(workersProvider.future),
+        ref.read(sessionsProvider.future),
+      ]);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$e')));
+      }
+    }
+  }
 
   String get workspaceId => widget.workspaceId;
 
   Future<void> _confirmMoveOut(SessionSummary session) async {
     final zh = Localizations.localeOf(context).languageCode == 'zh';
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showCortermDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text(zh ? '移出工作区' : 'Move out of workspace'),
@@ -94,16 +140,50 @@ class _WorkspaceDetailScreenState extends ConsumerState<WorkspaceDetailScreen> {
         workspace != null &&
         workers.any((w) => w.workerId == workspace.workerId && w.isOnline);
 
-    return Scaffold(
+    return AdaptivePageScaffold(
       backgroundColor: colors.background,
       appBar: AppBar(
         backgroundColor: colors.background,
         surfaceTintColor: Colors.transparent,
         title: Text(workspace?.displayName ?? ''),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () => ref.invalidate(sessionsProvider),
+          PopupMenuButton<String>(
+            tooltip: MaterialLocalizations.of(context).moreButtonTooltip,
+            icon: const Icon(Icons.more_horiz),
+            enabled: workspace != null,
+            onSelected: (action) {
+              final selected = workspace;
+              if (selected == null) return;
+              if (action == 'files') {
+                context.push(
+                  '/workspaces/$workspaceId/files?name=${Uri.encodeComponent(selected.displayName)}&root=${Uri.encodeComponent(selected.rootPath ?? '')}',
+                );
+              } else if (action == 'tunnels') {
+                context.push('/workspaces/$workspaceId/tunnels');
+              }
+            },
+            itemBuilder: (_) => [
+              PopupMenuItem(
+                value: 'files',
+                child: Row(
+                  children: [
+                    const Icon(Icons.folder_outlined, size: 20),
+                    const SizedBox(width: 12),
+                    Text(l10n.files),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'tunnels',
+                child: Row(
+                  children: [
+                    const Icon(Icons.swap_horiz, size: 20),
+                    const SizedBox(width: 12),
+                    Text(l10n.portForwardingTitle),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -116,107 +196,102 @@ class _WorkspaceDetailScreenState extends ConsumerState<WorkspaceDetailScreen> {
                       style: TextStyle(color: colors.textSecondary),
                     ),
                   )
-          : ListView(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(4, 4, 4, 10),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.circle,
-                            size: 8,
-                            color: online
-                                ? colors.success
-                                : colors.textSecondary,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              '${workerName ?? workspace.workerId} · ${online ? l10n.workerOnline : l10n.workerOffline}',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: colors.textPrimary,
+          : RefreshIndicator(
+              onRefresh: _refresh,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.circle,
+                              size: 8,
+                              color: online
+                                  ? colors.success
+                                  : colors.textSecondary,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                '${workerName ?? workspace.workerId} · ${online ? l10n.workerOnline : l10n.workerOffline}',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: colors.textPrimary,
+                                ),
                               ),
+                            ),
+                          ],
+                        ),
+                        if (workspace.rootPath != null) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            workspace.rootPath!,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: colors.textSecondary,
+                              fontFamily: 'monospace',
                             ),
                           ),
                         ],
-                      ),
-                      if (workspace.rootPath != null) ...[
-                        const SizedBox(height: 8),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 16, bottom: 12),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            l10n.sessions,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                              color: colors.textPrimary,
+                            ),
+                          ),
+                        ),
                         Text(
-                          workspace.rootPath!,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+                          l10n.sessionCount(sessions.length),
                           style: TextStyle(
                             fontSize: 12,
                             color: colors.textSecondary,
-                            fontFamily: 'monospace',
                           ),
                         ),
                       ],
-                    ],
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                _WorkspaceActionRow(
-                  icon: Icons.folder_outlined,
-                  title: l10n.files,
-                  onTap: () => context.push(
-                    '/workspaces/$workspaceId/files?name=${Uri.encodeComponent(workspace.displayName)}&root=${Uri.encodeComponent(workspace.rootPath ?? '')}',
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(4, 24, 4, 8),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          l10n.sessions,
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: colors.textPrimary,
-                          ),
-                        ),
-                      ),
-                      Text(
-                        l10n.sessionCount(sessions.length),
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: colors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (sessionsState.isLoading) const LinearProgressIndicator(),
-                if (sessionsState.hasError)
-                  TextButton(
-                    onPressed: () => ref.invalidate(sessionsProvider),
-                    child: Text(l10n.sessionsLoadRetry),
-                  ),
-                for (final s in sessions)
-                  SwipeDelete(
-                    key: ValueKey('session-${s.sessionId}'),
-                    title: Localizations.localeOf(context).languageCode == 'zh'
-                        ? '删除会话'
-                        : 'Delete session',
-                    message:
-                        Localizations.localeOf(context).languageCode == 'zh'
-                        ? '删除「${s.displayName}」？此操作不可撤销。'
-                        : 'Delete "${s.displayName}"? This cannot be undone.',
-                    onDelete: () async {
-                      await ref
-                          .read(sessionRepositoryProvider)
-                          .delete(sessionId: s.sessionId);
-                      ref.invalidate(sessionsProvider);
-                    },
-                    child: Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
+                  if (sessionsState.isLoading) const LinearProgressIndicator(),
+                  if (sessionsState.hasError)
+                    TextButton(
+                      onPressed: () => ref.invalidate(sessionsProvider),
+                      child: Text(l10n.sessionsLoadRetry),
+                    ),
+                  for (final s in sessions)
+                    SwipeDelete(
+                      key: ValueKey('session-${s.sessionId}'),
+                      title:
+                          Localizations.localeOf(context).languageCode == 'zh'
+                          ? '删除会话'
+                          : 'Delete session',
+                      message:
+                          Localizations.localeOf(context).languageCode == 'zh'
+                          ? '删除「${s.displayName}」？此操作不可撤销。'
+                          : 'Delete "${s.displayName}"? This cannot be undone.',
+                      onDelete: () async {
+                        await ref
+                            .read(sessionRepositoryProvider)
+                            .delete(sessionId: s.sessionId);
+                        ref.invalidate(sessionsProvider);
+                      },
+                      margin: const EdgeInsets.only(bottom: 8),
                       child: Material(
                         color: colors.surfaceElevated,
                         borderRadius: BorderRadius.circular(12),
@@ -228,7 +303,8 @@ class _WorkspaceDetailScreenState extends ConsumerState<WorkspaceDetailScreen> {
                           },
                           onLongPress: () => _confirmMoveOut(s),
                           child: Container(
-                            padding: const EdgeInsets.all(14),
+                            padding: const EdgeInsets.all(16),
+                            constraints: const BoxConstraints(minHeight: 80),
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(color: colors.divider),
@@ -251,14 +327,19 @@ class _WorkspaceDetailScreenState extends ConsumerState<WorkspaceDetailScreen> {
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                         style: TextStyle(
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.w600,
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w500,
                                           color: colors.textPrimary,
                                         ),
                                       ),
                                       const SizedBox(height: 5),
                                       Text(
-                                        '${s.status.isRunning ? l10n.sessionRunning : l10n.sessionEnded} · ${relativeTime(s.lastActivityAt, languageCode: Localizations.localeOf(context).languageCode)}',
+                                        relativeTime(
+                                          s.lastActivityAt,
+                                          languageCode: Localizations.localeOf(
+                                            context,
+                                          ).languageCode,
+                                        ),
                                         style: TextStyle(
                                           fontSize: 12,
                                           color: colors.textSecondary,
@@ -268,10 +349,27 @@ class _WorkspaceDetailScreenState extends ConsumerState<WorkspaceDetailScreen> {
                                   ),
                                 ),
                                 const SizedBox(width: 8),
-                                Icon(
-                                  Icons.chevron_right,
-                                  size: 18,
-                                  color: colors.textSecondary,
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.circle,
+                                      size: 8,
+                                      color: s.status.isAlive
+                                          ? colors.success
+                                          : colors.textSecondary,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      s.status.isAlive
+                                          ? l10n.sessionRunning
+                                          : l10n.sessionEnded,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: colors.textSecondary,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),
@@ -279,94 +377,61 @@ class _WorkspaceDetailScreenState extends ConsumerState<WorkspaceDetailScreen> {
                         ),
                       ),
                     ),
-                  ),
-                if (sessions.isEmpty &&
-                    !sessionsState.isLoading &&
-                    !sessionsState.hasError)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 32),
-                    child: EmptyState(
-                      icon: Icons.terminal,
-                      message: l10n.noSessions,
+                  if (sessions.isEmpty &&
+                      !sessionsState.isLoading &&
+                      !sessionsState.hasError)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 32),
+                      child: Text(
+                        l10n.noSessions,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: colors.textSecondary,
+                        ),
+                      ),
                     ),
-                  ),
-                ListRow(
-                  title: l10n.portForwardingTitle,
-                  leading: const Icon(Icons.swap_horiz),
-                  onTap: () => context.push('/workspaces/$workspaceId/tunnels'),
-                  trailing: const Icon(Icons.chevron_right, size: 18),
-                ),
-              ],
+                  if (sessions.isNotEmpty)
+                    Text(
+                      Localizations.localeOf(context).languageCode == 'zh'
+                          ? '左滑删除会话，长按移出工作区'
+                          : 'Swipe left to delete; long press to move out',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                ],
+              ),
             ),
       bottomNavigationBar: workspace == null
           ? null
           : SafeArea(
-              minimum: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-              child: SizedBox(
-                height: 48,
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                 child: FilledButton.icon(
-                  onPressed: () async {
-                    await context.push(
-                      '/sessions/new?workspaceId=$workspaceId',
-                    );
-                    if (mounted) ref.invalidate(sessionsProvider);
-                  },
-                  icon: const Icon(Icons.add),
-                  label: Text(l10n.newSession),
+                  onPressed: _creatingSession || !online
+                      ? null
+                      : () => _createSession(workspace),
                   style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(48),
                     backgroundColor: colors.emphasis,
                     foregroundColor: colors.onEmphasis,
-                    shape: const StadiumBorder(),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
+                  icon: _creatingSession
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.add, size: 20),
+                  label: Text(l10n.newSession),
                 ),
               ),
             ),
-    );
-  }
-}
-
-class _WorkspaceActionRow extends StatelessWidget {
-  const _WorkspaceActionRow({
-    required this.icon,
-    required this.title,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String title;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = colorsOf(context);
-    return Material(
-      color: colors.surfaceElevated,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          height: 60,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: colors.divider),
-          ),
-          child: Row(
-            children: [
-              Icon(icon, color: colors.textPrimary),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  title,
-                  style: TextStyle(fontSize: 15, color: colors.textPrimary),
-                ),
-              ),
-              Icon(Icons.chevron_right, size: 18, color: colors.textSecondary),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }

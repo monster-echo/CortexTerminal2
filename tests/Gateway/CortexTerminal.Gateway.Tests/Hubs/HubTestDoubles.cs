@@ -112,6 +112,10 @@ internal class NoOpWorkerCommandDispatcher : IWorkerCommandDispatcher
         => Task.FromResult(new FileOpResult(new FileOperationError(FileTransferErrorCode.TransferFailed, "no-op dispatcher")));
     public virtual Task<FileOpResult> RenameAsync(string workerConnectionId, string rootDir, string relativePath, string newName, CancellationToken cancellationToken)
         => Task.FromResult(new FileOpResult(new FileOperationError(FileTransferErrorCode.TransferFailed, "no-op dispatcher")));
+    public virtual Task<FileOpResult> TrashAsync(string workerConnectionId, string rootDir, string relativePath, string trashId, CancellationToken cancellationToken)
+        => throw new NotSupportedException();
+    public virtual Task<FileOpResult> RestoreTrashAsync(string workerConnectionId, string rootDir, string trashId, CancellationToken cancellationToken)
+        => throw new NotSupportedException();
     public virtual Task<FileOpResult> DeleteAsync(string workerConnectionId, string rootDir, string relativePath, CancellationToken cancellationToken)
         => Task.FromResult(new FileOpResult(new FileOperationError(FileTransferErrorCode.TransferFailed, "no-op dispatcher")));
     public virtual Task<FileOperationAck> PrepareFileReceiveAsync(string workerConnectionId, PrepareFileReceiveCommand command, CancellationToken cancellationToken)

@@ -20,19 +20,21 @@ class PrimaryButton extends StatelessWidget {
     final c = colorsOf(context);
     return SizedBox(
       width: double.infinity,
-      height: 48,
       child: ElevatedButton(
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
           backgroundColor: danger ? c.danger : c.emphasis,
           foregroundColor: c.onEmphasis,
           elevation: 0,
+          minimumSize: const Size.fromHeight(48),
           shape: const RoundedRectangleBorder(
             borderRadius: BorderRadius.all(Radius.circular(24)),
           ),
         ),
-        child: Text(label,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+        child: Text(
+          label,
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        ),
       ),
     );
   }
@@ -86,6 +88,7 @@ class ListRow extends StatelessWidget {
       onTap: onTap,
       child: Container(
         color: selected ? c.surfaceSelected : Colors.transparent,
+        constraints: const BoxConstraints(minHeight: 48),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
           children: [
@@ -94,18 +97,20 @@ class ListRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                          fontSize: 16, color: c.textPrimary)),
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 16, color: c.textPrimary),
+                  ),
                   if (subtitle != null) ...[
                     const SizedBox(height: 2),
-                    Text(subtitle!,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style:
-                            TextStyle(fontSize: 13, color: c.textSecondary)),
+                    Text(
+                      subtitle!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 13, color: c.textSecondary),
+                    ),
                   ],
                 ],
               ),

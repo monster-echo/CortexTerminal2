@@ -37,12 +37,18 @@ Future<P2pChannel> openP2pChannel({
   Duration deadline = const Duration(seconds: 6),
 }) async {
   final socket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
+  // RawDatagramSocket is single-subscription. Keep its one listener alive
+  // across STUN, probe and encrypted-channel phases.
+  final events = socket.asBroadcastStream();
   final start = DateTime.now();
   try {
     // 1. 同一 socket 上 STUN（NAT 反射地址即探包/punch 上报地址）。
     final reflected = await StunClient.discover(
       socket,
-      timeout: deadline < const Duration(seconds: 2) ? deadline : const Duration(seconds: 2),
+      events: events,
+      timeout: deadline < const Duration(seconds: 2)
+          ? deadline
+          : const Duration(seconds: 2),
     );
     // deadline 覆盖全程（STUN 已消耗掉的部分从 punch 窗口里扣掉）。
     final punchDeadline = DateTime.now().add(
@@ -62,7 +68,9 @@ Future<P2pChannel> openP2pChannel({
       );
       if (peer != null) break;
       final next = DateTime.now().add(const Duration(seconds: 2));
-      final wait = next.isAfter(punchDeadline) ? punchDeadline.difference(DateTime.now()) : const Duration(seconds: 2);
+      final wait = next.isAfter(punchDeadline)
+          ? punchDeadline.difference(DateTime.now())
+          : const Duration(seconds: 2);
       if (wait <= Duration.zero) {
         throw const P2pException('p2p: punch not ready within deadline');
       }
@@ -72,14 +80,18 @@ Future<P2pChannel> openP2pChannel({
     // 3. 探包窗口：50ms 间隔互发 "PT"+txid，收到任意探包即打通。
     final peerEndpoint = peer;
     final txid = StunClient.randomTxid();
-    final probe = BytesBuilder()..add(probePrefix)..add(txid);
+    final probe = BytesBuilder()
+      ..add(probePrefix)
+      ..add(txid);
     final opened = Completer<void>();
     Timer? probeTimer;
-    final sub = socket.listen((event) {
+    final sub = events.listen((event) {
       if (opened.isCompleted) return;
       final dg = socket.receive();
       if (dg == null) return;
-      if (dg.data.length == probeLength && dg.data[0] == probePrefix[0] && dg.data[1] == probePrefix[1]) {
+      if (dg.data.length == probeLength &&
+          dg.data[0] == probePrefix[0] &&
+          dg.data[1] == probePrefix[1]) {
         opened.complete();
       }
       // 打通前的加密包（对端先于我们收到探包）忽略，等双向打通后重传兜底。
@@ -98,19 +110,31 @@ Future<P2pChannel> openP2pChannel({
 
     // 4. 装配加密可靠流通道。
     final cipher = P2pCipher.fromToken(token: token, transferId: transferId);
-    final stream = ReliableStream(send: (frame) async {
-      final packet = await cipher.seal(frame);
-      socket.send(packet, InternetAddress(peerEndpoint.host), peerEndpoint.port);
-    });
+    final stream = ReliableStream(
+      send: (frame) async {
+        final packet = await cipher.seal(frame);
+        socket.send(
+          packet,
+          InternetAddress(peerEndpoint.host),
+          peerEndpoint.port,
+        );
+      },
+    );
     StreamSubscription<RawSocketEvent>? channelSub;
-    final channel = P2pChannel(cipher: cipher, stream: stream, onClose: () {
-      channelSub?.cancel();
-      socket.close();
-    });
-    channelSub = socket.listen((event) async {
+    final channel = P2pChannel(
+      cipher: cipher,
+      stream: stream,
+      onClose: () {
+        channelSub?.cancel();
+        socket.close();
+      },
+    );
+    channelSub = events.listen((event) async {
       final dg = socket.receive();
       if (dg == null) return;
-      if (dg.data.length == probeLength && dg.data[0] == probePrefix[0] && dg.data[1] == probePrefix[1]) {
+      if (dg.data.length == probeLength &&
+          dg.data[0] == probePrefix[0] &&
+          dg.data[1] == probePrefix[1]) {
         return; // 打通后的冗余探包。
       }
       await channel.handlePacket(Uint8List.fromList(dg.data));
@@ -136,10 +160,15 @@ Future<Uri?> _punch({
   try {
     final base = Uri.parse(gatewayBaseUrl);
     final req = await client.postUrl(
-      base.replace(path: '${base.path.isEmpty ? '' : base.path}/api/transfers/$transferId/punch'),
+      base.replace(
+        path:
+            '${base.path.isEmpty ? '' : base.path}/api/transfers/$transferId/punch',
+      ),
     );
     req.headers.set('Content-Type', 'application/json');
-    if (jwt != null && jwt.isNotEmpty) req.headers.set('Authorization', 'Bearer $jwt');
+    if (jwt != null && jwt.isNotEmpty) {
+      req.headers.set('Authorization', 'Bearer $jwt');
+    }
     req.headers.set('X-Corterm-Transfer-Token', token);
     req.add(utf8.encode(jsonEncode({'role': role, 'endpoint': endpoint})));
     final res = await req.close();
@@ -166,7 +195,11 @@ Future<Uri?> _punch({
 
 /// 供测试/调试生成探包。
 Uint8List buildProbe(Uint8List txid) {
-  if (txid.length != probeLength - probePrefix.length) throw ArgumentError('txid must be 12B');
-  final b = BytesBuilder()..add(probePrefix)..add(txid);
+  if (txid.length != probeLength - probePrefix.length) {
+    throw ArgumentError('txid must be 12B');
+  }
+  final b = BytesBuilder()
+    ..add(probePrefix)
+    ..add(txid);
   return b.toBytes();
 }

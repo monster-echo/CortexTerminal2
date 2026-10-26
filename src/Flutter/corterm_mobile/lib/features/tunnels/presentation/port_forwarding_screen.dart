@@ -1,3 +1,6 @@
+import '../../../shared/layout/adaptive_sheet.dart';
+import '../../../shared/layout/adaptive_page_scaffold.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -38,9 +41,10 @@ class _PortForwardingScreenState extends ConsumerState<PortForwardingScreen> {
     required String remoteAddress,
     required int remotePort,
   }) async {
+    if (_busy) return;
     setState(() => _busy = true);
     try {
-      await ref
+      final result = await ref
           .read(tunnelRepositoryProvider)
           .create(
             workspaceId: widget.workspaceId,
@@ -50,10 +54,8 @@ class _PortForwardingScreenState extends ConsumerState<PortForwardingScreen> {
             remotePort: remotePort,
           );
       if (!mounted) return;
-      showAppToast(context, '转发已创建并启动');
-      await _refresh();
-    } catch (e) {
-      if (mounted) showAppToast(context, '创建失败：$e', destructive: true);
+      showAppToast(context, result.portOpen ? '转发已创建并启动' : '转发已创建，等待电脑上的服务启动');
+      setState(() => _future = _load());
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -66,6 +68,7 @@ class _PortForwardingScreenState extends ConsumerState<PortForwardingScreen> {
     required String remoteAddress,
     required int remotePort,
   }) async {
+    if (_busy) return;
     setState(() => _busy = true);
     try {
       await ref
@@ -80,9 +83,7 @@ class _PortForwardingScreenState extends ConsumerState<PortForwardingScreen> {
           );
       if (!mounted) return;
       showAppToast(context, '转发已更新');
-      await _refresh();
-    } catch (e) {
-      if (mounted) showAppToast(context, '更新失败：$e', destructive: true);
+      setState(() => _future = _load());
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -104,7 +105,7 @@ class _PortForwardingScreenState extends ConsumerState<PortForwardingScreen> {
 
   void _confirmDelete(TunnelSummary t) {
     final c = colorsOf(context);
-    showDialog<void>(
+    showCortermDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: c.surfaceElevated,
@@ -131,12 +132,20 @@ class _PortForwardingScreenState extends ConsumerState<PortForwardingScreen> {
   }
 
   void _copyUrl(TunnelSummary t) {
+    if (!t.hasAccessKey) {
+      showAppToast(
+        context,
+        '本机没有该规则的访问密钥，请在创建它的设备上复制链接，或重新创建规则。',
+        destructive: true,
+      );
+      return;
+    }
     Clipboard.setData(ClipboardData(text: t.url));
     showAppToast(context, '地址已复制');
   }
 
   void _showRuleSheet({TunnelSummary? existing}) {
-    showModalBottomSheet<void>(
+    showAdaptiveModalBottomSheet<void>(
       context: context,
       sheetAnimationStyle: const AnimationStyle(
         duration: Duration(milliseconds: 280),
@@ -146,10 +155,9 @@ class _PortForwardingScreenState extends ConsumerState<PortForwardingScreen> {
       backgroundColor: colorsOf(context).surface,
       builder: (_) => _RuleSheet(
         existing: existing,
-        onSubmit: (name, localPort, remoteAddress, remotePort) {
-          Navigator.of(context).pop();
+        onSubmit: (name, localPort, remoteAddress, remotePort) async {
           if (existing != null) {
-            _edit(
+            await _edit(
               existing,
               name: name,
               localPort: localPort,
@@ -157,7 +165,7 @@ class _PortForwardingScreenState extends ConsumerState<PortForwardingScreen> {
               remotePort: remotePort,
             );
           } else {
-            _create(
+            await _create(
               name: name,
               localPort: localPort,
               remoteAddress: remoteAddress,
@@ -176,7 +184,7 @@ class _PortForwardingScreenState extends ConsumerState<PortForwardingScreen> {
       child: Builder(
         builder: (context) {
           final c = colorsOf(context);
-          return Scaffold(
+          return AdaptivePageScaffold(
             backgroundColor: c.background,
             appBar: AppBar(
               title: const Text('端口转发'),
@@ -242,7 +250,7 @@ class _TunnelTile extends StatelessWidget {
       ),
       subtitle: Text(
         t.portOpen
-            ? '运行中 · 到期 ${_fmtExpire(t.expiresAtUtc)}'
+            ? '已启用 · 到期 ${_fmtExpire(t.expiresAtUtc)}'
             : '等待远端服务监听 ${t.remoteAddress}:${t.remotePort}',
         style: TextStyle(
           fontSize: 13,
@@ -295,7 +303,7 @@ class _RuleSheet extends StatefulWidget {
   const _RuleSheet({required this.onSubmit, this.existing});
 
   final TunnelSummary? existing;
-  final void Function(
+  final Future<void> Function(
     String? name,
     int localPort,
     String remoteAddress,
@@ -308,18 +316,37 @@ class _RuleSheet extends StatefulWidget {
 }
 
 class _RuleSheetState extends State<_RuleSheet> {
+  bool _busy = false;
+  String? _error;
+  bool _advanced = false;
+  bool _localPortEdited = false;
+
+  void _setTargetPort(String value) {
+    if (!_localPortEdited) _localPortController.text = value;
+    setState(() {});
+  }
+
   late final _nameController = TextEditingController(
     text: widget.existing?.name ?? '',
   );
   late final _localPortController = TextEditingController(
-    text: widget.existing == null ? '' : '${widget.existing!.localPort}',
+    text: widget.existing == null ? '3000' : '${widget.existing!.localPort}',
   );
   late final _remoteHostController = TextEditingController(
     text: widget.existing?.remoteAddress ?? '127.0.0.1',
   );
   late final _remotePortController = TextEditingController(
-    text: widget.existing == null ? '' : '${widget.existing!.remotePort}',
+    text: widget.existing == null ? '3000' : '${widget.existing!.remotePort}',
   );
+
+  @override
+  void initState() {
+    super.initState();
+    final existing = widget.existing;
+    _advanced = existing != null;
+    _localPortEdited =
+        existing != null && existing.localPort != existing.remotePort;
+  }
 
   @override
   void dispose() {
@@ -335,18 +362,36 @@ class _RuleSheetState extends State<_RuleSheet> {
     return port != null && port > 0 && port <= 65535;
   }
 
-  void _submit() {
-    if (!_validPort(_localPortController.text) ||
+  Future<void> _submit() async {
+    if (_busy ||
+        !_validPort(_localPortController.text) ||
         !_validPort(_remotePortController.text)) {
       return;
     }
     final remoteHost = _remoteHostController.text.trim();
-    widget.onSubmit(
-      _nameController.text.trim().isEmpty ? null : _nameController.text.trim(),
-      int.parse(_localPortController.text.trim()),
-      remoteHost.isEmpty ? '127.0.0.1' : remoteHost,
-      int.parse(_remotePortController.text.trim()),
-    );
+    if (remoteHost.isEmpty) {
+      setState(() => _error = '请输入目标地址');
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await widget.onSubmit(
+        _nameController.text.trim().isEmpty
+            ? 'HTTP ${_remotePortController.text.trim()}'
+            : _nameController.text.trim(),
+        int.parse(_localPortController.text.trim()),
+        remoteHost,
+        int.parse(_remotePortController.text.trim()),
+      );
+      if (mounted) Navigator.of(context).pop();
+    } catch (error) {
+      if (mounted) setState(() => _error = '$error');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   @override
@@ -355,66 +400,119 @@ class _RuleSheetState extends State<_RuleSheet> {
         _validPort(_localPortController.text) &&
         _validPort(_remotePortController.text);
     // Modal 路由在 Navigator 根上，显式包 Dark Theme 保证弹层对比度。
-    return Theme(
-      data: cortermToolTheme(context),
-      child: Builder(
-        builder: (context) {
-          return Padding(
-            padding: EdgeInsets.only(
-              left: 24,
-              right: 24,
-              top: 24,
-              bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SectionHeader(widget.existing == null ? '新建转发规则' : '编辑转发规则'),
-                _field(
-                  context,
-                  '名称（可选）',
-                  _nameController,
-                  keyboardType: TextInputType.text,
+    return PopScope(
+      canPop: !_busy,
+      child: Theme(
+        data: cortermToolTheme(context),
+        child: Builder(
+          builder: (context) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 24,
+                right: 24,
+                top: 24,
+                bottom:
+                    MediaQuery.of(context).viewInsets.bottom +
+                    MediaQuery.of(context).padding.bottom +
+                    24,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SectionHeader(
+                      widget.existing == null ? '新建转发规则' : '编辑转发规则',
+                    ),
+                    _field(
+                      context,
+                      '服务端口',
+                      _remotePortController,
+                      keyboardType: TextInputType.number,
+                      onChanged: _setTargetPort,
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        for (final port in const [3000, 5173, 8000, 8080])
+                          ChoiceChip(
+                            label: Text('$port'),
+                            selected: _remotePortController.text == '$port',
+                            onSelected: _busy
+                                ? null
+                                : (_) {
+                                    _remotePortController.text = '$port';
+                                    _setTargetPort('$port');
+                                  },
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      '访问这台电脑上运行的网页服务，默认转发到 127.0.0.1:3000。',
+                      style: TextStyle(
+                        fontSize: 13,
+                        height: 1.5,
+                        color: colorsOf(context).textSecondary,
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: _busy
+                          ? null
+                          : () => setState(() => _advanced = !_advanced),
+                      icon: Icon(
+                        _advanced ? Icons.expand_less : Icons.expand_more,
+                      ),
+                      label: Text(_advanced ? '收起高级设置' : '高级设置（可选）'),
+                    ),
+                    if (_advanced) ...[
+                      _field(
+                        context,
+                        '名称（自动生成）',
+                        _nameController,
+                        keyboardType: TextInputType.text,
+                      ),
+                      _field(
+                        context,
+                        '入口端口标识（默认同服务端口）',
+                        _localPortController,
+                        keyboardType: TextInputType.number,
+                        onChanged: (_) {
+                          _localPortEdited = true;
+                          setState(() {});
+                        },
+                      ),
+                      _field(
+                        context,
+                        '目标地址',
+                        _remoteHostController,
+                        keyboardType: TextInputType.url,
+                      ),
+                    ],
+                    if (_error != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 12),
+                        child: Text(
+                          _error!,
+                          style: TextStyle(color: colorsOf(context).danger),
+                        ),
+                      ),
+                    const SizedBox(height: 24),
+                    PrimaryButton(
+                      label: _busy
+                          ? '保存中…'
+                          : widget.existing == null
+                          ? '创建并启动'
+                          : '保存',
+                      onPressed: canSubmit && !_busy ? _submit : null,
+                    ),
+                  ],
                 ),
-                _field(
-                  context,
-                  '本地端口',
-                  _localPortController,
-                  keyboardType: TextInputType.number,
-                  onChanged: (_) => setState(() {}),
-                ),
-                _field(
-                  context,
-                  '远端地址',
-                  _remoteHostController,
-                  keyboardType: TextInputType.url,
-                ),
-                _field(
-                  context,
-                  '远端端口',
-                  _remotePortController,
-                  keyboardType: TextInputType.number,
-                  onChanged: (v) {
-                    setState(() {});
-                    // 输入远端端口后，本地端口默认同值，用户可修改。
-                    final remote = int.tryParse(v);
-                    if (remote != null &&
-                        remote > 0 &&
-                        _localPortController.text.isEmpty) {
-                      _localPortController.text = '$remote';
-                    }
-                  },
-                ),
-                const SizedBox(height: 24),
-                PrimaryButton(
-                  label: widget.existing == null ? '创建并启动' : '保存',
-                  onPressed: canSubmit ? _submit : null,
-                ),
-              ],
-            ),
-          );
-        },
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -436,6 +534,7 @@ class _RuleSheetState extends State<_RuleSheet> {
           const SizedBox(height: 8),
           TextField(
             controller: controller,
+            enabled: !_busy,
             keyboardType: keyboardType,
             onChanged: onChanged,
             style: TextStyle(color: c.textPrimary),

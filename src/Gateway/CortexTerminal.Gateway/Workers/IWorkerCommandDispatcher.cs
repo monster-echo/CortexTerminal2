@@ -20,6 +20,10 @@ public interface IWorkerCommandDispatcher
     Task<FileOpResult> MkdirAsync(string workerConnectionId, string rootDir, string relativePath, CancellationToken cancellationToken);
     Task<FileOpResult> WriteTextFileAsync(string workerConnectionId, string rootDir, string relativePath, string content, CancellationToken cancellationToken);
     Task<FileOpResult> RenameAsync(string workerConnectionId, string rootDir, string relativePath, string newName, CancellationToken cancellationToken);
+    Task<FileOpResult> TrashAsync(string workerConnectionId, string rootDir, string relativePath, string trashId, CancellationToken cancellationToken)
+        => throw new NotSupportedException("Trash RPC is not implemented by this dispatcher");
+    Task<FileOpResult> RestoreTrashAsync(string workerConnectionId, string rootDir, string trashId, CancellationToken cancellationToken)
+        => throw new NotSupportedException("RestoreTrash RPC is not implemented by this dispatcher");
     Task<FileOpResult> DeleteAsync(string workerConnectionId, string rootDir, string relativePath, CancellationToken cancellationToken);
     Task<FileOperationAck> PrepareFileReceiveAsync(string workerConnectionId, PrepareFileReceiveCommand command, CancellationToken cancellationToken);
     Task<PrepareFileSendAck> PrepareFileSendAsync(string workerConnectionId, PrepareFileSendCommand command, CancellationToken cancellationToken);

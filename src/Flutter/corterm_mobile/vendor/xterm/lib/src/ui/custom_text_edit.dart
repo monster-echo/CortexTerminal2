@@ -113,6 +113,7 @@ class CustomTextEditState extends State<CustomTextEdit> with TextInputClient {
 
   void setEditingState(TextEditingValue value) {
     _currentEditingState = value;
+    if (value.composing.isCollapsed) _committedEditingState = value;
     _connection?.setEditingState(value);
   }
 
@@ -135,7 +136,14 @@ class CustomTextEditState extends State<CustomTextEdit> with TextInputClient {
 
   KeyEventResult _onKeyEvent(FocusNode focusNode, KeyEvent event) {
     if (_currentEditingState.composing.isCollapsed) {
-      return widget.onKeyEvent(focusNode, event);
+      final result = widget.onKeyEvent(focusNode, event);
+      if (result == KeyEventResult.handled &&
+          event is KeyDownEvent &&
+          (event.logicalKey == LogicalKeyboardKey.enter ||
+              event.logicalKey == LogicalKeyboardKey.numpadEnter)) {
+        setEditingState(_initEditingState);
+      }
+      return result;
     }
 
     return KeyEventResult.skipRemainingHandlers;
@@ -174,7 +182,7 @@ class CustomTextEditState extends State<CustomTextEdit> with TextInputClient {
 
       // setEditableRect(Rect.zero, Rect.zero);
 
-      _connection!.setEditingState(_initEditingState);
+      setEditingState(_initEditingState);
     }
   }
 
@@ -196,6 +204,7 @@ class CustomTextEditState extends State<CustomTextEdit> with TextInputClient {
         );
 
   late var _currentEditingState = _initEditingState.copyWith();
+  late var _committedEditingState = _initEditingState.copyWith();
 
   @override
   TextEditingValue? get currentTextEditingValue {
@@ -210,31 +219,56 @@ class CustomTextEditState extends State<CustomTextEdit> with TextInputClient {
   @override
   void updateEditingValue(TextEditingValue value) {
     _currentEditingState = value;
-
-    // Get input after composing is done
-    if (!_currentEditingState.composing.isCollapsed) {
-      final text = _currentEditingState.text;
-      final composingText = _currentEditingState.composing.textInside(text);
-      widget.onComposing(composingText);
+    if (!value.composing.isCollapsed) {
+      widget.onComposing(value.composing.textInside(value.text));
       return;
     }
-
     widget.onComposing(null);
 
-    if (_currentEditingState.text.length < _initEditingState.text.length) {
-      widget.onDelete();
-    } else {
-      final textDelta = _currentEditingState.text.substring(
-        _initEditingState.text.length,
-      );
-
-      widget.onInsert(textDelta);
+    // Editing values are cumulative. Resetting the platform buffer after every
+    // key races queued UIKit updates and can re-send entire command prefixes.
+    // Keep the committed value until a submit/focus boundary and emit only edits.
+    String logicalText(String text) {
+      final prefix = _initEditingState.text;
+      return text.startsWith(prefix) ? text.substring(prefix.length) : text;
     }
 
-    // Reset editing state if composing is done
-    if (_currentEditingState.composing.isCollapsed &&
-        _currentEditingState.text != _initEditingState.text) {
-      _connection!.setEditingState(_initEditingState);
+    final before = logicalText(_committedEditingState.text).characters.toList();
+    final after = logicalText(value.text).characters.toList();
+    if (widget.deleteDetection &&
+        before.isEmpty &&
+        value.text.length < _initEditingState.text.length) {
+      widget.onDelete();
+      setEditingState(_initEditingState);
+      return;
+    }
+    var start = 0;
+    while (start < before.length &&
+        start < after.length &&
+        before[start] == after[start]) {
+      start++;
+    }
+    var suffix = 0;
+    while (suffix < before.length - start &&
+        suffix < after.length - start &&
+        before[before.length - 1 - suffix] ==
+            after[after.length - 1 - suffix]) {
+      suffix++;
+    }
+    final removed = before.length - start - suffix;
+    final inserted = after.sublist(start, after.length - suffix).join();
+    if (removed > 0 || inserted.isNotEmpty) {
+      if (suffix > 0) widget.onInsert('\x1b[${suffix}D');
+      for (var index = 0; index < removed; index++) {
+        widget.onDelete();
+      }
+      if (inserted.isNotEmpty) widget.onInsert(inserted);
+      if (suffix > 0) widget.onInsert('\x1b[${suffix}C');
+    }
+    _committedEditingState = value;
+    if (widget.deleteDetection &&
+        value.text.length < _initEditingState.text.length) {
+      setEditingState(_initEditingState);
     }
   }
 
@@ -242,6 +276,9 @@ class CustomTextEditState extends State<CustomTextEdit> with TextInputClient {
   void performAction(TextInputAction action) {
     // print('performAction $action');
     widget.onAction(action);
+    if (action == TextInputAction.done || action == TextInputAction.newline) {
+      setEditingState(_initEditingState);
+    }
   }
 
   @override

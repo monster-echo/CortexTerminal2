@@ -66,6 +66,10 @@ public sealed class WorkerGatewayClient : IWorkerGatewayClient
     public IDisposable OnRename(Func<string, string?, string, Task<FileOpResult>> handler)
         => _connection.On<string, string?, string, FileOpResult>("Rename", handler);
 
+    public IDisposable OnTrash(Func<string, string?, string, Task<FileOpResult>> handler)
+        => _connection.On<string, string?, string, FileOpResult>("Trash", handler);
+    public IDisposable OnRestoreTrash(Func<string, string, Task<FileOpResult>> handler)
+        => _connection.On<string, string, FileOpResult>("RestoreTrash", handler);
     public IDisposable OnDelete(Func<string, string?, Task<FileOpResult>> handler)
         => _connection.On<string, string?, FileOpResult>("Delete", handler);
 

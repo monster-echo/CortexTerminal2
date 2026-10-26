@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
 import 'package:flutter/material.dart';
 
 /// Corterm 设计系统 token（design/07-design-system.md）。
@@ -179,6 +180,7 @@ class CortermPageTransitionsBuilder extends PageTransitionsBuilder {
     Animation<double> secondaryAnimation,
     Widget child,
   ) {
+    if (MediaQuery.disableAnimationsOf(context)) return child;
     final direction = Directionality.of(context) == TextDirection.rtl
         ? -1.0
         : 1.0;
@@ -196,7 +198,7 @@ class CortermPageTransitionsBuilder extends PageTransitionsBuilder {
 const cortermPageTransitions = PageTransitionsTheme(
   builders: {
     TargetPlatform.android: CortermPageTransitionsBuilder(),
-    TargetPlatform.iOS: CortermPageTransitionsBuilder(),
+    TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
     TargetPlatform.linux: CortermPageTransitionsBuilder(),
     TargetPlatform.macOS: CortermPageTransitionsBuilder(),
     TargetPlatform.windows: CortermPageTransitionsBuilder(),

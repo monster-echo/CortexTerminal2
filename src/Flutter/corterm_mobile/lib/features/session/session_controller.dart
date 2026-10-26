@@ -288,29 +288,39 @@ class SessionController extends StateNotifier<SessionState> {
   /// Fork Session：以运行中会话为模板，在同一 worker 上以其实时 cwd（OSC 7）
   /// 新建 shell（CreateSessionRequest.Cwd，PTY 直接以该目录启动）。
   /// 新会话空屏、无历史；成功后自动 open 并切换。
-  /// cwd / worker 缺失时直接抛出——不允许静默回退，UI 负责把错误展示给用户。
+  /// Prefer live cwd; the caller may provide the known workspace root when
+  /// the shell does not publish OSC 7. The UI explains that fallback.
   Future<String> forkSession(
     String sessionId, {
     required String sourceName,
+    String? sourceWorkerId,
+    String? workspaceId,
+    String? fallbackCwd,
   }) async {
     final entry = state.entries[sessionId];
     if (entry == null) {
       throw StateError('session $sessionId is not open');
     }
-    final workerId = entry.workerId;
+    final workerId = entry.workerId?.isNotEmpty == true
+        ? entry.workerId
+        : sourceWorkerId;
     if (workerId == null || workerId.isEmpty) {
       throw StateError('无法 Fork：会话尚未绑定电脑（workerId 缺失）');
     }
-    final cwd = entry.remoteCwd;
-    if (cwd == null || cwd.isEmpty) {
+    final cwd = entry.remoteCwd?.isNotEmpty == true
+        ? entry.remoteCwd
+        : fallbackCwd;
+    if ((cwd == null || cwd.isEmpty) &&
+        (workspaceId == null || workspaceId.isEmpty)) {
       throw StateError('无法 Fork：当前会话未上报工作目录（OSC 7），无法确定起始目录');
     }
     final base = sourceName.trim().isEmpty ? sessionId : sourceName.trim();
     final created = await _repo.create(
-      columns: entry.terminal.viewWidth,
-      rows: entry.terminal.viewHeight,
+      columns: entry.terminal.viewWidth > 0 ? entry.terminal.viewWidth : 80,
+      rows: entry.terminal.viewHeight > 0 ? entry.terminal.viewHeight : 24,
       workerId: workerId,
       cwd: cwd,
+      workspaceId: workspaceId?.isNotEmpty == true ? workspaceId : null,
       name: '$base fork',
     );
     await open(created.sessionId, workerId: workerId);
@@ -486,16 +496,28 @@ class SessionController extends StateNotifier<SessionState> {
     _reconnectAttempts.remove(sessionId);
     _lastServerActivityAt[sessionId] = clock.now();
 
-    socket.frames.listen(
-      (frame) {
-        // delta 完成帧里要持久化游标（异步），吞掉 future 由内部兜底。
-        unawaited(_handleFrame(sessionId, frame));
-      },
-      onError: (Object e) {
-        debugPrint('ws($sessionId) stream error: $e');
-      },
-      onDone: () => _onSocketDone(sessionId, socket),
-    );
+    // Replay state changes include asynchronous cursor persistence. Process
+    // frames serially so replay completion/live cannot overtake replay start.
+    socket.frames
+        .asyncMap((frame) async {
+          if (!mounted || !identical(_sockets[sessionId], socket)) return;
+          await _handleFrame(sessionId, frame);
+        })
+        .listen(
+          (_) {},
+          onError: (Object e) {
+            if (!mounted || !identical(_sockets[sessionId], socket)) return;
+            debugPrint(
+              'ws($sessionId) frame processing failed: ${e.runtimeType}',
+            );
+            entry.errorMessage = e.toString();
+            _sockets.remove(sessionId)?.forceClose();
+            entry.connState = TerminalConnState.reconnecting;
+            state = state.copyWith(entries: Map.of(state.entries));
+            _scheduleReconnect(sessionId, 0);
+          },
+          onDone: () => _onSocketDone(sessionId, socket),
+        );
   }
 
   Future<void> _handleFrame(String sessionId, ServerFrame frame) async {

@@ -13,40 +13,48 @@ import 'api_exception.dart';
 /// - 401 时先尝试 `POST /api/auth/refresh` 续期后重放请求，失败则抛 [UnauthorizedException]
 class ApiClient {
   ApiClient({required this.baseUrl, required this.tokenStore, Dio? dio})
-      : _dio = dio ??
-            Dio(BaseOptions(
+    : _dio =
+          dio ??
+          Dio(
+            BaseOptions(
               baseUrl: baseUrl,
               connectTimeout: const Duration(seconds: 15),
               receiveTimeout: const Duration(seconds: 30),
-            )) {
-    _dio.interceptors.add(InterceptorsWrapper(onRequest: (options, handler) {
-      final token = tokenStore.token;
-      if (token != null && token.isNotEmpty) {
-        options.headers['Authorization'] = 'Bearer $token';
-      }
-      handler.next(options);
-    }, onError: (error, handler) async {
-      final response = error.response;
-      if (response?.statusCode != 401 || _isRefreshCall(response)) {
-        handler.next(error);
-        return;
-      }
-      try {
-        await _refreshToken();
-      } on UnauthorizedException {
-        handler.next(error);
-        return;
-      }
-      // 续期成功：重放原请求（替换新的 Bearer）。
-      final options = error.requestOptions;
-      options.headers['Authorization'] = 'Bearer ${tokenStore.token}';
-      try {
-        final replay = await _dio.fetch<dynamic>(options);
-        handler.resolve(replay);
-      } on DioException catch (e) {
-        handler.next(e);
-      }
-    }));
+            ),
+          ) {
+    _dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          final token = tokenStore.token;
+          if (token != null && token.isNotEmpty) {
+            options.headers['Authorization'] = 'Bearer $token';
+          }
+          handler.next(options);
+        },
+        onError: (error, handler) async {
+          final response = error.response;
+          if (response?.statusCode != 401 || _isRefreshCall(response)) {
+            handler.next(error);
+            return;
+          }
+          try {
+            await _refreshToken();
+          } on UnauthorizedException {
+            handler.next(error);
+            return;
+          }
+          // 续期成功：重放原请求（替换新的 Bearer）。
+          final options = error.requestOptions;
+          options.headers['Authorization'] = 'Bearer ${tokenStore.token}';
+          try {
+            final replay = await _dio.fetch<dynamic>(options);
+            handler.resolve(replay);
+          } on DioException catch (e) {
+            handler.next(e);
+          }
+        },
+      ),
+    );
   }
 
   static bool _isRefreshCall(Response<dynamic>? response) =>
@@ -67,7 +75,9 @@ class ApiClient {
     try {
       final res = await _dio.post<Map<String, dynamic>>(
         '/api/auth/refresh',
-        options: Options(headers: {'Authorization': 'Bearer ${tokenStore.token}'}),
+        options: Options(
+          headers: {'Authorization': 'Bearer ${tokenStore.token}'},
+        ),
       );
       final token = res.data?['accessToken'] as String?;
       if (token == null || token.isEmpty) {
@@ -97,22 +107,45 @@ class ApiClient {
     throw _throwBadJson('GET', path);
   }
 
-  Future<Map<String, dynamic>> getMap(String path, {Map<String, dynamic>? query}) async {
+  Future<Map<String, dynamic>> getMap(
+    String path, {
+    Map<String, dynamic>? query,
+  }) async {
     final data = (await _dio.get<dynamic>(path, queryParameters: query)).data;
     if (data is Map<String, dynamic>) return data;
     throw _throwBadJson('GET', path);
   }
 
-  Future<Map<String, dynamic>> postMap(String path, Object? body) async {
-    final data = (await _dio.post<dynamic>(path, data: body)).data;
+  Future<Map<String, dynamic>> postMap(
+    String path,
+    Object? body, {
+    CancelToken? cancelToken,
+  }) async {
+    final data = (await _dio.post<dynamic>(
+      path,
+      data: body,
+      cancelToken: cancelToken,
+    )).data;
     if (data is Map<String, dynamic>) return data;
     throw _throwBadJson('POST', path);
   }
 
+  /// Mutations may correctly return an empty 200/204 response.
+  Future<void> postVoid(
+    String path,
+    Object? body, {
+    CancelToken? cancelToken,
+  }) async {
+    await _dio.post<dynamic>(path, data: body, cancelToken: cancelToken);
+  }
+
   /// POST 纯文本 body（如头像 base64，MAUI 同款 text/plain）。
   Future<Map<String, dynamic>> postText(String path, String body) async {
-    final data = (await _dio.post<dynamic>(path, data: body,
-        options: Options(headers: {'Content-Type': 'text/plain'}))).data;
+    final data = (await _dio.post<dynamic>(
+      path,
+      data: body,
+      options: Options(headers: {'Content-Type': 'text/plain'}),
+    )).data;
     if (data is Map<String, dynamic>) return data;
     throw _throwBadJson('POST', path);
   }
@@ -139,7 +172,10 @@ class ApiClient {
     final data = e.response?.data;
     String? serverMessage;
     if (data is Map<String, dynamic>) {
-      serverMessage = data['error'] as String? ?? data['detail'] as String? ?? data['message'] as String?;
+      serverMessage =
+          data['error'] as String? ??
+          data['detail'] as String? ??
+          data['message'] as String?;
       final retryAfter = data['retryAfter'];
       if (code == 429 && retryAfter is num) {
         throw RateLimitedException(retryAfter.toInt());
@@ -149,9 +185,7 @@ class ApiClient {
     // （网关未配置 CORS 允许当前来源），把根因讲清楚而不是只给 "Failed to fetch"。
     if (code == null) {
       final raw = e.message ?? e.error?.toString() ?? 'unknown';
-      serverMessage = kIsWeb
-          ? '请求未到达网关（浏览器跨域拦截或网络不可达）：$raw'
-          : '无法连接网关：$raw';
+      serverMessage = kIsWeb ? '请求未到达网关（浏览器跨域拦截或网络不可达）：$raw' : '无法连接网关：$raw';
     }
     throw ApiException(code ?? 0, serverMessage: serverMessage);
   }

@@ -1,3 +1,6 @@
+import '../../shared/layout/adaptive_page_scaffold.dart';
+import 'adaptive_workspace_shell.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -27,52 +30,27 @@ class HomeShell extends ConsumerStatefulWidget {
 }
 
 class _HomeShellState extends ConsumerState<HomeShell> {
-  final _scaffoldKey = GlobalKey<ScaffoldState>();
-
   @override
   Widget build(BuildContext context) {
     final c = colorsOf(context);
     final l10n = AppLocalizations.of(context)!;
-    return Scaffold(
-      key: _scaffoldKey,
-      drawer: const CortermSidebar(),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(4, 4, 4, 0),
-              child: Row(
-                children: [
-                  IconButton(
-                    tooltip: l10n.workspacesSectionTitle,
-                    icon: Icon(Icons.menu, color: c.textPrimary),
-                    onPressed: () => _scaffoldKey.currentState?.openDrawer(),
-                  ),
-                  Expanded(
-                    child: Text(
-                      l10n.workspacesSectionTitle,
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: c.textPrimary,
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: l10n.workspaceCreateTitle,
-                    icon: Icon(
-                      Icons.create_new_folder_outlined,
-                      color: c.textPrimary,
-                    ),
-                    onPressed: () => context.push('/workspaces/new'),
-                  ),
-                ],
-              ),
-            ),
-            const Expanded(child: _WorkspaceTab()),
-          ],
-        ),
+    final expanded = WorkspacePaneScope.isAvailable(context);
+    return AdaptivePageScaffold(
+      drawer: expanded ? null : const CortermSidebar(),
+      appBar: AppBar(
+        automaticallyImplyLeading: !expanded,
+        backgroundColor: c.background,
+        surfaceTintColor: Colors.transparent,
+        title: Text(l10n.workspacesSectionTitle),
+        actions: [
+          IconButton(
+            tooltip: l10n.workspaceCreateTitle,
+            onPressed: () => context.push('/workspaces/new'),
+            icon: Icon(Icons.add, size: 22, color: c.textPrimary),
+          ),
+        ],
       ),
+      body: const _WorkspaceTab(),
     );
   }
 }
@@ -101,16 +79,38 @@ class _WorkspaceTabState extends ConsumerState<_WorkspaceTab> {
     final l10n = AppLocalizations.of(context)!;
     final workspaces = ref.watch(workspacesProvider);
     final workers = ref.watch(workersProvider);
+    final sessions = ref.watch(sessionsProvider);
+    final recent =
+        (sessions.valueOrNull ?? const <SessionSummary>[])
+            .where(
+              (session) =>
+                  session.status.isAlive &&
+                  (workers.valueOrNull ?? const <WorkerSummary>[]).any(
+                    (worker) =>
+                        worker.workerId == session.workerId && worker.isOnline,
+                  ),
+            )
+            .toList()
+          ..sort((a, b) => b.lastActivityAt.compareTo(a.lastActivityAt));
 
     return workspaces.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
-          child: Text(
-            '$e',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: c.danger, fontSize: 14),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '$e',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: c.danger, fontSize: 14),
+              ),
+              TextButton(
+                onPressed: () => ref.invalidate(workspacesProvider),
+                child: Text(l10n.retry),
+              ),
+            ],
           ),
         ),
       ),
@@ -136,21 +136,49 @@ class _WorkspaceTabState extends ConsumerState<_WorkspaceTab> {
             if (refreshed.isEmpty) return;
           },
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
             physics: const AlwaysScrollableScrollPhysics(),
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(0, 0, 0, 14),
-                child: Text(
-                  l10n.workspaceSubtitle,
-                  style: TextStyle(fontSize: 14, color: c.textSecondary),
+              if (_query.isEmpty && recent.isNotEmpty) ...[
+                SectionHeader(
+                  Localizations.localeOf(context).languageCode == 'zh'
+                      ? '继续会话'
+                      : 'Continue session',
                 ),
+                for (final session in recent.take(3))
+                  ListRow(
+                    title: session.displayName,
+                    subtitle:
+                        '${session.workerName ?? session.workerId} · ${relativeTime(session.lastActivityAt, languageCode: Localizations.localeOf(context).languageCode)}',
+                    leading: const Icon(Icons.terminal_outlined),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => context.push('/sessions/${session.sessionId}'),
+                  ),
+                const SizedBox(height: 16),
+              ],
+              if (sessions.hasError || workers.hasError)
+                TextButton(
+                  onPressed: () {
+                    ref.invalidate(sessionsProvider);
+                    ref.invalidate(workersProvider);
+                  },
+                  child: Text(
+                    Localizations.localeOf(context).languageCode == 'zh'
+                        ? '部分连接信息加载失败，点击重试'
+                        : 'Some connection details are unavailable. Retry',
+                  ),
+                ),
+              Text(
+                l10n.workspaceSubtitle,
+                style: TextStyle(fontSize: 14, color: c.textSecondary),
               ),
+              const SizedBox(height: 14),
               TextField(
                 controller: _searchController,
                 onChanged: (value) => setState(() => _query = value),
                 decoration: InputDecoration(
                   hintText: l10n.workspaceSearch,
+                  isDense: true,
                   prefixIcon: const Icon(Icons.search_rounded, size: 20),
                   suffixIcon: _query.isEmpty
                       ? null
@@ -181,14 +209,19 @@ class _WorkspaceTabState extends ConsumerState<_WorkspaceTab> {
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(2, 18, 2, 8),
+                padding: const EdgeInsets.symmetric(vertical: 14),
                 child: Row(
                   children: [
-                    Text(
-                      l10n.workspaceAll,
-                      style: TextStyle(fontSize: 13, color: c.textSecondary),
+                    Expanded(
+                      child: Text(
+                        l10n.workspaceAll,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: c.textSecondary,
+                        ),
+                      ),
                     ),
-                    const Spacer(),
                     Text(
                       '${filtered.length}',
                       style: TextStyle(fontSize: 13, color: c.textSecondary),
@@ -215,6 +248,22 @@ class _WorkspaceTabState extends ConsumerState<_WorkspaceTab> {
                         EmptyState(
                           icon: Icons.folder_open_outlined,
                           message: l10n.workspaceEmpty,
+                        ),
+                      if (list.isEmpty)
+                        TextButton.icon(
+                          icon: const Icon(Icons.add),
+                          onPressed: workers.hasValue
+                              ? () => context.push(
+                                  workers.value!.isEmpty
+                                      ? '/computers/new'
+                                      : '/workspaces/new',
+                                )
+                              : null,
+                          label: Text(
+                            workers.valueOrNull?.isEmpty == true
+                                ? l10n.connectComputer
+                                : l10n.workspaceCreateTitle,
+                          ),
                         ),
                       if (list.isNotEmpty && filtered.isEmpty)
                         EmptyState(
@@ -270,22 +319,20 @@ class _WorkspaceRow extends ConsumerWidget {
         ref.invalidate(workspacesProvider);
         ref.invalidate(sessionsProvider);
       },
+      margin: const EdgeInsets.only(bottom: 12),
       child: Material(
         color: c.surfaceElevated,
-        borderRadius: BorderRadius.circular(12),
-        child: InkWell(
+        shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: c.divider),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
           onTap: () => context.push('/workspaces/${workspace.workspaceId}'),
-          child: Container(
-            height: 112,
-            margin: const EdgeInsets.only(bottom: 10),
+          child: Padding(
             padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: c.divider),
-            ),
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
@@ -307,50 +354,54 @@ class _WorkspaceRow extends ConsumerWidget {
                   ],
                 ),
                 const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(left: 34),
-                      child: Icon(
+                Padding(
+                  padding: const EdgeInsets.only(left: 34),
+                  child: Row(
+                    children: [
+                      Icon(
                         Icons.circle,
                         size: 7,
                         color: online ? c.success : c.textSecondary,
                       ),
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        '$workerName · ${online ? l10n.workerOnline : l10n.workerOffline}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(fontSize: 13, color: c.textSecondary),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          '$workerName · ${online ? l10n.workerOnline : l10n.workerOffline}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: c.textSecondary,
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.only(left: 34),
+                const SizedBox(height: 8),
+                Padding(
+                  padding: const EdgeInsets.only(left: 34),
+                  child: Row(
+                    children: [
+                      Expanded(
                         child: Text(
                           workspace.rootPath ?? '',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: 11,
-                            color: c.textSecondary,
                             fontFamily: 'monospace',
+                            color: c.textSecondary,
                           ),
                         ),
                       ),
-                    ),
-                    Text(
-                      l10n.sessionCount(sessions.length),
-                      style: TextStyle(fontSize: 11, color: c.textSecondary),
-                    ),
-                  ],
+                      const SizedBox(width: 8),
+                      Text(
+                        l10n.sessionCount(sessions.length),
+                        style: TextStyle(fontSize: 11, color: c.textSecondary),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -459,7 +510,7 @@ class _CortermSidebarState extends ConsumerState<CortermSidebar> {
                   ),
                   const SizedBox(width: 10),
                   Text(
-                    'Corterm',
+                    l10n.appName,
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -591,30 +642,6 @@ class _CortermSidebarState extends ConsumerState<CortermSidebar> {
               ),
             ),
             Divider(color: c.divider),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-              // design/01 §4：侧边栏底部「+ 新建」直接进入新建 Session（与头像同一区域）。
-              child: SizedBox(
-                height: 36,
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(10),
-                  onTap: () {
-                    Navigator.of(context).pop();
-                    context.push('/sessions/new');
-                  },
-                  child: Row(
-                    children: [
-                      Icon(Icons.add, size: 20, color: c.textPrimary),
-                      const SizedBox(width: 10),
-                      Text(
-                        l10n.newSession,
-                        style: TextStyle(fontSize: 14, color: c.textPrimary),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
               child: Consumer(
@@ -762,72 +789,73 @@ class _SidebarWorkspace extends ConsumerWidget {
           child: expanded
               ? Padding(
                   padding: const EdgeInsets.only(left: 20),
-                  child: sessions.isEmpty
-                      ? Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 6,
-                          ),
-                          child: Text(
-                            l10n.noSessions,
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: c.textSecondary,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      TextButton.icon(
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                          context.push(
+                            '/sessions/new?workspaceId=${Uri.encodeComponent(workspace.workspaceId)}',
+                          );
+                        },
+                        icon: const Icon(Icons.add),
+                        label: Text(l10n.newSession),
+                      ),
+                      if (sessions.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.all(8),
+                          child: Text(l10n.noSessions),
+                        ),
+                      for (final s in sessions)
+                        InkWell(
+                          onTap: () => onOpenSession(s.sessionId),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 7,
                             ),
-                          ),
-                        )
-                      : Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            for (final s in sessions)
-                              InkWell(
-                                onTap: () => onOpenSession(s.sessionId),
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 7,
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        s.status.isRunning
-                                            ? Icons.circle
-                                            : Icons.circle_outlined,
-                                        size: 8,
-                                        color: s.status.isRunning
-                                            ? c.success
-                                            : c.textSecondary,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: Text(
-                                          _sessionTitle(s),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            color: c.textSecondary,
-                                          ),
-                                        ),
-                                      ),
-                                      Text(
-                                        relativeTime(
-                                          s.lastActivityAt,
-                                          languageCode: Localizations.localeOf(
-                                            context,
-                                          ).languageCode,
-                                        ),
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          color: c.textSecondary,
-                                        ),
-                                      ),
-                                    ],
+                            child: Row(
+                              children: [
+                                Icon(
+                                  s.status.isRunning
+                                      ? Icons.circle
+                                      : Icons.circle_outlined,
+                                  size: 8,
+                                  color: s.status.isRunning
+                                      ? c.success
+                                      : c.textSecondary,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    _sessionTitle(s),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: c.textSecondary,
+                                    ),
                                   ),
                                 ),
-                              ),
-                          ],
+                                Text(
+                                  relativeTime(
+                                    s.lastActivityAt,
+                                    languageCode: Localizations.localeOf(
+                                      context,
+                                    ).languageCode,
+                                  ),
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: c.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
+                    ],
+                  ),
                 )
               : const SizedBox(width: double.infinity),
         ),

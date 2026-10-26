@@ -1,3 +1,5 @@
+import '../../../shared/layout/adaptive_sheet.dart';
+import '../../../shared/layout/adaptive_page_scaffold.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -146,7 +148,7 @@ class _FolderPickerScreenState extends ConsumerState<FolderPickerScreen> {
   Future<void> _jumpPath() async {
     final l10n = AppLocalizations.of(context)!;
     final input = TextEditingController(text: _absolute);
-    final selected = await showDialog<String>(
+    final selected = await showCortermDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(l10n.folderGo),
@@ -182,7 +184,7 @@ class _FolderPickerScreenState extends ConsumerState<FolderPickerScreen> {
 
   Future<void> _createDirectory() async {
     final l10n = AppLocalizations.of(context)!;
-    final name = await showDialog<String>(
+    final name = await showCortermDialog<String>(
       context: context,
       builder: (dialogContext) {
         final controller = TextEditingController();
@@ -311,7 +313,7 @@ class _FolderPickerScreenState extends ConsumerState<FolderPickerScreen> {
         .where((w) => w.workerId == widget.workerId)
         .firstOrNull;
 
-    return Scaffold(
+    return AdaptivePageScaffold(
       backgroundColor: colors.background,
       appBar: AppBar(
         backgroundColor: colors.background,

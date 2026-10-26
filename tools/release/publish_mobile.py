@@ -61,8 +61,8 @@ def publish_android(aab, version):
         media_body=MediaFileUpload(aab, mimetype='application/octet-stream', resumable=True)).execute(num_retries=3)
     code = str(bundle['versionCode'])
     notes = [
-        {'language': 'zh-CN', 'text': '终端启动迟缓时提供提醒、诊断和权限指引；重新连接保留原会话，改进连接状态与稳定性。'},
-        {'language': 'en-US', 'text': 'Added terminal startup warnings, diagnostics and permission guidance. Reconnect preserves the existing session. Improved connection status and stability.'}]
+        {'language': 'zh-CN', 'text': '优化登录、工作区、会话和文件浏览体验；改进连接恢复与文件传输稳定性；完善会员权益、购买恢复和订阅管理界面。'},
+        {'language': 'en-US', 'text': 'Improved sign-in, workspace, session and file browsing. Enhanced connection recovery and file transfer reliability. Refined membership benefits, purchase restoration and subscription management.'}]
     api.edits().tracks().update(packageName=package, editId=edit, track='internal', body={
         'track': 'internal', 'releases': [{'name': version, 'versionCodes': [code],
                                          'status': 'completed', 'releaseNotes': notes}]}).execute()

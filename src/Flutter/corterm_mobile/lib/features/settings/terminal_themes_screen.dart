@@ -1,16 +1,20 @@
+import '../../shared/layout/adaptive_page_scaffold.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../shared/widgets/sheets_and_dialogs.dart';
+import '../../shared/widgets/states.dart';
 
 import '../../core/models/terminal_color_scheme.dart';
 import '../../core/storage/app_preferences.dart';
 import '../../app/theme/corterm_theme.dart';
 import '../../l10n/app_localizations.dart';
 import '../../shared/widgets/list_group.dart';
-import '../../shared/widgets/sheets_and_dialogs.dart';
 
-/// 终端主题管理页（外观入口）：内置预设 + 自定义主题，点选即生效。
+/// 终端主题管理页（外观入口）：跟随应用 + 内置预设，点选即生效。
 class TerminalThemesScreen extends ConsumerWidget {
   const TerminalThemesScreen({super.key});
 
@@ -18,9 +22,10 @@ class TerminalThemesScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final selection = ref.watch(terminalThemeSelectionProvider);
-    final customs = ref.watch(customTerminalThemesProvider);
+    final custom = ref.watch(customTerminalThemesProvider);
+    final zh = Localizations.localeOf(context).languageCode == 'zh';
 
-    Widget themeTile(TerminalColorScheme scheme, {bool custom = false}) {
+    Widget themeTile(TerminalColorScheme scheme) {
       final selected = selection == scheme.id;
       final c = colorsOf(context);
       return Container(
@@ -41,28 +46,62 @@ class TerminalThemesScreen extends ConsumerWidget {
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (custom) ...[
-                ShadIconButton.ghost(
-                  icon: const Icon(LucideIcons.squarePen, size: 16),
+              if (selected) Icon(LucideIcons.check, size: 18, color: c.accent),
+              if (custom.any((item) => item.id == scheme.id)) ...[
+                IconButton(
+                  tooltip: zh ? '编辑主题' : 'Edit theme',
+                  icon: const Icon(Icons.edit_outlined),
                   onPressed: () => context.push(
                     '/settings/terminal-themes/edit',
                     extra: scheme,
                   ),
                 ),
-                ShadIconButton.ghost(
-                  icon: Icon(LucideIcons.trash, size: 16, color: c.danger),
-                  onPressed: () => _confirmDelete(context, ref, scheme),
+                IconButton(
+                  tooltip: zh ? '删除主题' : 'Delete theme',
+                  icon: const Icon(Icons.delete_outline),
+                  onPressed: () async {
+                    final confirmed = await showConfirmDialog(
+                      context: context,
+                      title: zh ? '删除主题？' : 'Delete theme?',
+                      body: scheme.name,
+                      confirmLabel: l10n.delete,
+                      destructive: true,
+                    );
+                    if (!confirmed) return;
+                    try {
+                      if (selection == scheme.id) {
+                        await ref
+                            .read(terminalThemeSelectionProvider.notifier)
+                            .set(followAppTerminalTheme);
+                      }
+                      await ref
+                          .read(customTerminalThemesProvider.notifier)
+                          .delete(scheme.id);
+                    } catch (error) {
+                      if (context.mounted) {
+                        showAppToast(context, '$error', destructive: true);
+                      }
+                    }
+                  },
                 ),
               ],
-              if (selected) Icon(LucideIcons.check, size: 18, color: c.accent),
             ],
           ),
         ),
       );
     }
 
-    return Scaffold(
-      appBar: AppBar(title: Text(l10n.terminalTheme)),
+    return AdaptivePageScaffold(
+      appBar: AppBar(
+        title: Text(l10n.terminalTheme),
+        actions: [
+          IconButton(
+            tooltip: zh ? '新建主题' : 'New theme',
+            icon: const Icon(Icons.add),
+            onPressed: () => context.push('/settings/terminal-themes/edit'),
+          ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         children: [
@@ -83,6 +122,17 @@ class TerminalThemesScreen extends ConsumerWidget {
               ),
             ],
           ),
+          AppGroupHeader(zh ? '自定义主题' : 'Custom themes'),
+          for (final scheme in custom) themeTile(scheme),
+          if (custom.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                zh
+                    ? '还没有自定义主题，使用＋创建。'
+                    : 'No custom themes yet. Use + to create one.',
+              ),
+            ),
           AppGroupHeader(l10n.terminalThemeBuiltinSection),
           AppGroupCard(
             children: [
@@ -90,54 +140,9 @@ class TerminalThemesScreen extends ConsumerWidget {
                 themeTile(scheme),
             ],
           ),
-          AppGroupHeader(l10n.terminalThemeCustomSection),
-          AppGroupCard(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (customs.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                  child: Text(
-                    l10n.terminalThemeCustomEmpty,
-                    style: ShadTheme.of(context).textTheme.small
-                        .copyWith(color: colorsOf(context).textSecondary),
-                  ),
-                )
-              else
-                for (final scheme in customs) themeTile(scheme, custom: true),
-              AppRow(
-                icon: LucideIcons.plus,
-                label: l10n.terminalThemeCustomNew,
-                onTap: () => context.push('/settings/terminal-themes/edit'),
-              ),
-            ],
-          ),
         ],
       ),
     );
-  }
-
-  Future<void> _confirmDelete(
-    BuildContext context,
-    WidgetRef ref,
-    TerminalColorScheme scheme,
-  ) async {
-    final l10n = AppLocalizations.of(context)!;
-    final confirmed = await showConfirmDialog(
-      context: context,
-      title: l10n.terminalThemeDeleteConfirmTitle,
-      body: l10n.terminalThemeDeleteConfirmBody,
-      confirmLabel: l10n.delete,
-      destructive: true,
-    );
-    if (!confirmed) return;
-    // 先切换选中项，再删除，避免终端构建时读取已不存在的主题。
-    if (ref.read(terminalThemeSelectionProvider) == scheme.id) {
-      await ref
-          .read(terminalThemeSelectionProvider.notifier)
-          .set(followAppTerminalTheme);
-    }
-    await ref.read(customTerminalThemesProvider.notifier).delete(scheme.id);
   }
 }
 

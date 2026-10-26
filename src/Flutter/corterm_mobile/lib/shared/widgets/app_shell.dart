@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
+
+import '../layout/adaptive_page_scaffold.dart';
 
 import '../../app/theme/corterm_theme.dart';
 
@@ -25,25 +26,18 @@ class AppShellScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = colorsOf(context);
-    return Scaffold(
+    return AdaptivePageScaffold(
       backgroundColor: c.background,
       appBar: AppBar(
         backgroundColor: c.background,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
-        leadingWidth: 48,
-        leading: Padding(
-          padding: const EdgeInsets.only(left: 4),
-          child: BackButton(
-            color: c.textPrimary,
-            onPressed: () => context.pop(),
-          ),
-        ),
+        automaticallyImplyLeading: false,
         title: Text(
           title,
           style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
+            fontSize: 17,
+            fontWeight: FontWeight.w500,
             color: c.textPrimary,
           ),
         ),

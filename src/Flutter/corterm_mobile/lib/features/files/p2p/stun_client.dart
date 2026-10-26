@@ -63,12 +63,22 @@ class StunClient {
     }
     final type = (response[0] << 8) | response[1];
     if (type != _typeBindingResponse) {
-      throw FormatException('stun: unexpected message type 0x${type.toRadixString(16)}');
+      throw FormatException(
+        'stun: unexpected message type 0x${type.toRadixString(16)}',
+      );
     }
-    final magic = (response[4] << 24) | (response[5] << 16) | (response[6] << 8) | response[7];
-    if (magic != magicCookie) throw const FormatException('stun: magic cookie mismatch');
+    final magic =
+        (response[4] << 24) |
+        (response[5] << 16) |
+        (response[6] << 8) |
+        response[7];
+    if (magic != magicCookie) {
+      throw const FormatException('stun: magic cookie mismatch');
+    }
     for (var i = 0; i < 12; i++) {
-      if (response[8 + i] != txid[i]) throw const FormatException('stun: txid mismatch');
+      if (response[8 + i] != txid[i]) {
+        throw const FormatException('stun: txid mismatch');
+      }
     }
     final length = (response[2] << 8) | response[3];
     var offset = 20;
@@ -80,16 +90,21 @@ class StunClient {
       if (attrType == _attrXorMappedAddress && attrLen >= 8) {
         final family = response[valueAt + 1];
         if (family != 0x01) {
-          throw FormatException('stun: unsupported address family $family (only IPv4)');
+          throw FormatException(
+            'stun: unsupported address family $family (only IPv4)',
+          );
         }
-        final xPort = ((response[valueAt + 2] << 8) | response[valueAt + 3]) ^ (magicCookie >> 16);
+        final xPort =
+            ((response[valueAt + 2] << 8) | response[valueAt + 3]) ^
+            (magicCookie >> 16);
         var xAddr = 0;
         for (var i = 0; i < 4; i++) {
           xAddr = (xAddr << 8) | response[valueAt + 4 + i];
         }
         xAddr ^= magicCookie;
         return StunAddress(
-          host: '${(xAddr >> 24) & 0xFF}.${(xAddr >> 16) & 0xFF}.${(xAddr >> 8) & 0xFF}.${xAddr & 0xFF}',
+          host:
+              '${(xAddr >> 24) & 0xFF}.${(xAddr >> 16) & 0xFF}.${(xAddr >> 8) & 0xFF}.${xAddr & 0xFF}',
           port: xPort,
         );
       }
@@ -106,13 +121,13 @@ class StunClient {
     String host = defaultServer,
     int port = defaultPort,
     Duration timeout = const Duration(seconds: 2),
+    Stream<RawSocketEvent>? events,
   }) async {
     final txid = randomTxid();
-    final resolved = (await InternetAddress.lookup(host))
+    final resolved = (await InternetAddress.lookup(host).timeout(timeout))
         .firstWhere((a) => a.type == InternetAddressType.IPv4);
-    socket.send(buildBindingRequest(txid), resolved, port);
     final completer = Completer<StunAddress>();
-    final sub = socket.listen((event) {
+    final sub = (events ?? socket).listen((event) {
       if (completer.isCompleted) return;
       final dg = socket.receive();
       if (dg == null) return;
@@ -122,10 +137,19 @@ class StunClient {
         // 不是本次请求的响应（不应发生，保守忽略继续等）。
       }
     });
+    // UDP may drop individual packets. Retry the same binding transaction on
+    // the same socket so a single lost request does not disable direct transfer.
+    Timer? retry;
     try {
+      final request = buildBindingRequest(txid);
+      socket.send(request, resolved, port);
+      retry = Timer.periodic(const Duration(milliseconds: 400), (_) {
+        if (!completer.isCompleted) socket.send(request, resolved, port);
+      });
       return await completer.future.timeout(timeout);
     } finally {
-      sub.cancel();
+      retry?.cancel();
+      await sub.cancel();
     }
   }
 }

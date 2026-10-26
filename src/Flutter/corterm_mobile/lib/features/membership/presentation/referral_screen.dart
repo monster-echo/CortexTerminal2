@@ -1,3 +1,5 @@
+import '../../../shared/layout/adaptive_page_scaffold.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,7 +8,6 @@ import 'package:share_plus/share_plus.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../../app/theme/corterm_theme.dart';
-import '../../../core/api/api_exception.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/app_bar.dart';
 import '../../../shared/widgets/list_group.dart';
@@ -34,9 +35,13 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen> {
 
   Future<void> _share(String code) async {
     final l10n = AppLocalizations.of(context)!;
-    await SharePlus.instance.share(
-      ShareParams(text: '${l10n.referralShareText}\n\n$code'),
-    );
+    try {
+      await SharePlus.instance.share(
+        ShareParams(text: '${l10n.referralShareText}\n\n$code'),
+      );
+    } catch (error) {
+      if (mounted) showAppToast(context, '$error', destructive: true);
+    }
   }
 
   Future<void> _apply() async {
@@ -51,8 +56,8 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen> {
         _applyController.clear();
         ref.invalidate(referralSummaryProvider);
       }
-    } on ApiException catch (e) {
-      if (mounted) showAppToast(context, e.serverMessage ?? '${e.statusCode}');
+    } catch (e) {
+      if (mounted) showAppToast(context, '$e', destructive: true);
     } finally {
       if (mounted) setState(() => _applying = false);
     }
@@ -64,7 +69,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen> {
     final c = colorsOf(context);
     final summary = ref.watch(referralSummaryProvider);
 
-    return Scaffold(
+    return AdaptivePageScaffold(
       backgroundColor: c.background,
       appBar: CortermAppBar(
         title: l10n.referral,
@@ -83,8 +88,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen> {
         data: (data) => ListView(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           children: [
-            Text(l10n.referralSubtitle,
-                style: _mutedTextStyle(context)),
+            Text(l10n.referralSubtitle, style: _mutedTextStyle(context)),
             const SizedBox(height: 16),
             // 邀请码卡片
             Container(
@@ -93,110 +97,139 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen> {
                 color: c.accent.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Column(children: [
-                Text(l10n.myInviteCode,
-                    style: _mutedTextStyle(context)?.copyWith(fontSize: 13)),
-                const SizedBox(height: 8),
-                Text(
-                  data.code,
-                  style: _mutedTextStyle(context)?.copyWith(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 4,
+              child: Column(
+                children: [
+                  Text(
+                    l10n.myInviteCode,
+                    style: _mutedTextStyle(context)?.copyWith(fontSize: 13),
                   ),
-                ),
-                const SizedBox(height: 16),
-                Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  ShadButton.outline(
-                    onPressed: () {
-                      Clipboard.setData(ClipboardData(text: data.code));
-                      showAppToast(context, l10n.copied);
-                    },
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      const Icon(LucideIcons.copy, size: 14),
-                      const SizedBox(width: 6),
-                      Text(l10n.copy),
-                    ]),
+                  const SizedBox(height: 8),
+                  Text(
+                    data.code,
+                    style: _mutedTextStyle(context)?.copyWith(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 4,
+                    ),
                   ),
-                  const SizedBox(width: 12),
-                  ShadButton(
-                    onPressed: () => _share(data.code),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      const Icon(LucideIcons.share2, size: 14),
-                      const SizedBox(width: 6),
-                      Text(l10n.share),
-                    ]),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      ShadButton.outline(
+                        onPressed: () {
+                          Clipboard.setData(ClipboardData(text: data.code));
+                          showAppToast(context, l10n.copied);
+                        },
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(LucideIcons.copy, size: 14),
+                            const SizedBox(width: 6),
+                            Text(l10n.copy),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      ShadButton(
+                        onPressed: () => _share(data.code),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(LucideIcons.share2, size: 14),
+                            const SizedBox(width: 6),
+                            Text(l10n.share),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                ]),
-              ]),
+                ],
+              ),
             ),
             const SizedBox(height: 16),
             // 统计
-            AppGroupCard(children: [
-              AppRow(
-                icon: LucideIcons.users,
-                label: l10n.friendsInvited,
-                value: '${data.invitedCount}',
-              ),
-              AppRow(
-                icon: LucideIcons.calendarDays,
-                label: l10n.daysEarned,
-                value: '+${data.totalRewardDays}',
-              ),
-              AppRow(
-                icon: LucideIcons.gift,
-                label: l10n.rewardPerInvite,
-                value: '+${data.rewardDaysPerInvite}',
-              ),
-            ]),
+            AppGroupCard(
+              children: [
+                AppRow(
+                  icon: LucideIcons.users,
+                  label: l10n.friendsInvited,
+                  value: '${data.invitedCount}',
+                ),
+                AppRow(
+                  icon: LucideIcons.calendarDays,
+                  label: l10n.daysEarned,
+                  value: '+${data.totalRewardDays}',
+                ),
+                AppRow(
+                  icon: LucideIcons.gift,
+                  label: l10n.rewardPerInvite,
+                  value: '+${data.rewardDaysPerInvite}',
+                ),
+              ],
+            ),
             const SizedBox(height: 8),
             // 收益记录
             AppGroupHeader(l10n.rewardHistory),
             if (data.rewards.isEmpty)
-              AppGroupCard(children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  child: Text(l10n.rewardsEmpty,
+              AppGroupCard(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    child: Text(
+                      l10n.rewardsEmpty,
                       style: _mutedTextStyle(context)?.copyWith(fontSize: 13),
-                      textAlign: TextAlign.center),
-                ),
-              ])
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ],
+              )
             else
               AppGroupCard(
                 children: data.rewards
-                    .map((r) => AppRow(
-                          icon: LucideIcons.badgeCheck,
-                          label: 'r.invitedUsername',
-                          value: '+${r.rewardDays}',
-                        ))
+                    .map(
+                      (r) => AppRow(
+                        icon: LucideIcons.badgeCheck,
+                        label: r.invitedUsername,
+                        value: '+${r.rewardDays}',
+                      ),
+                    )
                     .toList(),
               ),
             const SizedBox(height: 8),
             // 绑定好友邀请码
             AppGroupHeader(l10n.haveFriendsCode),
-            AppGroupCard(children: [
-              Padding(
-                padding: const EdgeInsets.all(12),
-                child: Row(children: [
-                  Expanded(
-                    child: ShadInput(
-                      controller: _applyController,
-                      placeholder: Text(l10n.redeemPlaceholder),
-                    ),
+            AppGroupCard(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: ShadInput(
+                          controller: _applyController,
+                          placeholder: Text(l10n.redeemPlaceholder),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ShadButton(
+                        enabled: !_applying,
+                        onPressed: _apply,
+                        child: _applying
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Text(l10n.applyInvite),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-                  ShadButton(
-                    onPressed: _applying ? null : _apply,
-                    child: _applying
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2))
-                        : Text(l10n.applyInvite),
-                  ),
-                ]),
-              ),
-            ]),
+                ),
+              ],
+            ),
             const SizedBox(height: 24),
           ],
         ),
@@ -204,8 +237,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen> {
     );
   }
 
-  TextStyle? _mutedTextStyle(BuildContext context) => ShadTheme.of(context)
-      .textTheme
-      .muted
-      .copyWith(color: colorsOf(context).textPrimary);
+  TextStyle? _mutedTextStyle(BuildContext context) =>
+      ShadTheme.of(context).textTheme.muted
+          .copyWith(color: colorsOf(context).textPrimary);
 }

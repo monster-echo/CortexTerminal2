@@ -1706,6 +1706,12 @@ abstract class AppLocalizations {
   /// **'What happened? What did you expect?'**
   String get feedbackContentPlaceholder;
 
+  /// No description provided for @feedbackMinimumLength.
+  ///
+  /// In en, this message translates to:
+  /// **'At least 10 characters'**
+  String get feedbackMinimumLength;
+
   /// No description provided for @feedbackContact.
   ///
   /// In en, this message translates to:
@@ -1715,7 +1721,7 @@ abstract class AppLocalizations {
   /// No description provided for @feedbackContactPlaceholder.
   ///
   /// In en, this message translates to:
-  /// **'Email / Telegram / QQ'**
+  /// **'Email / Telegram'**
   String get feedbackContactPlaceholder;
 
   /// No description provided for @feedbackAttachments.
@@ -2437,6 +2443,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Remote Mac permission instructions'**
   String get terminalPermissionGuide;
+
+  /// No description provided for @showPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Show password'**
+  String get showPassword;
+
+  /// No description provided for @hidePassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide password'**
+  String get hidePassword;
+
+  /// No description provided for @phoneLoginHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in with a text message code. No password needed.'**
+  String get phoneLoginHint;
 }
 
 class _AppLocalizationsDelegate

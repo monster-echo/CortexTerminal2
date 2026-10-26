@@ -16,11 +16,12 @@ class SupportGroup {
 }
 
 /// 客服信息（对齐 Gateway GET /api/support/info，AllowAnonymous）。
-/// 唯一客服渠道是飞书，QQ/Telegram 字段不再解析。
+/// 移动端使用 Telegram，保留飞书字段供已有调用方兼容。
 class SupportInfo {
-  SupportInfo({this.feishuGroup});
+  SupportInfo({this.feishuGroup, this.telegramGroup});
 
   final SupportGroup? feishuGroup;
+  final SupportGroup? telegramGroup;
 }
 
 class SupportRepository {
@@ -30,7 +31,10 @@ class SupportRepository {
 
   Future<SupportInfo> get() async {
     final json = await _client.getMap('/api/support/info');
-    return SupportInfo(feishuGroup: _parseGroup(json['feishuGroup']));
+    return SupportInfo(
+      feishuGroup: _parseGroup(json['feishuGroup']),
+      telegramGroup: _parseGroup(json['telegramGroup']),
+    );
   }
 
   SupportGroup? _parseGroup(Object? raw) {
@@ -43,8 +47,9 @@ class SupportRepository {
   }
 }
 
-final supportRepositoryProvider =
-    Provider<SupportRepository>((ref) => SupportRepository(ref.watch(apiClientProvider)));
+final supportRepositoryProvider = Provider<SupportRepository>(
+  (ref) => SupportRepository(ref.watch(apiClientProvider)),
+);
 
 final supportInfoProvider = FutureProvider<SupportInfo>((ref) {
   return ref.watch(supportRepositoryProvider).get();

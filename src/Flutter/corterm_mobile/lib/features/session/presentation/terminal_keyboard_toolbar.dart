@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../../../app/theme/corterm_theme.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../../core/storage/app_preferences.dart' show terminalKeyDefaults;
 
 /// Matches ArkTS VirtualKeyBar: Esc, sticky modifiers, Tab variants, arrows,
 /// Paste, and a fixed Done button while the system keyboard is visible.
@@ -17,8 +18,10 @@ class TerminalKeyboardToolbar extends StatelessWidget {
     required this.onAltToggle,
     required this.onPaste,
     required this.onDone,
+    this.keyLayout = terminalKeyDefaults,
   });
 
+  final List<String> keyLayout;
   final bool enabled;
   final bool ctrlArmed;
   final bool altArmed;
@@ -85,20 +88,28 @@ class TerminalKeyboardToolbar extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 2),
               child: Row(
                 children: [
-                  key('Esc', () => onKey('\x1b')),
-                  key(
-                    'Ctrl',
-                    () => onCtrlToggle(!ctrlArmed),
-                    active: ctrlArmed,
-                  ),
-                  key('Alt', () => onAltToggle(!altArmed), active: altArmed),
-                  key('Tab', () => onKey('\t')),
-                  key('S-Tab', () => onKey('\x1b[Z')),
-                  key('←', () => onKey('\x1b[D')),
-                  key('↑', () => onKey('\x1b[A')),
-                  key('↓', () => onKey('\x1b[B')),
-                  key('→', () => onKey('\x1b[C')),
-                  key(l10n.paste, onPaste),
+                  for (final id in keyLayout)
+                    switch (id) {
+                      'esc' => key('Esc', () => onKey('\x1b')),
+                      'ctrl' => key(
+                        'Ctrl',
+                        () => onCtrlToggle(!ctrlArmed),
+                        active: ctrlArmed,
+                      ),
+                      'alt' => key(
+                        'Alt',
+                        () => onAltToggle(!altArmed),
+                        active: altArmed,
+                      ),
+                      'tab' => key('Tab', () => onKey('\t')),
+                      'shiftTab' => key('S-Tab', () => onKey('\x1b[Z')),
+                      'left' => key('←', () => onKey('\x1b[D')),
+                      'up' => key('↑', () => onKey('\x1b[A')),
+                      'down' => key('↓', () => onKey('\x1b[B')),
+                      'right' => key('→', () => onKey('\x1b[C')),
+                      'paste' => key(l10n.paste, onPaste),
+                      _ => throw StateError('Unknown terminal key: $id'),
+                    },
                 ],
               ),
             ),

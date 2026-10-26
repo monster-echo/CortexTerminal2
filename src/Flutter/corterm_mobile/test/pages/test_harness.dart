@@ -48,35 +48,35 @@ class _HarnessTokenStore implements TokenStore {
 class FakeSessionApiRepo implements SessionRepository {
   @override
   Future<List<SessionSummary>> list() async => [
-        SessionSummary(
-          sessionId: 'sess-0001',
-          name: '构建会话',
-          workerId: 'w1',
-          workerName: 'Mac mini',
-          status: SessionStatus.attached,
-          createdAt: DateTime(2026, 1, 1),
-          lastActivityAt: DateTime(2026, 1, 1, 12),
-          workspaceId: 'ws1',
-        ),
-      ];
+    SessionSummary(
+      sessionId: 'sess-0001',
+      name: '构建会话',
+      workerId: 'w1',
+      workerName: 'Mac mini',
+      status: SessionStatus.attached,
+      createdAt: DateTime(2026, 1, 1),
+      lastActivityAt: DateTime(2026, 1, 1, 12),
+      workspaceId: 'ws1',
+    ),
+  ];
 
   @override
   Future<List<WorkerSummary>> workers() async => [
-        const WorkerSummary(
-          workerId: 'w1',
-          name: 'Mac mini',
-          hostname: 'mac-mini.local',
-          isOnline: true,
-          sessionCount: 1,
-        ),
-        const WorkerSummary(
-          workerId: 'w2',
-          name: 'Linux box',
-          hostname: 'linux.local',
-          isOnline: false,
-          sessionCount: 0,
-        ),
-      ];
+    const WorkerSummary(
+      workerId: 'w1',
+      name: 'Mac mini',
+      hostname: 'mac-mini.local',
+      isOnline: true,
+      sessionCount: 1,
+    ),
+    const WorkerSummary(
+      workerId: 'w2',
+      name: 'Linux box',
+      hostname: 'linux.local',
+      isOnline: false,
+      sessionCount: 0,
+    ),
+  ];
 
   @override
   Future<GatewayInfo> gatewayInfo() async =>
@@ -90,14 +90,14 @@ class FakeSessionApiRepo implements SessionRepository {
 class FakeWorkspaceRepo implements WorkspaceRepository {
   @override
   Future<List<Workspace>> list() async => [
-        const Workspace(
-          workspaceId: 'ws1',
-          workerId: 'w1',
-          name: '主工作区',
-          rootPath: '/root',
-          isDefault: true,
-        ),
-      ];
+    const Workspace(
+      workspaceId: 'ws1',
+      workerId: 'w1',
+      name: '主工作区',
+      rootPath: '/root',
+      isDefault: true,
+    ),
+  ];
 
   @override
   dynamic noSuchMethod(Invocation invocation) =>
@@ -128,7 +128,8 @@ Future<List<Override>> defaultOverrides() async {
     workersProvider.overrideWith((ref) => FakeSessionApiRepo().workers()),
     sessionsProvider.overrideWith((ref) => FakeSessionApiRepo().list()),
     gatewayInfoProvider.overrideWith(
-        (ref) async => const GatewayInfo(version: '1.2.3')),
+      (ref) async => const GatewayInfo(version: '1.2.3'),
+    ),
     workspacesProvider.overrideWith((ref) => FakeWorkspaceRepo().list()),
     profileProvider.overrideWith(
       (ref) async => UserProfile(
@@ -140,23 +141,32 @@ Future<List<Override>> defaultOverrides() async {
       ),
     ),
     profileRepositoryProvider.overrideWith((ref) => FakeProfileRepo()),
-    membershipStatusProvider
-        .overrideWith((ref) async => <String, dynamic>{'tier': 'free'}),
-    membershipPlansProvider.overrideWith((ref) async => <Map<String, dynamic>>[
-          <String, dynamic>{'id': 'pro', 'name': 'Pro'},
-        ]),
+    membershipStatusProvider.overrideWith(
+      (ref) async => <String, dynamic>{'tier': 'free'},
+    ),
+    membershipPlansProvider.overrideWith(
+      (ref) async => <Map<String, dynamic>>[
+        <String, dynamic>{'id': 'pro', 'name': 'Pro'},
+      ],
+    ),
     membershipRepositoryProvider.overrideWith((ref) => FakeMembershipRepo()),
-    referralSummaryProvider.overrideWith((ref) => FakeMembershipRepo().referral()),
-    storePurchaseProvider
-        .overrideWith((ref) => StorePurchaseController(ref, false)),
-    supportInfoProvider.overrideWith((ref) async => SupportInfo(
-          feishuGroup: SupportGroup(name: '飞书群', url: '', qrCodeUrl: ''),
-        )),
+    referralSummaryProvider.overrideWith(
+      (ref) => FakeMembershipRepo().referral(),
+    ),
+    storePurchaseProvider.overrideWith(
+      (ref) => StorePurchaseController(ref, false),
+    ),
+    supportInfoProvider.overrideWith(
+      (ref) async => SupportInfo(
+        feishuGroup: SupportGroup(name: '飞书群', url: '', qrCodeUrl: ''),
+      ),
+    ),
     fileRepositoryProvider.overrideWith((ref) => FakeFileRepo()),
     tunnelRepositoryProvider.overrideWith((ref) => FakeTunnelRepo()),
     feedbackRepositoryProvider.overrideWith((ref) => FakeFeedbackRepo()),
     scrollbackPreferenceProvider.overrideWith(
-      (ref) async => ScrollbackPreference(maxBytes: 64000, maxAllowedBytes: 64000),
+      (ref) async =>
+          ScrollbackPreference(maxBytes: 64000, maxAllowedBytes: 64000),
     ),
     sessionControllerProvider.overrideWith(
       (ref) => FakeSessionController(prefs),
@@ -168,14 +178,25 @@ Future<List<Override>> defaultOverrides() async {
 Future<Widget> pageHarness(
   Widget child, {
   List<Override> extra = const [],
+  List<RouteBase> extraRoutes = const [],
+  Locale locale = const Locale('zh'),
+  double textScale = 1,
+  bool dark = false,
 }) async {
   pageChild = child;
   return ProviderScope(
     overrides: [...await defaultOverrides(), ...extra],
     child: ShadApp.router(
-      locale: const Locale('zh'),
-      materialThemeBuilder: (context, theme) =>
-          theme.copyWith(extensions: [CortermColors.light]),
+      locale: locale,
+      themeMode: dark ? ThemeMode.dark : ThemeMode.light,
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context)
+            .copyWith(textScaler: TextScaler.linear(textScale)),
+        child: child!,
+      ),
+      materialThemeBuilder: (context, theme) => theme.copyWith(
+        extensions: [dark ? CortermColors.dark : CortermColors.light],
+      ),
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       routerConfig: GoRouter(
@@ -183,8 +204,9 @@ Future<Widget> pageHarness(
         routes: [
           GoRoute(
             path: '/',
-            pageBuilder: (_, __) => NoTransitionPage(child: pageChild),
+            pageBuilder: (_, _) => NoTransitionPage(child: pageChild),
           ),
+          ...extraRoutes,
         ],
       ),
     ),

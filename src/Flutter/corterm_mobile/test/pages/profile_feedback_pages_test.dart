@@ -23,7 +23,8 @@ void main() {
     await settlePage(tester, const SupportScreen());
 
     expect(find.text('联系客服'), findsOneWidget);
-    expect(find.text('飞书群'), findsOneWidget);
+    expect(find.text('Telegram 群组暂不可用，请稍后重试。'), findsOneWidget);
+    expect(find.text('意见反馈'), findsOneWidget);
   });
 
   testWidgets('FeedbackScreen 构建且可输入反馈', (tester) async {

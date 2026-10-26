@@ -443,6 +443,8 @@ internal sealed class FakeWorkerGatewayClient : IWorkerGatewayClient
     public IDisposable OnMkdir(Func<string, string?, Task<FileOpResult>> handler) => new DelegateDisposable(() => { });
     public IDisposable OnWriteTextFile(Func<string, string?, string, Task<FileOpResult>> handler) => new DelegateDisposable(() => { });
     public IDisposable OnRename(Func<string, string?, string, Task<FileOpResult>> handler) => new DelegateDisposable(() => { });
+    public IDisposable OnTrash(Func<string, string?, string, Task<FileOpResult>> handler) => new DelegateDisposable(() => { });
+    public IDisposable OnRestoreTrash(Func<string, string, Task<FileOpResult>> handler) => new DelegateDisposable(() => { });
     public IDisposable OnDelete(Func<string, string?, Task<FileOpResult>> handler) => new DelegateDisposable(() => { });
     public IDisposable OnPrepareFileReceive(Func<PrepareFileReceiveCommand, Task<FileOperationAck>> handler) => new DelegateDisposable(() => { });
     public IDisposable OnPrepareFileSend(Func<PrepareFileSendCommand, Task<PrepareFileSendAck>> handler) => new DelegateDisposable(() => { });

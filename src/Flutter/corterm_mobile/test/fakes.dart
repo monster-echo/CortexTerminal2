@@ -1,3 +1,4 @@
+import 'package:corterm_mobile/features/files/data/file_transfer_control.dart';
 
 import 'package:corterm_mobile/core/auth/token_store.dart';
 import 'package:corterm_mobile/core/storage/app_preferences.dart';
@@ -5,6 +6,7 @@ import 'package:corterm_mobile/core/ws/terminal_socket.dart';
 import 'package:corterm_mobile/core/ws/ws_frames.dart';
 import 'package:corterm_mobile/features/files/data/file_repository.dart';
 import 'package:corterm_mobile/features/session/session_controller.dart';
+
 import 'dart:typed_data';
 
 import 'package:corterm_mobile/features/membership/data/membership_repository.dart';
@@ -57,12 +59,11 @@ class _FakeSessionRepo implements SessionRepository {
 /// 测试不建真连：socket 工厂返回空帧流假 socket。
 class FakeSessionController extends SessionController {
   FakeSessionController(AppPreferences prefs)
-      : super(
-          _FakeSessionRepo(),
-          ({required String sessionId, int sinceSeq = 0}) async =>
-              _FakeSocket(),
-          prefs,
-        );
+    : super(
+        _FakeSessionRepo(),
+        ({required String sessionId, int sinceSeq = 0}) async => _FakeSocket(),
+        prefs,
+      );
 
   void seed(SessionState state) => this.state = state;
 }
@@ -70,12 +71,12 @@ class FakeSessionController extends SessionController {
 class FakeProfileRepo implements ProfileRepository {
   @override
   Future<UserProfile> get() async => UserProfile(
-        id: 'u1',
-        username: 'tester',
-        email: 'tester@example.com',
-        displayName: 'tester',
-        hasPassword: true,
-      );
+    id: 'u1',
+    username: 'tester',
+    email: 'tester@example.com',
+    displayName: 'tester',
+    hasPassword: true,
+  );
 
   @override
   String resolveAvatarUrl(String? avatarUrl) => avatarUrl ?? '';
@@ -88,8 +89,8 @@ class FakeProfileRepo implements ProfileRepository {
 class FakeSupportRepo implements SupportRepository {
   @override
   Future<SupportInfo> get() async => SupportInfo(
-        feishuGroup: SupportGroup(name: '飞书群', url: '', qrCodeUrl: ''),
-      );
+    feishuGroup: SupportGroup(name: '飞书群', url: '', qrCodeUrl: ''),
+  );
 
   @override
   dynamic noSuchMethod(Invocation invocation) =>
@@ -99,12 +100,12 @@ class FakeSupportRepo implements SupportRepository {
 class FakeMembershipRepo implements MembershipRepository {
   @override
   Future<ReferralSummary> referral() async => ReferralSummary(
-        code: 'INVITE-1',
-        rewardDaysPerInvite: 7,
-        invitedCount: 0,
-        totalRewardDays: 0,
-        rewards: const [],
-      );
+    code: 'INVITE-1',
+    rewardDaysPerInvite: 7,
+    invitedCount: 0,
+    totalRewardDays: 0,
+    rewards: const [],
+  );
 
   @override
   dynamic noSuchMethod(Invocation invocation) =>
@@ -123,52 +124,71 @@ class FakeFileRepo implements FileRepository {
   final List<FileListingCall> listForWorkerCalls = [];
 
   /// 可注入的目录内容；缺省返回固定列表。
-  Object Function(String root, String path)? listingBuilder; // FileListing 或 Future<FileListing>
+  Object Function(String root, String path)?
+  listingBuilder; // FileListing 或 Future<FileListing>
 
   @override
-  Future<FileListing> listForWorker(
-      {required String workerId, String root = '', String path = ''}) async {
+  Future<FileListing> listForWorker({
+    required String workerId,
+    String root = '',
+    String path = '',
+  }) async {
     listForWorkerCalls.add(FileListingCall(root, path));
     if (listingBuilder != null) {
       final out = listingBuilder!(root, path);
       if (out is FileListing) return out;
       if (out is Future<FileListing>) return out;
     }
-    return const FileListing(entries: [
-      FileEntry(
+    return const FileListing(
+      entries: [
+        FileEntry(
           name: 'Projects',
           isDirectory: true,
           sizeBytes: 0,
-          modifiedUtc: null),
-    ], truncated: false);
+          modifiedUtc: null,
+        ),
+      ],
+      truncated: false,
+    );
   }
 
   @override
-  Future<Uint8List> downloadBytes(
-      {required String workspaceId, required String path}) async {
+  Future<Uint8List> downloadBytes({
+    required String workspaceId,
+    required String path,
+    FileTransferControl? control,
+  }) async {
     return Uint8List.fromList('hello corterm'.codeUnits);
   }
 
   @override
-  Future<FileListing> list(
-      {required String workspaceId, required String path}) async {
-    return const FileListing(entries: [
-      FileEntry(
+  Future<FileListing> list({
+    required String workspaceId,
+    required String path,
+  }) async {
+    return const FileListing(
+      entries: [
+        FileEntry(
           name: 'lib',
           isDirectory: true,
           sizeBytes: 0,
-          modifiedUtc: null),
-      FileEntry(
+          modifiedUtc: null,
+        ),
+        FileEntry(
           name: 'README.md',
           isDirectory: false,
           sizeBytes: 1234,
-          modifiedUtc: null),
-      FileEntry(
+          modifiedUtc: null,
+        ),
+        FileEntry(
           name: 'pubspec.yaml',
           isDirectory: false,
           sizeBytes: 567,
-          modifiedUtc: null),
-    ], truncated: false);
+          modifiedUtc: null,
+        ),
+      ],
+      truncated: false,
+    );
   }
 
   @override

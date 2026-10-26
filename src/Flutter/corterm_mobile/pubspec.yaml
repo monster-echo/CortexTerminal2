@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 0.2.31+203182
+version: 0.2.32+203183
 
 environment:
   sdk: ^3.13.0
@@ -32,6 +32,10 @@ dependencies:
     sdk: flutter
   flutter_localizations:
     sdk: flutter
+  # Shared Duo toolbar/tab-bar implementation already used by MV2.
+  adaptive_platform_ui:
+    path: vendor/adaptive_platform_ui
+  foldable: ^1.0.5
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.

@@ -1,4 +1,7 @@
+import '../../../shared/layout/adaptive_page_scaffold.dart';
+
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/theme/corterm_theme.dart';
@@ -18,7 +21,7 @@ class WorkerSelectScreen extends ConsumerWidget {
     final l10n = AppLocalizations.of(context)!;
     final workersAsync = ref.watch(workersProvider);
 
-    return Scaffold(
+    return AdaptivePageScaffold(
       backgroundColor: colors.background,
       appBar: AppBar(
         backgroundColor: colors.background,
@@ -48,24 +51,42 @@ class WorkerSelectScreen extends ConsumerWidget {
           ),
           AsyncValue(:final value) =>
             (value ?? const []).isEmpty
-                ? EmptyState(
-                    icon: Icons.computer_outlined,
-                    message: l10n.noWorkers,
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        EmptyState(
+                          icon: Icons.computer_outlined,
+                          message: l10n.noWorkers,
+                        ),
+                        TextButton.icon(
+                          onPressed: () => context.push('/computers/new'),
+                          icon: const Icon(Icons.add),
+                          label: Text(l10n.connectComputer),
+                        ),
+                      ],
+                    ),
                   )
                 : ListView(
                     children: [
                       for (final w
-                          in (value ?? const <WorkerSummary>[]).toList()
-                            ..sort((a, b) {
-                              if (a.isOnline != b.isOnline) {
-                                return a.isOnline ? -1 : 1;
-                              }
-                              return a.displayName.compareTo(b.displayName);
-                            }))
+                          in (value ?? const <WorkerSummary>[]).toList()..sort((
+                            a,
+                            b,
+                          ) {
+                            if (a.isOnline != b.isOnline) {
+                              return a.isOnline ? -1 : 1;
+                            }
+                            final activity = (b.lastSeenAtUtc ?? DateTime(1970))
+                                .compareTo(a.lastSeenAtUtc ?? DateTime(1970));
+                            return activity != 0
+                                ? activity
+                                : a.displayName.compareTo(b.displayName);
+                          }))
                         ListRow(
                           title: w.displayName,
                           subtitle:
-                              '${w.isOnline ? l10n.workerOnline : l10n.workerOffline} · ${w.hostname ?? ''}',
+                              '${w.isOnline ? l10n.workerOnline : l10n.workerOffline} · ${w.hostname ?? ''}${w.isOnline ? '' : (Localizations.localeOf(context).languageCode == 'zh' ? ' · 请先启动电脑端应用' : ' · Start Corterm on this computer')}',
                           leading: Icon(
                             Icons.computer_outlined,
                             color: w.isOnline
@@ -74,7 +95,12 @@ class WorkerSelectScreen extends ConsumerWidget {
                           ),
                           trailing: w.isOnline
                               ? const Icon(Icons.chevron_right)
-                              : null,
+                              : IconButton(
+                                  tooltip: l10n.computersTitle,
+                                  icon: const Icon(Icons.info_outline),
+                                  onPressed: () =>
+                                      context.push('/computers/${w.workerId}'),
+                                ),
                           onTap: w.isOnline
                               ? () => Navigator.pop(context, w)
                               : null, // 离线不可选

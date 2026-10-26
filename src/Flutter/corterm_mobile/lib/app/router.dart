@@ -8,15 +8,18 @@ import '../core/auth/auth_controller.dart';
 import '../core/storage/app_preferences.dart';
 import '../features/activate/activate_screen.dart';
 import '../features/auth/presentation/login_screen.dart';
+import '../features/auth/presentation/phone_login_screen.dart';
 import '../features/workers/presentation/worker_select_screen.dart';
 import '../features/computers/presentation/computer_detail_screen.dart';
 import '../features/computers/presentation/computers_screen.dart';
 import '../features/computers/presentation/pair_computer_screen.dart';
+import '../features/diagnostics/diagnostics_screen.dart';
 import '../features/files/presentation/file_preview_screen.dart';
 import '../features/files/presentation/files_screen.dart';
 import '../features/legal/legal_screens.dart';
 import '../core/legal/legal_documents.dart';
 import '../features/home/home_shell.dart';
+import '../features/home/adaptive_workspace_shell.dart';
 import '../features/membership/presentation/me_screen.dart';
 import '../features/membership/presentation/membership_screen.dart';
 import '../features/membership/presentation/redeem_screen.dart';
@@ -69,7 +72,9 @@ final routerProvider = Provider<GoRouter>((ref) {
     ),
     redirect: (context, state) {
       final status = ref.read(authProvider).status;
-      final atLogin = state.matchedLocation == '/login';
+      final atLogin =
+          state.matchedLocation == '/login' ||
+          state.matchedLocation == '/login/phone';
       final atLegal = state.matchedLocation.startsWith('/legal/');
       if (state.uri.path == '/') {
         return status == AuthStatus.unauthenticated ? '/login' : '/home';
@@ -83,137 +88,196 @@ final routerProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
-      GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
-      GoRoute(path: '/activate', builder: (_, _) => const ActivateScreen()),
-      GoRoute(
-        path: '/workers/select',
-        builder: (_, _) => const WorkerSelectScreen(),
+      _animatedRoute(
+        path: '/login',
+        builder: (_, _) => const LoginScreen(),
+        routes: [
+          _animatedRoute(
+            path: 'phone',
+            builder: (_, state) =>
+                PhoneLoginScreen(initialConsent: state.extra == true),
+          ),
+        ],
       ),
-      GoRoute(path: '/computers', builder: (_, _) => const ComputersScreen()),
-      GoRoute(path: '/home', builder: (_, _) => const HomeShell()),
-      GoRoute(path: '/search', builder: (_, _) => const SearchScreen()),
+      StatefulShellRoute.indexedStack(
+        builder: (context, state, shell) => AdaptiveWorkspaceShell(
+          location: state.uri,
+          navigationShell: shell,
+          child: shell,
+        ),
+        branches: [
+          StatefulShellBranch(
+            observers: [ref.watch(analyticsProvider).observer],
+            routes: [
+              _animatedRoute(
+                path: '/home',
+                builder: (_, _) => const HomeShell(),
+              ),
+              _animatedRoute(
+                path: '/workers/select',
+                builder: (_, _) => const WorkerSelectScreen(),
+              ),
+              _animatedRoute(
+                path: '/search',
+                builder: (_, _) => const SearchScreen(),
+              ),
 
-      // 电脑（Worker）
-      GoRoute(
-        path: '/computers/new',
-        builder: (_, _) => const PairComputerScreen(),
-      ),
-      GoRoute(
-        path: '/computers/:workerId',
-        builder: (context, state) =>
-            ComputerDetailScreen(workerId: state.pathParameters['workerId']!),
-      ),
+              // 电脑（Worker）
+              _animatedRoute(
+                path: '/workspaces/new',
+                builder: (_, _) => const NewWorkspaceScreen(),
+              ),
+              _animatedRoute(
+                path: '/folder-picker',
+                builder: (context, state) => FolderPickerScreen(
+                  workerId: state.uri.queryParameters['workerId'] ?? '',
+                ),
+              ),
+              _animatedRoute(
+                path: '/workspaces/:workspaceId',
+                builder: (context, state) => WorkspaceDetailScreen(
+                  workspaceId: state.pathParameters['workspaceId']!,
+                ),
+              ),
 
-      // 工作区
-      GoRoute(
-        path: '/workspaces/new',
-        builder: (_, _) => const NewWorkspaceScreen(),
-      ),
-      GoRoute(
-        path: '/folder-picker',
-        builder: (context, state) => FolderPickerScreen(
-          workerId: state.uri.queryParameters['workerId'] ?? '',
-        ),
-      ),
-      GoRoute(
-        path: '/workspaces/:workspaceId',
-        builder: (context, state) => WorkspaceDetailScreen(
-          workspaceId: state.pathParameters['workspaceId']!,
-        ),
-      ),
+              // Session
+              _animatedRoute(
+                path: '/sessions/new',
+                builder: (context, state) => NewSessionFlowScreen(
+                  lockWorkspaceId: state.uri.queryParameters['workspaceId'],
+                ),
+              ),
+              _animatedRoute(
+                path: '/sessions/ungrouped',
+                builder: (_, _) => const UngroupedSessionsScreen(),
+              ),
+              _animatedRoute(
+                path: '/sessions/:sessionId',
+                builder: (context, state) => SessionTerminalScreen(
+                  sessionId: state.pathParameters['sessionId']!,
+                ),
+              ),
 
-      // Session
-      GoRoute(
-        path: '/sessions/new',
-        builder: (context, state) => NewSessionFlowScreen(
-          lockWorkspaceId: state.uri.queryParameters['workspaceId'],
-        ),
-      ),
-      GoRoute(
-        path: '/sessions/ungrouped',
-        builder: (_, _) => const UngroupedSessionsScreen(),
-      ),
-      GoRoute(
-        path: '/sessions/:sessionId',
-        builder: (context, state) => SessionTerminalScreen(
-          sessionId: state.pathParameters['sessionId']!,
-        ),
-      ),
+              // 文件 / 端口转发（Dark Tool Context，归属 Workspace）
+              _animatedRoute(
+                path: '/workspaces/:workspaceId/files',
+                builder: (context, state) => FilesScreen(
+                  workspaceId: state.pathParameters['workspaceId']!,
+                  workspaceName: state.uri.queryParameters['name'] ?? '',
+                  rootPath: state.uri.queryParameters['root'] ?? '',
+                ),
+              ),
+              _animatedRoute(
+                path: '/workspaces/:workspaceId/files/preview',
+                builder: (context, state) => FilePreviewScreen(
+                  workspaceId: state.pathParameters['workspaceId']!,
+                  path: state.uri.queryParameters['path'] ?? '/',
+                  name: state.uri.queryParameters['name'] ?? '',
+                  sizeBytes:
+                      int.tryParse(state.uri.queryParameters['size'] ?? '') ??
+                      0,
+                ),
+              ),
+              _animatedRoute(
+                path: '/workspaces/:workspaceId/tunnels',
+                builder: (context, state) => PortForwardingScreen(
+                  workspaceId: state.pathParameters['workspaceId']!,
+                ),
+              ),
 
-      // 文件 / 端口转发（Dark Tool Context，归属 Workspace）
-      GoRoute(
-        path: '/workspaces/:workspaceId/files',
-        builder: (context, state) => FilesScreen(
-          workspaceId: state.pathParameters['workspaceId']!,
-          workspaceName: state.uri.queryParameters['name'] ?? '',
-          rootPath: state.uri.queryParameters['root'] ?? '',
-        ),
-      ),
-      GoRoute(
-        path: '/workspaces/:workspaceId/files/preview',
-        builder: (context, state) => FilePreviewScreen(
-          workspaceId: state.pathParameters['workspaceId']!,
-          path: state.uri.queryParameters['path'] ?? '/',
-          name: state.uri.queryParameters['name'] ?? '',
-          sizeBytes: int.tryParse(state.uri.queryParameters['size'] ?? '') ?? 0,
-        ),
-      ),
-      GoRoute(
-        path: '/workspaces/:workspaceId/tunnels',
-        builder: (context, state) => PortForwardingScreen(
-          workspaceId: state.pathParameters['workspaceId']!,
-        ),
-      ),
+              // 账户 / 设置
+            ],
+          ),
+          StatefulShellBranch(
+            observers: [ref.watch(analyticsProvider).observer],
+            routes: [
+              _animatedRoute(
+                path: '/computers',
+                builder: (_, _) => const ComputersScreen(),
+              ),
+              _animatedRoute(
+                path: '/activate',
+                builder: (_, _) => const ActivateScreen(),
+              ),
+              _animatedRoute(
+                path: '/computers/new',
+                builder: (_, _) => const PairComputerScreen(),
+              ),
+              _animatedRoute(
+                path: '/computers/:workerId',
+                builder: (context, state) => ComputerDetailScreen(
+                  workerId: state.pathParameters['workerId']!,
+                ),
+              ),
 
-      // 账户 / 设置
-      GoRoute(path: '/me', builder: (_, _) => const MeScreen()),
-      GoRoute(path: '/settings', builder: (_, _) => const SettingsScreen()),
-      GoRoute(
-        path: '/settings/membership',
-        builder: (_, _) => const MembershipScreen(),
-      ),
-      GoRoute(
-        path: '/settings/profile',
-        builder: (_, _) => const ProfileScreen(),
-      ),
-      GoRoute(
-        path: '/settings/support',
-        builder: (_, _) => const SupportScreen(),
-      ),
-      GoRoute(
-        path: '/settings/feedback',
-        builder: (_, _) => const FeedbackScreen(),
-      ),
-      GoRoute(path: '/settings/about', builder: (_, _) => const AboutScreen()),
-      GoRoute(
-        path: '/settings/preferences',
-        builder: (_, _) => const PreferencesScreen(),
-      ),
-      GoRoute(
-        path: '/settings/terminal-themes',
-        builder: (_, _) => const TerminalThemesScreen(),
-      ),
-      GoRoute(
-        path: '/settings/terminal-themes/edit',
-        builder: (context, state) => TerminalThemeEditorScreen(
-          initial: state.extra as TerminalColorScheme?,
-        ),
-      ),
-      GoRoute(
-        path: '/settings/security',
-        builder: (_, _) => const SecurityScreen(),
-      ),
-      GoRoute(
-        path: '/settings/redeem',
-        builder: (_, _) => const RedeemScreen(),
-      ),
-      GoRoute(
-        path: '/settings/referral',
-        builder: (_, _) => const ReferralScreen(),
+              // 工作区
+            ],
+          ),
+          StatefulShellBranch(
+            observers: [ref.watch(analyticsProvider).observer],
+            routes: [
+              _animatedRoute(path: '/me', builder: (_, _) => const MeScreen()),
+              _animatedRoute(
+                path: '/settings',
+                builder: (_, _) => const SettingsScreen(),
+              ),
+              _animatedRoute(
+                path: '/settings/membership',
+                builder: (_, _) => const MembershipScreen(),
+              ),
+              _animatedRoute(
+                path: '/settings/profile',
+                builder: (_, _) => const ProfileScreen(),
+              ),
+              _animatedRoute(
+                path: '/settings/support',
+                builder: (_, _) => const SupportScreen(),
+              ),
+              _animatedRoute(
+                path: '/settings/feedback',
+                builder: (_, _) => const FeedbackScreen(),
+              ),
+              _animatedRoute(
+                path: '/settings/about',
+                builder: (_, _) => const AboutScreen(),
+              ),
+              _animatedRoute(
+                path: '/diagnostics',
+                builder: (_, _) => const DiagnosticsScreen(),
+              ),
+              _animatedRoute(
+                path: '/settings/preferences',
+                builder: (_, _) => const PreferencesScreen(),
+              ),
+              _animatedRoute(
+                path: '/settings/terminal-themes',
+                builder: (_, _) => const TerminalThemesScreen(),
+              ),
+              _animatedRoute(
+                path: '/settings/terminal-themes/edit',
+                builder: (context, state) => TerminalThemeEditorScreen(
+                  initial: state.extra as TerminalColorScheme?,
+                ),
+              ),
+              _animatedRoute(
+                path: '/settings/security',
+                builder: (_, _) => const SecurityScreen(),
+              ),
+              _animatedRoute(
+                path: '/settings/redeem',
+                builder: (_, _) => const RedeemScreen(),
+              ),
+              _animatedRoute(
+                path: '/settings/referral',
+                builder: (_, _) => const ReferralScreen(),
+              ),
+            ],
+          ),
+        ],
       ),
 
       // 法律文档（登录合规勾选 + Settings 双入口）。法律页无认证门槛。
-      GoRoute(
+      _animatedRoute(
         path: '/legal/:doc',
         builder: (context, state) {
           final doc = LegalRoute.values.byName(state.pathParameters['doc']!);
@@ -238,3 +302,21 @@ final routerProvider = Provider<GoRouter>((ref) {
     ],
   );
 });
+
+/// ShadApp.router wraps WidgetsApp, so go_router otherwise chooses
+/// NoTransitionPage and bypasses the application's page transition theme.
+GoRoute _animatedRoute({
+  required String path,
+  required GoRouterWidgetBuilder builder,
+  List<RouteBase> routes = const [],
+}) => GoRoute(
+  path: path,
+  routes: routes,
+  pageBuilder: (context, state) => MaterialPage<void>(
+    key: state.pageKey,
+    name: state.name ?? state.matchedLocation,
+    arguments: state.extra,
+    restorationId: state.pageKey.value,
+    child: builder(context, state),
+  ),
+);
