@@ -12,7 +12,7 @@ jobs:
   ios-keychain:
     name: iOS Simulator Keychain & App Build
     runs-on: macos-latest
-      timeout-minutes: 40
+    timeout-minutes: 40
     defaults:
       run:
         working-directory: src/Flutter/corterm_mobile
