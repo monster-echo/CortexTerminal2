@@ -1,3 +1,6 @@
+import '../../../shared/layout/adaptive_sheet.dart';
+import '../../../shared/layout/adaptive_page_scaffold.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,6 +10,7 @@ import '../../../l10n/app_localizations.dart';
 import '../../../shared/utils/relative_time.dart';
 import '../../../shared/widgets/corterm_ui.dart';
 import '../../../shared/widgets/swipe_delete.dart';
+import '../../../shared/widgets/states.dart' show ErrorState, showAppToast;
 import '../../../core/models/session.dart';
 import '../../sessions/data/session_repository.dart';
 import '../../sessions/data/sessions_providers.dart';
@@ -23,8 +27,17 @@ class UngroupedSessionsScreen extends ConsumerWidget {
     String sessionId,
   ) async {
     final l10n = AppLocalizations.of(context)!;
-    final workspaces = ref.read(workspacesProvider).value ?? const [];
-    final target = await showModalBottomSheet<String>(
+    final workspaces = await ref.read(workspacesProvider.future);
+    if (!context.mounted) return;
+    final session = ref
+        .read(sessionsProvider)
+        .valueOrNull
+        ?.where((s) => s.sessionId == sessionId)
+        .firstOrNull;
+    final compatible = workspaces
+        .where((workspace) => workspace.workerId == session?.workerId)
+        .toList();
+    final target = await showAdaptiveModalBottomSheet<String>(
       context: context,
       sheetAnimationStyle: const AnimationStyle(
         duration: Duration(milliseconds: 280),
@@ -52,7 +65,7 @@ class UngroupedSessionsScreen extends ConsumerWidget {
                   ),
                 ),
               ),
-              if (workspaces.isEmpty)
+              if (compatible.isEmpty)
                 Padding(
                   padding: const EdgeInsets.all(16),
                   child: Text(
@@ -60,7 +73,7 @@ class UngroupedSessionsScreen extends ConsumerWidget {
                     style: TextStyle(fontSize: 14, color: colors.textSecondary),
                   ),
                 ),
-              for (final w in workspaces)
+              for (final w in compatible)
                 InkWell(
                   onTap: () => Navigator.pop(sheetContext, w.workspaceId),
                   child: Padding(
@@ -92,9 +105,10 @@ class UngroupedSessionsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = colorsOf(context);
     final l10n = AppLocalizations.of(context)!;
+    final state = ref.watch(sessionsProvider);
     final sessions = ref.watch(ungroupedSessionsProvider);
 
-    return Scaffold(
+    return AdaptivePageScaffold(
       backgroundColor: colors.background,
       appBar: AppBar(
         backgroundColor: colors.background,
@@ -108,12 +122,30 @@ class UngroupedSessionsScreen extends ConsumerWidget {
           ),
         ),
       ),
-      body: sessions.isEmpty
+      body: state.isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : state.hasError
+          ? ErrorState(
+              message: '${state.error}',
+              onRetry: () => ref.invalidate(sessionsProvider),
+            )
+          : sessions.isEmpty
           ? EmptyState(icon: Icons.inbox_outlined, message: l10n.ungroupedEmpty)
           : RefreshIndicator(
-              onRefresh: () async => ref.invalidate(sessionsProvider),
+              onRefresh: () async {
+                ref.invalidate(sessionsProvider);
+                await ref.read(sessionsProvider.future);
+              },
               child: ListView(
                 children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Text(
+                      Localizations.localeOf(context).languageCode == 'zh'
+                          ? '这里是尚未关联工作区的会话。可将会话移入同一台电脑上的工作区，会话本身会保留。'
+                          : 'These sessions have no workspace. Move them to a workspace on the same computer without deleting the session.',
+                    ),
+                  ),
                   for (final s in sessions)
                     SwipeDelete(
                       key: ValueKey(s.sessionId),
@@ -143,8 +175,19 @@ class UngroupedSessionsScreen extends ConsumerWidget {
                             size: 20,
                             color: colors.textSecondary,
                           ),
-                          onPressed: () =>
-                              _moveToWorkspace(context, ref, s.sessionId),
+                          onPressed: () async {
+                            try {
+                              await _moveToWorkspace(context, ref, s.sessionId);
+                            } catch (error) {
+                              if (context.mounted) {
+                                showAppToast(
+                                  context,
+                                  '$error',
+                                  destructive: true,
+                                );
+                              }
+                            }
+                          },
                         ),
                         onTap: () async {
                           await context.push('/sessions/${s.sessionId}');

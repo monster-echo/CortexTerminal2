@@ -1,3 +1,4 @@
+import '../../shared/layout/adaptive_page_scaffold.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -107,21 +108,19 @@ class _ActivateScreenState extends ConsumerState<ActivateScreen> {
     final theme = ShadTheme.of(context);
     final c = colorsOf(context);
 
-    return Scaffold(
-      backgroundColor: colorsOf(context).scrim,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        foregroundColor: colorsOf(context).onScrim,
-        title: Text(l10n.activateTitle),
-        // 可能被 go 直接替换进入（无栈可弹），此时回首页兜底。
-        leading: context.canPop()
-            ? BackButton(onPressed: () => context.pop())
-            : CloseButton(onPressed: () => context.go('/home')),
+    return AdaptivePageScaffold(
+      backgroundColor: c.background,
+      appBar: CortermAppBar(
+        title: l10n.activateTitle,
+        leading: ShadIconButton.ghost(
+          foregroundColor: c.textPrimary,
+          icon: const Icon(LucideIcons.arrowLeft, size: 20),
+          onPressed: () =>
+              context.canPop() ? context.pop() : context.go('/home'),
+        ),
       ),
-      body: Stack(
-        children: [
-          if (_confirmed)
-            Center(
+      body: _confirmed
+          ? Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -130,99 +129,117 @@ class _ActivateScreenState extends ConsumerState<ActivateScreen> {
                   Text(
                     l10n.activateDone,
                     textAlign: TextAlign.center,
-                    style: theme.textTheme.small.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: colorsOf(context).onScrim,
-                    ),
+                    style: theme.textTheme.large.copyWith(color: c.textPrimary),
                   ),
                 ],
               ),
             )
-          else ...[
-            MobileScanner(
-              controller: _controller,
-              onDetect: (capture) {
-                if (_scanned || _verifying) return;
-                for (final barcode in capture.barcodes) {
-                  final raw = barcode.rawValue;
-                  if (raw != null && raw.isNotEmpty) {
-                    _scanned = true;
-                    _onScanned(raw).whenComplete(() => _scanned = false);
-                    return;
-                  }
-                }
-              },
-              errorBuilder: (context, error) {
-                return Center(
+          : Column(
+              children: [
+                Expanded(
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      ColoredBox(
+                        color: c.scrim,
+                        child: MobileScanner(
+                          controller: _controller,
+                          onDetect: (capture) {
+                            if (_scanned || _verifying) return;
+                            for (final barcode in capture.barcodes) {
+                              final raw = barcode.rawValue;
+                              if (raw != null && raw.isNotEmpty) {
+                                _scanned = true;
+                                _onScanned(raw)
+                                    .whenComplete(() => _scanned = false);
+                                return;
+                              }
+                            }
+                          },
+                          errorBuilder: (context, error) => Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(24),
+                              child: Text(
+                                '$error',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(color: c.onScrim),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      IgnorePointer(
+                        child: Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(32),
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(
+                                maxWidth: 240,
+                                maxHeight: 240,
+                              ),
+                              child: AspectRatio(
+                                aspectRatio: 1,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: c.accent,
+                                      width: 2,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                SafeArea(
+                  top: false,
                   child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Text(
-                      '$error',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: colorsOf(context).onScrim),
+                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          l10n.activateScanHint,
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.small.copyWith(
+                            color: c.textSecondary,
+                            height: 1.5,
+                          ),
+                        ),
+                        if (_error != null) ...[
+                          const SizedBox(height: 12),
+                          Text(
+                            _error!,
+                            textAlign: TextAlign.center,
+                            style: theme.textTheme.small.copyWith(
+                              color: c.danger,
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 20),
+                        if (_verifying)
+                          const Center(
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        else
+                          ShadButton.outline(
+                            width: double.infinity,
+                            height: 48,
+                            onPressed: _openCodeEntry,
+                            child: Text(l10n.activateManualEntry),
+                          ),
+                      ],
                     ),
                   ),
-                );
-              },
+                ),
+              ],
             ),
-            // 取景框 + 提示 + 底部手动入口
-            SafeArea(
-              child: Column(
-                children: [
-                  const Spacer(),
-                  Container(
-                    width: 240,
-                    height: 240,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: c.accent, width: 2),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  Text(
-                    l10n.activateScanHint,
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.small.copyWith(
-                      color: colorsOf(context).onScrim,
-                      height: 1.5,
-                    ),
-                  ),
-                  const Spacer(),
-                  if (_error != null) ...[
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Text(
-                        _error!,
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.small.copyWith(color: c.danger),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-                  if (_verifying)
-                    const Padding(
-                      padding: EdgeInsets.all(24),
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  else
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-                      child: ShadButton.outline(
-                        width: double.infinity,
-                        height: 48,
-                        foregroundColor: colorsOf(context).onScrim,
-                        backgroundColor: colorsOf(context).onScrim
-                            .withValues(alpha: 0.12),
-                        onPressed: _openCodeEntry,
-                        child: Text(l10n.activateManualEntry),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
     );
   }
 }
@@ -299,7 +316,7 @@ class _CodeEntryScreenState extends ConsumerState<_CodeEntryScreen> {
     final theme = ShadTheme.of(context);
     final c = colorsOf(context);
 
-    return Scaffold(
+    return AdaptivePageScaffold(
       backgroundColor: c.background,
       appBar: CortermAppBar(title: l10n.activateCodeNavTitle),
       body: SingleChildScrollView(

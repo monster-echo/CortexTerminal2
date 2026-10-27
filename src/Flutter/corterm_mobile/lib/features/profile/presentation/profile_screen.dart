@@ -1,19 +1,20 @@
+import '../../../shared/layout/adaptive_page_scaffold.dart';
+
 import 'dart:ui' as ui;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../../app/theme/corterm_theme.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/utils/file_reader.dart';
 import '../../../shared/widgets/app_bar.dart';
-import '../../../shared/widgets/list_group.dart';
 import '../../../shared/widgets/sheets_and_dialogs.dart';
 import '../../../shared/widgets/states.dart';
+import '../../../shared/widgets/unsaved_changes_guard.dart';
 import '../data/profile_repository.dart';
 
 /// 资料页：头像（选图 → 圆形裁剪 → 上传）+ 显示名。
@@ -31,140 +32,216 @@ class ProfileScreen extends ConsumerWidget {
     final profile = ref.watch(profileProvider);
     final repo = ref.read(profileRepositoryProvider);
 
-    return Scaffold(
+    return AdaptivePageScaffold(
       backgroundColor: c.background,
       appBar: CortermAppBar(
         title: l10n.profileTitle,
         leading: ShadIconButton.ghost(
           foregroundColor: c.textPrimary,
           icon: const Icon(LucideIcons.arrowLeft, size: 20),
-          onPressed: () => context.pop(),
+          onPressed: () => Navigator.of(context).maybePop(),
         ),
       ),
       body: profile.when(
         loading: () => const Center(child: ShadProgress(value: null)),
-        error: (e, _) => ErrorState(message: '$e'),
-        data: (user) => ListView(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-          children: [
-            Center(
-              child: GestureDetector(
-                onTap: () => _changeAvatar(context, ref, user),
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    _Avatar(url: repo.resolveAvatarUrl(user.avatarUrl), size: 96),
-                    Positioned(
-                      right: 0,
-                      bottom: 0,
-                      child: CircleAvatar(
-                        radius: 15,
-                        backgroundColor: c.accent,
-                        child: Icon(LucideIcons.camera,
-                            size: 16, color: c.background),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 32),
-            AppRow(
-              icon: LucideIcons.user,
-              label: l10n.username,
-              value: user.username,
-            ),
-            if (_isRealEmail(user.email))
-              AppRow(
-                icon: LucideIcons.atSign,
-                label: l10n.email,
-                value: user.email!,
-              ),
-            AppRow(
-              icon: LucideIcons.badge,
-              label: l10n.displayNameLabel,
-              value: (user.displayName?.isNotEmpty ?? false) ? user.displayName! : l10n.unknown,
-              chevron: true,
-              onTap: () => _editDisplayName(context, ref, user),
-            ),
-            const SizedBox(height: 16),
-            AppRow(
-              icon: LucideIcons.keyRound,
-              label: l10n.hasPassword,
-              value: user.hasPassword ? l10n.yes : l10n.no,
-            ),
-          ],
+        error: (e, _) => ErrorState(
+          message: '$e',
+          onRetry: () => ref.invalidate(profileProvider),
+        ),
+        data: (user) => _ProfileEditor(
+          initialName: user.displayName ?? '',
+          avatarUrl: repo.resolveAvatarUrl(user.avatarUrl),
+          onAvatar: () => _changeAvatar(context, ref, user),
+          onSave: repo.updateDisplayName,
+          onSaved: () => ref.invalidate(profileProvider),
         ),
       ),
     );
   }
 
-  /// 系统生成的临时邮箱（如 @corterm.dev）不属于用户真实资料，不展示。
-  bool _isRealEmail(String? email) {
-    if (email == null || email.isEmpty) return false;
-    return !email.endsWith('@corterm.dev');
-  }
-
   Future<void> _changeAvatar(
-      BuildContext context, WidgetRef ref, UserProfile user) async {
+    BuildContext context,
+    WidgetRef ref,
+    UserProfile user,
+  ) async {
     final l10n = AppLocalizations.of(context)!;
     // Web 端 file_picker 不产生文件路径，必须 withData 拿 bytes。
-    final picked =
-        await FilePicker.pickFiles(type: FileType.image, withData: kIsWeb);
-    if (picked == null) return;
-    final file = picked.files.single;
-    if (kIsWeb ? file.bytes == null : file.path == null) return;
-    if (!context.mounted) return;
-
-    final bytes = await showCortermSheet<Uint8List>(
-      context: context,
-      builder: (_) => AvatarCropSheet(path: file.path, bytes: file.bytes),
-    );
-    if (bytes == null || bytes.isEmpty) return;
-
     try {
+      final picked = await FilePicker.pickFiles(
+        type: FileType.image,
+        withData: kIsWeb,
+      );
+      if (picked == null) return;
+      if (!context.mounted) return;
+      final file = picked.files.single;
+      if (kIsWeb ? file.bytes == null : file.path == null) {
+        throw StateError(
+          Localizations.localeOf(context).languageCode == 'zh'
+              ? '无法读取选择的图片。'
+              : 'Cannot read selected image.',
+        );
+      }
+      if (!context.mounted) return;
+
+      final bytes = await showCortermSheet<Uint8List>(
+        context: context,
+        builder: (_) => AvatarCropSheet(path: file.path, bytes: file.bytes),
+      );
+      if (bytes == null || bytes.isEmpty) return;
+
       await ref.read(profileRepositoryProvider).uploadAvatar(bytes);
       ref.invalidate(profileProvider);
       if (context.mounted) showAppToast(context, l10n.avatarUpdated);
     } catch (e) {
-      if (context.mounted) {
-        showAppToast(context, '$e', destructive: true);
-      }
+      if (context.mounted) showAppToast(context, '$e', destructive: true);
+    }
+  }
+}
+
+class _ProfileEditor extends StatefulWidget {
+  const _ProfileEditor({
+    required this.initialName,
+    required this.avatarUrl,
+    required this.onAvatar,
+    required this.onSave,
+    required this.onSaved,
+  });
+  final String initialName;
+  final String avatarUrl;
+  final VoidCallback onAvatar;
+  final Future<void> Function(String) onSave;
+  final VoidCallback onSaved;
+  @override
+  State<_ProfileEditor> createState() => _ProfileEditorState();
+}
+
+class _ProfileEditorState extends State<_ProfileEditor> {
+  late final TextEditingController _controller;
+  late String _savedName;
+  bool _saving = false;
+  String? _error;
+  bool get _canSave =>
+      !_saving &&
+      _controller.text.trim().isNotEmpty &&
+      _controller.text.trim() != _savedName;
+  @override
+  void initState() {
+    super.initState();
+    _savedName = widget.initialName.trim();
+    _controller = TextEditingController(text: widget.initialName);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (!_canSave) return;
+    final name = _controller.text.trim();
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      await widget.onSave(name);
+      if (!mounted) return;
+      _savedName = name;
+      FocusScope.of(context).unfocus();
+      showAppToast(
+        context,
+        Localizations.localeOf(context).languageCode == 'zh'
+            ? '资料已保存'
+            : 'Profile saved',
+      );
+      widget.onSaved();
+    } catch (e) {
+      if (mounted) setState(() => _error = '$e');
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
   }
 
-  Future<void> _editDisplayName(
-      BuildContext context, WidgetRef ref, UserProfile user) async {
+  @override
+  Widget build(BuildContext context) {
+    final c = colorsOf(context);
     final l10n = AppLocalizations.of(context)!;
-    final controller = TextEditingController(text: user.displayName ?? '');
-    final name = await showCortermSheetDialog<String>(
-      context: context,
-      title: l10n.displayNameLabel,
-      child: ShadInputFormField(
-        controller: controller,
-        placeholder: Text(l10n.displayNameLabel),
-        maxLength: 32,
+    final zh = Localizations.localeOf(context).languageCode == 'zh';
+    return UnsavedChangesGuard(
+      dirty: _controller.text.trim() != _savedName,
+      busy: _saving,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
+        children: [
+          Center(
+            child: Semantics(
+              button: true,
+              label: zh ? '修改头像' : 'Change avatar',
+              child: GestureDetector(
+                onTap: _saving ? null : widget.onAvatar,
+                child: _Avatar(url: widget.avatarUrl, size: 72),
+              ),
+            ),
+          ),
+          Center(
+            child: TextButton(
+              onPressed: _saving ? null : widget.onAvatar,
+              child: Text(zh ? '修改头像' : 'Change avatar'),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            l10n.displayNameLabel,
+            style: TextStyle(fontSize: 14, color: c.textSecondary),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _controller,
+            enabled: !_saving,
+            maxLength: 32,
+            textInputAction: TextInputAction.done,
+            textCapitalization: TextCapitalization.words,
+            onChanged: (_) => setState(() => _error = null),
+            onSubmitted: (_) => _save(),
+            decoration: InputDecoration(
+              hintText: l10n.displayNameLabel,
+              filled: true,
+              fillColor: c.surfaceElevated,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              errorText: _error,
+              errorMaxLines: 3,
+            ),
+          ),
+          const SizedBox(height: 20),
+          FilledButton(
+            onPressed: _canSave ? _save : null,
+            style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(48),
+            ),
+            child: _saving
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Text(l10n.save),
+          ),
+          if (_controller.text.trim() != _savedName)
+            TextButton(
+              onPressed: _saving
+                  ? null
+                  : () => setState(() {
+                      _controller.text = _savedName;
+                      _error = null;
+                    }),
+              child: Text(l10n.cancel),
+            ),
+        ],
       ),
-      actions: [
-        ShadButton.outline(
-          onPressed: () => Navigator.pop(context),
-          child: Text(l10n.cancel),
-        ),
-        ShadButton(
-          onPressed: () => Navigator.pop(context, controller.text.trim()),
-          child: Text(l10n.save),
-        ),
-      ],
     );
-    if (name == null) return;
-    try {
-      await ref.read(profileRepositoryProvider).updateDisplayName(name);
-      ref.invalidate(profileProvider);
-    } catch (e) {
-      if (context.mounted) {
-        showAppToast(context, '$e', destructive: true);
-      }
-    }
   }
 }
 
@@ -183,7 +260,11 @@ class _Avatar extends StatelessWidget {
               width: size,
               height: size,
               color: c.surfaceElevated,
-              child: Icon(LucideIcons.user, size: size * 0.5, color: c.textSecondary),
+              child: Icon(
+                LucideIcons.user,
+                size: size * 0.5,
+                color: c.textSecondary,
+              ),
             )
           : Image.network(
               url,
@@ -194,8 +275,11 @@ class _Avatar extends StatelessWidget {
                 width: size,
                 height: size,
                 color: c.surfaceElevated,
-                child:
-                    Icon(LucideIcons.user, size: size * 0.5, color: c.textSecondary),
+                child: Icon(
+                  LucideIcons.user,
+                  size: size * 0.5,
+                  color: c.textSecondary,
+                ),
               ),
             ),
     );
@@ -255,14 +339,21 @@ class _AvatarCropSheetState extends State<AvatarCropSheet> {
     return (await codec.getNextFrame()).image;
   }
 
-  Future<void> _confirm(BuildContext context, ui.Image image, Size viewport) async {
+  Future<void> _confirm(
+    BuildContext context,
+    ui.Image image,
+    Size viewport,
+  ) async {
     const out = 512;
     // 取景框 → 原图坐标：用矩阵逆变换把视口中心/半径映射回子坐标系
     //（InteractiveViewer 的矩阵含绕心缩放，必须整体求逆）。
     final inverse = Matrix4.inverted(_transformation.value);
     final viewportCenter = Offset(viewport.width / 2, viewport.height / 2);
     final srcCenter = MatrixUtils.transformPoint(inverse, viewportCenter);
-    final srcEdge = MatrixUtils.transformPoint(inverse, viewportCenter + Offset(viewport.width / 2, 0));
+    final srcEdge = MatrixUtils.transformPoint(
+      inverse,
+      viewportCenter + Offset(viewport.width / 2, 0),
+    );
     final srcRadius = (srcEdge.dx - srcCenter.dx).abs();
     final side = srcRadius * 2;
     final src = Rect.fromCenter(
@@ -282,12 +373,8 @@ class _AvatarCropSheetState extends State<AvatarCropSheet> {
     final picture = recorder.endRecording();
     final rendered = await picture.toImage(out, out);
     final data = await rendered.toByteData(format: ui.ImageByteFormat.png);
-    if (data == null) {
-      throw StateError('avatar crop: png encode failed');
-    }
-    if (context.mounted) {
-      Navigator.of(context).pop(data.buffer.asUint8List());
-    }
+    if (data == null) throw StateError('avatar crop: png encode failed');
+    if (context.mounted) Navigator.of(context).pop(data.buffer.asUint8List());
   }
 
   @override
@@ -318,8 +405,7 @@ class _AvatarCropSheetState extends State<AvatarCropSheet> {
                             child: Text(
                               '${snap.error}',
                               textAlign: TextAlign.center,
-                              style: TextStyle(
-                                  color: c.danger, fontSize: 13),
+                              style: TextStyle(color: c.danger, fontSize: 13),
                             ),
                           );
                         }
@@ -333,8 +419,10 @@ class _AvatarCropSheetState extends State<AvatarCropSheet> {
                           );
                         }
                         final image = snap.data!;
-                        final baseScale = (box.maxWidth / image.width)
-                            .clamp(box.maxHeight / image.height, double.infinity);
+                        final baseScale = (box.maxWidth / image.width).clamp(
+                          box.maxHeight / image.height,
+                          double.infinity,
+                        );
                         return InteractiveViewer(
                           transformationController: _transformation,
                           panEnabled: true,
@@ -369,7 +457,8 @@ class _AvatarCropSheetState extends State<AvatarCropSheet> {
                     future: _image,
                     builder: (context, snap) => ShadButton(
                       enabled: snap.hasData,
-                      onPressed: () => _confirm(context, snap.data!, const Size(280, 280)),
+                      onPressed: () =>
+                          _confirm(context, snap.data!, const Size(280, 280)),
                       child: Text(l10n.save),
                     ),
                   ),

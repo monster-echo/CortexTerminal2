@@ -10,7 +10,7 @@ class AppLocalizationsZh extends AppLocalizations {
   AppLocalizationsZh([String locale = 'zh']) : super(locale);
 
   @override
-  String get appName => 'Corterm';
+  String get appName => '云枢终端';
 
   @override
   String get cancel => '取消';
@@ -470,7 +470,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get logout => '退出登录';
 
   @override
-  String get logoutConfirm => '退出登录 Corterm？';
+  String get logoutConfirm => '退出登录云枢终端？';
 
   @override
   String get appVersion => '版本';
@@ -492,7 +492,7 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get legalIndexIntro => '以下文档约束你对 Corterm 的使用。中文版本为准，英文版本为对照译本。';
+  String get legalIndexIntro => '以下文档约束你对云枢终端的使用。中文版本为准，英文版本为对照译本。';
 
   @override
   String get privacyPolicy => '隐私政策';
@@ -849,10 +849,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get feedbackContentPlaceholder => '发生了什么？期望是什么？';
 
   @override
+  String get feedbackMinimumLength => '至少填写 10 个字';
+
+  @override
   String get feedbackContact => '联系方式（选填）';
 
   @override
-  String get feedbackContactPlaceholder => '邮箱 / Telegram / QQ';
+  String get feedbackContactPlaceholder => '邮箱 / Telegram';
 
   @override
   String feedbackAttachments(int cur, int max) {
@@ -1232,4 +1235,13 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get terminalPermissionGuide => '远端 Mac 权限操作说明';
+
+  @override
+  String get showPassword => '显示密码';
+
+  @override
+  String get hidePassword => '隐藏密码';
+
+  @override
+  String get phoneLoginHint => '使用短信验证码登录，无需密码。';
 }

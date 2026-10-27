@@ -40,7 +40,7 @@ class CortermAppBar extends StatelessWidget implements PreferredSizeWidget {
       Size.fromHeight(kToolbarHeight + (bottom?.preferredSize.height ?? 0));
 
   @override
-  Widget build(BuildContext context) {
+  AppBar build(BuildContext context) {
     final scheme = ShadTheme.of(context).colorScheme;
     return AppBar(
       backgroundColor: backgroundColor ?? scheme.background,

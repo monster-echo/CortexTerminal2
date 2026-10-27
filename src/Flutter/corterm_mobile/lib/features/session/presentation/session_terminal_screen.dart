@@ -1,4 +1,8 @@
+import '../../../shared/layout/adaptive_sheet.dart';
+
 import 'dart:async';
+
+import '../../../shared/layout/adaptive_page_scaffold.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -40,6 +44,10 @@ class SessionTerminalScreen extends ConsumerStatefulWidget {
 
 class _SessionTerminalScreenState extends ConsumerState<SessionTerminalScreen> {
   final _terminalController = TerminalController();
+  GlobalKey<TerminalViewState> _terminalViewKey =
+      GlobalKey<TerminalViewState>();
+  int? _viewEpoch;
+  bool _forking = false;
 
   @override
   void initState() {
@@ -96,7 +104,7 @@ class _SessionTerminalScreenState extends ConsumerState<SessionTerminalScreen> {
   );
 
   void _showDiagnostics() {
-    showModalBottomSheet<void>(
+    showAdaptiveModalBottomSheet<void>(
       context: context,
       useSafeArea: true,
       isScrollControlled: true,
@@ -121,7 +129,7 @@ class _SessionTerminalScreenState extends ConsumerState<SessionTerminalScreen> {
         : workspaces.where((w) => w.workspaceId == workspaceId).firstOrNull;
     final computer = session?.workerName ?? session?.workerId ?? '';
 
-    showModalBottomSheet<void>(
+    showAdaptiveModalBottomSheet<void>(
       context: context,
       sheetAnimationStyle: const AnimationStyle(
         duration: Duration(milliseconds: 280),
@@ -231,22 +239,53 @@ class _SessionTerminalScreenState extends ConsumerState<SessionTerminalScreen> {
   }
 
   /// Fork：以当前会话为模板新建 shell（同 worker + OSC 7 实时 cwd）。
-  /// 失败（cwd 未上报 / 创建失败）原样 toast 展示，不静默回退。
+  /// 无实时目录时使用工作区根目录，并向用户说明。
   Future<void> _forkSession(SessionSummary? session) async {
+    if (_forking) return;
+    setState(() => _forking = true);
     try {
-      await ref
+      session ??= (await ref.read(sessionsProvider.future))
+          .where((s) => s.sessionId == widget.sessionId)
+          .firstOrNull;
+      final workspaces = await ref.read(workspacesProvider.future);
+      final workspace = workspaces
+          .where((w) => w.workspaceId == session?.workspaceId)
+          .firstOrNull;
+      final entry = ref
+          .read(sessionControllerProvider)
+          .entryOf(widget.sessionId);
+      final usedRoot = entry?.remoteCwd?.isNotEmpty != true;
+      final id = await ref
           .read(sessionControllerProvider.notifier)
-          .forkSession(widget.sessionId, sourceName: session?.name ?? '');
-    } catch (e) {
+          .forkSession(
+            widget.sessionId,
+            sourceName: session?.displayName ?? '',
+            sourceWorkerId: session?.workerId,
+            workspaceId: session?.workspaceId,
+            fallbackCwd: workspace?.rootPath,
+          );
+      ref.invalidate(sessionsProvider);
       if (!mounted) return;
-      showAppToast(context, '$e', destructive: true);
+      if (usedRoot) {
+        showAppToast(
+          context,
+          Localizations.localeOf(context).languageCode == 'zh'
+              ? '未取得实时目录，已在工作区根目录创建会话。'
+              : 'Live directory unavailable. Created the session in the workspace root.',
+        );
+      }
+      context.pushReplacement('/sessions/$id');
+    } catch (e) {
+      if (mounted) showAppToast(context, '$e', destructive: true);
+    } finally {
+      if (mounted) setState(() => _forking = false);
     }
   }
 
   void _showSessionSwitcher() {
     final sessions = ref.read(sessionsProvider).asData?.value ?? const [];
     final theme = _pageTheme();
-    showModalBottomSheet<void>(
+    showAdaptiveModalBottomSheet<void>(
       context: context,
       sheetAnimationStyle: const AnimationStyle(
         duration: Duration(milliseconds: 280),
@@ -341,6 +380,10 @@ class _SessionTerminalScreenState extends ConsumerState<SessionTerminalScreen> {
     final l10n = AppLocalizations.of(context)!;
     final ws = ref.watch(sessionControllerProvider);
     final entry = ws.entryOf(widget.sessionId);
+    if (entry != null && _viewEpoch != entry.epoch) {
+      _viewEpoch = entry.epoch;
+      _terminalViewKey = GlobalKey<TerminalViewState>();
+    }
     final sessions = ref.watch(sessionsProvider).asData?.value ?? const [];
     final session = sessions
         .where((s) => s.sessionId == widget.sessionId)
@@ -380,52 +423,96 @@ class _SessionTerminalScreenState extends ConsumerState<SessionTerminalScreen> {
           child: Builder(
             builder: (context) {
               final colors = colorsOf(context);
-              return Scaffold(
+              return AdaptivePageScaffold(
                 backgroundColor: colors.background,
                 resizeToAvoidBottomInset: true,
-                body: SafeArea(
-                  top: true,
-                  bottom: false,
-                  child: Column(
-                    children: [
-                      _TerminalHeader(
-                        title: session?.name ?? l10n.connConnecting,
-                        status: switch (entry?.connState) {
-                          null ||
-                          TerminalConnState.idle ||
-                          TerminalConnState.connecting ||
-                          TerminalConnState.replaying => l10n.connConnecting,
-                          TerminalConnState.live =>
-                            entry!.rttMs != null
-                                ? '${entry.hasReceivedOutput ? l10n.terminalTransportLabel : l10n.terminalWaitingOutput} · ${entry.rttMs}ms'
-                                : entry.hasReceivedOutput
-                                ? l10n.connLive
-                                : l10n.terminalWaitingOutput,
-                          TerminalConnState.reconnecting =>
-                            l10n.connReconnecting,
-                          TerminalConnState.workerOffline =>
-                            l10n.computerOfflineWaiting,
-                          TerminalConnState.exited => l10n.statusExited,
-                          TerminalConnState.error => l10n.sessionErrorBanner,
-                        },
-                        statusColor:
-                            entry?.connState == TerminalConnState.live &&
-                                entry!.hasReceivedOutput
-                            ? colors.success
-                            : _isDead(
-                                entry?.connState ?? TerminalConnState.idle,
-                              )
-                            ? colors.danger
-                            : colors.warning,
-                        onBack: () {
+                appBar: AppBar(
+                  backgroundColor: colors.background,
+                  surfaceTintColor: Colors.transparent,
+                  titleSpacing: 4,
+                  leading: BackButton(
+                    onPressed: () {
+                      FocusManager.instance.primaryFocus?.unfocus(
+                        disposition: UnfocusDisposition.scope,
+                      );
+                      if (context.canPop()) {
+                        context.pop();
+                      } else {
+                        context.go(
+                          session?.workspaceId.isNotEmpty == true
+                              ? '/workspaces/${session!.workspaceId}'
+                              : '/home',
+                        );
+                      }
+                    },
+                  ),
+                  title: _TerminalTitle(
+                    title: session?.displayName ?? l10n.connConnecting,
+                    status: switch (entry?.connState) {
+                      null ||
+                      TerminalConnState.idle ||
+                      TerminalConnState.connecting ||
+                      TerminalConnState.replaying => l10n.connConnecting,
+                      TerminalConnState.live =>
+                        entry!.rttMs != null
+                            ? '${entry.hasReceivedOutput ? l10n.terminalTransportLabel : l10n.terminalWaitingOutput} · ${entry.rttMs}ms'
+                            : entry.hasReceivedOutput
+                            ? l10n.connLive
+                            : l10n.terminalWaitingOutput,
+                      TerminalConnState.reconnecting => l10n.connReconnecting,
+                      TerminalConnState.workerOffline =>
+                        l10n.computerOfflineWaiting,
+                      TerminalConnState.exited => l10n.statusExited,
+                      TerminalConnState.error => l10n.sessionErrorBanner,
+                    },
+                    statusColor:
+                        entry?.connState == TerminalConnState.live &&
+                            entry!.hasReceivedOutput
+                        ? colors.success
+                        : _isDead(entry?.connState ?? TerminalConnState.idle)
+                        ? colors.danger
+                        : colors.warning,
+                    onSwitch: _showSessionSwitcher,
+                  ),
+                  actions: [
+                    if (session?.workspaceId.isNotEmpty == true)
+                      IconButton(
+                        tooltip: '文件',
+                        icon: const Icon(Icons.folder_outlined),
+                        onPressed: () => context.push(
+                          '/workspaces/${session!.workspaceId}/files',
+                        ),
+                      ),
+                    IconButton(
+                      tooltip: keyboardOpen ? l10n.done : l10n.keyboardToolbar,
+                      icon: Icon(
+                        keyboardOpen
+                            ? Icons.keyboard_hide_outlined
+                            : Icons.keyboard_outlined,
+                      ),
+                      onPressed: () {
+                        if (keyboardOpen) {
                           FocusManager.instance.primaryFocus?.unfocus(
                             disposition: UnfocusDisposition.scope,
                           );
-                          context.pop();
-                        },
-                        onSwitch: () => _showSessionSwitcher(),
-                        onMore: () => _showMoreMenu(session),
-                      ),
+                        } else {
+                          _terminalViewKey.currentState?.requestKeyboard();
+                        }
+                      },
+                    ),
+                    IconButton(
+                      tooltip: l10n.more,
+                      icon: const Icon(Icons.more_vert),
+                      onPressed: () => _showMoreMenu(session),
+                    ),
+                  ],
+                ),
+
+                body: SafeArea(
+                  top: true,
+                  bottom: true,
+                  child: Column(
+                    children: [
                       if (entry != null &&
                           entry.startupDelayed &&
                           !_isDead(entry.connState))
@@ -480,10 +567,8 @@ class _SessionTerminalScreenState extends ConsumerState<SessionTerminalScreen> {
                                 children: [
                                   Positioned.fill(
                                     child: TerminalView(
-                                      // epoch 变化（reattach 重放）→ 重建 view，buffer 全新。
-                                      key: ValueKey(
-                                        'term-${widget.sessionId}-${entry.epoch}',
-                                      ),
+                                      // Keep the view and keyboard focus while the window resizes.
+                                      key: _terminalViewKey,
                                       entry.terminal,
                                       controller: _terminalController,
                                       theme: terminalTheme,
@@ -493,15 +578,14 @@ class _SessionTerminalScreenState extends ConsumerState<SessionTerminalScreen> {
                                             'packages/shadcn_ui/GeistMono',
                                       ),
                                       readOnly: !entry.canInput,
-                                      autofocus: true,
+                                      deleteDetection: true,
+                                      autofocus: false,
                                     ),
                                   ),
                                   if (entry.connState ==
                                       TerminalConnState.reconnecting)
                                     Positioned(
-                                      top:
-                                          MediaQuery.paddingOf(context).top +
-                                          56,
+                                      top: 12,
                                       left: 0,
                                       right: 0,
                                       child: Center(
@@ -513,9 +597,7 @@ class _SessionTerminalScreenState extends ConsumerState<SessionTerminalScreen> {
                                   if (entry.connState ==
                                       TerminalConnState.workerOffline)
                                     Positioned(
-                                      top:
-                                          MediaQuery.paddingOf(context).top +
-                                          56,
+                                      top: 12,
                                       left: 0,
                                       right: 0,
                                       child: Center(
@@ -544,6 +626,7 @@ class _SessionTerminalScreenState extends ConsumerState<SessionTerminalScreen> {
                       ),
                       if (keyboardOpen && entry != null)
                         TerminalKeyboardToolbar(
+                          keyLayout: ref.watch(terminalKeyLayoutProvider),
                           enabled: entry.canInput,
                           ctrlArmed: ws.ctrlArmed,
                           altArmed: ws.altArmed,
@@ -592,91 +675,60 @@ class _SessionTerminalScreenState extends ConsumerState<SessionTerminalScreen> {
       state == TerminalConnState.exited || state == TerminalConnState.error;
 }
 
-class _TerminalHeader extends StatelessWidget {
-  const _TerminalHeader({
+class _TerminalTitle extends StatelessWidget {
+  const _TerminalTitle({
     required this.title,
     required this.status,
     required this.statusColor,
-    required this.onBack,
     required this.onSwitch,
-    required this.onMore,
   });
 
   final String title;
   final String status;
   final Color statusColor;
-  final VoidCallback onBack;
   final VoidCallback onSwitch;
-  final VoidCallback onMore;
 
   @override
-  Widget build(BuildContext context) {
-    final c = colorsOf(context);
-    return SizedBox(
-      height: 52,
-      child: Row(
+  Widget build(BuildContext context) => InkWell(
+    onTap: onSwitch,
+    child: Padding(
+      padding: EdgeInsets.zero,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          IconButton(
-            tooltip: MaterialLocalizations.of(context).backButtonTooltip,
-            onPressed: onBack,
-            icon: Icon(Icons.chevron_left, color: c.textPrimary, size: 24),
-          ),
-          Expanded(
-            child: InkWell(
-              onTap: onSwitch,
-              child: Row(
-                children: [
-                  Flexible(
-                    child: Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: c.textPrimary,
-                        fontSize: 17,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
+          Row(
+            children: [
+              Flexible(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: colorsOf(context).textPrimary,
+                    fontSize: 15,
+                    height: 1.2,
+                    fontWeight: FontWeight.w500,
                   ),
-                  Icon(Icons.expand_more, color: c.textSecondary, size: 18),
-                ],
+                ),
               ),
-            ),
+              Icon(
+                Icons.expand_more,
+                size: 18,
+                color: colorsOf(context).textSecondary,
+              ),
+            ],
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-            decoration: BoxDecoration(
-              color: statusColor.withValues(alpha: .12),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 7,
-                  height: 7,
-                  decoration: BoxDecoration(
-                    color: statusColor,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  status,
-                  style: TextStyle(color: statusColor, fontSize: 12),
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            tooltip: AppLocalizations.of(context)!.more,
-            onPressed: onMore,
-            icon: Icon(Icons.more_vert, color: c.textPrimary),
+          Text(
+            status,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: statusColor, fontSize: 11, height: 1.2),
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
 }
 
 /// 轻量状态胶囊（reconnecting overlay，design/04 §5）。
@@ -744,7 +796,9 @@ class _DisconnectedCard extends StatelessWidget {
             if (entry.errorMessage != null) ...[
               const SizedBox(height: 4),
               Text(
-                entry.errorMessage == 'session-not-running' ? l10n.terminalSessionGone : entry.errorMessage!,
+                entry.errorMessage == 'session-not-running'
+                    ? l10n.terminalSessionGone
+                    : entry.errorMessage!,
                 style: TextStyle(fontSize: 12, color: colors.danger),
               ),
             ],

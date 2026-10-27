@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -42,41 +45,88 @@ class TunnelSummary {
   /// 创建即运行；撤销后规则不存在。
   final bool running;
 
+  bool get hasAccessKey =>
+      Uri.tryParse(url)?.queryParameters['k']?.isNotEmpty == true;
+
+  TunnelSummary withUrl(String value) => TunnelSummary(
+    tunnelId: tunnelId,
+    localPort: localPort,
+    remoteAddress: remoteAddress,
+    remotePort: remotePort,
+    url: value,
+    expiresAtUtc: expiresAtUtc,
+    name: name,
+    secret: secret,
+    portOpen: portOpen,
+    running: running,
+  );
+
   factory TunnelSummary.fromJson(Map<String, dynamic> json) => TunnelSummary(
-        // 字段全兜底（对齐 ArkTS mapTunnel）：网关个别字段缺失时不应崩。
-        tunnelId: json['tunnelId'] as String? ?? '',
-        name: json['name'] as String?,
-        localPort: (json['localPort'] as num?)?.toInt() ?? 0,
-        remoteAddress: json['remoteAddress'] as String? ?? '127.0.0.1',
-        remotePort: (json['remotePort'] as num?)?.toInt() ??
-            (json['port'] as num?)?.toInt() ??
-            0,
-        url: json['url'] as String? ?? '',
-        secret: json['secret'] as String?,
-        expiresAtUtc:
-            DateTime.tryParse(json['expiresAtUtc'] as String? ?? '')?.toUtc() ??
-                DateTime.fromMillisecondsSinceEpoch(0),
-        portOpen: json['portOpen'] as bool? ?? true,
-        running: json['running'] as bool? ?? true,
-      );
+    // 字段全兜底（对齐 ArkTS mapTunnel）：网关个别字段缺失时不应崩。
+    tunnelId: json['tunnelId'] as String? ?? '',
+    name: json['name'] as String?,
+    localPort: (json['localPort'] as num?)?.toInt() ?? 0,
+    remoteAddress: json['remoteAddress'] as String? ?? '127.0.0.1',
+    remotePort:
+        (json['remotePort'] as num?)?.toInt() ??
+        (json['port'] as num?)?.toInt() ??
+        0,
+    url: json['url'] as String? ?? '',
+    secret: json['secret'] as String?,
+    expiresAtUtc:
+        DateTime.tryParse(json['expiresAtUtc'] as String? ?? '')?.toUtc() ??
+        DateTime.fromMillisecondsSinceEpoch(0),
+    portOpen: json['portOpen'] as bool? ?? true,
+    running: json['running'] as bool? ?? true,
+  );
 }
 
 /// Workspace 端口转发数据源（design/06：规则归属 Workspace）。
 class TunnelRepository {
-  TunnelRepository(this._client);
+  TunnelRepository(this._client, {FlutterSecureStorage? storage})
+    : _storage = storage ?? const FlutterSecureStorage();
 
   final ApiClient _client;
+  final FlutterSecureStorage _storage;
+
+  String _key(String id) {
+    final identity = base64Url.encode(
+      utf8.encode(
+        '${_client.baseUrl}|${_client.tokenStore.username ?? ''}|$id',
+      ),
+    );
+    return 'tunnel.access.$identity';
+  }
+
+  Future<TunnelSummary> _withAccess(TunnelSummary tunnel) async {
+    if (tunnel.hasAccessKey) {
+      await _storage.write(key: _key(tunnel.tunnelId), value: tunnel.url);
+      return tunnel;
+    }
+    final cached = await _storage.read(key: _key(tunnel.tunnelId));
+    final secret = cached == null
+        ? null
+        : Uri.tryParse(cached)?.queryParameters['k'];
+    if (secret == null || secret.isEmpty) return tunnel;
+    final current = Uri.parse(tunnel.url);
+    return tunnel.withUrl(
+      current
+          .replace(queryParameters: {...current.queryParameters, 'k': secret})
+          .toString(),
+    );
+  }
 
   /// 列出 workspace 的转发规则。响应为 TunnelListResponse：{tunnels: [...]}。
   Future<List<TunnelSummary>> list(String workspaceId) async {
     try {
-      final json =
-          await _client.getMap('/api/me/workspaces/$workspaceId/tunnels');
+      final json = await _client.getMap(
+        '/api/me/workspaces/$workspaceId/tunnels',
+      );
       final items = (json['tunnels'] as List<dynamic>? ?? const <dynamic>[])
           .cast<Map<String, dynamic>>()
           .map(TunnelSummary.fromJson)
           .toList();
-      return items;
+      return await Future.wait(items.map(_withAccess));
     } on DioException catch (e) {
       ApiClient.throwFor(e);
     }
@@ -100,7 +150,7 @@ class TunnelRepository {
           'remotePort': remotePort,
         },
       );
-      return TunnelSummary.fromJson(json);
+      return await _withAccess(TunnelSummary.fromJson(json));
     } on DioException catch (e) {
       ApiClient.throwFor(e);
     }
@@ -124,7 +174,7 @@ class TunnelRepository {
           'remotePort': ?remotePort,
         },
       );
-      return TunnelSummary.fromJson(json);
+      return await _withAccess(TunnelSummary.fromJson(json));
     } on DioException catch (e) {
       ApiClient.throwFor(e);
     }
@@ -133,6 +183,7 @@ class TunnelRepository {
   Future<void> revoke(String tunnelId) async {
     try {
       await _client.delete('/api/me/tunnels/$tunnelId');
+      await _storage.delete(key: _key(tunnelId));
     } on DioException catch (e) {
       ApiClient.throwFor(e);
     }
@@ -140,4 +191,5 @@ class TunnelRepository {
 }
 
 final tunnelRepositoryProvider = Provider<TunnelRepository>(
-    (ref) => TunnelRepository(ref.watch(apiClientProvider)));
+  (ref) => TunnelRepository(ref.watch(apiClientProvider)),
+);

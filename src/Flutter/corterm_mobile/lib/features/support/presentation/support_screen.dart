@@ -1,3 +1,5 @@
+import '../../../shared/layout/adaptive_page_scaffold.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,7 +15,7 @@ import '../../../shared/widgets/sheets_and_dialogs.dart';
 import '../../../shared/widgets/states.dart';
 import '../data/support_repository.dart';
 
-/// 唯一客服渠道：飞书。有效邀请链接可直接生成二维码，避免远程图片失效。
+/// 移动端客服渠道：Telegram。有效邀请链接可直接生成二维码，避免远程图片失效。
 class SupportScreen extends ConsumerWidget {
   const SupportScreen({super.key});
 
@@ -23,7 +25,7 @@ class SupportScreen extends ConsumerWidget {
     final c = colorsOf(context);
     final info = ref.watch(supportInfoProvider);
 
-    return Scaffold(
+    return AdaptivePageScaffold(
       backgroundColor: c.background,
       appBar: CortermAppBar(
         title: l10n.supportTitle,
@@ -39,34 +41,64 @@ class SupportScreen extends ConsumerWidget {
         data: (data) => ListView(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           children: [
-            if (data.feishuGroup != null)
+            if (data.telegramGroup != null)
               _GroupCard(
                 icon: LucideIcons.messageCircle,
-                title: data.feishuGroup!.name.isNotEmpty
-                    ? data.feishuGroup!.name
-                    : l10n.feishuGroup,
-                subtitle: data.feishuGroup!.url,
-                qrCodeUrl: data.feishuGroup!.qrCodeUrl,
-                onCopy: data.feishuGroup!.url.isEmpty
+                title: data.telegramGroup!.name.isNotEmpty
+                    ? data.telegramGroup!.name
+                    : '${l10n.appName} Telegram',
+                subtitle: data.telegramGroup!.url,
+                qrCodeUrl: data.telegramGroup!.qrCodeUrl,
+                onCopy: data.telegramGroup!.url.isEmpty
                     ? null
                     : () {
                         Clipboard.setData(
-                          ClipboardData(text: data.feishuGroup!.url),
+                          ClipboardData(text: data.telegramGroup!.url),
                         );
                         showAppToast(context, l10n.copied);
                       },
-                onOpen: data.feishuGroup!.url.isEmpty
+                onOpen: data.telegramGroup!.url.isEmpty
                     ? null
-                    : () => launchUrl(
-                        Uri.parse(data.feishuGroup!.url),
-                        mode: LaunchMode.externalApplication,
-                      ),
+                    : () async {
+                        try {
+                          final opened = await launchUrl(
+                            Uri.parse(data.telegramGroup!.url),
+                            mode: LaunchMode.externalApplication,
+                          );
+                          if (!opened && context.mounted) {
+                            showAppToast(
+                              context,
+                              Localizations.localeOf(context).languageCode ==
+                                      'zh'
+                                  ? '无法打开链接，请复制后在浏览器中打开。'
+                                  : 'Copy the link and open it in your browser.',
+                              destructive: true,
+                            );
+                          }
+                        } catch (_) {
+                          if (context.mounted) {
+                            showAppToast(
+                              context,
+                              Localizations.localeOf(context).languageCode ==
+                                      'zh'
+                                  ? '无法打开链接，请复制后在浏览器中打开。'
+                                  : 'Copy the link and open it in your browser.',
+                              destructive: true,
+                            );
+                          }
+                        }
+                      },
               ),
-            if (data.feishuGroup == null)
+            TextButton.icon(
+              onPressed: () => context.push('/settings/feedback'),
+              icon: const Icon(Icons.feedback_outlined),
+              label: Text(l10n.feedbackTitle),
+            ),
+            if (data.telegramGroup == null)
               Text(
                 Localizations.localeOf(context).languageCode == 'zh'
-                    ? '飞书支持群暂不可用，请稍后重试。'
-                    : 'The Feishu support group is temporarily unavailable.',
+                    ? 'Telegram 群组暂不可用，请稍后重试。'
+                    : 'The Telegram group is temporarily unavailable.',
               ),
           ],
         ),
@@ -158,8 +190,8 @@ class _GroupCard extends StatelessWidget {
                     onPressed: onOpen,
                     child: Text(
                       Localizations.localeOf(context).languageCode == 'zh'
-                          ? '加入飞书群'
-                          : 'Join Feishu group',
+                          ? '加入 Telegram 群组'
+                          : 'Join Telegram group',
                     ),
                   ),
                 ],

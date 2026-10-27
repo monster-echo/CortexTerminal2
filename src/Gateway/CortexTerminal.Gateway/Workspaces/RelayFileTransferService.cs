@@ -48,6 +48,19 @@ public sealed class RelayFileTransferService(
             (worker, ws, token) => workerCommands.RenameAsync(worker.ConnectionId, ws.RootPath, path!, newName, token), ct);
     }
 
+    public Task TrashAsync(string userId, string workspaceId, string path, string trashId, CancellationToken ct)
+    {
+        if (!Guid.TryParseExact(trashId, "N", out _)) throw new WorkspaceFileServiceException(FileTransferErrorCode.PathInvalid, "invalid trash receipt");
+        return InvokeFileOpAsync(userId, workspaceId, path,
+            (worker, ws, token) => workerCommands.TrashAsync(worker.ConnectionId, ws.RootPath, path, trashId, token), ct);
+    }
+    public Task RestoreTrashAsync(string userId, string workspaceId, string trashId, CancellationToken ct)
+    {
+        if (!Guid.TryParseExact(trashId, "N", out _)) throw new WorkspaceFileServiceException(FileTransferErrorCode.PathInvalid, "invalid trash receipt");
+        return InvokeFileOpAsync(userId, workspaceId, trashId,
+            (worker, ws, token) => workerCommands.RestoreTrashAsync(worker.ConnectionId, ws.RootPath, trashId, token), ct);
+    }
+
     /// <summary>删除文件或目录（目录由 Worker 递归删除，路径严格限制在 root 内）。</summary>
     public Task DeleteAsync(string userId, string workspaceId, string? path, CancellationToken ct)
         => InvokeFileOpAsync(userId, workspaceId, path,

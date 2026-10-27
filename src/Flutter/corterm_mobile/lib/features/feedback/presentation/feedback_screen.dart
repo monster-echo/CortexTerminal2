@@ -1,3 +1,6 @@
+import '../../../shared/layout/adaptive_sheet.dart';
+import '../../../shared/layout/adaptive_page_scaffold.dart';
+
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
@@ -9,6 +12,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../../app/theme/corterm_theme.dart';
 import '../../../core/auth/auth_controller.dart';
+import '../../../core/storage/app_preferences.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/app_bar.dart';
 import '../data/feedback_repository.dart';
@@ -29,6 +33,7 @@ class _FeedbackScreenState extends ConsumerState<FeedbackScreen> {
   static const _feedbackType = 'feedback';
   final List<_PendingImage> _images = [];
   bool _submitting = false;
+  late final String _draftKey;
   String? _ticketId;
   String? _error;
 
@@ -37,11 +42,24 @@ class _FeedbackScreenState extends ConsumerState<FeedbackScreen> {
   @override
   void initState() {
     super.initState();
+    _draftKey = '${ref.read(workspaceMemoryPrefixProvider)}.feedback_draft';
+    final prefs = ref.read(sharedPreferencesProvider);
+    _content.text = prefs.getString('$_draftKey.content') ?? '';
+    _contact.text = prefs.getString('$_draftKey.contact') ?? '';
     _content.addListener(_contentChanged);
+    _contact.addListener(_contentChanged);
   }
 
-  void _contentChanged() {
+  Future<void> _contentChanged() async {
     if (mounted) setState(() {});
+    if (_ticketId != null) return;
+    try {
+      final prefs = ref.read(sharedPreferencesProvider);
+      await prefs.setString('$_draftKey.content', _content.text);
+      await prefs.setString('$_draftKey.contact', _contact.text);
+    } catch (error) {
+      if (mounted) setState(() => _error = '$error');
+    }
   }
 
   @override
@@ -80,9 +98,15 @@ class _FeedbackScreenState extends ConsumerState<FeedbackScreen> {
       final repo = ref.read(feedbackRepositoryProvider);
       final attachments = <String>[];
       for (final image in _images) {
-        final grant = await repo.requestUpload(filename: image.name);
-        await repo.putToStorage(uploadUrl: grant.uploadUrl, bytes: image.bytes);
-        attachments.add(grant.imageUrl);
+        if (image.uploadedUrl == null) {
+          final grant = await repo.requestUpload(filename: image.name);
+          await repo.putToStorage(
+            uploadUrl: grant.uploadUrl,
+            bytes: image.bytes,
+          );
+          image.uploadedUrl = grant.imageUrl;
+        }
+        attachments.add(image.uploadedUrl!);
       }
       final info = await PackageInfo.fromPlatform();
       final username = ref.read(authProvider).username ?? '';
@@ -104,6 +128,9 @@ class _FeedbackScreenState extends ConsumerState<FeedbackScreen> {
         _ticketId = ticket;
         _submitting = false;
       });
+      final prefs = ref.read(sharedPreferencesProvider);
+      await prefs.remove('$_draftKey.content');
+      await prefs.remove('$_draftKey.contact');
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -119,7 +146,7 @@ class _FeedbackScreenState extends ConsumerState<FeedbackScreen> {
     final theme = ShadTheme.of(context);
     final c = colorsOf(context);
 
-    return Scaffold(
+    return AdaptivePageScaffold(
       backgroundColor: c.background,
       appBar: CortermAppBar(
         title: l10n.feedbackTitle,
@@ -132,26 +159,43 @@ class _FeedbackScreenState extends ConsumerState<FeedbackScreen> {
       body: _ticketId != null
           ? _DoneView(ticketId: _ticketId!)
           : ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
               children: [
+                Text(
+                  Localizations.localeOf(context).languageCode == 'zh'
+                      ? '文字草稿自动保存在本机。联系方式选填；描述发生的问题和操作步骤即可，请勿附带密码或访问密钥。'
+                      : 'Text drafts are saved on this device. Contact details are optional. Describe the issue and steps without passwords or access keys.',
+                ),
+                const SizedBox(height: 16),
                 ShadInputFormField(
                   controller: _content,
                   label: Text(l10n.feedbackContent),
                   placeholder: Text(l10n.feedbackContentPlaceholder),
-                  minLines: 5,
+                  minLines: 6,
                   maxLines: 8,
                   enabled: !_submitting,
                 ),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: Text(
-                    '${_content.text.trim().length} / 10+',
-                    style: theme.textTheme.small.copyWith(
-                      color: c.textSecondary,
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        l10n.feedbackMinimumLength,
+                        style: theme.textTheme.small.copyWith(
+                          color: c.textSecondary,
+                        ),
+                      ),
                     ),
-                  ),
+                    Text(
+                      '${_content.text.trim().length}',
+                      style: theme.textTheme.small.copyWith(
+                        color: c.textSecondary,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 24),
                 ShadInputFormField(
                   controller: _contact,
                   label: Text(l10n.feedbackContact),
@@ -161,18 +205,26 @@ class _FeedbackScreenState extends ConsumerState<FeedbackScreen> {
                 const SizedBox(height: 16),
                 Row(
                   children: [
-                    Text(
-                      l10n.feedbackAttachments(_images.length, _maxImages),
-                      style: theme.textTheme.small.copyWith(
-                        color: c.textSecondary,
+                    Expanded(
+                      child: Text(
+                        l10n.feedbackAttachments(_images.length, _maxImages),
+                        style: theme.textTheme.small.copyWith(
+                          color: c.textSecondary,
+                        ),
                       ),
                     ),
-                    const Spacer(),
                     ShadButton.outline(
                       size: ShadButtonSize.sm,
                       enabled: !_submitting && _images.length < _maxImages,
                       onPressed: _pickImages,
-                      child: Text(l10n.feedbackAddImage),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(LucideIcons.imagePlus, size: 16),
+                          const SizedBox(width: 6),
+                          Text(l10n.feedbackAddImage),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -193,7 +245,7 @@ class _FeedbackScreenState extends ConsumerState<FeedbackScreen> {
                                 border: Border.all(color: c.divider),
                               ),
                               child: GestureDetector(
-                                onTap: () => showDialog<void>(
+                                onTap: () => showCortermDialog<void>(
                                   context: context,
                                   builder: (ctx) => Dialog(
                                     child: InteractiveViewer(
@@ -253,6 +305,7 @@ class _PendingImage {
 
   final String name;
   final Uint8List bytes;
+  String? uploadedUrl;
 }
 
 class _DoneView extends StatelessWidget {

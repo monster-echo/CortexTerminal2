@@ -185,6 +185,96 @@ public sealed class WorkspaceFileService(int maxListEntries, ILogger<WorkspaceFi
         }
     }
 
+    private static readonly object TrashGate = new();
+    private const string TrashDirectory = ".corterm-trash";
+
+    /// <summary>Moves the entry itself to workspace-local storage; never recursively deletes data.</summary>
+    public FileOpResult Trash(string rootDir, string? relativePath, string trashId)
+    {
+        lock (TrashGate)
+        {
+            if (!Guid.TryParseExact(trashId, "N", out _) || string.IsNullOrEmpty(relativePath))
+                return OpFail(FileTransferErrorCode.PathInvalid, "invalid trash receipt or path");
+            var normalized = relativePath.Replace('\\', '/');
+            if (normalized.Equals(TrashDirectory, StringComparison.OrdinalIgnoreCase) || normalized.StartsWith(TrashDirectory + "/", StringComparison.OrdinalIgnoreCase))
+                return OpFail(FileTransferErrorCode.PathInvalid, "cannot trash recovery storage");
+            if (!RemotePathValidator.TryResolve(rootDir, relativePath, out var source, out var error)) return new(error);
+            var root = Path.GetFullPath(rootDir);
+            if (source == root) return OpFail(FileTransferErrorCode.PathInvalid, "cannot trash the workspace root");
+            var trashRoot = Path.Combine(root, TrashDirectory);
+            if (new DirectoryInfo(trashRoot).LinkTarget is not null)
+                return OpFail(FileTransferErrorCode.AccessDenied, "recovery storage cannot be a symbolic link");
+            var receipt = Path.Combine(trashRoot, trashId);
+            var payload = Path.Combine(receipt, "payload");
+            var manifest = Path.Combine(receipt, "original-path.txt");
+            try
+            {
+                if (new DirectoryInfo(receipt).LinkTarget is not null)
+                    return OpFail(FileTransferErrorCode.AccessDenied, "recovery receipt cannot be a symbolic link");
+                var ownership = Path.Combine(trashRoot, ".corterm-recovery-v1");
+                if (Directory.Exists(trashRoot))
+                {
+                    if (!File.Exists(ownership) || new FileInfo(ownership).LinkTarget is not null || File.ReadAllText(ownership) != "Corterm recovery storage v1")
+                        return OpFail(FileTransferErrorCode.AccessDenied, "an unmanaged .corterm-trash folder already exists");
+                }
+                else
+                {
+                    Directory.CreateDirectory(trashRoot);
+                    File.WriteAllText(ownership, "Corterm recovery storage v1", Encoding.UTF8);
+                }
+                if (File.Exists(manifest))
+                {
+                    if (File.ReadAllText(manifest) != relativePath) return OpFail(FileTransferErrorCode.PathInvalid, "receipt already belongs to another file");
+                    if (File.Exists(payload) || Directory.Exists(payload)) return new(null); // Retry after an acknowledgement was lost.
+                    return OpFail(FileTransferErrorCode.PathInvalid, "receipt was already restored; use a new receipt for a new deletion");
+                }
+                if (!File.Exists(source) && !Directory.Exists(source)) return OpFail(FileTransferErrorCode.FileNotFound, "file no longer exists");
+                Directory.CreateDirectory(receipt);
+                File.WriteAllText(manifest, relativePath, Encoding.UTF8);
+                if (Directory.Exists(source)) Directory.Move(source, payload); else File.Move(source, payload);
+                return new(null);
+            }
+            catch (UnauthorizedAccessException ex) { return OpFail(FileTransferErrorCode.AccessDenied, ex.Message); }
+            catch (IOException ex) { return OpFail(FileTransferErrorCode.TransferFailed, ex.Message); }
+        }
+    }
+
+    public FileOpResult RestoreTrash(string rootDir, string trashId)
+    {
+        lock (TrashGate)
+        {
+            if (!Guid.TryParseExact(trashId, "N", out _)) return OpFail(FileTransferErrorCode.PathInvalid, "invalid trash receipt");
+            var root = Path.GetFullPath(rootDir);
+            var trashRoot = Path.Combine(root, TrashDirectory);
+            var receipt = Path.Combine(trashRoot, trashId);
+            if (new DirectoryInfo(trashRoot).LinkTarget is not null || new DirectoryInfo(receipt).LinkTarget is not null)
+                return OpFail(FileTransferErrorCode.AccessDenied, "recovery storage cannot be a symbolic link");
+            var manifest = Path.Combine(receipt, "original-path.txt");
+            var payload = Path.Combine(receipt, "payload");
+            try
+            {
+                var ownership = Path.Combine(trashRoot, ".corterm-recovery-v1");
+                if (!File.Exists(ownership) || new FileInfo(ownership).LinkTarget is not null || File.ReadAllText(ownership) != "Corterm recovery storage v1")
+                    return OpFail(FileTransferErrorCode.AccessDenied, "recovery storage is not managed by Corterm");
+                if (!File.Exists(manifest)) return OpFail(FileTransferErrorCode.FileNotFound, "recovery receipt not found");
+                var relativePath = File.ReadAllText(manifest);
+                if (relativePath.Replace('\\', '/').StartsWith(TrashDirectory, StringComparison.OrdinalIgnoreCase))
+                    return OpFail(FileTransferErrorCode.PathInvalid, "invalid recovery destination");
+                if (!RemotePathValidator.TryResolve(root, relativePath, out var target, out var error)) return new(error);
+                if (target == root) return OpFail(FileTransferErrorCode.PathInvalid, "cannot replace the workspace root");
+                if (!File.Exists(payload) && !Directory.Exists(payload))
+                    return OpFail(FileTransferErrorCode.FileNotFound, "recovery file not found; it may already have been restored");
+                if (File.Exists(target) || Directory.Exists(target)) return OpFail(FileTransferErrorCode.PathInvalid, "destination already exists; rename it before restoring");
+                if (!Directory.Exists(Path.GetDirectoryName(target))) return OpFail(FileTransferErrorCode.PathNotFound, "original parent directory no longer exists");
+                if (Directory.Exists(payload)) Directory.Move(payload, target); else File.Move(payload, target);
+                // Retain the small manifest as a durable receipt; restored data is at its original path.
+                return new(null);
+            }
+            catch (UnauthorizedAccessException ex) { return OpFail(FileTransferErrorCode.AccessDenied, ex.Message); }
+            catch (IOException ex) { return OpFail(FileTransferErrorCode.TransferFailed, ex.Message); }
+        }
+    }
+
     private static FileOpResult OpFail(string code, string message)
         => new(new FileOperationError(code, message));
 

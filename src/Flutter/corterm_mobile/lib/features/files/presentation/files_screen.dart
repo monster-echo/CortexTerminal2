@@ -1,4 +1,12 @@
+import 'dart:convert';
+import 'dart:math';
+
+import '../../../shared/layout/adaptive_sheet.dart';
+import '../../../shared/layout/adaptive_page_scaffold.dart';
+import 'file_error_message.dart';
+
 import 'package:file_picker/file_picker.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,6 +19,10 @@ import '../../../core/storage/app_preferences.dart';
 import '../../../shared/widgets/corterm_ui.dart';
 import '../../../shared/widgets/states.dart' show ErrorState, showAppToast;
 import '../data/file_repository.dart';
+import '../data/file_transfer_control.dart';
+import '../../../shared/widgets/sheets_and_dialogs.dart';
+import '../../workspaces/data/workspace_providers.dart';
+import '../../sessions/data/sessions_providers.dart';
 
 /// 远程文件（Dark Tool Context，design/05）：根目录固定 Workspace Root，
 /// 面包屑导航 + 文件/文件夹列表 + 文件操作菜单 + 上传。
@@ -35,6 +47,28 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
   late String _path;
   late Future<FileListing> _future = _load(_path);
   bool _busy = false;
+  bool _picking = false;
+  bool _editing = false;
+  String _query = '';
+  FileTransferControl? _transfer;
+  String? _transferName;
+  String? _transferError;
+  @override
+  void dispose() {
+    _transfer?.cancel();
+    super.dispose();
+  }
+
+  String _routeLabel(String route) => switch (route) {
+    'negotiating' => _tr('准备传输', 'Preparing transfer'),
+    'lan' => _tr('局域网直连', 'Local network'),
+    'p2p' => _tr('设备直连', 'Device connection'),
+    'public' => _tr('公网直连', 'Direct connection'),
+    'relay' => _tr('安全中转', 'Secure relay'),
+    _ => route,
+  };
+  String _tr(String zh, String en) =>
+      Localizations.localeOf(context).languageCode == 'zh' ? zh : en;
 
   @override
   void initState() {
@@ -63,6 +97,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
   }
 
   void _open(String path) {
+    if (_busy) return;
     setState(() {
       _path = path;
       _future = _load(path);
@@ -73,43 +108,130 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
   String _join(String dir, String name) => dir.isEmpty ? name : '$dir/$name';
 
   Future<void> _refresh() async {
-    setState(() => _future = _load(_path));
+    setState(() {
+      _future = _load(_path);
+    });
     await _future;
   }
 
-  Future<void> _upload() async {
-    final result = await FilePicker.pickFiles(withData: true);
-    final picked = result?.files.firstOrNull;
-    if (picked == null || picked.bytes == null) return;
-    setState(() => _busy = true);
+  Future<void> _runTransfer(
+    String name,
+    Future<void> Function(FileTransferControl) run,
+  ) async {
+    if (_busy || !mounted) return;
+    final control = FileTransferControl();
+    setState(() {
+      _busy = true;
+      _transfer = control;
+      _transferName = name;
+      _transferError = null;
+    });
     try {
-      await ref
-          .read(fileRepositoryProvider)
-          .upload(
-            workspaceId: widget.workspaceId,
-            dirPath: _path,
-            filename: picked.name,
-            bytes: picked.bytes!,
-          );
-      if (!mounted) return;
-      showAppToast(context, '上传完成');
-      await _refresh();
-    } catch (e) {
-      if (mounted) showAppToast(context, '上传失败：$e', destructive: true);
+      await run(control);
+      if (mounted) showAppToast(context, _tr('传输完成', 'Transfer complete'));
+    } catch (error) {
+      if (mounted) {
+        setState(
+          () => _transferError =
+              error is DioException && CancelToken.isCancel(error)
+              ? _tr(
+                  '传输已取消。上传若已在远端完成，请刷新核对结果。',
+                  'Transfer cancelled. Refresh to check whether an upload already completed remotely.',
+                )
+              : fileErrorMessage(context, error),
+        );
+      }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _transfer = null;
+        });
+        try {
+          await _refresh();
+        } catch (error) {
+          if (mounted) {
+            setState(() => _transferError = fileErrorMessage(context, error));
+          }
+        }
+      }
+      control.dispose();
+    }
+  }
+
+  Future<void> _upload() async {
+    if (_busy || _picking) return;
+    FilePickerResult? result;
+    setState(() => _picking = true);
+    try {
+      result = await FilePicker.pickFiles(withData: true);
+    } catch (error) {
+      if (mounted) showAppToast(context, '$error', destructive: true);
+      return;
+    } finally {
+      if (mounted) setState(() => _picking = false);
+    }
+    final picked = result?.files.firstOrNull;
+    if (picked == null || !mounted) return;
+    if (picked.bytes == null) {
+      showAppToast(
+        context,
+        _tr('无法读取选择的文件。', 'Cannot read the selected file.'),
+        destructive: true,
+      );
+      return;
+    }
+    try {
+      final listing = await _future;
+      if (!mounted) return;
+      if (listing.entries.any((entry) => entry.name == picked.name)) {
+        final confirmed = await showConfirmDialog(
+          context: context,
+          title: _tr('覆盖同名文件？', 'Replace existing file?'),
+          body: _tr(
+            '上传将覆盖「${picked.name}」，原内容无法恢复。',
+            'Uploading replaces "${picked.name}". The original contents cannot be recovered.',
+          ),
+          confirmLabel: _tr('覆盖并上传', 'Replace and upload'),
+          destructive: true,
+        );
+        if (!confirmed || !mounted) return;
+      }
+      final path = _path;
+      await _runTransfer(
+        picked.name,
+        (control) => ref
+            .read(fileRepositoryProvider)
+            .upload(
+              workspaceId: widget.workspaceId,
+              dirPath: path,
+              filename: picked.name,
+              bytes: picked.bytes!,
+              control: control,
+            ),
+      );
+    } catch (error) {
+      if (mounted) {
+        showAppToast(
+          context,
+          fileErrorMessage(context, error),
+          destructive: true,
+        );
+      }
     }
   }
 
   Future<void> _download(FileEntry entry) async {
-    setState(() => _busy = true);
-    try {
+    final path = _join(_path, entry.name);
+    await _runTransfer(entry.name, (control) async {
       final bytes = await ref
           .read(fileRepositoryProvider)
           .downloadBytes(
             workspaceId: widget.workspaceId,
-            path: _join(_path, entry.name),
+            path: path,
+            control: control,
           );
+      control.checkCancelled();
       if (!mounted) return;
       await SharePlus.instance.share(
         ShareParams(
@@ -117,11 +239,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
           text: entry.name,
         ),
       );
-    } catch (e) {
-      if (mounted) showAppToast(context, '下载失败：$e', destructive: true);
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
+    });
   }
 
   void _copyPath(FileEntry entry) {
@@ -130,370 +248,216 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
   }
 
   Future<void> _rename(FileEntry entry) async {
-    final newName = await _promptText(
-      title: '重命名',
-      label: '名称',
-      initial: entry.name,
-      confirmLabel: '重命名',
-    );
-    if (newName == null || newName.isEmpty || newName == entry.name) return;
-    setState(() => _busy = true);
-    try {
-      await ref
+    final path = _join(_path, entry.name);
+    await _mutate(
+      title: _tr('重命名', 'Rename'),
+      initialName: entry.name,
+      submit: (name, _) => ref
           .read(fileRepositoryProvider)
-          .rename(
-            workspaceId: widget.workspaceId,
-            path: _join(_path, entry.name),
-            newName: newName,
-          );
-      if (!mounted) return;
-      showAppToast(context, '已重命名');
-      await _refresh();
-    } catch (e) {
-      if (mounted) showAppToast(context, '重命名失败：$e', destructive: true);
-    } finally {
-      if (mounted) setState(() => _busy = false);
+          .rename(workspaceId: widget.workspaceId, path: path, newName: name),
+    );
+  }
+
+  String get _trashKey =>
+      '${ref.read(workspaceMemoryPrefixProvider)}.trash.${widget.workspaceId}';
+
+  List<Map<String, dynamic>> _trashRecords() {
+    final raw = ref.read(sharedPreferencesProvider).getString(_trashKey);
+    return raw == null
+        ? []
+        : (jsonDecode(raw) as List)
+              .map((e) => Map<String, dynamic>.from(e as Map))
+              .toList();
+  }
+
+  Future<void> _saveTrash(List<Map<String, dynamic>> records) async {
+    if (!await ref
+        .read(sharedPreferencesProvider)
+        .setString(_trashKey, jsonEncode(records))) {
+      throw StateError('Unable to save recovery record');
     }
   }
 
   Future<void> _delete(FileEntry entry) async {
-    final confirmed = await showDialog<bool>(
+    if (_busy) return;
+    final confirmed = await showConfirmDialog(
       context: context,
-      builder: (dialogContext) {
-        final c = colorsOf(dialogContext);
-        return AlertDialog(
-          backgroundColor: c.surfaceElevated,
-          title: Text(
-            '删除${entry.isDirectory ? '文件夹' : '文件'}',
-            style: TextStyle(fontSize: 18, color: c.textPrimary),
-          ),
-          content: Text(
-            entry.isDirectory
-                ? '「${entry.name}」及其全部内容将被删除，此操作不可恢复。'
-                : '「${entry.name}」将被删除，此操作不可恢复。',
-            style: TextStyle(fontSize: 14, color: c.textSecondary),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: Text('取消', style: TextStyle(color: c.textSecondary)),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: Text('删除', style: TextStyle(color: c.danger)),
-            ),
-          ],
-        );
-      },
+      title: _tr('移到回收站', 'Move to trash'),
+      body: _tr(
+        '「${entry.name}」将保存在电脑工作区的回收目录中，不会自动清理。可从本机的“最近删除”恢复。',
+        '“${entry.name}” will be kept in the computer’s workspace recovery folder without automatic cleanup. Restore it from Recently deleted on this device.',
+      ),
+      confirmLabel: _tr('移到回收站', 'Move to trash'),
+      destructive: true,
     );
-    if (confirmed != true) return;
+    if (!confirmed || !mounted) return;
     setState(() => _busy = true);
     try {
+      final random = Random.secure();
+      final id = List.generate(
+        16,
+        (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
+      ).join();
+      final records = _trashRecords();
+      final record = <String, dynamic>{
+        'id': id,
+        'path': _join(_path, entry.name),
+        'pending': true,
+      };
+      records.add(record);
+      // Save the receipt before sending: a lost acknowledgement must remain recoverable.
+      await _saveTrash(records);
       await ref
           .read(fileRepositoryProvider)
-          .delete(
+          .trash(
             workspaceId: widget.workspaceId,
-            path: _join(_path, entry.name),
+            path: record['path'] as String,
+            trashId: id,
           );
+      record['pending'] = false;
+      await _saveTrash(records);
       if (!mounted) return;
-      showAppToast(context, '已删除');
-      await _refresh();
+      showAppToast(
+        context,
+        _tr(
+          '已移到回收站，可在最近删除中恢复',
+          'Moved to trash. Restore from Recently deleted.',
+        ),
+      );
+      setState(() {
+        _future = _load(_path);
+      });
     } catch (e) {
-      if (mounted) showAppToast(context, '删除失败：$e', destructive: true);
+      if (mounted) {
+        showAppToast(
+          context,
+          _tr(
+            '移入回收站未确认；请检查最近删除。需要电脑和服务端均支持恢复功能。',
+            'Move not confirmed. Check Recently deleted. Both the computer and server must support recovery.',
+          ),
+          destructive: true,
+        );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _showTrash() async {
+    if (_busy) return;
+    setState(() {
+      _busy = true;
+      _editing = true;
+    });
+    try {
+      final records = _trashRecords();
+      if (!mounted) return;
+      await showCortermSheet<void>(
+        context: context,
+        builder: (_) => _TrashRecoverySheet(
+          records: records,
+          restore: (record) async {
+            await ref
+                .read(fileRepositoryProvider)
+                .restoreTrash(
+                  workspaceId: widget.workspaceId,
+                  trashId: record['id'] as String,
+                );
+            final updated = _trashRecords()
+              ..removeWhere((e) => e['id'] == record['id']);
+            await _saveTrash(updated);
+            if (mounted) {
+              setState(() {
+                _future = _load(_path);
+              });
+            }
+          },
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        showAppToast(context, fileErrorMessage(context, e), destructive: true);
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _editing = false;
+        });
+      }
     }
   }
 
   Future<void> _mkdir() async {
-    final name = await _promptText(
-      title: '新建文件夹',
-      label: '文件夹名称',
-      confirmLabel: '创建',
-    );
-    if (name == null || name.isEmpty) return;
-    setState(() => _busy = true);
-    try {
-      await ref
+    final path = _path;
+    await _mutate(
+      title: _tr('新建文件夹', 'New folder'),
+      submit: (name, _) => ref
           .read(fileRepositoryProvider)
-          .mkdir(workspaceId: widget.workspaceId, path: _join(_path, name));
-      if (!mounted) return;
-      showAppToast(context, '文件夹已创建');
-      await _refresh();
-    } catch (e) {
-      if (mounted) showAppToast(context, '创建失败：$e', destructive: true);
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
+          .mkdir(workspaceId: widget.workspaceId, path: _join(path, name)),
+    );
   }
 
   Future<void> _createTextFile() async {
-    final result = await _promptNewTextFile();
-    if (result == null) return;
-    final (name, content) = result;
-    setState(() => _busy = true);
-    try {
-      await ref
+    final path = _path;
+    await _mutate(
+      title: _tr('新建文本文件', 'New text file'),
+      withContent: true,
+      submit: (name, content) => ref
           .read(fileRepositoryProvider)
           .writeText(
             workspaceId: widget.workspaceId,
-            path: _join(_path, name),
+            path: _join(path, name),
             content: content,
-          );
-      if (!mounted) return;
-      showAppToast(context, '文件已创建');
-      await _refresh();
-    } catch (e) {
-      if (mounted) showAppToast(context, '创建失败：$e', destructive: true);
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
+          ),
+    );
   }
 
-  /// 单行文本输入弹层（Dark Tool 风格）。返回 null 表示取消。
-  Future<String?> _promptText({
+  Future<void> _mutate({
     required String title,
-    required String label,
-    String initial = '',
-    required String confirmLabel,
-  }) {
-    final controller = TextEditingController(text: initial);
-    return showModalBottomSheet<String>(
-      context: context,
-      sheetAnimationStyle: const AnimationStyle(
-        duration: Duration(milliseconds: 280),
-        reverseDuration: Duration(milliseconds: 220),
-      ),
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) {
-        // Modal 路由在 Navigator 根上，需显式 Dark Theme。
-        return Theme(
-          data: cortermToolTheme(context),
-          child: Builder(
-            builder: (sheetContext) {
-              final c = colorsOf(sheetContext);
-              return Padding(
-                padding: EdgeInsets.only(
-                  left: 16,
-                  right: 16,
-                  top: 20,
-                  bottom: 20 + MediaQuery.of(sheetContext).viewInsets.bottom,
-                ),
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: c.surfaceElevated,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: c.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        label,
-                        style: TextStyle(fontSize: 14, color: c.textSecondary),
-                      ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: controller,
-                        autofocus: true,
-                        style: TextStyle(fontSize: 16, color: c.textPrimary),
-                        decoration: InputDecoration(
-                          filled: true,
-                          fillColor: c.surface,
-                          isDense: true,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 14,
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: BorderSide(color: c.divider),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: BorderSide(color: c.divider),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: BorderSide(color: c.accent),
-                          ),
-                        ),
-                        onSubmitted: (value) =>
-                            Navigator.of(sheetContext).pop(value),
-                      ),
-                      const SizedBox(height: 16),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 48,
-                        child: FilledButton(
-                          style: FilledButton.styleFrom(
-                            backgroundColor: c.accent,
-                            foregroundColor: colorsOf(context).onEmphasis,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(24),
-                            ),
-                          ),
-                          onPressed: () =>
-                              Navigator.of(sheetContext).pop(controller.text),
-                          child: Text(
-                            confirmLabel,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
+    String initialName = '',
+    bool withContent = false,
+    required Future<void> Function(String, String) submit,
+  }) async {
+    if (_busy) return;
+    setState(() {
+      _busy = true;
+      _editing = true;
+    });
+    try {
+      final listing = await _future;
+      if (!mounted) return;
+      final changed = await showAdaptiveModalBottomSheet<bool>(
+        context: context,
+        builder: (_) => _FileMutationSheet(
+          title: title,
+          initialName: initialName,
+          withContent: withContent,
+          existingNames: listing.entries.map((entry) => entry.name).toSet(),
+          submit: submit,
+        ),
+      );
+      if (!mounted || changed != true) return;
+      setState(() {
+        _future = _load(_path);
+      });
+      showAppToast(context, _tr('操作完成', 'Done'));
+    } catch (error) {
+      if (mounted) {
+        showAppToast(
+          context,
+          fileErrorMessage(context, error),
+          destructive: true,
         );
-      },
-    );
-  }
-
-  /// 新建文本文件弹层：文件名 + 内容。返回 null 表示取消。
-  Future<(String, String)?> _promptNewTextFile() {
-    final nameController = TextEditingController();
-    final contentController = TextEditingController();
-    return showModalBottomSheet<(String, String)>(
-      context: context,
-      sheetAnimationStyle: const AnimationStyle(
-        duration: Duration(milliseconds: 280),
-        reverseDuration: Duration(milliseconds: 220),
-      ),
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) {
-        // Modal 路由在 Navigator 根上，需显式 Dark Theme。
-        return Theme(
-          data: cortermToolTheme(context),
-          child: Builder(
-            builder: (sheetContext) {
-              final c = colorsOf(sheetContext);
-              InputDecoration inputDecoration(String hint) => InputDecoration(
-                hintText: hint,
-                hintStyle: TextStyle(fontSize: 14, color: c.textSecondary),
-                filled: true,
-                fillColor: c.surface,
-                isDense: true,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 14,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: c.divider),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: c.divider),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: c.accent),
-                ),
-              );
-              return Padding(
-                padding: EdgeInsets.only(
-                  left: 16,
-                  right: 16,
-                  top: 20,
-                  bottom: 20 + MediaQuery.of(sheetContext).viewInsets.bottom,
-                ),
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: c.surfaceElevated,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '新建文本文件',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: c.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        '文件名',
-                        style: TextStyle(fontSize: 14, color: c.textSecondary),
-                      ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: nameController,
-                        autofocus: true,
-                        style: TextStyle(fontSize: 16, color: c.textPrimary),
-                        decoration: inputDecoration('例如 notes.txt'),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        '内容',
-                        style: TextStyle(fontSize: 14, color: c.textSecondary),
-                      ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: contentController,
-                        style: TextStyle(fontSize: 16, color: c.textPrimary),
-                        maxLines: 5,
-                        minLines: 3,
-                        decoration: inputDecoration('文件内容（可为空）'),
-                      ),
-                      const SizedBox(height: 16),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 48,
-                        child: FilledButton(
-                          style: FilledButton.styleFrom(
-                            backgroundColor: c.accent,
-                            foregroundColor: colorsOf(context).onEmphasis,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(24),
-                            ),
-                          ),
-                          onPressed: () {
-                            final name = nameController.text;
-                            if (name.isEmpty) return;
-                            Navigator.of(sheetContext)
-                                .pop((name, contentController.text));
-                          },
-                          child: const Text(
-                            '创建',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-        );
-      },
-    );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _editing = false;
+        });
+      }
+    }
   }
 
   void _preview(FileEntry entry) {
@@ -551,7 +515,21 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
       'public' => tr('公网直连', 'Public direct'),
       _ => tr('安全中继', 'Secure relay'),
     };
-    showModalBottomSheet<void>(
+    final workspace = ref
+        .read(workspacesProvider)
+        .asData
+        ?.value
+        .where((w) => w.workspaceId == widget.workspaceId)
+        .firstOrNull;
+    final worker = ref
+        .read(workersProvider)
+        .asData
+        ?.value
+        .where((w) => w.workerId == workspace?.workerId)
+        .firstOrNull;
+    final root = workspace?.rootPath ?? widget.rootPath;
+    final workspaceName = workspace?.displayName ?? widget.workspaceName;
+    showAdaptiveModalBottomSheet<void>(
       context: context,
       sheetAnimationStyle: const AnimationStyle(
         duration: Duration(milliseconds: 280),
@@ -563,59 +541,93 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
           height: MediaQuery.sizeOf(context).height * .55,
           child: Padding(
             padding: const EdgeInsets.all(20),
-            child: ValueListenableBuilder<List<(DateTime, String)>>(
+            child: ValueListenableBuilder<List<TransferRecord>>(
               valueListenable: ref.read(transferRoutesProvider),
-              builder: (context, history, _) => Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    tr('文件传输连接', 'File transfer connection'),
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    tr(
-                      '此设备最近的传输记录，包含不同电脑。',
-                      'Recent transfers on this device, across computers.',
+              builder: (context, allHistory, _) {
+                final history = allHistory
+                    .where(
+                      (event) => event.scope.workspaceId == widget.workspaceId,
+                    )
+                    .toList();
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      tr('文件传输连接', 'File transfer connection'),
+                      style: Theme.of(context).textTheme.titleLarge,
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    history.isEmpty
-                        ? tr(
-                            '完成一次上传或下载后显示实际连接方式。',
-                            'The connection is shown after a completed upload or download.',
-                          )
-                        : history.first.$2 == 'p2p'
-                        ? tr(
-                            '打洞成功！文件通过设备间的加密直连传输。',
-                            'Hole punching succeeded. Files transfer over an encrypted peer connection.',
-                          )
-                        : tr(
-                            '自动选择可用通道，直连不可用时使用中继。',
-                            'The app chooses an available connection and falls back to relay when needed.',
-                          ),
-                  ),
-                  const SizedBox(height: 16),
-                  Expanded(
-                    child: ListView(
-                      children: [
-                        for (final event in history)
-                          ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            leading: Icon(
-                              event.$2 == 'p2p' ? Icons.bolt : Icons.link,
-                            ),
-                            title: Text(label(event.$2)),
-                            subtitle: Text(
-                              '${event.$1.toLocal()}'.split('.').first,
-                            ),
-                          ),
-                      ],
+                    const SizedBox(height: 8),
+                    Text(
+                      tr(
+                        '${worker?.displayName ?? workspace?.workerId ?? '电脑'} · $workspaceName',
+                        '${worker?.displayName ?? workspace?.workerId ?? 'Computer'} · $workspaceName',
+                      ),
                     ),
-                  ),
-                ],
-              ),
+                    if (root.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: SelectableText(
+                          root,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: colorsOf(context).textSecondary,
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 12),
+                    Text(
+                      history.isEmpty
+                          ? tr(
+                              '完成一次上传或下载后显示实际连接方式。',
+                              'The connection is shown after a completed upload or download.',
+                            )
+                          : history.first.route == 'p2p'
+                          ? tr(
+                              '最近一次传输使用 P2P 加密直连。',
+                              'The last transfer used an encrypted P2P connection.',
+                            )
+                          : tr(
+                              '最近一次传输：${label(history.first.route)}。',
+                              'Last transfer: ${label(history.first.route)}.',
+                            ),
+                    ),
+                    const SizedBox(height: 16),
+                    Expanded(
+                      child: ListView(
+                        children: [
+                          for (final event in history)
+                            ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: Icon(
+                                event.route == 'p2p' ? Icons.bolt : Icons.link,
+                              ),
+                              title: Text(
+                                '${event.upload ? tr('上传', 'Upload') : tr('下载', 'Download')} · ${event.scope.path.replaceAll('\\', '/').split('/').last}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '${label(event.route)} · ${'${event.time.toLocal()}'.split('.').first}',
+                                  ),
+                                  SelectableText(
+                                    event.scope.path.startsWith('/') ||
+                                            root.isEmpty
+                                        ? event.scope.path
+                                        : '${root.replaceFirst(RegExp(r'[\\/]$'), '')}/${event.scope.path}',
+                                    style: const TextStyle(fontSize: 12),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
         ),
@@ -637,7 +649,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
         child: Builder(
           builder: (context) {
             final c = colorsOf(context);
-            return Scaffold(
+            return AdaptivePageScaffold(
               backgroundColor: c.background,
               appBar: AppBar(
                 title: Text(
@@ -645,11 +657,17 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
                 ),
                 actions: [
                   IconButton(
+                    icon: const Icon(Icons.restore_from_trash_outlined),
+                    tooltip: _tr('最近删除', 'Recently deleted'),
+                    onPressed: _busy ? null : _showTrash,
+                  ),
+                  IconButton(
                     icon: const Icon(Icons.link),
                     tooltip: '连接方式',
                     onPressed: () => _showTransferConnection(context),
                   ),
                   PopupMenuButton<String>(
+                    enabled: !_busy && !_picking,
                     icon: _busy
                         ? Icon(Icons.add, color: c.textSecondary)
                         : const Icon(Icons.add),
@@ -681,6 +699,24 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
                     rootLabel: widget.rootPath,
                     onNavigate: _open,
                   ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                    child: TextField(
+                      onChanged: (value) =>
+                          setState(() => _query = value.trim().toLowerCase()),
+                      decoration: InputDecoration(
+                        prefixIcon: const Icon(Icons.search, size: 20),
+                        hintText:
+                            Localizations.localeOf(context).languageCode == 'zh'
+                            ? '搜索当前文件夹'
+                            : 'Search this folder',
+                        isDense: true,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
                   Divider(color: c.divider, height: 1),
                   Expanded(
                     child: FutureBuilder<FileListing>(
@@ -688,7 +724,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
                       builder: (context, snap) {
                         if (snap.hasError) {
                           return ErrorState(
-                            message: '${snap.error}',
+                            message: fileErrorMessage(context, snap.error),
                             onRetry: () => _open(_path),
                           );
                         }
@@ -697,28 +733,97 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
                             child: CircularProgressIndicator(),
                           );
                         }
-                        final entries = snap.data!.entries.toList()
-                          ..sort((a, b) {
-                            if (a.isDirectory != b.isDirectory) {
-                              return a.isDirectory ? -1 : 1;
-                            }
-                            return a.name.compareTo(b.name);
-                          });
+                        final entries =
+                            snap.data!.entries
+                                .where(
+                                  (e) => e.name.toLowerCase().contains(_query),
+                                )
+                                .toList()
+                              ..sort((a, b) {
+                                if (a.isDirectory != b.isDirectory) {
+                                  return a.isDirectory ? -1 : 1;
+                                }
+                                return a.name.compareTo(b.name);
+                              });
                         if (entries.isEmpty) {
-                          return const EmptyState(
+                          return EmptyState(
                             icon: Icons.folder_open,
-                            message: '此文件夹为空',
+                            message: _query.isNotEmpty
+                                ? (Localizations.localeOf(context)
+                                              .languageCode ==
+                                          'zh'
+                                      ? '没有匹配的文件'
+                                      : 'No matching files')
+                                : (Localizations.localeOf(context)
+                                              .languageCode ==
+                                          'zh'
+                                      ? '此文件夹为空'
+                                      : 'This folder is empty'),
                           );
                         }
-                        return ListView.builder(
-                          itemCount: entries.length,
-                          itemBuilder: (context, i) =>
-                              _EntryTile(entry: entries[i], screen: this),
+                        return RefreshIndicator(
+                          onRefresh: _refresh,
+                          child: ListView.builder(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            itemCount: entries.length,
+                            itemBuilder: (context, i) =>
+                                _EntryTile(entry: entries[i], screen: this),
+                          ),
                         );
                       },
                     ),
                   ),
-                  if (_busy) const LinearProgressIndicator(minHeight: 2),
+                  if (_transferError != null)
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Text(
+                        _transferError!,
+                        style: TextStyle(color: c.danger),
+                      ),
+                    ),
+                  if (_transfer case final control?)
+                    ListenableBuilder(
+                      listenable: control,
+                      builder: (context, _) => Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              '$_transferName · ${control.switching ? _tr('切换到', 'Switching to') : ''} ${_routeLabel(control.route)}',
+                            ),
+                            const SizedBox(height: 8),
+                            LinearProgressIndicator(
+                              value: control.total > 0
+                                  ? (control.transferred / control.total).clamp(
+                                      0,
+                                      1,
+                                    )
+                                  : null,
+                            ),
+                            if (control.total > 0)
+                              Text(
+                                '${control.transferred} / ${control.total} B',
+                              ),
+                            TextButton(
+                              onPressed: control.cancelToken.isCancelled
+                                  ? null
+                                  : () {
+                                      control.cancel();
+                                      setState(() {});
+                                    },
+                              child: Text(
+                                control.cancelToken.isCancelled
+                                    ? _tr('正在取消…', 'Cancelling…')
+                                    : _tr('取消传输', 'Cancel transfer'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  if (_busy && _transfer == null && !_editing)
+                    const LinearProgressIndicator(minHeight: 2),
                 ],
               ),
             );
@@ -771,6 +876,7 @@ class _EntryTile extends StatelessWidget {
               style: TextStyle(fontSize: 13, color: c.textSecondary),
             ),
       trailing: PopupMenuButton<String>(
+        enabled: !screen._busy,
         icon: Icon(Icons.more_horiz, color: c.textSecondary),
         color: c.surfaceElevated,
         onSelected: (action) {
@@ -790,7 +896,7 @@ class _EntryTile extends StatelessWidget {
             const PopupMenuItem(value: 'download', child: Text('下载')),
           const PopupMenuItem(value: 'copy', child: Text('复制路径')),
           const PopupMenuItem(value: 'rename', child: Text('重命名')),
-          const PopupMenuItem(value: 'delete', child: Text('删除')),
+          const PopupMenuItem(value: 'delete', child: Text('移到回收站')),
         ],
       ),
       onTap: entry.isDirectory
@@ -875,4 +981,243 @@ String _fmtTime(DateTime? utc) {
   final local = utc.toLocal();
   return '${local.year}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')} '
       '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+}
+
+class _FileMutationSheet extends StatefulWidget {
+  const _FileMutationSheet({
+    required this.title,
+    required this.initialName,
+    required this.withContent,
+    required this.existingNames,
+    required this.submit,
+  });
+  final String title;
+  final String initialName;
+  final bool withContent;
+  final Set<String> existingNames;
+  final Future<void> Function(String, String) submit;
+  @override
+  State<_FileMutationSheet> createState() => _FileMutationSheetState();
+}
+
+class _FileMutationSheetState extends State<_FileMutationSheet> {
+  late final _name = TextEditingController(text: widget.initialName);
+  final _content = TextEditingController();
+  bool _busy = false;
+  bool _replace = false;
+  String? _error;
+  String? _details;
+  @override
+  void dispose() {
+    _name.dispose();
+    _content.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (_busy) return;
+    final name = _name.text.trim();
+    final zh = Localizations.localeOf(context).languageCode == 'zh';
+    if (name.isEmpty ||
+        name == '.' ||
+        name == '..' ||
+        name.contains('/') ||
+        name.contains('\\')) {
+      setState(
+        () => _error = zh
+            ? '请输入不含路径分隔符的文件名。'
+            : 'Enter a filename without path separators.',
+      );
+      return;
+    }
+    if (widget.withContent &&
+        widget.existingNames.contains(name) &&
+        !_replace) {
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await widget.submit(name, _content.text);
+      if (mounted) Navigator.of(context).pop(true);
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _error = fileErrorMessage(context, error);
+          _details = '$error';
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final zh = Localizations.localeOf(context).languageCode == 'zh';
+    final overwrite =
+        widget.withContent && widget.existingNames.contains(_name.text.trim());
+    return PopScope(
+      canPop: !_busy,
+      child: Theme(
+        data: cortermToolTheme(context),
+        child: Builder(
+          builder: (context) => Padding(
+            padding: EdgeInsets.fromLTRB(
+              24,
+              16,
+              24,
+              24 + MediaQuery.viewInsetsOf(context).bottom,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  widget.title,
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _name,
+                  autofocus: true,
+                  enabled: !_busy,
+                  onChanged: (_) => setState(() {
+                    _replace = false;
+                    _error = null;
+                  }),
+                  decoration: InputDecoration(labelText: zh ? '名称' : 'Name'),
+                ),
+                if (widget.withContent) ...[
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _content,
+                    enabled: !_busy,
+                    minLines: 3,
+                    maxLines: 8,
+                    decoration: InputDecoration(
+                      labelText: zh ? '内容（可为空）' : 'Contents (optional)',
+                    ),
+                  ),
+                ],
+                if (overwrite)
+                  CheckboxListTile(
+                    value: _replace,
+                    title: Text(
+                      zh ? '覆盖现有文件（原内容无法恢复）' : 'Replace existing file (original contents cannot be recovered)',
+                    ),
+                    onChanged: _busy
+                        ? null
+                        : (value) => setState(() => _replace = value == true),
+                  ),
+                if (_error != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Text(
+                      _error!,
+                      style: TextStyle(color: colorsOf(context).danger),
+                    ),
+                  ),
+                if (_details != null)
+                  ExpansionTile(
+                    title: Text(zh ? '详细信息' : 'Details'),
+                    children: [SelectableText(_details!)],
+                  ),
+                const SizedBox(height: 16),
+                FilledButton(
+                  onPressed: _busy || (overwrite && !_replace) ? null : _save,
+                  child: Text(
+                    _busy ? (zh ? '保存中…' : 'Saving…') : (zh ? '保存' : 'Save'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TrashRecoverySheet extends StatefulWidget {
+  const _TrashRecoverySheet({required this.records, required this.restore});
+  final List<Map<String, dynamic>> records;
+  final Future<void> Function(Map<String, dynamic>) restore;
+  @override
+  State<_TrashRecoverySheet> createState() => _TrashRecoverySheetState();
+}
+
+class _TrashRecoverySheetState extends State<_TrashRecoverySheet> {
+  String? _busyId;
+  String? _error;
+  bool get _zh => Localizations.localeOf(context).languageCode == 'zh';
+  @override
+  Widget build(BuildContext context) => PopScope(
+    canPop: _busyId == null,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          _zh ? '最近删除' : 'Recently deleted',
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        const SizedBox(height: 12),
+        Text(
+          _zh
+              ? '仅显示本机、当前账号的删除记录。文件保存在原电脑；恢复不会覆盖已有文件。待确认表示操作响应丢失或未成功，可尝试恢复以确认。'
+              : 'Records belong to this account and device. Files stay on the original computer. Restore never overwrites existing files. Pending means the response was lost or the move failed; try restoring to confirm.',
+        ),
+        if (_error != null)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Text(
+              _error!,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ),
+        if (widget.records.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 24),
+            child: Text(_zh ? '暂无删除记录' : 'No deleted items'),
+          ),
+        for (final record in widget.records.toList())
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(record['path'] as String),
+            subtitle: record['pending'] == true
+                ? Text(_zh ? '待确认' : 'Pending confirmation')
+                : null,
+            trailing: TextButton(
+              onPressed: _busyId != null
+                  ? null
+                  : () async {
+                      setState(() {
+                        _busyId = record['id'] as String;
+                        _error = null;
+                      });
+                      try {
+                        await widget.restore(record);
+                        if (mounted) {
+                          setState(() => widget.records.remove(record));
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          setState(() => _error = fileErrorMessage(context, e));
+                        }
+                      } finally {
+                        if (mounted) setState(() => _busyId = null);
+                      }
+                    },
+              child: Text(
+                _busyId == record['id']
+                    ? (_zh ? '恢复中…' : 'Restoring…')
+                    : (_zh ? '恢复' : 'Restore'),
+              ),
+            ),
+          ),
+      ],
+    ),
+  );
 }

@@ -1,3 +1,4 @@
+import '../layout/adaptive_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -20,7 +21,7 @@ class InstallPromptCard extends StatelessWidget {
 
   static void showSheet(BuildContext context,
       {required String title, required String intro}) {
-    showModalBottomSheet<void>(
+    showAdaptiveModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,

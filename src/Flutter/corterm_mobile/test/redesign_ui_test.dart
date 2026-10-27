@@ -11,7 +11,6 @@ import 'package:corterm_mobile/features/search/search_screen.dart';
 import 'package:corterm_mobile/features/sessions/data/session_repository.dart';
 import 'package:corterm_mobile/features/sessions/data/sessions_providers.dart';
 import 'package:corterm_mobile/features/workspaces/data/workspace_providers.dart';
-import 'package:corterm_mobile/features/workspaces/presentation/new_session_flow_screen.dart';
 import 'package:corterm_mobile/features/workspaces/presentation/workspace_detail_screen.dart';
 import 'package:corterm_mobile/l10n/app_localizations.dart';
 import 'package:corterm_mobile/core/storage/app_preferences.dart';
@@ -123,6 +122,38 @@ void main() {
     expect(find.textContaining('Mac mini'), findsWidgets);
   });
 
+  testWidgets('首页继续会话只展示在线电脑的存活会话', (tester) async {
+    await tester.pumpWidget(
+      _harness(
+        workspaces: [_ws('ws1', '项目', 'w1')],
+        workers: [_worker('w1', 'Mac mini', online: false)],
+        sessions: [_session('s1', '离线会话', 'ws1')],
+        child: const HomeShell(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('继续会话'), findsNothing);
+    expect(find.text('离线会话'), findsNothing);
+  });
+
+  testWidgets('首页继续会话不展示已结束的会话', (tester) async {
+    await tester.pumpWidget(
+      _harness(
+        workspaces: [_ws('ws1', '项目', 'w1')],
+        workers: [_worker('w1', 'Mac mini')],
+        sessions: [
+          _session('s1', '运行中的会话', 'ws1'),
+          _session('s2', '已结束的会话', 'ws1', running: false),
+        ],
+        child: const HomeShell(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('继续会话'), findsOneWidget);
+    expect(find.text('运行中的会话'), findsOneWidget);
+    expect(find.text('已结束的会话'), findsNothing);
+  });
+
   testWidgets('首页侧边栏提供电脑入口', (tester) async {
     await tester.pumpWidget(
       _harness(
@@ -159,9 +190,33 @@ void main() {
     key.currentState!.openDrawer();
     await tester.pumpAndSettle();
 
-    expect(find.text('Corterm'), findsOneWidget);
+    expect(find.text('云枢终端'), findsOneWidget);
     expect(find.text('CortexTerminal2'), findsOneWidget);
     expect(find.text('电脑'), findsOneWidget);
+  });
+
+  testWidgets('侧边栏在选中工作区内提供新建会话入口', (tester) async {
+    final key = GlobalKey<ScaffoldState>();
+    await tester.pumpWidget(
+      _harness(
+        workspaces: [_ws('ws1', 'CortexTerminal2', 'w1')],
+        workers: [_worker('w1', 'Mac mini')],
+        sessions: [_session('s1', '终端 1', 'ws1')],
+        child: Scaffold(
+          key: key,
+          drawer: const CortermSidebar(),
+          body: const SizedBox.shrink(),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    key.currentState!.openDrawer();
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('会话'));
+    await tester.pumpAndSettle();
+    expect(find.text('新建会话'), findsOneWidget);
   });
 
   testWidgets('搜索：未输入显示最近会话，输入后按分组过滤（design/03）', (tester) async {
@@ -209,21 +264,5 @@ void main() {
     // 不展示 Agent 类型。
     expect(find.text('Claude Code'), findsNothing);
     expect(find.text('Shell'), findsNothing);
-  });
-
-  testWidgets('新建会话：锁定工作区时只读展示并可直接创建（design/02 §5）', (tester) async {
-    await tester.pumpWidget(
-      _harness(
-        workspaces: [_ws('ws1', 'CortexTerminal2', 'w1')],
-        workers: [_worker('w1', 'Mac mini')],
-        sessions: const [],
-        child: const NewSessionFlowScreen(lockWorkspaceId: 'ws1'),
-      ),
-    );
-    await tester.pump(const Duration(milliseconds: 100));
-
-    expect(find.text('CortexTerminal2'), findsOneWidget);
-    expect(find.text('创建会话'), findsOneWidget);
-    // 锁定模式：电脑以只读行展示。
   });
 }

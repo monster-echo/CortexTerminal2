@@ -1,3 +1,5 @@
+import '../../../shared/layout/adaptive_page_scaffold.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,6 +9,7 @@ import '../../../l10n/app_localizations.dart';
 import '../../../core/models/workspace.dart';
 import '../../../shared/widgets/app_bar.dart';
 import '../../../shared/widgets/swipe_delete.dart';
+import '../../../shared/utils/relative_time.dart';
 import '../../workers/data/workspace_repository.dart';
 import '../../../shared/widgets/corterm_ui.dart';
 import '../../sessions/data/sessions_providers.dart';
@@ -25,14 +28,18 @@ class ComputerDetailScreen extends ConsumerWidget {
     final workers = ref.watch(workersProvider);
     final workspaces = ref.watch(workspacesProvider);
 
-    return Scaffold(
+    return AdaptivePageScaffold(
       backgroundColor: colorsOf(context).background,
       appBar: CortermAppBar(
         title: l10n.computersTitle,
         actions: [
           IconButton(
+            tooltip: l10n.retry,
             icon: const Icon(Icons.refresh),
-            onPressed: () => ref.invalidate(workersProvider),
+            onPressed: () {
+              ref.invalidate(workersProvider);
+              ref.invalidate(workspacesProvider);
+            },
           ),
         ],
       ),
@@ -64,6 +71,22 @@ class ComputerDetailScreen extends ConsumerWidget {
                     : l10n.workerOffline,
                 leading: _StatusDot(online: worker.isOnline),
               ),
+              if (worker.lastSeenAtUtc != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Text(
+                    '${Localizations.localeOf(context).languageCode == 'zh' ? '最近在线' : 'Last seen'} · ${relativeTime(worker.lastSeenAtUtc!, languageCode: Localizations.localeOf(context).languageCode)}',
+                  ),
+                ),
+              if (!worker.isOnline)
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    Localizations.localeOf(context).languageCode == 'zh'
+                        ? '请在这台电脑上启动云枢终端并保持联网，然后刷新。'
+                        : 'Start Corterm on this computer, keep it online, then refresh.',
+                  ),
+                ),
               SectionHeader(l10n.workspacesSectionTitle),
               workspaces.when(
                 loading: () => const Padding(

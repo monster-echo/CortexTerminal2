@@ -1,6 +1,6 @@
 {
   "@@locale": "zh",
-  "appName": "Corterm",
+  "appName": "云枢终端",
   "cancel": "取消",
   "ok": "确定",
   "retry": "重试",
@@ -149,13 +149,13 @@
   "newPassword": "新密码",
   "passwordChanged": "密码已修改",
   "logout": "退出登录",
-  "logoutConfirm": "退出登录 Corterm？",
+  "logoutConfirm": "退出登录云枢终端？",
   "appVersion": "版本",
   "gatewayVersion": "网关版本",
   "fontSizeFmt": "{pt} pt",
   "legal": "协议与政策",
   "legalVersionCaption": "生效日期：{date}",
-  "legalIndexIntro": "以下文档约束你对 Corterm 的使用。中文版本为准，英文版本为对照译本。",
+  "legalIndexIntro": "以下文档约束你对云枢终端的使用。中文版本为准，英文版本为对照译本。",
   "privacyPolicy": "隐私政策",
   "privacyPolicyDesc": "我们收集哪些信息、如何使用与存储。",
   "termsOfService": "用户协议",
@@ -275,8 +275,9 @@
   "feedbackSuggestion": "功能建议",
   "feedbackContent": "问题描述",
   "feedbackContentPlaceholder": "发生了什么？期望是什么？",
+  "feedbackMinimumLength": "至少填写 10 个字",
   "feedbackContact": "联系方式（选填）",
-  "feedbackContactPlaceholder": "邮箱 / Telegram / QQ",
+  "feedbackContactPlaceholder": "邮箱 / Telegram",
   "feedbackAttachments": "配图（{cur}/{max}）",
   "@feedbackAttachments": {
     "placeholders": {
@@ -444,5 +445,9 @@
   "terminalStartupUnknown": "尚未收到远端终端输出，原因未确认。可在电脑端检查 shell 启动配置、权限及系统提示。",
   "terminalWorkerOffline": "远端电脑已离线。电脑恢复连接后再检查。",
   "terminalSessionGone": "远端已找不到这个会话。请返回会话列表检查状态。",
-  "terminalPermissionGuide": "远端 Mac 权限操作说明"
+  "terminalPermissionGuide": "远端 Mac 权限操作说明",
+  "showPassword": "显示密码",
+  "hidePassword": "隐藏密码",
+  "phoneLoginHint": "使用短信验证码登录，无需密码。",
+  "sendingCode": "发送中…"
 }

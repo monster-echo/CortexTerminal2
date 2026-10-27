@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../l10n/app_localizations.dart';
 import '../session_controller.dart';
+import '../../../shared/widgets/states.dart';
 import '../session_diagnostics.dart';
 
 /// Read-only diagnosis and non-destructive reattachment. No shell restart here.
@@ -16,6 +17,7 @@ class SessionRecoveryPanel extends ConsumerStatefulWidget {
 
 class _SessionRecoveryPanelState extends ConsumerState<SessionRecoveryPanel> {
   bool _busy = false;
+  bool _reconnecting = false;
   bool _failed = false;
   bool _guide = false;
   SessionDiagnostic? _report;
@@ -97,11 +99,23 @@ class _SessionRecoveryPanelState extends ConsumerState<SessionRecoveryPanel> {
               child: Text(t.terminalRecheck),
             ),
             OutlinedButton(
-              onPressed: () async {
-                final controller = ref.read(sessionControllerProvider.notifier);
-                Navigator.of(context).pop();
-                await controller.reconnect(widget.sessionId);
-              },
+              onPressed: _reconnecting
+                  ? null
+                  : () async {
+                      setState(() => _reconnecting = true);
+                      try {
+                        await ref
+                            .read(sessionControllerProvider.notifier)
+                            .reconnect(widget.sessionId);
+                        if (context.mounted) Navigator.of(context).pop();
+                      } catch (error) {
+                        if (context.mounted) {
+                          showAppToast(context, '$error', destructive: true);
+                        }
+                      } finally {
+                        if (mounted) setState(() => _reconnecting = false);
+                      }
+                    },
               child: Text(t.reconnectAction),
             ),
           ],

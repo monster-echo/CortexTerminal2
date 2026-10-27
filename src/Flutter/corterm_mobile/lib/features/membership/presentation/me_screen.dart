@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../../core/auth/auth_controller.dart';
+import '../../../shared/widgets/sheets_and_dialogs.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../app/theme/corterm_theme.dart';
 import '../../../shared/widgets/app_shell.dart';
@@ -57,21 +58,7 @@ class MeScreen extends ConsumerWidget {
                 Material(
                   type: MaterialType.transparency,
                   child: InkWell(
-                    onTap: () => showModalBottomSheet<void>(
-                      context: context,
-                      sheetAnimationStyle: const AnimationStyle(
-                        duration: Duration(milliseconds: 280),
-                        reverseDuration: Duration(milliseconds: 220),
-                      ),
-                      isScrollControlled: true,
-                      useSafeArea: true,
-                      backgroundColor: c.background,
-                      showDragHandle: true,
-                      builder: (sheetContext) => SizedBox(
-                        height: MediaQuery.sizeOf(sheetContext).height * .9,
-                        child: const ProfileScreen(),
-                      ),
-                    ),
+                    onTap: () => context.push('/settings/profile'),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 16,
@@ -187,10 +174,34 @@ class MeScreen extends ConsumerWidget {
                 ),
               ],
             ),
+            const SizedBox(height: 24),
+            AppGroupCard(
+              children: [
+                AppRow(
+                  icon: LucideIcons.logOut,
+                  label: l10n.logout,
+                  onTap: () => _logout(context, ref),
+                ),
+              ],
+            ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _logout(BuildContext context, WidgetRef ref) async {
+    final l10n = AppLocalizations.of(context)!;
+    final confirmed = await showConfirmDialog(
+      context: context,
+      title: l10n.logoutConfirm,
+      body: l10n.logoutConfirm,
+      confirmLabel: l10n.logout,
+      destructive: true,
+    );
+    if (confirmed && context.mounted) {
+      await ref.read(authProvider.notifier).logout();
+    }
   }
 }
 

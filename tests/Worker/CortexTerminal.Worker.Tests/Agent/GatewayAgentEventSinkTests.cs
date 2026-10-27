@@ -84,6 +84,8 @@ public sealed class GatewayAgentEventSinkTests
         public IDisposable OnMkdir(Func<string, string?, Task<FileOpResult>> handler) => NoOpDisposable.Instance;
         public IDisposable OnWriteTextFile(Func<string, string?, string, Task<FileOpResult>> handler) => NoOpDisposable.Instance;
         public IDisposable OnRename(Func<string, string?, string, Task<FileOpResult>> handler) => NoOpDisposable.Instance;
+        public IDisposable OnTrash(Func<string, string?, string, Task<FileOpResult>> handler) => NoOpDisposable.Instance;
+        public IDisposable OnRestoreTrash(Func<string, string, Task<FileOpResult>> handler) => NoOpDisposable.Instance;
         public IDisposable OnDelete(Func<string, string?, Task<FileOpResult>> handler) => NoOpDisposable.Instance;
         public IDisposable OnPrepareFileReceive(Func<PrepareFileReceiveCommand, Task<FileOperationAck>> handler) => NoOpDisposable.Instance;
         public IDisposable OnPrepareFileSend(Func<PrepareFileSendCommand, Task<PrepareFileSendAck>> handler) => NoOpDisposable.Instance;

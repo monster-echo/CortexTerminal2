@@ -142,6 +142,8 @@ public sealed class WorkerRuntimeHost : IHostedService, IAsyncDisposable
         _subscriptions.Add(_gatewayClient.OnMkdir((rootDir, path) => Task.FromResult(_workspaceFiles.Mkdir(rootDir, path))));
         _subscriptions.Add(_gatewayClient.OnWriteTextFile((rootDir, path, content) => Task.FromResult(_workspaceFiles.WriteTextFile(rootDir, path, content))));
         _subscriptions.Add(_gatewayClient.OnRename((rootDir, path, newName) => Task.FromResult(_workspaceFiles.Rename(rootDir, path, newName))));
+        _subscriptions.Add(_gatewayClient.OnTrash((rootDir, path, trashId) => Task.FromResult(_workspaceFiles.Trash(rootDir, path, trashId))));
+        _subscriptions.Add(_gatewayClient.OnRestoreTrash((rootDir, trashId) => Task.FromResult(_workspaceFiles.RestoreTrash(rootDir, trashId))));
         _subscriptions.Add(_gatewayClient.OnDelete((rootDir, path) => Task.FromResult(_workspaceFiles.Delete(rootDir, path))));
         _subscriptions.Add(_gatewayClient.OnPrepareFileReceive(req => _relayTransfers.PrepareFileReceiveAsync(req, CancellationToken.None)));
         _subscriptions.Add(_gatewayClient.OnPrepareFileSend(req => _relayTransfers.PrepareFileSendAsync(req, CancellationToken.None)));

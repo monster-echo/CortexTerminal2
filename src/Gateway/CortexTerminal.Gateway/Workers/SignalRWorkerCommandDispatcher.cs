@@ -49,6 +49,10 @@ public sealed class SignalRWorkerCommandDispatcher(IHubContext<WorkerHub> hubCon
     public Task<FileOpResult> RenameAsync(string workerConnectionId, string rootDir, string relativePath, string newName, CancellationToken cancellationToken)
         => hubContext.Clients.Client(workerConnectionId).InvokeAsync<FileOpResult>("Rename", rootDir, relativePath, newName, cancellationToken);
 
+    public Task<FileOpResult> TrashAsync(string workerConnectionId, string rootDir, string relativePath, string trashId, CancellationToken cancellationToken)
+        => hubContext.Clients.Client(workerConnectionId).InvokeAsync<FileOpResult>("Trash", rootDir, relativePath, trashId, cancellationToken);
+    public Task<FileOpResult> RestoreTrashAsync(string workerConnectionId, string rootDir, string trashId, CancellationToken cancellationToken)
+        => hubContext.Clients.Client(workerConnectionId).InvokeAsync<FileOpResult>("RestoreTrash", rootDir, trashId, cancellationToken);
     public Task<FileOpResult> DeleteAsync(string workerConnectionId, string rootDir, string relativePath, CancellationToken cancellationToken)
         => hubContext.Clients.Client(workerConnectionId).InvokeAsync<FileOpResult>("Delete", rootDir, relativePath, cancellationToken);
 

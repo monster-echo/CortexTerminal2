@@ -13,6 +13,8 @@ analyzer:
     - android/**
     - ios/**
     - web/**
+    # Vendored packages own their test dependencies and analyzer configurations.
+    - vendor/**
 include: package:flutter_lints/flutter.yaml
 
 linter:

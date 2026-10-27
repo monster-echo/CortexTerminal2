@@ -1,3 +1,4 @@
+import '../../../shared/layout/adaptive_page_scaffold.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -16,7 +17,7 @@ class ComputersScreen extends ConsumerWidget {
     final l10n = AppLocalizations.of(context)!;
     final colors = colorsOf(context);
     final workers = ref.watch(workersProvider);
-    return Scaffold(
+    return AdaptivePageScaffold(
       backgroundColor: colors.background,
       appBar: AppBar(
         title: Text(l10n.computersTitle),

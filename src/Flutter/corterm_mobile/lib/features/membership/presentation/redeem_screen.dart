@@ -1,10 +1,12 @@
+import '../../../shared/layout/adaptive_page_scaffold.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../../app/theme/corterm_theme.dart';
-import '../../../core/api/api_exception.dart';
+import '../data/store_purchase_controller.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/app_bar.dart';
 import '../../../shared/widgets/states.dart';
@@ -37,11 +39,14 @@ class _RedeemScreenState extends ConsumerState<RedeemScreen> {
     try {
       await ref.read(membershipRepositoryProvider).redeemCode(code);
       if (mounted) {
+        ref.invalidate(membershipStatusProvider);
         showAppToast(context, l10n.redeemSuccess);
         context.pop();
       }
-    } on ApiException catch (e) {
-      if (mounted) showAppToast(context, '${l10n.redeemFailed}: ${e.serverMessage ?? e.statusCode}');
+    } catch (e) {
+      if (mounted) {
+        showAppToast(context, '${l10n.redeemFailed}: $e', destructive: true);
+      }
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -52,7 +57,7 @@ class _RedeemScreenState extends ConsumerState<RedeemScreen> {
     final l10n = AppLocalizations.of(context)!;
     final c = colorsOf(context);
 
-    return Scaffold(
+    return AdaptivePageScaffold(
       backgroundColor: c.background,
       appBar: CortermAppBar(
         title: l10n.redeemCode,
@@ -71,10 +76,14 @@ class _RedeemScreenState extends ConsumerState<RedeemScreen> {
           ),
           const SizedBox(height: 16),
           ShadButton(
-            onPressed: _submitting ? null : _redeem,
+            enabled: !_submitting,
+            onPressed: _redeem,
             child: _submitting
                 ? const SizedBox(
-                    width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
                 : Text(l10n.redeemButton),
           ),
         ],

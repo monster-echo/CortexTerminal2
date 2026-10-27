@@ -18,6 +18,7 @@ dist/
 **/wwwroot/index.html
 .playwright-cli
 docs/*
+!docs/UI-UX-AUDIT-2026-10-26.md
 .git1
 !docs/corterm_appstore_qr.png
 !docs/corterm_googleplay_qr.png
@@ -50,3 +51,5 @@ src/Flutter/**/.flutter-plugins-dependencies
 .shots/
 # Windows Store MSIX build artifacts
 src/Flutter/worker_ui/artifacts/
+
+!docs/UI-UX-IMPLEMENTATION-2026-10-26.md

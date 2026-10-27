@@ -10,7 +10,7 @@ import 'ws_frames.dart';
 
 /// 一个 session 一条 WS 连接（Gateway 单附着语义：同 session 第二次附着会挤掉旧客户端）。
 ///
-/// 帧事件通过 [frames] 广播；连接断开通过 [onDisconnected] 通知（带错误原因，如有）。
+/// 帧流由 SessionController 单点消费；订阅前到达的握手和重放帧会保留。
 class TerminalSocket {
   TerminalSocket._(this._channel, this.sessionId) {
     _channel.listen(
@@ -22,16 +22,16 @@ class TerminalSocket {
           // 连接会被服务端关闭；标记原因后正常走 onDone。
           _notFound = true;
         }
-        _frameController.add(frame);
+        if (!_frameController.isClosed) _frameController.add(frame);
       },
       onError: (Object e) {
-        _frameController.addError(e);
+        if (!_frameController.isClosed) _frameController.addError(e);
       },
       onDone: () {
         // 服务端关闭（网络断开 / displaced / exited 收尾）：关闭帧流，
         // 让消费方的 onDone 触发重连判定。
         _closed = true;
-        _doneCompleter.complete();
+        if (!_doneCompleter.isCompleted) _doneCompleter.complete();
         if (!_frameController.isClosed) _frameController.close();
       },
     );
@@ -60,7 +60,9 @@ class TerminalSocket {
 
   bool _closed = false;
   bool _notFound = false;
-  final _frameController = StreamController<ServerFrame>.broadcast();
+  // A broadcast stream drops initial replay/live frames before the caller
+  // subscribes. A single-subscription stream buffers them until attachment.
+  final _frameController = StreamController<ServerFrame>();
   final _doneCompleter = Completer<void>();
 
   var _sentDetach = false;

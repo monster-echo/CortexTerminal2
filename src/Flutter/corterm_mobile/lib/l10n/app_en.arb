@@ -359,8 +359,9 @@
   "feedbackSuggestion": "Suggestion",
   "feedbackContent": "Describe the issue",
   "feedbackContentPlaceholder": "What happened? What did you expect?",
+  "feedbackMinimumLength": "At least 10 characters",
   "feedbackContact": "Contact (optional)",
-  "feedbackContactPlaceholder": "Email / Telegram / QQ",
+  "feedbackContactPlaceholder": "Email / Telegram",
   "feedbackAttachments": "Attachments ({cur}/{max})",
   "@feedbackAttachments": {
     "placeholders": {
@@ -535,5 +536,9 @@
   "terminalStartupUnknown": "The terminal has not produced output yet. The cause is unconfirmed. Check shell startup configuration, permissions, and system prompts on the computer.",
   "terminalWorkerOffline": "The computer is offline. Check again after it reconnects.",
   "terminalSessionGone": "The remote session no longer exists. Return to the session list to check its status.",
-  "terminalPermissionGuide": "Remote Mac permission instructions"
+  "terminalPermissionGuide": "Remote Mac permission instructions",
+  "showPassword": "Show password",
+  "hidePassword": "Hide password",
+  "phoneLoginHint": "Sign in with a text message code. No password needed.",
+  "sendingCode": "Sending…"
 }

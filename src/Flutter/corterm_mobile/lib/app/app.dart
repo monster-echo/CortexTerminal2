@@ -11,6 +11,7 @@ import '../core/net/connectivity_watcher.dart';
 import '../core/storage/app_preferences.dart';
 import '../features/sessions/data/sessions_providers.dart';
 import '../features/session/session_controller.dart';
+import '../shared/layout/adaptive_window.dart';
 import 'theme/corterm_theme.dart';
 import 'router.dart';
 import 'theme/app_theme.dart' show shadDarkTheme, shadLightTheme;
@@ -119,7 +120,9 @@ class _CortermAppState extends ConsumerState<CortermApp>
                 ? Brightness.light
                 : Brightness.dark,
           ),
-          child: ShadToaster(child: child ?? const SizedBox.shrink()),
+          child: AdaptiveWindow(
+            child: ShadToaster(child: child ?? const SizedBox.shrink()),
+          ),
         );
       },
     );

@@ -1,3 +1,5 @@
+import '../../shared/layout/adaptive_page_scaffold.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -29,10 +31,13 @@ class LegalDocumentScreen extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     final theme = ShadTheme.of(context);
     final c = colorsOf(context);
-    final bodyMedium =
-        theme.textTheme.small.copyWith(height: 1.55, color: c.textPrimary);
+    final anchors = [for (final _ in document.sections) GlobalKey()];
+    final bodyMedium = theme.textTheme.small.copyWith(
+      height: 1.55,
+      color: c.textPrimary,
+    );
 
-    return Scaffold(
+    return AdaptivePageScaffold(
       backgroundColor: c.background,
       appBar: CortermAppBar(
         leading: ShadIconButton.ghost(
@@ -42,46 +47,84 @@ class LegalDocumentScreen extends StatelessWidget {
         ),
         title: document.title,
       ),
-      body: ListView(
+      body: SingleChildScrollView(
+        key: PageStorageKey('legal-${document.title}'),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-        children: [
-          Text(
-            l10n.legalVersionCaption(document.effectiveDate),
-            style: theme.textTheme.small.copyWith(color: c.textSecondary),
-          ),
-          const SizedBox(height: 16),
-          for (final section in document.sections) ...[
-            if (section.title.isNotEmpty) ...[
-              Text(
-                section.title,
-                style: theme.textTheme.small.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: c.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 6),
-            ],
-            for (final p in section.paragraphs) ...[
-              Text(p, style: bodyMedium),
-              const SizedBox(height: 6),
-            ],
-            if (section.bullets.isNotEmpty) ...[
-              for (final b in section.bullets)
-                Padding(
-                  padding: const EdgeInsets.only(left: 12, bottom: 6),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('·  '),
-                      Expanded(child: Text(b, style: bodyMedium)),
-                    ],
+        child: SelectionArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (document.sections.length > 3)
+                ExpansionTile(
+                  title: Text(
+                    Localizations.localeOf(context).languageCode == 'zh'
+                        ? '目录'
+                        : 'Contents',
                   ),
+                  children: [
+                    for (final entry in document.sections.asMap().entries)
+                      if (entry.value.title.isNotEmpty)
+                        ListTile(
+                          title: Text(entry.value.title),
+                          onTap: () {
+                            final target = anchors[entry.key].currentContext;
+                            if (target != null) {
+                              Scrollable.ensureVisible(
+                                target,
+                                duration:
+                                    MediaQuery.disableAnimationsOf(context)
+                                    ? Duration.zero
+                                    : const Duration(milliseconds: 250),
+                              );
+                            }
+                          },
+                        ),
+                  ],
                 ),
-              const SizedBox(height: 6),
+              Text(
+                l10n.legalVersionCaption(document.effectiveDate),
+                style: theme.textTheme.small.copyWith(color: c.textSecondary),
+              ),
+              const SizedBox(height: 16),
+              for (final entry in document.sections.asMap().entries) ...[
+                SizedBox(key: anchors[entry.key]),
+                ...[entry.value].expand(
+                  (section) => <Widget>[
+                    if (section.title.isNotEmpty) ...[
+                      Text(
+                        section.title,
+                        style: theme.textTheme.small.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: c.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                    ],
+                    for (final p in section.paragraphs) ...[
+                      Text(p, style: bodyMedium),
+                      const SizedBox(height: 6),
+                    ],
+                    if (section.bullets.isNotEmpty) ...[
+                      for (final b in section.bullets)
+                        Padding(
+                          padding: const EdgeInsets.only(left: 12, bottom: 6),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('·  '),
+                              Expanded(child: Text(b, style: bodyMedium)),
+                            ],
+                          ),
+                        ),
+                      const SizedBox(height: 6),
+                    ],
+                    const SizedBox(height: 14),
+                  ],
+                ),
+              ],
             ],
-            const SizedBox(height: 14),
-          ],
-        ],
+          ),
+        ),
       ),
     );
   }
@@ -98,7 +141,7 @@ class LegalIndexScreen extends ConsumerWidget {
     final c = colorsOf(context);
     final localeTag = ref.watch(localeProvider);
 
-    return Scaffold(
+    return AdaptivePageScaffold(
       backgroundColor: c.background,
       appBar: CortermAppBar(
         leading: ShadIconButton.ghost(
@@ -113,34 +156,39 @@ class LegalIndexScreen extends ConsumerWidget {
         children: [
           Text(
             l10n.legalIndexIntro,
-            style: theme.textTheme.muted
-                .copyWith(color: c.textSecondary),
+            style: theme.textTheme.muted.copyWith(color: c.textSecondary),
           ),
           const SizedBox(height: 12),
-          AppGroupCard(children: [
-            AppRow(
-              icon: LucideIcons.lock,
-              label: l10n.privacyPolicy,
-              value: l10n.privacyPolicyDesc,
-              chevron: true,
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => LegalDocumentScreen(document: privacyPolicyOf(localeTag)),
+          AppGroupCard(
+            children: [
+              AppRow(
+                icon: LucideIcons.lock,
+                label: l10n.privacyPolicy,
+                value: l10n.privacyPolicyDesc,
+                chevron: true,
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => LegalDocumentScreen(
+                      document: privacyPolicyOf(localeTag),
+                    ),
+                  ),
                 ),
               ),
-            ),
-            AppRow(
-              icon: LucideIcons.bookOpen,
-              label: l10n.termsOfService,
-              value: l10n.termsOfServiceDesc,
-              chevron: true,
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => LegalDocumentScreen(document: termsOfServiceOf(localeTag)),
+              AppRow(
+                icon: LucideIcons.bookOpen,
+                label: l10n.termsOfService,
+                value: l10n.termsOfServiceDesc,
+                chevron: true,
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => LegalDocumentScreen(
+                      document: termsOfServiceOf(localeTag),
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ]),
+            ],
+          ),
         ],
       ),
     );

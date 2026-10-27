@@ -3692,6 +3692,19 @@ app.MapPost("/api/workspaces/{workspaceId}/files/rename", async (string workspac
     catch (WorkspaceFileServiceException ex) { return MapFileError(ex); }
 }).RequireAuthorization();
 
+app.MapPost("/api/workspaces/{workspaceId}/files/trash", async (string workspaceId, TrashRequest body, ClaimsPrincipal user, RelayFileTransferService files, CancellationToken ct) =>
+{
+    try { await files.TrashAsync(GetUserId(user), workspaceId, body.Path, body.TrashId, ct); return Results.Ok(); }
+    catch (UnauthorizedAccessException) { return Results.Forbid(); }
+    catch (WorkspaceFileServiceException ex) { return MapFileError(ex); }
+}).RequireAuthorization();
+app.MapPost("/api/workspaces/{workspaceId}/files/restore", async (string workspaceId, RestoreTrashRequest body, ClaimsPrincipal user, RelayFileTransferService files, CancellationToken ct) =>
+{
+    try { await files.RestoreTrashAsync(GetUserId(user), workspaceId, body.TrashId, ct); return Results.Ok(); }
+    catch (UnauthorizedAccessException) { return Results.Forbid(); }
+    catch (WorkspaceFileServiceException ex) { return MapFileError(ex); }
+}).RequireAuthorization();
+
 app.MapPost("/api/workspaces/{workspaceId}/files/delete", async (string workspaceId, DeleteRequest body, ClaimsPrincipal user, RelayFileTransferService files) =>
 {
     var userId = GetUserId(user);
@@ -4234,6 +4247,8 @@ public sealed record WriteTextRequest(string Path, string Content);
 public sealed record RenameRequest(string Path, string NewName);
 
 public sealed record DeleteRequest(string Path);
+public sealed record TrashRequest(string Path, string TrashId);
+public sealed record RestoreTrashRequest(string TrashId);
 
 /// <summary>终端文件上传请求：root 为绝对路径（OSC 7 实时 cwd 或工作区路径），Worker 校验其不逃出 home。</summary>
 public sealed record WorkerFileUploadRequest(string Root, string DirPath, string Filename, long SizeBytes, string Sha256);

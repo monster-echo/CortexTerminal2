@@ -2,56 +2,28 @@ import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../layout/adaptive_sheet.dart';
 
-/// 统一 Bottom Sheet 容器（§66）：shadcn expandable 模式——
-/// 默认 50% 屏进入，把手拖动在 25%~100% 之间缩放；16dp 边距 + 底部 safe area。
-/// 底层走 shadcn 框架的 showShadSheet；各 sheet builder 只写内容。
+/// Bounded, scrollable sheet shared by forms and confirmations.
 Future<T?> showCortermSheet<T>({
   required BuildContext context,
   required WidgetBuilder builder,
 }) {
-  return showShadSheet<T>(
+  return showAdaptiveModalBottomSheet<T>(
     context: context,
-    builder: (sheetContext) {
-      // shadcn 默认 expandable 模式：initialSize 0.5 / minSize 0.25 /
-      // maxSize 1.0（占屏比），自带拖拽把手，把手拖动缩放、可吸附；
-      // 各 sheet builder 只写内容。高度全部交给组件内部，不再外挂约束。
-      final content = Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        child: builder(sheetContext),
-      );
-
-      final sheet = ShadSheet(
-        // expandable 模式下 sheet 高度由把手拖动的占屏比决定，
-        // 内容高度约束交给组件内部，不再外挂 minHeight/maxHeight。
-        // 关闭手段：下滑到底（minSize 以下继续拖）/ 点遮罩（barrierDismissible）。
-        expandable: true,
-        // 右上角 ✕ 与头部主操作按钮叠位，去掉。
-        closeIcon: const SizedBox.shrink(),
-        // 必须关掉 dialog 内建 SafeArea：sheet 底部对齐，它会把「顶部」inset
-        // 也加进盒子，在 sheet 顶部撑出大片空白（iPhone 上约 59pt + padding）。
-        useSafeArea: false,
-        // 边距由容器 content 统一提供（16dp）。
-        padding: EdgeInsets.zero,
-        // shadcn 的 sheet route 不带 Material 祖先；InkWell/ListTile 类行组件需要它。
-        // MaterialType.transparency 是纯渲染层原语，不引入 Material 视觉。
-        child: Material(
-          type: MaterialType.transparency,
-          // 底部 safe area 只在这里消费一次；再 removePadding，让各 sheet
-          // 内容里已有的 SafeArea 变成 no-op，避免底部 inset 叠两层。
-          child: SafeArea(
-            top: false,
-            child: MediaQuery.removePadding(
-              context: sheetContext,
-              removeTop: true,
-              removeBottom: true,
-              child: content,
-            ),
-          ),
+    showDragHandle: true,
+    builder: (sheetContext) => SafeArea(
+      top: false,
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          16,
+          0,
+          16,
+          16 + MediaQuery.viewInsetsOf(sheetContext).bottom,
         ),
-      );
-      return sheet;
-    },
+        child: builder(sheetContext),
+      ),
+    ),
   );
 }
 
@@ -94,19 +66,18 @@ Future<bool> showConfirmDialog({
         : Builder(
             builder: (bodyContext) => Text(
               body,
-              style: ShadTheme.of(bodyContext)
-                  .textTheme
-                  .muted
-                  .copyWith(color: ShadTheme.of(bodyContext).colorScheme.mutedForeground),
+              style: ShadTheme.of(bodyContext).textTheme.muted.copyWith(
+                color: ShadTheme.of(bodyContext).colorScheme.mutedForeground,
+              ),
             ),
           ),
     actions: [
       ShadButton.outline(
-        onPressed: () => Navigator.of(context).pop(false),
+        onPressed: () => Navigator.of(context, rootNavigator: true).pop(false),
         child: Text(l10n.cancel),
       ),
       ShadButton.destructive(
-        onPressed: () => Navigator.of(context).pop(true),
+        onPressed: () => Navigator.of(context, rootNavigator: true).pop(true),
         child: Text(confirmLabel),
       ),
     ],

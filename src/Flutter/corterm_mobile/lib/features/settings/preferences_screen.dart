@@ -1,13 +1,18 @@
+import '../../shared/layout/adaptive_page_scaffold.dart';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../core/storage/app_preferences.dart';
+import '../../core/models/terminal_color_scheme.dart';
 import '../../app/theme/corterm_theme.dart';
 import '../../l10n/app_localizations.dart';
 import '../../shared/widgets/list_group.dart';
 import '../../shared/widgets/states.dart';
+import '../../shared/widgets/sheets_and_dialogs.dart';
+import '../../shared/layout/adaptive_sheet.dart';
 import 'data/preferences_repository.dart';
 import 'terminal_themes_screen.dart';
 
@@ -24,7 +29,7 @@ class PreferencesScreen extends ConsumerWidget {
     final localeTag = ref.watch(localeProvider);
     final fontSize = ref.watch(fontSizeProvider);
 
-    return Scaffold(
+    return AdaptivePageScaffold(
       appBar: AppBar(title: Text(l10n.settings)),
       body: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -106,8 +111,64 @@ class PreferencesScreen extends ConsumerWidget {
                   ),
                 ),
               ),
+              AppRow(
+                icon: Icons.keyboard_outlined,
+                label: Localizations.localeOf(context).languageCode == 'zh'
+                    ? '终端快捷键'
+                    : 'Terminal accessory keys',
+                chevron: true,
+                onTap: () => showAdaptiveModalBottomSheet<void>(
+                  context: context,
+                  builder: (_) => const _TerminalKeysEditor(),
+                ),
+              ),
               _ScrollbackRow(),
             ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            Localizations.localeOf(context).languageCode == 'zh'
+                ? '偏好修改会立即生效。恢复默认仅重置本机外观、语言和终端设置，不删除会话或自定义主题。'
+                : 'Changes apply immediately. Reset affects local appearance, language and terminal preferences, and keeps sessions and custom themes.',
+          ),
+          TextButton(
+            onPressed: () async {
+              final zh = Localizations.localeOf(context).languageCode == 'zh';
+              final confirmed = await showConfirmDialog(
+                context: context,
+                title: zh ? '恢复本机默认偏好？' : 'Reset local preferences?',
+                body: zh ? '会话、自定义主题和服务器回滚配额会保留。' : 'Sessions, custom themes and server scrollback quota will be kept.',
+                confirmLabel: zh ? '恢复默认' : 'Reset',
+              );
+              if (!confirmed) return;
+              try {
+                await ref
+                    .read(fontSizeProvider.notifier)
+                    .set(AppPreferences.defaultFontSize);
+                await ref.read(keepAwakeProvider.notifier).set(true);
+                await ref
+                    .read(terminalKeyLayoutProvider.notifier)
+                    .set(terminalKeyDefaults);
+                await ref
+                    .read(terminalThemeSelectionProvider.notifier)
+                    .set(followAppTerminalTheme);
+                await ref.read(directoryCollapsedProvider.notifier).set(false);
+                await ref
+                    .read(themeModeProvider.notifier)
+                    .set(ThemeMode.system);
+                await ref.read(localeProvider.notifier).set('');
+                if (context.mounted) showAppToast(context, l10n.saved);
+              } catch (error) {
+                if (context.mounted) {
+                  showAppToast(context, '$error', destructive: true);
+                }
+              }
+            },
+            child: Text(
+              Localizations.localeOf(context).languageCode == 'zh'
+                  ? '恢复默认偏好'
+                  : 'Reset local preferences',
+            ),
           ),
           const SizedBox(height: 24),
         ],
@@ -139,8 +200,10 @@ class _ScrollbackRow extends ConsumerWidget {
           height: 14,
           child: ShadProgress(value: null),
         ),
-        error: (e, _) =>
-            Text('—', style: TextStyle(color: colorsOf(context).textSecondary)),
+        error: (e, _) => TextButton(
+          onPressed: () => ref.invalidate(scrollbackPreferenceProvider),
+          child: Text(l10n.retry),
+        ),
         data: (p) {
           // 服务端可能存有非预设值（web 端设置过）：如实展示，不冒充预设档位。
           final options = Map<int, String>.of(_options);
@@ -233,8 +296,8 @@ class _SegmentedChoice<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = colorsOf(context);
-    return Row(
-      mainAxisSize: MainAxisSize.min,
+    return Wrap(
+      alignment: WrapAlignment.end,
       children: [
         for (final option in options)
           Semantics(
@@ -246,6 +309,8 @@ class _SegmentedChoice<T> extends StatelessWidget {
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 180),
                 curve: Curves.easeOutCubic,
+                constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+                alignment: Alignment.center,
                 padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 7),
                 decoration: BoxDecoration(
                   color: option.$1 == value
@@ -269,6 +334,121 @@ class _SegmentedChoice<T> extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+class _TerminalKeysEditor extends ConsumerStatefulWidget {
+  const _TerminalKeysEditor();
+  @override
+  ConsumerState<_TerminalKeysEditor> createState() =>
+      _TerminalKeysEditorState();
+}
+
+class _TerminalKeysEditorState extends ConsumerState<_TerminalKeysEditor> {
+  late final List<String> _keys = [
+    ...ref.read(terminalKeyLayoutProvider),
+    ...terminalKeyDefaults.where(
+      (key) => !ref.read(terminalKeyLayoutProvider).contains(key),
+    ),
+  ];
+  late final Set<String> _enabled = ref.read(terminalKeyLayoutProvider).toSet();
+  bool _saving = false;
+  String? _error;
+  @override
+  Widget build(BuildContext context) {
+    final zh = Localizations.localeOf(context).languageCode == 'zh';
+    const labels = {
+      'esc': 'Esc',
+      'ctrl': 'Ctrl',
+      'alt': 'Alt',
+      'tab': 'Tab',
+      'shiftTab': 'Shift + Tab',
+      'left': '←',
+      'up': '↑',
+      'down': '↓',
+      'right': '→',
+      'paste': 'Paste',
+    };
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            zh ? '终端快捷键' : 'Terminal accessory keys',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          Text(
+            zh ? '勾选常用按键，用箭头调整顺序。“完成”始终保留。' : 'Choose keys and use arrows to reorder. Done always stays visible.',
+          ),
+          for (var index = 0; index < _keys.length; index++)
+            Row(
+              children: [
+                Expanded(
+                  child: CheckboxListTile(
+                    controlAffinity: ListTileControlAffinity.leading,
+                    title: Text(
+                      _keys[index] == 'paste'
+                          ? AppLocalizations.of(context)!.paste
+                          : labels[_keys[index]]!,
+                    ),
+                    value: _enabled.contains(_keys[index]),
+                    onChanged: _saving
+                        ? null
+                        : (selected) => setState(() {
+                            if (selected == true) {
+                              _enabled.add(_keys[index]);
+                            } else {
+                              _enabled.remove(_keys[index]);
+                            }
+                          }),
+                  ),
+                ),
+                IconButton(
+                  tooltip: zh ? '上移' : 'Move up',
+                  icon: const Icon(Icons.arrow_upward),
+                  onPressed: _saving || index == 0
+                      ? null
+                      : () => setState(() {
+                          final key = _keys.removeAt(index);
+                          _keys.insert(index - 1, key);
+                        }),
+                ),
+                IconButton(
+                  tooltip: zh ? '下移' : 'Move down',
+                  icon: const Icon(Icons.arrow_downward),
+                  onPressed: _saving || index == _keys.length - 1
+                      ? null
+                      : () => setState(() {
+                          final key = _keys.removeAt(index);
+                          _keys.insert(index + 1, key);
+                        }),
+                ),
+              ],
+            ),
+          if (_error != null)
+            Text(_error!, style: TextStyle(color: colorsOf(context).danger)),
+          FilledButton(
+            onPressed: _saving || _enabled.isEmpty
+                ? null
+                : () async {
+                    setState(() => _saving = true);
+                    try {
+                      await ref
+                          .read(terminalKeyLayoutProvider.notifier)
+                          .set(_keys.where(_enabled.contains).toList());
+                      if (context.mounted) Navigator.of(context).pop();
+                    } catch (error) {
+                      if (mounted) setState(() => _error = '$error');
+                    } finally {
+                      if (mounted) setState(() => _saving = false);
+                    }
+                  },
+            child: Text(AppLocalizations.of(context)!.save),
+          ),
+        ],
+      ),
     );
   }
 }
