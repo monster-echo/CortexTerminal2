@@ -267,6 +267,8 @@ class _GroupCard extends StatelessWidget {
       qrCodeUrl,
       width: size,
       height: size,
+      // 二维码按显示尺寸降采样解码（Play Vitals: downsample bitmaps）
+      cacheWidth: (size * MediaQuery.devicePixelRatioOf(context)).round(),
       errorBuilder: (_, _, _) => SizedBox(
         width: size,
         height: size,

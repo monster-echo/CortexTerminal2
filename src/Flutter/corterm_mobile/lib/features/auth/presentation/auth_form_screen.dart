@@ -544,6 +544,10 @@ class _AuthFormScreenState extends ConsumerState<AuthFormScreen>
                                 width: 58,
                                 height: 58,
                                 excludeFromSemantics: true,
+                                // 降采样解码（Play Vitals: downsample bitmaps）
+                                cacheWidth: (58 *
+                                        MediaQuery.devicePixelRatioOf(context))
+                                    .round(),
                               ),
                             ),
                           ),

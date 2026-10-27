@@ -506,6 +506,9 @@ class _CortermSidebarState extends ConsumerState<CortermSidebar> {
                       'assets/branding/icon.png',
                       width: 30,
                       height: 30,
+                      // 降采样解码（Play Vitals: downsample bitmaps）
+                      cacheWidth:
+                          (30 * MediaQuery.devicePixelRatioOf(context)).round(),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -668,7 +671,9 @@ class _CortermSidebarState extends ConsumerState<CortermSidebar> {
                           backgroundColor: c.surfaceSelected,
                           foregroundImage: avatarUrl.isEmpty
                               ? null
-                              : NetworkImage(avatarUrl),
+                              // 降采样到 40px×3x 显示尺寸解码（Play Vitals）
+                              : ResizeImage(NetworkImage(avatarUrl),
+                                  width: 120),
                           child: Text(
                             displayName.trim().isNotEmpty
                                 ? displayName

@@ -271,6 +271,9 @@ class _Avatar extends StatelessWidget {
               width: size,
               height: size,
               fit: BoxFit.cover,
+              // 头像按显示尺寸降采样解码（Play Vitals: downsample bitmaps）
+              cacheWidth:
+                  (size * MediaQuery.devicePixelRatioOf(context)).round(),
               errorBuilder: (_, _, _) => Container(
                 width: size,
                 height: size,

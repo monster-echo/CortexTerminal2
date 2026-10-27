@@ -48,6 +48,9 @@ class AboutScreen extends ConsumerWidget {
                     'assets/branding/icon.png',
                     width: 72,
                     height: 72,
+                    // 1024px 原图按显示尺寸降采样解码（Play Vitals）
+                    cacheWidth:
+                        (72 * MediaQuery.devicePixelRatioOf(context)).round(),
                   ),
                 ),
                 const SizedBox(height: 14),

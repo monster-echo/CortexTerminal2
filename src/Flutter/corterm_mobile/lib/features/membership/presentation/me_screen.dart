@@ -217,7 +217,10 @@ class _ProfileAvatar extends StatelessWidget {
     return CircleAvatar(
       radius: 24,
       backgroundColor: c.surfaceSelected,
-      foregroundImage: url.isEmpty ? null : NetworkImage(url),
+      foregroundImage: url.isEmpty
+          ? null
+          // 降采样到 48px×3x 显示尺寸解码（Play Vitals）
+          : ResizeImage(NetworkImage(url), width: 144),
       child: Text(
         fallback.trim().isEmpty
             ? 'U'
