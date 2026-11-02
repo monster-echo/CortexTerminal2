@@ -2,6 +2,8 @@
 
 发行平台：iOS App Store、Android Google Play。客户端包名 / Bundle ID 为 `top.rwecho.cortexterminal`，以原生工程实际配置为准。
 
+商店文案、EULA 与订阅披露见 [STORE_LISTING.md](STORE_LISTING.md)。
+
 ## 商品
 
 | 权益 | App Store 商品 ID | Google Play 默认商品 ID | 类型 |

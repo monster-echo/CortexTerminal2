@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../app/theme/corterm_theme.dart';
+import '../../../core/legal/legal_links.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/app_bar.dart';
 import '../data/store_purchase_controller.dart';
@@ -45,6 +46,23 @@ class _MembershipScreenState extends ConsumerState<MembershipScreen> {
         ),
       );
     }
+  }
+
+  Future<void> _openLink(String url) async {
+    final opened = await launchUrl(
+      Uri.parse(url),
+      mode: LaunchMode.externalApplication,
+    );
+    if (opened) return;
+    if (!mounted) return;
+    final zh = Localizations.localeOf(context).languageCode == 'zh';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          zh ? '无法打开链接，请稍后重试。' : 'Could not open the link. Try again.',
+        ),
+      ),
+    );
   }
 
   @override
@@ -525,6 +543,30 @@ class _MembershipScreenState extends ConsumerState<MembershipScreen> {
                           '确认购买后由商店账户扣款。订阅将自动续费，续费价格与周期以商店确认页为准。',
                           'Payment is charged to your store account after confirmation. Subscriptions renew automatically; review the price and billing period in the store.',
                         ),
+                      ),
+                      Wrap(
+                        spacing: 4,
+                        children: [
+                          TextButton(
+                            onPressed: () => _openLink(LegalLinks.termsOfUse),
+                            child: Text(
+                              tr('使用条款（EULA）', 'Terms of Use (EULA)'),
+                              style: const TextStyle(
+                                decoration: TextDecoration.underline,
+                              ),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () =>
+                                _openLink(LegalLinks.privacyPolicy),
+                            child: Text(
+                              tr('隐私政策', 'Privacy Policy'),
+                              style: const TextStyle(
+                                decoration: TextDecoration.underline,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                       CheckboxListTile(
                         contentPadding: EdgeInsets.zero,
